@@ -48,101 +48,106 @@ class _NavBottomBarState extends State<NavBottomBar>
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.visible)
+    if (!widget.visible) {
       return const SizedBox.shrink(); // Hide when not visible
+    }
 
     final screenWidth = MediaQuery.of(context).size.width;
     final barWidth = screenWidth * 0.35; // 50% of screen width
 
-    return Positioned(
-      bottom: 20,
-      left: (screenWidth - barWidth) / 2,
-      width: barWidth,
-      child: Container(
-        height: 50,
-        decoration: BoxDecoration(
-          color: Colors.black,
-          borderRadius: BorderRadius.circular(25), // Fully rounded sides
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            // Track indicator
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Center(
-                child: Container(
-                  height: 42,
-                ),
+    return Visibility(
+      visible: widget.visible,
+      child: Positioned(
+        bottom: 20,
+        left: (screenWidth - barWidth) / 2,
+        width: barWidth,
+        child: Container(
+          height: 50,
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(25), // Fully rounded sides
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-            ),
-
-            // Slide text
-            Center(
-              child: Text(
-                widget.promptText,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-
-            // Draggable button
-            GestureDetector(
-              onHorizontalDragUpdate: (details) {
-                setState(() {
-                  final maxDrag =
-                      barWidth - 42 - 8; // Account for button width and padding
-                  final delta = details.delta.dx / maxDrag;
-                  _dragProgress = (_dragProgress + delta).clamp(0.0, 1.0);
-                });
-              },
-              onHorizontalDragEnd: (_) {
-                if (_dragProgress >= _slideThreshold) {
-                  widget.onSlideRight();
-                }
-                _returnController.forward(from: 0.0);
-              },
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Transform.translate(
-                  offset: Offset(
-                      (_dragProgress * (barWidth - 42 - 8))
-                          .clamp(0.0, barWidth - 42 - 8),
-                      0),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Track indicator
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Center(
                   child: Container(
-                    width: 42,
                     height: 42,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: widget.color,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.arrow_forward,
-                      color: Colors.white,
-                      size: 20 + (_dragProgress * 4),
+                  ),
+                ),
+              ),
+
+              // Slide text
+              Center(
+                child: Text(
+                  widget.promptText,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+
+              // Draggable button
+              GestureDetector(
+                onHorizontalDragUpdate: (details) {
+                  setState(() {
+                    final maxDrag = barWidth -
+                        42 -
+                        8; // Account for button width and padding
+                    final delta = details.delta.dx / maxDrag;
+                    _dragProgress = (_dragProgress + delta).clamp(0.0, 1.0);
+                  });
+                },
+                onHorizontalDragEnd: (_) {
+                  if (_dragProgress >= _slideThreshold) {
+                    widget.onSlideRight();
+                  }
+                  _returnController.forward(from: 0.0);
+                },
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Transform.translate(
+                    offset: Offset(
+                        (_dragProgress * (barWidth - 42 - 8))
+                            .clamp(0.0, barWidth - 42 - 8),
+                        0),
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: widget.color,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.arrow_forward,
+                        color: Colors.white,
+                        size: 20 + (_dragProgress * 4),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

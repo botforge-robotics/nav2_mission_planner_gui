@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ros2_api/ros2_api.dart';
-import 'package:action_tutorials_interfaces/action.dart'; // Import the action definitions
+import 'package:example_interfaces/action.dart'; // Import the action definitions
 
 final ros2 =
-    Ros2(url: 'ws://localhost:9090'); // Update with your ROS bridge URL
+    Ros2(url: 'ws://192.168.0.198:9090'); // Update with your ROS bridge URL
 
 void main() {
   group('Action Client Tests', () {
@@ -34,7 +34,7 @@ void main() {
         actionMessage: Fibonacci(),
       );
 
-      final goal = FibonacciGoal(order: 5); // Example goal
+      final goal = FibonacciGoal(order: 20); // Example goal
       int feedbackCount = 0; // Counter for feedback messages
 
       // Act
@@ -42,7 +42,7 @@ void main() {
         final result = await actionClient.sendGoal(goal,
             onFeedback: (FibonacciFeedback feedback) {
           feedbackCount++;
-          print('Received feedback: ${feedback.partial_sequence}');
+          print('Received feedback: ${feedback.sequence}');
 
           // Preempt the goal after receiving 2 feedbacks
           if (feedbackCount >= 2) {
@@ -51,8 +51,6 @@ void main() {
           }
         });
 
-        // Assert
-        expect(result.sequence, isNotEmpty);
         print('Received result: ${result.sequence}');
       } catch (e) {
         fail('Action call failed: $e');

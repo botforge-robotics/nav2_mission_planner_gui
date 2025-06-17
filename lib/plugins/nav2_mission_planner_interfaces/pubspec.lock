@@ -2,16 +2,23 @@
 # See https://dart.dev/tools/pub/glossary#lockfile
 packages:
   actionlib_msgs:
-    dependency: transitive
+    dependency: "direct main"
     description:
       path: "../actionlib_msgs"
       relative: true
     source: path
     version: "0.1.0"
   builtin_interfaces:
-    dependency: transitive
+    dependency: "direct main"
     description:
       path: "../builtin_interfaces"
+      relative: true
+    source: path
+    version: "0.1.0"
+  geometry_msgs:
+    dependency: "direct main"
+    description:
+      path: "../geometry_msgs"
       relative: true
     source: path
     version: "0.1.0"
@@ -23,9 +30,16 @@ packages:
     source: path
     version: "0.0.1"
   std_msgs:
-    dependency: transitive
+    dependency: "direct main"
     description:
       path: "../std_msgs"
+      relative: true
+    source: path
+    version: "0.1.0"
+  unique_identifier_msgs:
+    dependency: "direct main"
+    description:
+      path: "../unique_identifier_msgs"
       relative: true
     source: path
     version: "0.1.0"

@@ -5,12 +5,16 @@ import 'package:ros2_api/ros2_api.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'package:uuid/uuid.dart';
+import 'package:nav2_mission_planner/modals/robotProfile.dart';
+import 'package:nav2_mission_planner/providers/settings_provider.dart';
 
 class ConnectionProvider extends ChangeNotifier {
+  List<RobotProfile> _robots = [];
+  RobotProfile? _activeRobot;
   String _ip = '';
   String _port = '9090';
   bool _isConnected = false;
-  List<Map<String, String>> _recentConnections = [];
   Ros2? _ros2Client;
 
   // Add this stream controller
@@ -23,29 +27,30 @@ class ConnectionProvider extends ChangeNotifier {
   String get ip => _ip;
   String get port => _port;
   bool get isConnected => _isConnected;
-  List<Map<String, String>> get recentConnections => _recentConnections;
+  List<RobotProfile> get robots => _robots;
+  RobotProfile? get activeRobot => _activeRobot;
   Ros2? get ros2Client => _ros2Client;
 
+  // Add this getter for compatibility with connection_screen.dart
+  List<Map<String, String>> get recentConnections {
+    return _robots
+        .map((robot) => {
+              'name': robot.name,
+              'ip': robot.ip,
+              'port': robot.port,
+            })
+        .toList();
+  }
+
   ConnectionProvider() {
-    _loadRecentConnections();
+    loadRobots();
   }
 
-  // Load recent connections from shared preferences
-  Future<void> _loadRecentConnections() async {
+  // Save robots to shared preferences
+  Future<void> _saveRobots() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? connectionsJson = prefs.getString('recentConnections');
-    if (connectionsJson != null) {
-      List<dynamic> connectionsList = json.decode(connectionsJson);
-      _recentConnections = List<Map<String, String>>.from(
-          connectionsList.map((item) => Map<String, String>.from(item)));
-      notifyListeners();
-    }
-  }
-
-  // Save recent connections to shared preferences
-  Future<void> _saveRecentConnections() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('recentConnections', json.encode(_recentConnections));
+    await prefs.setString(
+        'robots', json.encode(_robots.map((r) => r.toJson()).toList()));
   }
 
   // Add this helper method to check IP availability
@@ -60,8 +65,8 @@ class ConnectionProvider extends ChangeNotifier {
     }
   }
 
-  // Modified connect method
-  Future<bool> connect(String ip, String port) async {
+  // Modified connect method with name parameter
+  Future<bool> connect(String ip, String port, {String name = ''}) async {
     try {
       _connectionController.add(ConnectionState.connecting);
       if (!await _isRobotAvailable(ip)) {
@@ -74,29 +79,39 @@ class ConnectionProvider extends ChangeNotifier {
       _ip = ip;
       _port = port;
 
-      // Add to recent connections if not exists
-      final connection = {'ip': ip, 'port': port};
+      // Check if robot already exists
+      final existingIndex =
+          _robots.indexWhere((robot) => robot.ip == ip && robot.port == port);
 
-      // Check if the connection already exists by comparing ip and port values
-      bool connectionExists = _recentConnections
-          .any((conn) => conn['ip'] == ip && conn['port'] == port);
+      if (existingIndex != -1) {
+        // Update existing robot with new name and move to top
+        _robots[existingIndex].name =
+            name.trim().isEmpty ? _robots[existingIndex].name : name.trim();
+        final existingRobot = _robots.removeAt(existingIndex);
+        _robots.insert(0, existingRobot);
+        _activeRobot = _robots[0];
+      } else {
+        // Create new robot - will need setup
+        final robotName = name.trim().isEmpty ? 'Robot $ip' : name.trim();
+        final settingsId = Uuid().v4();
 
-      if (!connectionExists) {
-        // If this is a new connection, add it to the beginning of the list
-        _recentConnections.insert(0, connection);
+        final connection = RobotProfile(
+          id: Uuid().v4(),
+          name: robotName,
+          ip: ip,
+          port: port,
+          settingsId: settingsId,
+          isConfigured: false, // New robots need setup
+        );
+
+        // Set as active robot but don't save yet - only save after setup completion
+        _activeRobot = connection;
+        _robots.insert(0, connection);
 
         // Limit to last 10 connections
-        if (_recentConnections.length > 10) {
-          _recentConnections.removeLast();
+        if (_robots.length > 10) {
+          _robots.removeLast();
         }
-
-        await _saveRecentConnections(); // Save after updating
-      } else {
-        // If it exists already, move it to the top of the list
-        _recentConnections
-            .removeWhere((conn) => conn['ip'] == ip && conn['port'] == port);
-        _recentConnections.insert(0, connection);
-        await _saveRecentConnections();
       }
 
       notifyListeners();
@@ -108,12 +123,18 @@ class ConnectionProvider extends ChangeNotifier {
     }
   }
 
+  // Overloaded connect method for backward compatibility
+  Future<bool> connectWithoutName(String ip, String port) async {
+    return connect(ip, port);
+  }
+
   // Disconnect from ROS2
   Future<void> disconnect() async {
     _connectionController.add(ConnectionState.disconnecting);
     try {
       await _ros2Client?.close();
       _isConnected = false;
+      _activeRobot = null;
       notifyListeners();
     } catch (e) {
       rethrow;
@@ -121,6 +142,62 @@ class ConnectionProvider extends ChangeNotifier {
       _connectionController.add(ConnectionState.disconnected);
     }
   }
+
+  void addRobot(RobotProfile robot) {
+    _robots.add(robot);
+    _saveRobots();
+    notifyListeners();
+  }
+
+  void updateRobot(String id, String newName, String newIp, String newPort) {
+    final robotIndex = _robots.indexWhere((r) => r.id == id);
+    if (robotIndex != -1) {
+      _robots[robotIndex].name = newName;
+      _robots[robotIndex].ip = newIp;
+      _robots[robotIndex].port = newPort;
+      _saveRobots();
+      notifyListeners();
+    }
+  }
+
+  void deleteRobot(String id) async {
+    final robotToDelete = _robots.firstWhere((r) => r.id == id);
+    _robots.removeWhere((r) => r.id == id);
+
+    // If this was the active robot, clear it
+    if (_activeRobot?.id == id) {
+      _activeRobot = null;
+    }
+
+    _saveRobots();
+    notifyListeners();
+
+    // Delete robot-specific settings from SharedPreferences
+    await SettingsProvider.deleteRobotSettings(robotToDelete.settingsId);
+  }
+
+  Future<void> loadRobots() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? robotsJson = prefs.getString('robots');
+    if (robotsJson != null) {
+      _robots = List<RobotProfile>.from(
+          json.decode(robotsJson).map((x) => RobotProfile.fromJson(x)));
+      notifyListeners();
+    }
+  }
+
+  // Add method to mark robot as configured and save permanently
+  void markRobotConfigured(String robotId) {
+    final robotIndex = _robots.indexWhere((r) => r.id == robotId);
+    if (robotIndex != -1) {
+      _robots[robotIndex].isConfigured = true;
+      _saveRobots(); // Now save to permanent storage
+      notifyListeners();
+    }
+  }
+
+  // Add method to check if robot needs setup
+  bool get activeRobotNeedsSetup => _activeRobot?.isConfigured == false;
 }
 
 enum ConnectionState { connecting, connected, disconnecting, disconnected }

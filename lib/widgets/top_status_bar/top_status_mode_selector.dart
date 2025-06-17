@@ -43,8 +43,8 @@ class TopStatusModeSelector extends StatelessWidget {
               end: Alignment.centerRight,
               colors: [
                 connectionStatusColor,
-                connectionStatusColor.withOpacity(0.8),
-                connectionStatusColor.withOpacity(0.0),
+                connectionStatusColor.withValues(alpha: 0.8),
+                connectionStatusColor.withValues(alpha: 0.0),
               ],
               stops: const [0.0, 0.7, 1.0],
             ),
@@ -167,7 +167,7 @@ class TopStatusModeSelector extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: mode == currentMode
-              ? ModeColors.modeColorMap[mode]!.withOpacity(0.1)
+              ? ModeColors.modeColorMap[mode]!.withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
         ),

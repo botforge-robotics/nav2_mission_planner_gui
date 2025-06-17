@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:nav2_mission_planner/screens/settings/widgets/odom_topic_input.dart';
+import 'package:nav2_mission_planner/screens/settings/widgets/path_input.dart';
 import 'package:provider/provider.dart';
 import '../../providers/settings_provider.dart';
 import 'widgets/setting_card.dart';
@@ -66,15 +67,6 @@ class NavigationSettings extends StatelessWidget {
                   screenSize: screenSize,
                   modeColor: modeColor,
                 ),
-                SizedBox(height: screenSize.height * 0.015),
-                Text(
-                  'Command will be: ros2 launch [input].launch.py [arguments]',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey.shade400,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
                 Text(
                   'Note: The name of map file will be asked when starting navigation. Please make sure the argument name "map" is correct in your launch file.',
                   style: TextStyle(
@@ -95,6 +87,19 @@ class NavigationSettings extends StatelessWidget {
               initialValue: settings.navigationOdomTopic,
               initialValueType: settings.navigationOdomTopicType,
               onChanged: settings.setNavigationOdomTopic,
+              screenSize: screenSize,
+              modeColor: modeColor,
+            ),
+          ),
+          // Navigation Path Topic Setting
+          SettingCard(
+            title: 'Navigation Path Topic',
+            description: 'Set the topic for navigation path visualization',
+            modeColor: modeColor,
+            screenSize: screenSize,
+            content: PathTopicInput(
+              initialValue: settings.pathTopic,
+              onChanged: settings.setPathTopic,
               screenSize: screenSize,
               modeColor: modeColor,
             ),

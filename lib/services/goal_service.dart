@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
@@ -64,7 +63,7 @@ class GoalService {
     }
   }
 
-  void cancelCurrentGoal(BuildContext context) {
+  void cancelCurrentGoal() {
     try {
       _client.cancelGoal();
     } catch (e) {

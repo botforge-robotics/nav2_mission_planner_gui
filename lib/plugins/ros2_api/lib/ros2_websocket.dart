@@ -56,6 +56,7 @@ class Ros2 {
     if (status != Status.connected) return false;
     final toSend =
         (message is Map || message is List) ? json.encode(message) : message;
+
     _channel.sink.add(toSend);
     return true;
   }
@@ -67,6 +68,6 @@ class Ros2 {
 
   /// Generate a unique ID for action calls
   String requestActionCaller(String actionName) {
-    return const Uuid().v4().replaceAll('-', '');
+    return const Uuid().v4();
   }
 }

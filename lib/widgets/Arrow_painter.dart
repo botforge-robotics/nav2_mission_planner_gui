@@ -3,8 +3,10 @@ import 'dart:ui' as ui;
 
 class ArrowPainter extends CustomPainter {
   final Color color;
+  final String? number;
+  final double angle;
 
-  ArrowPainter({required this.color});
+  ArrowPainter({required this.color, this.number, required this.angle});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -24,9 +26,10 @@ class ArrowPainter extends CustomPainter {
       ..color = color
       ..style = PaintingStyle.fill;
 
+    final double dotRadius = size.width * 0.2;
     canvas.drawCircle(
         Offset(centerX, height), // Bottom center position
-        size.width * 0.05, // Dot radius
+        dotRadius, // Dot radius
         dotPaint);
 
     // Draw shaft
@@ -52,10 +55,54 @@ class ArrowPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     canvas.drawPath(arrowHead, headPaint);
+
+    // Draw number inside circle if provided
+    if (number != null) {
+      // Save the current canvas state
+      canvas.save();
+
+      // Translate to the center of the circle
+      canvas.translate(centerX, height);
+
+      // Rotate by negative angle to counter-rotate the text
+      canvas.rotate(-angle);
+
+      final textStyle = TextStyle(
+        color: Colors.white,
+        fontSize: dotRadius * 1.2,
+        fontWeight: FontWeight.bold,
+      );
+      final textSpan = TextSpan(
+        text: number,
+        style: textStyle,
+      );
+      final textPainter = TextPainter(
+        text: textSpan,
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout(
+        minWidth: 0,
+        maxWidth: dotRadius * 2,
+      );
+
+      // Draw text centered at origin (after translation)
+      textPainter.paint(
+        canvas,
+        Offset(
+          -textPainter.width / 2,
+          -textPainter.height / 2,
+        ),
+      );
+
+      // Restore the canvas state
+      canvas.restore();
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return oldDelegate is ArrowPainter && oldDelegate.color != color;
+  bool shouldRepaint(covariant ArrowPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.number != number ||
+        oldDelegate.angle != angle;
   }
 }

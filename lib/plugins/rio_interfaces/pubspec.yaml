@@ -7,3 +7,5 @@ environment:
 dependencies:
   ros2_msg_utils:
     path: ../ros2_msg_utils
+  std_msgs: any
+  actionlib_msgs: any

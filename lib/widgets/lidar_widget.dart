@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:nav2_mission_planner/providers/settings_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:sensor_msgs/msg.dart';

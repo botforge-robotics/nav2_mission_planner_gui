@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 import '../../../../providers/connection_provider.dart';
-import 'package:rosapi_msgs/srvs.dart';
+import 'package:rosapi_msgs/srv.dart';
 
 class CameraTopicInput extends StatefulWidget {
   final String initialValue;
@@ -38,12 +38,6 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
     // Only fetch if we haven't fetched before in this session
     if (_sessionTopics.isEmpty) {
       _fetchTopics();
-    } else {
-      // If we have topics and initialValue isn't in the list, select first topic
-      if (!_sessionTopics.contains(widget.initialValue) &&
-          _sessionTopics.isNotEmpty) {
-        widget.onChanged(_sessionTopics.first);
-      }
     }
   }
 
@@ -74,9 +68,6 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
       String? selectedTopic;
       if (topics.contains(widget.initialValue)) {
         selectedTopic = widget.initialValue;
-      } else if (topics.isNotEmpty) {
-        selectedTopic = topics.first;
-        widget.onChanged(selectedTopic);
       }
 
       setState(() {

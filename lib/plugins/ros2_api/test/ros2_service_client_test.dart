@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ros2_api/ros2_api.dart';
-import 'package:rosapi_msgs/srvs.dart'; // Import the service definitions for rosapi
+import 'package:rosapi_msgs/srv.dart'; // Import the service definitions for rosapi
 
 final ros2 =
     Ros2(url: 'ws://localhost:9090'); // Update with your ROS bridge URL

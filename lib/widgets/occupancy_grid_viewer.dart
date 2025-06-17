@@ -4,20 +4,17 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:nav2_mission_planner/helpers/conversions.dart';
-import 'package:nav2_mission_planner/providers/settings_provider.dart';
-import 'package:nav2_mission_planner/services/goal_service.dart';
+import 'package:nav2_mission_planner/modals/bookmark.dart';
+import 'package:nav2_mission_planner/modals/mission.dart';
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 import '../providers/connection_provider.dart';
 import 'package:nav_msgs/msg.dart' as nav_msgs;
+import 'package:rosapi_msgs/srv.dart';
 import 'robot_position_marker.dart';
-import 'package:nav2_mission_planner/providers/nav_tool_provider.dart';
-import 'package:nav2_mission_planner/services/pose_estimation_service.dart';
-import 'dart:ui' as ui show Path;
 import 'Arrow_painter.dart';
 import 'Simple_rotation_slider.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
-import '../widgets/nav_bottom_bar.dart';
 
 class OccupancyGridViewer extends StatefulWidget {
   final bool enabled;
@@ -26,15 +23,34 @@ class OccupancyGridViewer extends StatefulWidget {
   final Function(double)? onScaleChanged;
   final Color appModeColor;
   final bool showMarkers;
+  final Stream<Map<String, dynamic>>? robotPositionStrem;
+  final Stream<Map<String, dynamic>>? goalPositionStream;
+  final Function(Map<String, dynamic>)? onMarkerPoseReceived;
+  final Stream<List<Map<String, dynamic>>>? pathStream;
+  final bool disableLongPress;
+  final List<Bookmark>? bookmarks;
+  final Function(Bookmark)? onBookmarkTap;
+  final bool isGoalActive;
+  final List<Waypoint>? waypoints;
 
-  const OccupancyGridViewer(
-      {super.key,
-      required this.enabled,
-      required this.topic,
-      this.scale = 1.0,
-      this.onScaleChanged,
-      required this.appModeColor,
-      this.showMarkers = true});
+  const OccupancyGridViewer({
+    super.key,
+    required this.enabled,
+    required this.topic,
+    this.scale = 1.0,
+    this.onScaleChanged,
+    required this.appModeColor,
+    this.showMarkers = true,
+    this.robotPositionStrem,
+    this.goalPositionStream,
+    this.onMarkerPoseReceived,
+    this.pathStream,
+    this.disableLongPress = false,
+    this.bookmarks,
+    this.onBookmarkTap,
+    this.isGoalActive = false,
+    this.waypoints,
+  });
 
   @override
   State<OccupancyGridViewer> createState() => _OccupancyGridViewerState();
@@ -51,7 +67,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
   bool _hasError = false;
   double _initialMapFitScale = 1.0;
   bool _hasCalculatedInitialScale = false;
-  DateTime _lastUpdateTime = DateTime.now();
 
   // Controller for the interactive viewer
   final TransformationController _transformationController =
@@ -61,20 +76,14 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
   double _currentScale = 1.0;
   bool _isFirstLoad = true;
 
-  // Add to the class state
-  Subscriber<dynamic>? _odomSubscriber;
   double _robotX = 0.0;
   double _robotY = 0.0;
   double _robotTheta = 0.0;
-
   // Add these variables to store map origin information
   double _mapOriginX = 0.0;
   double _mapOriginY = 0.0;
   double _mapOriginTheta = 0.0;
 
-  // Add to class properties
-  bool _poseEstimationMode = false;
-  bool _goalMode = false;
   double _markerX = 0.0;
   double _markerY = 0.0;
   double _markerTheta = 0.0;
@@ -84,75 +93,61 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
   bool _showRotationSlider = false;
   Offset _rotationSliderCenter = Offset.zero;
 
-  GoalService _goalService = GoalService();
+  StreamSubscription? _positionSubscription;
 
-  // Add this variable to track current odometry topic
-  String? _currentOdomTopic;
-  String? _currentOdomType;
+  // Add goal position variables
+  double _goalX = 0.0;
+  double _goalY = 0.0;
+  double _goalTheta = 0.0;
+  bool _showGoal = false;
+  StreamSubscription? _goalSubscription;
 
-  // Add this reference
-  late SettingsProvider _settingsProvider;
+  StreamSubscription<List<Map<String, dynamic>>>? _pathSubscription;
+  List<Map<String, dynamic>> _currentPath = [];
 
-  bool _showGoalBar = false;
-  bool _showPoseMarker = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Store the provider reference here
-    _settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-
-    final navToolProvider = Provider.of<NavToolProvider>(context);
-    if (navToolProvider.poseEstimationEnabled != _poseEstimationMode) {
-      setState(() {
-        _showRotationSlider = false;
-        _showPoseMarker = false;
-        _showGoalBar = false;
-        _poseEstimationMode = navToolProvider.poseEstimationEnabled;
-        _goalMode = false;
-        if (!_poseEstimationMode) {
-          _markerX = 0.0;
-          _markerY = 0.0;
-          _markerTheta = 0.0;
-        }
-      });
-    }
-    if (navToolProvider.goalMode != _goalMode) {
-      setState(() {
-        _showRotationSlider = false;
-        _showPoseMarker = false;
-        _showGoalBar = false;
-        _poseEstimationMode = false;
-        _goalMode = navToolProvider.goalMode;
-        if (!_goalMode) {
-          _markerX = 0.0;
-          _markerY = 0.0;
-          _markerTheta = 0.0;
-        }
-      });
-    }
-  }
+  // Remove multiple paths storage and colors
+  final Color _pathColor = Colors.green.withOpacity(0.7);
 
   @override
   void initState() {
     super.initState();
-    // Use stored provider reference
-    _settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-    _settingsProvider.addListener(_subscribeToOdometry);
     // Start with identity matrix (no transformations)
     _transformationController.value = Matrix4.identity();
     _subscribeToTopic();
-    _subscribeToOdometry();
-    _goalService.initialize(context: context);
+    if (!mounted) return;
+
+    // Subscribe to position updates
+    if (widget.robotPositionStrem != null) {
+      _positionSubscription = widget.robotPositionStrem!.listen((data) {
+        updateRobotPosition(
+          data['x'],
+          data['y'],
+          data['q'],
+        );
+      });
+    }
+
+    // Subscribe to goal position updates
+    if (widget.goalPositionStream != null) {
+      _goalSubscription = widget.goalPositionStream!.listen((data) {
+        updateGoalPosition(data);
+      });
+    }
+
+    _pathSubscription = widget.pathStream?.listen((posesJson) {
+      setState(() {
+        _currentPath = posesJson;
+      });
+    });
   }
 
   @override
   void dispose() {
-    // Use stored provider reference instead of Provider.of
-    _settingsProvider.removeListener(_subscribeToOdometry);
     _unsubscribe();
-    _odomSubscriber?.shutdown();
     _transformationController.dispose();
+    _positionSubscription?.cancel();
+    _goalSubscription?.cancel();
+    _pathSubscription?.cancel();
     super.dispose();
   }
 
@@ -165,11 +160,10 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         oldWidget.showMarkers != widget.showMarkers) {
       _unsubscribe();
       _subscribeToTopic();
-      _subscribeToOdometry();
     }
   }
 
-  void _subscribeToTopic() {
+  void _subscribeToTopic() async {
     if (!widget.enabled) return;
 
     final connection = Provider.of<ConnectionProvider>(context, listen: false);
@@ -181,7 +175,34 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
       return;
     }
 
+    setState(() {
+      _statusMessage = 'Checking for map topic...';
+      _hasError = false;
+    });
+
     try {
+      // First check if the topic exists
+      final topicExists = await _checkTopicAvailability(connection.ros2Client!);
+
+      if (!mounted) return;
+
+      if (!topicExists) {
+        setState(() {
+          _statusMessage =
+              'Map topic ${widget.topic} not found. Waiting for topic...';
+          _hasError = false;
+        });
+
+        // Try again in 2 seconds
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            _subscribeToTopic();
+          }
+        });
+        return;
+      }
+
+      // Topic exists, try to subscribe
       _subscriber = Subscriber<nav_msgs.OccupancyGrid>(
         name: widget.topic,
         type: nav_msgs.OccupancyGrid().fullType,
@@ -189,16 +210,39 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         callback: _processMapMessage,
         prototype: nav_msgs.OccupancyGrid(),
       );
-      //print('Subscribed to ${widget.topic}');
+
       setState(() {
         _statusMessage = 'Subscribed to ${widget.topic}, waiting for data...';
+        _hasError = false;
       });
     } catch (e) {
-      setState(() {
-        _statusMessage = 'Failed to subscribe: $e';
-        _hasError = true;
-      });
-      //print('Error subscribing to ${widget.topic}: $e');
+      if (mounted) {
+        setState(() {
+          _statusMessage = 'Failed to subscribe: $e';
+          _hasError = true;
+        });
+      }
+    }
+  }
+
+  Future<bool> _checkTopicAvailability(Ros2 ros2) async {
+    try {
+      final client = ServiceClient<TopicsForType, TopicsForTypeRequest,
+          TopicsForTypeResponse>(
+        ros2: ros2,
+        name: '/rosapi/topics_for_type',
+        type: TopicsForType().fullType,
+        serviceType: TopicsForType(),
+      );
+
+      final response = await client.call(
+        TopicsForTypeRequest(type: 'nav_msgs/msg/OccupancyGrid'),
+      );
+
+      return response.topics.contains(widget.topic);
+    } catch (e) {
+      print('Error checking topic availability: $e');
+      return false;
     }
   }
 
@@ -210,89 +254,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
     } catch (e) {
       //print('Error unsubscribing: $e');
     }
-  }
-
-  void _subscribeToOdometry() {
-    final connection = Provider.of<ConnectionProvider>(context, listen: false);
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-
-    // Determine which topic and type to use
-    final (String topic, String type) = widget.showMarkers
-        ? (settings.navigationOdomTopic, settings.navigationOdomTopicType)
-        : (settings.mappingOdomTopic, settings.mappingOdomTopicType);
-
-    // Only resubscribe if topic or type changed
-    if (topic == _currentOdomTopic && type == _currentOdomType) return;
-    _currentOdomTopic = topic;
-    _currentOdomType = type;
-
-    // Unsubscribe from old topic
-    if (_odomSubscriber != null) {
-      _odomSubscriber?.shutdown();
-      _odomSubscriber = null;
-    }
-
-    if (connection.ros2Client == null) return;
-
-    try {
-      // Create subscriber based on message type
-      if (type == 'nav_msgs/msg/Odometry') {
-        _odomSubscriber = Subscriber<nav_msgs.Odometry>(
-          name: topic,
-          type: nav_msgs.Odometry().fullType,
-          ros2: connection.ros2Client!,
-          callback: _processNavOdomMessage,
-          prototype: nav_msgs.Odometry(),
-        );
-      } else if (type == 'geometry_msgs/msg/PoseWithCovarianceStamped') {
-        _odomSubscriber = Subscriber<geometry_msgs.PoseWithCovarianceStamped>(
-          name: topic,
-          type: geometry_msgs.PoseWithCovarianceStamped().fullType,
-          ros2: connection.ros2Client!,
-          callback: _processPoseMessage,
-          prototype: geometry_msgs.PoseWithCovarianceStamped(),
-        );
-      }
-    } catch (e) {
-      print('Error subscribing to odometry: $e');
-    }
-  }
-
-  void _processNavOdomMessage(nav_msgs.Odometry message) {
-    _updateRobotPosition(
-      message.pose.pose.position.x,
-      message.pose.pose.position.y,
-      message.pose.pose.orientation,
-    );
-  }
-
-  void _processPoseMessage(geometry_msgs.PoseWithCovarianceStamped message) {
-    _updateRobotPosition(
-      message.pose.pose.position.x,
-      message.pose.pose.position.y,
-      message.pose.pose.orientation,
-    );
-  }
-
-  void _updateRobotPosition(double x, double y, geometry_msgs.Quaternion q) {
-    if (!mounted) return;
-
-    setState(() {
-      final mapPose = transformToMapFrame(
-        x,
-        y,
-        q,
-        _mapOriginX,
-        _mapOriginY,
-        _mapResolution,
-        _mapHeight,
-        _mapWidth,
-        _mapOriginTheta,
-      );
-      _robotX = mapPose.x;
-      _robotY = mapPose.y;
-      _robotTheta = mapPose.theta;
-    });
   }
 
   // Create a lighter version of the app mode color
@@ -389,6 +350,8 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
   }
 
   void _processMapMessage(nav_msgs.OccupancyGrid message) async {
+    print(
+        'Processing map update! Width: ${message.info.width}, Height: ${message.info.height}');
     // Add coordinate system validation
     _validateCoordinateSystem(message.info);
 
@@ -396,10 +359,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
     final Matrix4? currentTransform = _mapImage != null
         ? Matrix4.copy(_transformationController.value)
         : null;
-
-    // Remove the update throttling to ensure real-time updates
-    final now = DateTime.now();
-    _lastUpdateTime = now;
 
     // print('Processing map update! Width: ${message.info.width}, Height: ${message.info.height}');
 
@@ -555,39 +514,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
     //print('View reset with scale: $scale');
   }
 
-  void _handleGoalSubmission() async {
-    final targetPose = transformFromMapFrame(
-      _markerX,
-      _markerY,
-      _markerTheta,
-      _mapOriginX,
-      _mapOriginY,
-      _mapResolution,
-      _mapHeight,
-      _mapWidth,
-      _mapOriginTheta,
-    );
-    setState(() {
-      _showGoalBar = false;
-    });
-    final result = await _goalService.sendGoal(
-      x: targetPose.targetX,
-      y: targetPose.targetY,
-      orientation: targetPose.orientation,
-      frameId: 'map',
-      feedbackHandler: (feedback) => print('Feedback: $feedback'),
-    );
-
-    if (result != null) {
-      setState(() {
-        _showPoseMarker = false;
-        _markerX = 0.0;
-        _markerY = 0.0;
-        _markerTheta = 0.0;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -605,10 +531,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
           Listener(
             onPointerDown: (details) {
               // Check if pose estimation mode is active on pointer down
-              if (_poseEstimationMode) {
-                // Potential start of a long press for pose estimation
-                // We don't handle it here, let GestureDetector do it
-              }
             },
             child: InteractiveViewer(
               transformationController: _transformationController,
@@ -651,78 +573,206 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
               },
               // The actual content that can be panned/zoomed
               child: GestureDetector(
-                // Only listen for long press gestures
-                onLongPressStart: (details) {
-                  if (_poseEstimationMode || _goalMode) {
-                    final Offset mapPixelPos = _transformationController
-                        .toScene(details.globalPosition);
+                // Only add long press gestures if not disabled
+                onLongPressStart: widget.disableLongPress
+                    ? null
+                    : (details) {
+                        final Offset mapPixelPos = _transformationController
+                            .toScene(details.globalPosition);
 
-                    setState(() {
-                      _markerX = mapPixelPos.dx;
-                      _markerY = mapPixelPos.dy;
-                      // Set marker to point right (along x-axis)
-                      _markerTheta = 0;
-                      _showPoseMarker = true;
-                    });
-                    _isDraggingMarker = true;
-                    _showRotationSlider = false;
-                  }
-                  if (_goalMode) {
-                    _showGoalBar = false;
-                  }
-                },
-                onLongPressMoveUpdate: (details) {
-                  if (_poseEstimationMode || _goalMode) {
-                    final Offset mapPixelPos = _transformationController
-                        .toScene(details.globalPosition);
+                        setState(() {
+                          _markerX = mapPixelPos.dx;
+                          _markerY = mapPixelPos.dy;
+                          // Set marker to point right (along x-axis)
+                          _markerTheta = 0;
+                        });
+                        _isDraggingMarker = true;
+                        _showRotationSlider = false;
+                      },
+                onLongPressMoveUpdate: widget.disableLongPress
+                    ? null
+                    : (details) {
+                        final Offset mapPixelPos = _transformationController
+                            .toScene(details.globalPosition);
 
-                    final targetPose = transformFromMapFrame(
-                        mapPixelPos.dx,
-                        mapPixelPos.dy,
-                        0,
-                        _mapOriginX,
-                        _mapOriginY,
-                        _mapResolution,
-                        _mapHeight,
-                        _mapWidth,
-                        _mapOriginTheta);
+                        final targetPose = transformFromMapFrame(
+                            mapPixelPos.dx,
+                            mapPixelPos.dy,
+                            0,
+                            _mapOriginX,
+                            _mapOriginY,
+                            _mapResolution,
+                            _mapHeight,
+                            _mapWidth,
+                            _mapOriginTheta);
 
-                    setState(() {
-                      _markerX = mapPixelPos.dx;
-                      _markerY = mapPixelPos.dy;
-                      _markerTheta = extractYawFromOriginQuaternion(
-                          targetPose.orientation);
-                    });
-                    _isDraggingMarker = true;
-                  }
-                },
-                onLongPressEnd: (details) {
-                  if (_poseEstimationMode || _goalMode && _isDraggingMarker) {
-                    _isDraggingMarker = false;
+                        setState(() {
+                          _markerX = mapPixelPos.dx;
+                          _markerY = mapPixelPos.dy;
+                          _markerTheta = extractYawFromOriginQuaternion(
+                              targetPose.orientation);
+                        });
+                        _isDraggingMarker = true;
+                      },
+                onLongPressEnd: widget.disableLongPress
+                    ? null
+                    : (details) {
+                        if (_isDraggingMarker) {
+                          _isDraggingMarker = false;
 
-                    // Position slider centered on marker position
-                    setState(() {
-                      _showRotationSlider = true;
-                      _rotationSliderCenter = Offset(_markerX, _markerY);
-                    });
-                  }
-                },
+                          // Position slider centered on marker position
+                          setState(() {
+                            _showRotationSlider = true;
+                            _rotationSliderCenter = Offset(_markerX, _markerY);
+                          });
+                        }
+                      },
                 // *** IMPORTANT: No onPanStart/Update/End here ***
                 child: Stack(
-                  // Use ClipRect to ensure children (like markers) don't draw outside the map image bounds if needed
-                  // clipBehavior: Clip.hardEdge,
                   children: [
+                    // 1. Base map image
                     RawImage(
                       key: ValueKey(_mapImage.hashCode),
                       image: _mapImage,
-                      fit: BoxFit.none, // Important for InteractiveViewer
+                      fit: BoxFit.none,
                       filterQuality: FilterQuality.medium,
                     ),
 
-                    // RobotPositionMarker (scale-invariant)
+                    // 2. Path (if active)
+                    if (_mapImage != null && widget.isGoalActive)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: PathPainter(
+                              path: _currentPath,
+                              mapOriginX: _mapOriginX,
+                              mapOriginY: _mapOriginY,
+                              mapResolution: _mapResolution,
+                              mapHeight: _mapHeight,
+                              mapWidth: _mapWidth,
+                              mapOriginTheta: _mapOriginTheta,
+                              scale: _currentScale,
+                              pathColor: _pathColor,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // 3. Waypoints (add here, before bookmarks)
+                    if (widget.waypoints != null &&
+                        widget.waypoints!.isNotEmpty) ...[
+                      ...widget.waypoints!.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final waypoint = entry.value;
+                        final transformedPose = transformToMapFrame(
+                          waypoint.position.x,
+                          waypoint.position.y,
+                          eulerToQuaternion(0, 0, waypoint.position.theta),
+                          _mapOriginX,
+                          _mapOriginY,
+                          _mapResolution,
+                          _mapHeight,
+                          _mapWidth,
+                          _mapOriginTheta,
+                        );
+
+                        // Find if this waypoint corresponds to a bookmark
+                        Color waypointColor = widget.appModeColor;
+                        if (widget.bookmarks != null && waypoint.name != null) {
+                          try {
+                            final matchingBookmark =
+                                widget.bookmarks!.firstWhere(
+                              (bookmark) =>
+                                  bookmark.name == waypoint.name &&
+                                  bookmark.positionX == waypoint.position.x &&
+                                  bookmark.positionY == waypoint.position.y,
+                            );
+                            // Use the same color logic as in BookmarkWidget
+                            waypointColor = matchingBookmark.isGoalActive
+                                ? Colors.green
+                                : Colors.red;
+                          } catch (e) {
+                            // No matching bookmark found, keep default color
+                          }
+                        }
+
+                        // Determine if this should show a number (only for position-based waypoints)
+                        String? markerNumber;
+                        if (waypoint.name != null &&
+                            waypoint.name!.startsWith('Waypoint ')) {
+                          // Extract the number from the waypoint name (e.g., "Waypoint 1" -> "1")
+                          final match = RegExp(r'Waypoint (\d+)')
+                              .firstMatch(waypoint.name!);
+                          if (match != null) {
+                            markerNumber = match.group(1);
+                          }
+                        }
+
+                        return _buildTargetMarker(
+                          transformedPose.x,
+                          transformedPose.y,
+                          transformedPose.theta,
+                          color: waypointColor, // Use the determined color
+                          number:
+                              markerNumber, // Only show number for position-based waypoints
+                        );
+                      }),
+                    ],
+
+                    // 4. Bookmarks
+                    if (widget.bookmarks != null) ...[
+                      ...widget.bookmarks!.map((bookmark) {
+                        final transformedPose = transformToMapFrame(
+                          bookmark.positionX,
+                          bookmark.positionY,
+                          geometry_msgs.Quaternion(
+                            x: 0,
+                            y: 0,
+                            z: 0,
+                            w: 1,
+                          ),
+                          _mapOriginX,
+                          _mapOriginY,
+                          _mapResolution,
+                          _mapHeight,
+                          _mapWidth,
+                          _mapOriginTheta,
+                        );
+                        return Positioned(
+                          left: transformedPose.x - (40 / 2),
+                          top: transformedPose.y - (40 / 2),
+                          child: Transform.scale(
+                            scale: 1 / _currentScale,
+                            alignment: Alignment.center,
+                            child: GestureDetector(
+                              onTap: widget.isGoalActive
+                                  ? null
+                                  : () {
+                                      if (widget.onBookmarkTap != null) {
+                                        widget.onBookmarkTap!(bookmark);
+                                      }
+                                    },
+                              child: BookmarkWidget(
+                                x: bookmark.positionX,
+                                y: bookmark.positionY,
+                                theta: bookmark.theta,
+                                color: bookmark.isGoalActive
+                                    ? Colors.green
+                                    : Colors.red,
+                                size: 40.0,
+                                icon: bookmark.icon,
+                                label: bookmark.name,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+
+                    // 5. Robot marker
                     if (_mapImage != null && !_isLoading)
                       Positioned(
-                        left: _robotX - 15, // 30/2 = 15
+                        left: _robotX - 15,
                         top: _robotY - 15,
                         child: IgnorePointer(
                           child: Transform.scale(
@@ -739,10 +789,16 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                         ),
                       ),
 
-                    // Pose estimation marker (drawn during interaction)
-                    if (widget.showMarkers) _buildTargetMarker(),
+                    // 6. Goal marker
+                    if (widget.showMarkers && _showGoal)
+                      _buildTargetMarker(_goalX, _goalY, _goalTheta,
+                          color: Colors.red),
 
-                    // Rotation slider
+                    // 7. Pose estimation marker
+                    if (widget.showMarkers)
+                      _buildTargetMarker(_markerX, _markerY, _markerTheta),
+
+                    // 8. Rotation slider
                     if (_showRotationSlider)
                       Positioned(
                         left: _rotationSliderCenter.dx - 50,
@@ -759,11 +815,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                             onPanEnd: (_) {
                               setState(() {
                                 _showRotationSlider = false;
-                                if (_goalMode) {
-                                  _showGoalBar = true;
-                                } else {
-                                  _showGoalBar = false;
-                                }
                               });
 
                               final targetPose = transformFromMapFrame(
@@ -777,21 +828,18 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                                   _mapWidth,
                                   _mapOriginTheta);
 
-                              if (_poseEstimationMode) {
-                                setState(() {
-                                  _showPoseMarker = false;
+                              // Invoke the callback if it's provided
+                              if (widget.onMarkerPoseReceived != null) {
+                                widget.onMarkerPoseReceived!({
+                                  'x': targetPose.targetX,
+                                  'y': targetPose.targetY,
+                                  'orientation': targetPose.orientation,
                                 });
-                                PoseEstimationService.publishPoseEstimate(
-                                  context: context,
-                                  x: targetPose.targetX,
-                                  y: targetPose.targetY,
-                                  theta: targetPose.orientation,
-                                );
-                                Provider.of<NavToolProvider>(context,
-                                        listen: false)
-                                    .setPoseEstimationEnabled(false);
                               }
-                              // Don't send goal immediately for goal mode - wait for slide action
+                              setState(() {
+                                _markerX = -100;
+                                _markerY = -100;
+                              });
                             },
                             child: Container(
                               width: 100,
@@ -874,14 +922,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
               ),
             ),
           ),
-
-        // Add NavBottomBar to the stack
-        NavBottomBar(
-          visible: _showGoalBar,
-          onSlideRight: _handleGoalSubmission,
-          promptText: 'Slide to send goal',
-          color: widget.appModeColor,
-        ),
       ],
     );
   }
@@ -897,7 +937,8 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         'Map orientation must be 2D (only yaw rotation supported)');
   }
 
-  Widget _buildTargetMarker() {
+  Widget _buildTargetMarker(double markerX, double markerY, double markerTheta,
+      {Color color = Colors.greenAccent, String? number}) {
     // Calculate size based on current scale - larger when zoomed out
     final markerSize = 60.0 * (1 / _currentScale);
     // Adjust positioning based on dynamic size
@@ -906,16 +947,18 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
 
     return Positioned(
       // Position custom painter exactly at the marker position
-      left: _markerX - halfWidth, // Center horizontally based on actual size
-      top: _markerY - height, // Bottom of arrow at marker point
+      left: markerX - halfWidth, // Center horizontally based on actual size
+      top: markerY - height, // Bottom of arrow at marker point
       child: IgnorePointer(
         child: Transform.rotate(
-          angle: _markerTheta + math.pi / 2,
+          angle: markerTheta + math.pi / 2,
           alignment: Alignment.bottomCenter, // Pivot at bottom center
           child: CustomPaint(
             size: Size(markerSize, markerSize),
             painter: ArrowPainter(
-              color: Colors.greenAccent,
+              color: color,
+              angle: markerTheta + math.pi / 2,
+              number: number,
             ),
           ),
         ),
@@ -934,6 +977,66 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
     setState(() {
       _markerTheta = mapAngle;
     });
+  }
+
+  void updateRobotPosition(double x, double y, geometry_msgs.Quaternion q) {
+    if (_mapWidth > 0 && _mapHeight > 0) {
+      // Only transform if we have valid map data
+      final transformedPose = transformToMapFrame(
+        x,
+        y,
+        q,
+        _mapOriginX,
+        _mapOriginY,
+        _mapResolution,
+        _mapHeight,
+        _mapWidth,
+        _mapOriginTheta,
+      );
+
+      print(
+          'Transforming position: ($x, $y) to (${transformedPose.x}, ${transformedPose.y})'); // Debug print
+      setState(() {
+        _robotX = transformedPose.x;
+        _robotY = transformedPose.y;
+        _robotTheta = transformedPose.theta;
+      });
+    } else {
+      // Store raw values until map is loaded
+      setState(() {
+        _robotX = x;
+        _robotY = y;
+      });
+    }
+  }
+
+  // Add goal position update method
+  void updateGoalPosition(Map<String, dynamic> data) {
+    if (mounted) {
+      if (_mapWidth > 0 && _mapHeight > 0) {
+        // Only transform if we have valid map data
+        final transformedPose = transformToMapFrame(
+          data['x'],
+          data['y'],
+          data['orientation'],
+          _mapOriginX,
+          _mapOriginY,
+          _mapResolution,
+          _mapHeight,
+          _mapWidth,
+          _mapOriginTheta,
+        );
+
+        print(
+            'Transforming position: (${data['x']}, ${data['y']}) to (${transformedPose.x}, ${transformedPose.y})'); // Debug print
+        setState(() {
+          _goalX = transformedPose.x;
+          _goalY = transformedPose.y;
+          _goalTheta = transformedPose.theta;
+          _showGoal = data['show'] ?? false;
+        });
+      }
+    }
   }
 }
 
@@ -980,5 +1083,194 @@ class MapPainter extends CustomPainter {
   bool shouldRepaint(covariant MapPainter oldDelegate) {
     return mapImage != oldDelegate.mapImage ||
         resolution != oldDelegate.resolution;
+  }
+}
+
+// Update PathPainter for single path
+class PathPainter extends CustomPainter {
+  final List<Map<String, dynamic>> path;
+  final double mapOriginX;
+  final double mapOriginY;
+  final double mapResolution;
+  final int mapHeight;
+  final int mapWidth;
+  final double mapOriginTheta;
+  final double scale;
+  final Color pathColor;
+
+  PathPainter({
+    required this.path,
+    required this.mapOriginX,
+    required this.mapOriginY,
+    required this.mapResolution,
+    required this.mapHeight,
+    required this.mapWidth,
+    required this.mapOriginTheta,
+    required this.scale,
+    required this.pathColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (path.isEmpty) return;
+
+    final pathPaint = Paint()
+      ..color = pathColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.5 / scale;
+
+    final dotPaint = Paint()
+      ..color = pathColor
+      ..style = PaintingStyle.fill;
+
+    for (var poseJson in path) {
+      final position = poseJson['position'];
+      final orientation = poseJson['orientation'];
+      final mapPose = transformToMapFrame(
+        position['x'],
+        position['y'],
+        geometry_msgs.Quaternion(
+          x: orientation['x'],
+          y: orientation['y'],
+          z: orientation['z'],
+          w: orientation['w'],
+        ),
+        mapOriginX,
+        mapOriginY,
+        mapResolution,
+        mapHeight,
+        mapWidth,
+        mapOriginTheta,
+      );
+
+      // Draw dots at each pose
+      canvas.drawCircle(Offset(mapPose.x, mapPose.y), 0.5 / scale, dotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(PathPainter oldDelegate) {
+    return path != oldDelegate.path || scale != oldDelegate.scale;
+  }
+}
+
+class BookmarkWidget extends StatefulWidget {
+  final double x;
+  final double y;
+  final double theta;
+  final Color color;
+  final double size;
+  final IconData? icon;
+  final String? label;
+  final VoidCallback? onTap;
+
+  const BookmarkWidget({
+    super.key,
+    this.x = 0,
+    this.y = 0,
+    required this.theta,
+    required this.color,
+    required this.size,
+    this.icon,
+    this.label,
+    this.onTap,
+  });
+
+  @override
+  _BookmarkWidgetState createState() => _BookmarkWidgetState();
+}
+
+class _BookmarkWidgetState extends State<BookmarkWidget> {
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none, // Allow overflow for badge
+      children: [
+        CustomPaint(
+          size: Size(widget.size, widget.size),
+          painter: _BookmarkPainter(
+            color: widget.color,
+            icon: widget.icon,
+            label: widget.label,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BookmarkPainter extends CustomPainter {
+  final Color color;
+  final IconData? icon;
+  final String? label;
+
+  _BookmarkPainter({
+    required this.color,
+    this.icon,
+    this.label,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+    final radius = size.width * 0.4; // Larger circular background
+
+    // Draw circular background
+    final backgroundPaint = Paint()
+      ..color = color.withOpacity(0.7)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(
+      Offset(centerX, centerY),
+      radius,
+      backgroundPaint,
+    );
+
+    // Draw white border
+    final borderPaint = Paint()
+      ..color = Colors.white.withOpacity(0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    canvas.drawCircle(
+      Offset(centerX, centerY),
+      radius,
+      borderPaint,
+    );
+
+    // Draw icon if provided
+    if (icon != null) {
+      // Prepare icon paint
+      final iconSize = radius * 1.2;
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(icon!.codePoint),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: iconSize,
+            fontFamily: icon!.fontFamily,
+            package: icon!.fontPackage,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(
+          centerX - textPainter.width / 2,
+          centerY - textPainter.height / 2,
+        ),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BookmarkPainter oldDelegate) {
+    return color != oldDelegate.color ||
+        icon != oldDelegate.icon ||
+        label != oldDelegate.label;
   }
 }

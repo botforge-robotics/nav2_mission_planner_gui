@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
-import 'package:rosapi_msgs/srvs.dart';
+import 'package:rosapi_msgs/srv.dart';
 import 'package:nav2_mission_planner/providers/connection_provider.dart';
 
 class OdomTopicInput extends StatefulWidget {
@@ -35,10 +35,6 @@ class _OdomTopicInputState extends State<OdomTopicInput> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_sessionTopics.isEmpty) {
         _fetchTopics();
-      } else if (!_sessionTopics.containsKey(widget.initialValue) &&
-          _sessionTopics.isNotEmpty) {
-        widget.onChanged(
-            _sessionTopics.keys.first, _sessionTopics.values.first);
       }
     });
   }
@@ -79,16 +75,9 @@ class _OdomTopicInputState extends State<OdomTopicInput> {
       String? selectedTopic = widget.initialValue;
       String? selectedType = widget.initialValueType;
 
-      if (!_sessionTopics.containsKey(selectedTopic) ||
-          _sessionTopics[selectedTopic] != selectedType) {
-        if (_sessionTopics.isNotEmpty) {
-          selectedTopic = _sessionTopics.keys.first;
-          selectedType = _sessionTopics.values.first;
-        }
-      }
-
       setState(() {
-        if (selectedTopic != null && selectedType != null) {
+        if (_sessionTopics.containsKey(selectedTopic) &&
+            _sessionTopics[selectedTopic] == selectedType) {
           widget.onChanged(selectedTopic, selectedType);
         }
       });

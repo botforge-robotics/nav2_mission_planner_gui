@@ -28,10 +28,12 @@ class ActionClient<
   StreamController<F>? _feedbackController;
   Completer<R>? _resultCompleter;
   String? _goalId;
+  bool _isCancelled = false;
 
   /// Send a goal to the action server
   Future<R> sendGoal(G goal, {void Function(F)? onFeedback}) async {
     _goalId = ros2.requestActionCaller(actionName);
+    _isCancelled = false;
 
     // Setup feedback stream if callback provided
     if (onFeedback != null) {
@@ -62,7 +64,10 @@ class ActionClient<
         _resultCompleter?.complete(actionMessage.result
             .fromJson(message['values'] as Map<String, dynamic>));
       }
-      dispose();
+      // Only dispose if the goal was cancelled and we received status 5 (ABORTED)
+      if (_isCancelled && message['status'] == 5) {
+        dispose();
+      }
     });
 
     // Send the goal
@@ -80,12 +85,12 @@ class ActionClient<
 
   /// Cancel the current goal
   void cancelGoal() {
+    _isCancelled = true;
     ros2.send({
       'op': 'cancel_action_goal',
       'id': _goalId,
       'action': actionName,
     });
-    dispose();
   }
 
   void dispose() {

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'dart:convert';
 import '../providers/connection_provider.dart';
-import 'package:rosapi_msgs/srvs.dart';
+import 'package:rosapi_msgs/srv.dart';
 
 class RosParameterService {
   static Future<bool> setParameter(
@@ -26,8 +26,9 @@ class RosParameterService {
         value: json.encode(value),
       ));
 
-      debugPrint('Parameter $name set to $value success: ${response.success}');
-      return response.success;
+      debugPrint(
+          'Parameter $name set to $value success: ${response.successful}');
+      return response.successful;
     } catch (e) {
       debugPrint('Error setting parameter $name: $e');
       rethrow;

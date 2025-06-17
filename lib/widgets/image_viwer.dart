@@ -8,7 +8,7 @@ import 'package:flutter_mjpeg/flutter_mjpeg.dart';
 import 'dart:typed_data';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:nav2_mission_planner/providers/settings_provider.dart';
-import 'package:rosapi_msgs/srvs.dart';
+import 'package:rosapi_msgs/srv.dart';
 
 class ImageViewer extends StatefulWidget {
   final String topic;

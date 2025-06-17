@@ -23,7 +23,7 @@ class LaunchFileInput extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Format: \${package_name}/\${launchfile_name}',
+          'Format: \${package_name}/\${launchfile_name} (*dont include ".launch.py")',
           style: TextStyle(
             fontSize: 12,
             color: Colors.grey.shade600,

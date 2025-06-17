@@ -4,6 +4,8 @@ import '../providers/connection_provider.dart';
 import 'package:geometry_msgs/msg.dart';
 import 'package:ros2_api/ros2_api.dart';
 import '../providers/settings_provider.dart';
+import 'package:builtin_interfaces/msg.dart' as builtin_interfaces;
+import 'package:std_msgs/msg.dart';
 
 class JoystickThumbWidget extends StatefulWidget {
   final Color modeColor;
@@ -16,8 +18,10 @@ class JoystickThumbWidget extends StatefulWidget {
 class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
   Offset _position = Offset.zero;
   bool _isActive = false;
-  Publisher<Twist>? _publisher;
+  dynamic _publisher;
   SettingsProvider? _settingsProvider;
+  String? _currentTopic;
+  String? _currentType;
 
   @override
   void didChangeDependencies() {
@@ -29,20 +33,44 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _settingsProvider?.addListener(_setupPublisher);
+      _settingsProvider?.addListener(_onSettingsChanged);
     });
     _setupPublisher();
+  }
+
+  void _onSettingsChanged() {
+    final settings = context.read<SettingsProvider>();
+    if (_currentTopic != settings.cmdVelTopic ||
+        _currentType != settings.twistType) {
+      _setupPublisher();
+    }
   }
 
   void _setupPublisher() {
     final connection = context.read<ConnectionProvider>();
     final settings = context.read<SettingsProvider>();
+
+    // Shutdown existing publisher if it exists
+    _publisher?.shutdown();
+    _publisher = null;
+
     if (connection.ros2Client != null && connection.isConnected) {
-      _publisher = Publisher<Twist>(
-        name: settings.cmdVelTopic,
-        type: Twist().fullType,
-        ros2: connection.ros2Client!,
-      );
+      _currentTopic = settings.cmdVelTopic;
+      _currentType = settings.twistType;
+
+      if (settings.twistType == 'geometry_msgs/msg/TwistStamped') {
+        _publisher = Publisher<TwistStamped>(
+          name: settings.cmdVelTopic,
+          type: TwistStamped().fullType,
+          ros2: connection.ros2Client!,
+        );
+      } else {
+        _publisher = Publisher<Twist>(
+          name: settings.cmdVelTopic,
+          type: Twist().fullType,
+          ros2: connection.ros2Client!,
+        );
+      }
     }
   }
 
@@ -69,13 +97,30 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
     final linear = normalizedY * settings.linearVelocity;
     final angular = normalizedX * settings.angularVelocity;
 
-    // Publish velocity
+    // Create velocity message
     if (_publisher != null) {
       final twist = Twist(
         linear: Vector3(x: linear, y: 0.0, z: 0.0),
         angular: Vector3(x: 0.0, y: 0.0, z: angular),
       );
-      _publisher!.publish(twist);
+
+      // Publish based on message type
+      if (settings.twistType == 'geometry_msgs/msg/TwistStamped') {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final stampedTwist = TwistStamped(
+          header: Header(
+            stamp: builtin_interfaces.Time(
+              sec: now ~/ 1000,
+              nanosec: (now % 1000) * 1000000,
+            ),
+            frame_id: 'base_link',
+          ),
+          twist: twist,
+        );
+        _publisher!.publish(stampedTwist);
+      } else {
+        _publisher!.publish(twist);
+      }
     }
   }
 
@@ -91,13 +136,30 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
         linear: Vector3(x: 0.0, y: 0.0, z: 0.0),
         angular: Vector3(x: 0.0, y: 0.0, z: 0.0),
       );
-      _publisher!.publish(twist);
+
+      final settings = context.read<SettingsProvider>();
+      if (settings.twistType == 'geometry_msgs/msg/TwistStamped') {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final stampedTwist = TwistStamped(
+          header: Header(
+            stamp: builtin_interfaces.Time(
+              sec: now ~/ 1000,
+              nanosec: (now % 1000) * 1000000,
+            ),
+            frame_id: 'base_link',
+          ),
+          twist: twist,
+        );
+        _publisher!.publish(stampedTwist);
+      } else {
+        _publisher!.publish(twist);
+      }
     }
   }
 
   @override
   void dispose() {
-    _settingsProvider?.removeListener(_setupPublisher);
+    _settingsProvider?.removeListener(_onSettingsChanged);
     _publisher?.shutdown();
     super.dispose();
   }

@@ -70,16 +70,6 @@ class MappingSettings extends StatelessWidget {
                   screenSize: screenSize,
                   modeColor: modeColor,
                 ),
-
-                SizedBox(height: screenSize.height * 0.015),
-                Text(
-                  'Command will be: ros2 launch [input].launch.py [arguments]',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey.shade400,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
               ],
             ),
           ),

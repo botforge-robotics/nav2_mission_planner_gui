@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:nav2_mission_planner/screens/settings/widgets/setting_card.dart';
 import 'package:provider/provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../constants/default_settings.dart';
 import 'widgets/setting_header.dart';
 import 'widgets/velocity_control.dart';
 
@@ -143,13 +144,78 @@ class TeleopSettings extends StatelessWidget {
           ),
           onChanged: settings.setCmdVelTopic,
         ),
-        SizedBox(height: screenSize.height * 0.01),
+        SizedBox(height: screenSize.height * 0.03),
         Text(
-          'Type: geometry_msgs/msg/Twist',
+          'Topic Type:',
+          textAlign: TextAlign.left,
           style: TextStyle(
             fontSize: 10,
             color: Colors.grey.shade400,
             fontStyle: FontStyle.italic,
+          ),
+        ),
+        SizedBox(height: screenSize.height * 0.01),
+        Builder(
+          builder: (context) => Container(
+            decoration: BoxDecoration(
+              color: Colors.grey[900],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: modeColor.withOpacity(0.5),
+                width: 1,
+              ),
+            ),
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                inputDecorationTheme: InputDecorationTheme(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: ButtonTheme(
+                  alignedDropdown: true,
+                  child: DropdownButton<String>(
+                    value: settings.twistType,
+                    items:
+                        DefaultSettings.availableTwistTypes.map((String type) {
+                      return DropdownMenuItem<String>(
+                        value: type,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              type,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        settings.setTwistType(newValue);
+                      }
+                    },
+                    isExpanded: true,
+                    icon: Icon(Icons.arrow_drop_down, color: modeColor),
+                    hint: Text(
+                      'Select message type',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 12,
+                      ),
+                    ),
+                    dropdownColor: Colors.grey[850],
+                    menuMaxHeight: 150,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ],

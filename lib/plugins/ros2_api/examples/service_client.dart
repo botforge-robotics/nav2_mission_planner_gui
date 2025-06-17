@@ -1,7 +1,7 @@
 // ignore_for_file: avoid_print
 
 import 'package:ros2_api/ros2_api.dart';
-import 'package:rosapi_msgs/srvs.dart';
+import 'package:rosapi_msgs/srv.dart';
 
 void main() async {
   // Initialize ROS2 client

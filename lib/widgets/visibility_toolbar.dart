@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 
@@ -10,57 +9,62 @@ class VisibilityToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final settings = Provider.of<SettingsProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
 
     return Container(
       width: 60,
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.5),
-        borderRadius: const BorderRadius.only(
+        color: Colors.black.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.only(
           topLeft: Radius.circular(12),
           bottomLeft: Radius.circular(12),
-          topRight: Radius.zero,
-          bottomRight: Radius.zero,
         ),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildVisibilityButton(
+          _buildVisibilityToggle(
             icon: Icons.camera_alt,
-            isVisible: settings.cameraVisible,
-            onPressed: () => settings.toggleCameraVisibility(),
+            isVisible: settingsProvider.cameraVisible,
+            onToggle: () => settingsProvider.toggleCameraVisibility(),
           ),
-          const SizedBox(height: 16),
-          _buildVisibilityButton(
-            icon: FontAwesomeIcons.gamepad,
-            isVisible: settings.joystickVisible,
-            onPressed: () => settings.toggleJoystickVisibility(),
+          _buildVisibilityToggle(
+            icon: Icons.gamepad,
+            isVisible: settingsProvider.joystickVisible,
+            onToggle: () => settingsProvider.toggleJoystickVisibility(),
+          ),
+          _buildVisibilityToggle(
+            icon: Icons.bookmark,
+            isVisible: settingsProvider.bookmarksVisible,
+            onToggle: () => settingsProvider.toggleBookmarksVisibility(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildVisibilityButton({
+  Widget _buildVisibilityToggle({
     required IconData icon,
     required bool isVisible,
-    required VoidCallback onPressed,
+    required VoidCallback onToggle,
   }) {
-    return Tooltip(
-      message: isVisible ? 'Hide' : 'Show',
-      child: IconButton(
-        icon: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: GestureDetector(
+        onTap: onToggle,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: isVisible ? modeColor : Colors.grey.shade700,
+            shape: BoxShape.circle,
+          ),
           child: Icon(
             icon,
-            key: ValueKey<bool>(isVisible),
-            color: isVisible ? modeColor.withOpacity(0.75) : Colors.white30,
-            size: 28,
+            color: Colors.white,
+            size: 20,
           ),
         ),
-        onPressed: onPressed,
       ),
     );
   }

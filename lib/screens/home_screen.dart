@@ -9,6 +9,7 @@ import 'settings/settings_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/connection_provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../widgets/connection_ui/connection_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -49,74 +50,6 @@ class _HomeScreenState extends State<HomeScreen> {
       case AppModes.settings:
         return 'Settings';
     }
-  }
-
-  Widget _buildDisconnectedUI(Color modeColor) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            modeColor.withOpacity(0.1),
-            modeColor.withOpacity(0.05),
-          ],
-        ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 160,
-              height: 160,
-              child: Stack(
-                children: [
-                  // Circle background
-                  Container(
-                    width: 160,
-                    height: 160,
-                    decoration: BoxDecoration(
-                      color: modeColor.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  // Manually positioned icon
-                  Positioned(
-                    left: 19, // Adjust these values to fine-tune centering
-                    top: 25, // Adjust these values to fine-tune centering
-                    child: Icon(
-                      FontAwesomeIcons.robot,
-                      size: 100,
-                      color: modeColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Connect to Robot',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: modeColor,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Use the connection button in the status bar',
-              style: TextStyle(
-                fontSize: 16,
-                color: modeColor.withOpacity(0.8),
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -189,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       .modeColorMap[AppModes.navigation]!),
                             ],
                           )
-                        : _buildDisconnectedUI(Colors.white60),
+                        : ConnectionScreen(),
                   ),
                 ],
               ),

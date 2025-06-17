@@ -1,0 +1,302 @@
+// Do not edit manually
+// ignore_for_file: non_constant_identifier_names
+import 'dart:convert';
+import 'package:ros2_msg_utils/ros2_msg_utils.dart';
+import 'package:std_msgs/msg.dart' as std_msgs;
+import 'package:actionlib_msgs/msg.dart' as actionlib_msgs;
+
+class FibonacciGoal extends RosMessage<FibonacciGoal> {
+  late int order;
+
+  static FibonacciGoal $prototype = FibonacciGoal();
+
+  FibonacciGoal({int? order}) : order = order ?? 0;
+
+  @override
+  String get fullType => 'example_interfaces/action/Fibonacci_Goal';
+
+  @override
+  String get messageDefinition => '''int32 order''';
+
+  @override
+  int getMessageSize() {
+    return 4;
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {'order': order};
+
+  @override
+  String toJsonString() => json.encode(toJson());
+
+  @override
+  FibonacciGoal fromJson(Map<String, dynamic> jsonMap) {
+    return FibonacciGoal(order: jsonMap['order'] as int);
+  }
+}
+
+class FibonacciResult extends RosMessage<FibonacciResult> {
+  late List<int> sequence;
+
+  static FibonacciResult $prototype = FibonacciResult();
+
+  FibonacciResult({List<int>? sequence}) : sequence = sequence ?? const [];
+
+  @override
+  String get fullType => 'example_interfaces/action/Fibonacci_Result';
+
+  @override
+  String get messageDefinition => '''int32[] sequence''';
+
+  @override
+  int getMessageSize() {
+    return 4 + (sequence.length * 4);
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {'sequence': sequence};
+
+  @override
+  String toJsonString() => json.encode(toJson());
+
+  @override
+  FibonacciResult fromJson(Map<String, dynamic> jsonMap) {
+    return FibonacciResult(
+        sequence: (jsonMap['sequence'] as List<dynamic>).cast<int>().toList());
+  }
+}
+
+class FibonacciFeedback extends RosMessage<FibonacciFeedback> {
+  late List<int> sequence;
+
+  static FibonacciFeedback $prototype = FibonacciFeedback();
+
+  FibonacciFeedback({List<int>? sequence}) : sequence = sequence ?? const [];
+
+  @override
+  String get fullType => 'example_interfaces/action/Fibonacci_Feedback';
+
+  @override
+  String get messageDefinition => '''int32[] sequence''';
+
+  @override
+  int getMessageSize() {
+    return 4 + (sequence.length * 4);
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {'sequence': sequence};
+
+  @override
+  String toJsonString() => json.encode(toJson());
+
+  @override
+  FibonacciFeedback fromJson(Map<String, dynamic> jsonMap) {
+    return FibonacciFeedback(
+        sequence: (jsonMap['sequence'] as List<dynamic>).cast<int>().toList());
+  }
+}
+
+class FibonacciActionGoal
+    extends RosActionGoal<FibonacciGoal, FibonacciActionGoal> {
+  @override
+  late std_msgs.Header header;
+  @override
+  late actionlib_msgs.GoalID goal_id;
+  @override
+  late FibonacciGoal goal;
+
+  static FibonacciActionGoal $prototype = FibonacciActionGoal();
+
+  FibonacciActionGoal({
+    std_msgs.Header? header,
+    actionlib_msgs.GoalID? goal_id,
+    FibonacciGoal? goal,
+  })  : header = header ?? std_msgs.Header(),
+        goal_id = goal_id ?? actionlib_msgs.GoalID(),
+        goal = goal ?? FibonacciGoal();
+
+  @override
+  String get fullType => 'example_interfaces/action/Fibonacci_ActionGoal';
+
+  @override
+  String get messageDefinition => '''int32 order''';
+
+  @override
+  int getMessageSize() {
+    return header.getMessageSize() +
+        goal_id.getMessageSize() +
+        goal.getMessageSize();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'header': header.toJson(),
+        'goal_id': goal_id.toJson(),
+        'goal': goal.toJson(),
+      };
+
+  @override
+  String toJsonString() => json.encode(toJson());
+
+  @override
+  FibonacciActionGoal fromJson(Map<String, dynamic> jsonMap) {
+    return FibonacciActionGoal(
+      header:
+          std_msgs.Header().fromJson(jsonMap['header'] as Map<String, dynamic>),
+      goal_id: actionlib_msgs.GoalID()
+          .fromJson(jsonMap['goal_id'] as Map<String, dynamic>),
+      goal: FibonacciGoal().fromJson(jsonMap['goal'] as Map<String, dynamic>),
+    );
+  }
+}
+
+class FibonacciActionResult
+    extends RosActionResult<FibonacciResult, FibonacciActionResult> {
+  @override
+  late std_msgs.Header header;
+  @override
+  late actionlib_msgs.GoalStatus status;
+  @override
+  late FibonacciResult result;
+
+  static FibonacciActionResult $prototype = FibonacciActionResult();
+
+  FibonacciActionResult({
+    std_msgs.Header? header,
+    actionlib_msgs.GoalStatus? status,
+    FibonacciResult? result,
+  })  : header = header ?? std_msgs.Header(),
+        status = status ?? actionlib_msgs.GoalStatus(),
+        result = result ?? FibonacciResult();
+
+  @override
+  String get fullType => 'example_interfaces/action/Fibonacci_ActionResult';
+
+  @override
+  String get messageDefinition => '''int32[] sequence''';
+
+  @override
+  int getMessageSize() {
+    return header.getMessageSize() +
+        status.getMessageSize() +
+        result.getMessageSize();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'header': header.toJson(),
+        'status': status.toJson(),
+        'result': result.toJson(),
+      };
+
+  @override
+  String toJsonString() => json.encode(toJson());
+
+  @override
+  FibonacciActionResult fromJson(Map<String, dynamic> jsonMap) {
+    return FibonacciActionResult(
+      header:
+          std_msgs.Header().fromJson(jsonMap['header'] as Map<String, dynamic>),
+      status: actionlib_msgs.GoalStatus()
+          .fromJson(jsonMap['status'] as Map<String, dynamic>),
+      result:
+          FibonacciResult().fromJson(jsonMap['result'] as Map<String, dynamic>),
+    );
+  }
+}
+
+class FibonacciActionFeedback
+    extends RosActionFeedback<FibonacciFeedback, FibonacciActionFeedback> {
+  @override
+  late std_msgs.Header header;
+  @override
+  late actionlib_msgs.GoalStatus status;
+  @override
+  late FibonacciFeedback feedback;
+
+  static FibonacciActionFeedback $prototype = FibonacciActionFeedback();
+
+  FibonacciActionFeedback({
+    std_msgs.Header? header,
+    actionlib_msgs.GoalStatus? status,
+    FibonacciFeedback? feedback,
+  })  : header = header ?? std_msgs.Header(),
+        status = status ?? actionlib_msgs.GoalStatus(),
+        feedback = feedback ?? FibonacciFeedback();
+
+  @override
+  String get fullType => 'example_interfaces/action/Fibonacci_ActionFeedback';
+
+  @override
+  String get messageDefinition => '''int32[] sequence''';
+
+  @override
+  int getMessageSize() {
+    return header.getMessageSize() +
+        status.getMessageSize() +
+        feedback.getMessageSize();
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'header': header.toJson(),
+        'status': status.toJson(),
+        'feedback': feedback.toJson(),
+      };
+
+  @override
+  String toJsonString() => json.encode(toJson());
+
+  @override
+  FibonacciActionFeedback fromJson(Map<String, dynamic> jsonMap) {
+    return FibonacciActionFeedback(
+      header:
+          std_msgs.Header().fromJson(jsonMap['header'] as Map<String, dynamic>),
+      status: actionlib_msgs.GoalStatus()
+          .fromJson(jsonMap['status'] as Map<String, dynamic>),
+      feedback: FibonacciFeedback()
+          .fromJson(jsonMap['feedback'] as Map<String, dynamic>),
+    );
+  }
+}
+
+class Fibonacci extends RosActionMessage<
+    FibonacciGoal,
+    FibonacciActionGoal,
+    FibonacciFeedback,
+    FibonacciActionFeedback,
+    FibonacciResult,
+    FibonacciActionResult> {
+  @override
+  FibonacciActionGoal get actionGoal => FibonacciActionGoal();
+
+  @override
+  FibonacciActionFeedback get actionFeedback => FibonacciActionFeedback();
+
+  @override
+  FibonacciActionResult get actionResult => FibonacciActionResult();
+
+  @override
+  FibonacciGoal get goal => FibonacciGoal();
+
+  @override
+  FibonacciFeedback get feedback => FibonacciFeedback();
+
+  @override
+  FibonacciResult get result => FibonacciResult();
+
+  @override
+  String get fullType => 'example_interfaces/action/Fibonacci';
+
+  @override
+  String get messageDefinition => '''
+Goal:
+int32 order
+---
+Result:
+int32[] sequence
+---
+Feedback:
+int32[] sequence''';
+}

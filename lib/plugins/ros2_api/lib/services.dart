@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'ros2_websocket.dart';
 import 'package:ros2_msg_utils/ros2_msg_utils.dart';
-import 'package:rosapi_msgs/srvs.dart';
+import 'package:rosapi_msgs/srv.dart';
 
 /// Service Client to call ROS2 services
 class ServiceClient<
@@ -174,4 +174,3 @@ Future<bool> serviceExists(Ros2 ros2, String serviceName) async {
 /// });
 /// server.close();
 /// ```
-

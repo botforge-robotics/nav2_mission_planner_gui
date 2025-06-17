@@ -28,7 +28,7 @@ class GeneralSettings extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SettingHeader(
-            title: 'General Settings',
+            title: 'Sensor Settings',
             icon: FontAwesomeIcons.gear,
             screenSize: screenSize,
             modeColor: modeColor,
