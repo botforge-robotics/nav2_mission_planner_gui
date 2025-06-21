@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
-import '../providers/connection_provider.dart';
+import '../../providers/connection_provider.dart';
 import 'package:flutter_mjpeg/flutter_mjpeg.dart';
 import 'dart:typed_data';
 import 'package:ros2_api/ros2_api.dart';

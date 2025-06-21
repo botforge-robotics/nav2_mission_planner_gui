@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/connection_provider.dart';
+import '../../providers/connection_provider.dart';
 import 'package:geometry_msgs/msg.dart';
 import 'package:ros2_api/ros2_api.dart';
-import '../providers/settings_provider.dart';
+import '../../providers/settings_provider.dart';
 import 'package:builtin_interfaces/msg.dart' as builtin_interfaces;
 import 'package:std_msgs/msg.dart';
 

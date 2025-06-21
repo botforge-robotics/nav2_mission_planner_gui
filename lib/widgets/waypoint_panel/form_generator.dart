@@ -12,13 +12,11 @@ class FormGenerator {
     bool forceRefresh = false,
   }) {
     if (forceRefresh) {
-      print('[FormGenerator] Refreshing form field for $fieldName');
+      debugPrint('[FormGenerator] Refreshing form field for $fieldName');
     }
 
     // Handle null values
     final type = (fieldDefinition['type'] ?? 'string').toString();
-    final widget = (fieldDefinition['widget'] ?? 'text').toString();
-    final arrayLength = fieldDefinition['arrayLength'] as int?;
 
     switch (type) {
       case 'array':
@@ -82,50 +80,48 @@ class FormGenerator {
     final Map<String, dynamic> nestedValue =
         currentValue as Map<String, dynamic>? ?? {};
 
-    return Container(
-      child: ExpansionTile(
-        title: RichText(
-          text: TextSpan(
-            text: _formatFieldName(fieldName),
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
+    return ExpansionTile(
+      title: RichText(
+        text: TextSpan(
+          text: _formatFieldName(fieldName),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        subtitle: nestedType != null
-            ? Text(
-                nestedType,
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 12,
-                ),
-              )
-            : null,
-        iconColor: modeColor,
-        collapsedIconColor: modeColor,
-        backgroundColor: Colors.grey[800]?.withOpacity(0.5),
-        collapsedBackgroundColor: Colors.grey[800]?.withOpacity(0.3),
-        childrenPadding: EdgeInsets.all(16),
-        children: structure.entries.map((entry) {
-          final subFieldName = entry.key;
-          final subFieldDef = entry.value as Map<String, dynamic>;
-          final subValue = nestedValue[subFieldName];
-
-          return generateFormField(
-            subFieldName,
-            subFieldDef,
-            subValue,
-            (newValue) {
-              final updatedNestedValue = Map<String, dynamic>.from(nestedValue);
-              updatedNestedValue[subFieldName] = newValue;
-              onChanged(updatedNestedValue);
-            },
-            modeColor,
-          );
-        }).toList(),
       ),
+      subtitle: nestedType != null
+          ? Text(
+              nestedType,
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontSize: 12,
+              ),
+            )
+          : null,
+      iconColor: modeColor,
+      collapsedIconColor: modeColor,
+      backgroundColor: Colors.grey[800]?.withValues(alpha: 0.5),
+      collapsedBackgroundColor: Colors.grey[800]?.withValues(alpha: 0.3),
+      childrenPadding: EdgeInsets.all(16),
+      children: structure.entries.map((entry) {
+        final subFieldName = entry.key;
+        final subFieldDef = entry.value as Map<String, dynamic>;
+        final subValue = nestedValue[subFieldName];
+
+        return generateFormField(
+          subFieldName,
+          subFieldDef,
+          subValue,
+          (newValue) {
+            final updatedNestedValue = Map<String, dynamic>.from(nestedValue);
+            updatedNestedValue[subFieldName] = newValue;
+            onChanged(updatedNestedValue);
+          },
+          modeColor,
+        );
+      }).toList(),
     );
   }
 

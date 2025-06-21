@@ -10,9 +10,10 @@ import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 import '../providers/connection_provider.dart';
 import 'package:nav_msgs/msg.dart' as nav_msgs;
+import 'package:nav_msgs/srv.dart' as nav_srvs;
 import 'package:rosapi_msgs/srv.dart';
-import 'robot_position_marker.dart';
-import 'Arrow_painter.dart';
+import 'sensors/robot_position_marker.dart';
+import 'navigation/Arrow_painter.dart';
 import 'Simple_rotation_slider.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 
@@ -32,6 +33,8 @@ class OccupancyGridViewer extends StatefulWidget {
   final Function(Bookmark)? onBookmarkTap;
   final bool isGoalActive;
   final List<Waypoint>? waypoints;
+  final bool useMapService;
+  final String mapServiceName;
 
   const OccupancyGridViewer({
     super.key,
@@ -50,6 +53,8 @@ class OccupancyGridViewer extends StatefulWidget {
     this.onBookmarkTap,
     this.isGoalActive = false,
     this.waypoints,
+    this.useMapService = false,
+    this.mapServiceName = '/map_server/map',
   });
 
   @override
@@ -108,12 +113,30 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
   // Remove multiple paths storage and colors
   final Color _pathColor = Colors.green.withOpacity(0.7);
 
+  // Service polling
+  Timer? _mapServiceTimer;
+  bool _isFetchingMap = false;
+  bool _mapFetched = false;
+
+  // Cache fetched maps per service to avoid refetching on widget rebuilds
+  static final Map<String, nav_msgs.OccupancyGrid> _serviceMapCache = {};
+
   @override
   void initState() {
     super.initState();
     // Start with identity matrix (no transformations)
     _transformationController.value = Matrix4.identity();
-    _subscribeToTopic();
+    if (widget.useMapService) {
+      // Check cache first
+      if (_serviceMapCache.containsKey(widget.mapServiceName)) {
+        _processMapMessage(_serviceMapCache[widget.mapServiceName]!);
+        _mapFetched = true;
+      } else {
+        _startMapServicePolling();
+      }
+    } else {
+      _subscribeToTopic();
+    }
     if (!mounted) return;
 
     // Subscribe to position updates
@@ -148,18 +171,30 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
     _positionSubscription?.cancel();
     _goalSubscription?.cancel();
     _pathSubscription?.cancel();
+    _mapServiceTimer?.cancel();
     super.dispose();
   }
 
   @override
   void didUpdateWidget(OccupancyGridViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.topic != widget.topic ||
+    if (oldWidget.useMapService != widget.useMapService) {
+      _unsubscribe();
+      if (widget.useMapService) {
+        _startMapServicePolling();
+      } else {
+        _subscribeToTopic();
+      }
+    } else if (oldWidget.topic != widget.topic ||
         oldWidget.enabled != widget.enabled ||
         oldWidget.appModeColor != widget.appModeColor ||
         oldWidget.showMarkers != widget.showMarkers) {
       _unsubscribe();
-      _subscribeToTopic();
+      if (widget.useMapService) {
+        _startMapServicePolling();
+      } else {
+        _subscribeToTopic();
+      }
     }
   }
 
@@ -181,26 +216,7 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
     });
 
     try {
-      // First check if the topic exists
-      final topicExists = await _checkTopicAvailability(connection.ros2Client!);
-
       if (!mounted) return;
-
-      if (!topicExists) {
-        setState(() {
-          _statusMessage =
-              'Map topic ${widget.topic} not found. Waiting for topic...';
-          _hasError = false;
-        });
-
-        // Try again in 2 seconds
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) {
-            _subscribeToTopic();
-          }
-        });
-        return;
-      }
 
       // Topic exists, try to subscribe
       _subscriber = Subscriber<nav_msgs.OccupancyGrid>(
@@ -225,31 +241,12 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
     }
   }
 
-  Future<bool> _checkTopicAvailability(Ros2 ros2) async {
-    try {
-      final client = ServiceClient<TopicsForType, TopicsForTypeRequest,
-          TopicsForTypeResponse>(
-        ros2: ros2,
-        name: '/rosapi/topics_for_type',
-        type: TopicsForType().fullType,
-        serviceType: TopicsForType(),
-      );
-
-      final response = await client.call(
-        TopicsForTypeRequest(type: 'nav_msgs/msg/OccupancyGrid'),
-      );
-
-      return response.topics.contains(widget.topic);
-    } catch (e) {
-      print('Error checking topic availability: $e');
-      return false;
-    }
-  }
-
   void _unsubscribe() {
     try {
       _subscriber?.shutdown();
       _subscriber = null;
+      _mapServiceTimer?.cancel();
+      _mapServiceTimer = null;
       //print('Unsubscribed from ${widget.topic}');
     } catch (e) {
       //print('Error unsubscribing: $e');
@@ -423,6 +420,8 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
           }
         });
       }
+
+      // Note: caching and timer cancellation are handled in _startMapServicePolling
     } catch (e) {
       //print('Error processing map data: $e');
       if (mounted) {
@@ -891,7 +890,11 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                     label: const Text('Retry Connection'),
                     onPressed: () {
                       _unsubscribe();
-                      _subscribeToTopic();
+                      if (widget.useMapService) {
+                        _startMapServicePolling();
+                      } else {
+                        _subscribeToTopic();
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red.shade700,
@@ -1037,6 +1040,55 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         });
       }
     }
+  }
+
+  void _startMapServicePolling() {
+    final connection = Provider.of<ConnectionProvider>(context, listen: false);
+
+    if (connection.ros2Client == null) {
+      setState(() {
+        _statusMessage = 'No ROS2 connection available';
+        _hasError = true;
+      });
+      return;
+    }
+
+    // Cancel any existing timer
+    _mapServiceTimer?.cancel();
+
+    setState(() {
+      _statusMessage = 'Waiting for map service...';
+      _hasError = false;
+    });
+
+    _mapServiceTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (_isFetchingMap) return;
+      _isFetchingMap = true;
+      try {
+        final client = ServiceClient<nav_srvs.GetMap, nav_srvs.GetMapRequest,
+            nav_srvs.GetMapResponse>(
+          ros2: connection.ros2Client!,
+          name: widget.mapServiceName,
+          type: nav_srvs.GetMap().fullType,
+          serviceType: nav_srvs.GetMap(),
+        );
+
+        final response = await client.call(nav_srvs.GetMapRequest());
+        if (mounted) {
+          _processMapMessage(response.map);
+          if (!_mapFetched) {
+            _mapFetched = true;
+            _serviceMapCache[widget.mapServiceName] = response.map;
+            _mapServiceTimer?.cancel();
+            _mapServiceTimer = null;
+          }
+        }
+      } catch (e) {
+        // Service might not be available yet; silently ignore
+      } finally {
+        _isFetchingMap = false;
+      }
+    });
   }
 }
 

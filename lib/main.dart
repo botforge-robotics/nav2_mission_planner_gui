@@ -7,8 +7,6 @@ import 'theme/app_theme.dart';
 import 'providers/connection_provider.dart';
 import 'providers/ros2_data_provider.dart';
 import 'services/launch_service.dart';
-import 'services/topic_service.dart';
-import 'services/service_action_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,18 +50,7 @@ void main() {
             return previous ?? ROS2DataProvider(connectionProvider);
           },
         ),
-        // Provide the service classes that use the centralized ROS2DataProvider
-        ProxyProvider2<ConnectionProvider, ROS2DataProvider, TopicService>(
-          update: (context, connectionProvider, ros2DataProvider, previous) {
-            return TopicService(connectionProvider, ros2DataProvider);
-          },
-        ),
-        ProxyProvider2<ConnectionProvider, ROS2DataProvider,
-            ServiceActionService>(
-          update: (context, connectionProvider, ros2DataProvider, previous) {
-            return ServiceActionService(connectionProvider, ros2DataProvider);
-          },
-        ),
+        // ROS2DataProvider already exposes topics/services/actions; thin wrappers removed.
       ],
       child: const Nav2MissionPlanner(),
     ),

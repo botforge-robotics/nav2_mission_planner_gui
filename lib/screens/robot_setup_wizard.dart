@@ -20,7 +20,6 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
     with TickerProviderStateMixin {
   final PageController _pageController = PageController();
   late AnimationController _progressAnimationController;
-  late Animation<double> _progressAnimation;
 
   int _currentStep = 0;
   final int _totalSteps = 4;
@@ -70,13 +69,6 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
       duration: const Duration(milliseconds: 500),
       vsync: this,
     );
-    _progressAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _progressAnimationController,
-      curve: Curves.easeInOut,
-    ));
 
     _initializeTempSettings();
     _updateProgress();
@@ -162,7 +154,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -175,10 +167,10 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _steps[_currentStep].color.withOpacity(0.2),
+                  color: _steps[_currentStep].color.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: _steps[_currentStep].color.withOpacity(0.5),
+                    color: _steps[_currentStep].color.withValues(alpha: 0.5),
                   ),
                 ),
                 child: Icon(
@@ -215,7 +207,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                 onPressed: _showExitDialog,
                 icon: const Icon(Icons.close, color: Colors.white),
                 style: IconButton.styleFrom(
-                  backgroundColor: Colors.red.withOpacity(0.2),
+                  backgroundColor: Colors.red.withValues(alpha: 0.2),
                 ),
               ),
             ],
@@ -243,10 +235,10 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: _steps[_currentStep].color.withOpacity(0.2),
+              color: _steps[_currentStep].color.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: _steps[_currentStep].color.withOpacity(0.5),
+                color: _steps[_currentStep].color.withValues(alpha: 0.5),
               ),
             ),
             child: Row(
@@ -278,7 +270,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                             : isActive && isValid
                                 ? _steps[index].color
                                 : isActive
-                                    ? _steps[index].color.withOpacity(0.5)
+                                    ? _steps[index].color.withValues(alpha: 0.5)
                                     : Colors.grey.shade600,
                         border: isActive
                             ? Border.all(
@@ -506,13 +498,13 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: required
-              ? _steps[_currentStep].color.withOpacity(0.5)
+              ? _steps[_currentStep].color.withValues(alpha: 0.5)
               : Colors.grey.shade700,
           width: required ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -527,7 +519,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _steps[_currentStep].color.withOpacity(0.2),
+                  color: _steps[_currentStep].color.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -1074,7 +1066,8 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
               icon: const Icon(Icons.add),
               label: const Text('Add Argument'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _steps[_currentStep].color.withOpacity(0.2),
+                backgroundColor:
+                    _steps[_currentStep].color.withValues(alpha: 0.2),
                 foregroundColor: _steps[_currentStep].color,
               ),
             ),
@@ -1118,7 +1111,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
         color: Colors.grey.shade800,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),

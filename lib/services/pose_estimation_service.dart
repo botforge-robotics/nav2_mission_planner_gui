@@ -89,5 +89,11 @@ class PoseEstimationService {
       ];
 
     _publisher!.publish(poseMsg);
+    debugPrint('pose estimate published');
+  }
+
+  static Future<void> shutdown() async {
+    await _publisher?.shutdown();
+    _isInitialized = false;
   }
 }

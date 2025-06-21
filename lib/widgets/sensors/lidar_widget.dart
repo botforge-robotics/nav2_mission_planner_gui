@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:sensor_msgs/msg.dart';
-import '../providers/connection_provider.dart';
+import '../../providers/connection_provider.dart';
 
 class LidarWidget extends StatefulWidget {
   final String scanTopic;
@@ -33,7 +33,6 @@ class LidarWidget extends StatefulWidget {
 class _LidarWidgetState extends State<LidarWidget> {
   Subscriber<LaserScan>? _scanSubscriber;
   List<Offset> _scanPoints = [];
-  bool _hasError = false;
 
   @override
   void initState() {
@@ -69,7 +68,7 @@ class _LidarWidgetState extends State<LidarWidget> {
         prototype: LaserScan(),
       );
     } catch (e) {
-      setState(() => _hasError = true);
+      debugPrint('Error subscribing to lidar: $e');
     }
   }
 
@@ -78,7 +77,6 @@ class _LidarWidgetState extends State<LidarWidget> {
       if (scan.ranges.isEmpty || widget.resolution <= 0) {
         setState(() {
           _scanPoints = [];
-          _hasError = true;
         });
         return;
       }
@@ -113,15 +111,13 @@ class _LidarWidgetState extends State<LidarWidget> {
       if (mounted) {
         setState(() {
           _scanPoints = points;
-          _hasError = false;
         });
       }
     } catch (e) {
-      print('Lidar error: $e');
+      debugPrint('Lidar error: $e');
       if (mounted) {
         setState(() {
           _scanPoints = [];
-          _hasError = true;
         });
       }
     }
@@ -157,7 +153,7 @@ class _LidarPainter extends CustomPainter {
     if (points.isEmpty) return;
 
     final paint = Paint()
-      ..color = color.withOpacity(0.7)
+      ..color = color.withValues(alpha: 0.7)
       ..strokeWidth = 2.0
       ..strokeCap = StrokeCap.round;
 

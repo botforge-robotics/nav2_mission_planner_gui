@@ -255,28 +255,4 @@ class MessageParser {
         return null;
     }
   }
-
-  static dynamic _parseValueForType(String value, String type) {
-    switch (type) {
-      case 'byte':
-      case 'octet':
-        final intValue = int.tryParse(value) ?? 0;
-        return intValue.clamp(0, 255);
-      case 'bool':
-      case 'boolean':
-        return value.toLowerCase() == 'true';
-      case 'int8':
-      case 'int16':
-      case 'int32':
-      case 'int64':
-        return int.tryParse(value) ?? 0;
-      case 'float':
-      case 'float32':
-      case 'float64':
-      case 'double':
-        return double.tryParse(value) ?? 0.0;
-      default:
-        return value;
-    }
-  }
 }

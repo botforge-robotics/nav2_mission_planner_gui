@@ -3,33 +3,33 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:nav2_mission_planner/modals/bookmark.dart';
 import 'package:nav2_mission_planner/services/goal_service.dart';
 import 'package:nav2_mission_planner/providers/ros2_data_provider.dart';
-import 'package:nav2_mission_planner/widgets/nav_bottom_bar.dart';
+import 'package:nav2_mission_planner/widgets/navigation/nav_bottom_bar.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:nav2_mission_planner/providers/connection_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:nav2_mission_planner/services/get_map_list_service.dart';
 import 'package:nav2_mission_planner/services/launch_service.dart';
 import 'package:nav2_mission_planner/widgets/occupancy_grid_viewer.dart';
-import 'package:nav2_mission_planner/widgets/joystick_thumb_widget.dart';
-import 'package:nav2_mission_planner/widgets/image_viwer.dart';
+import 'package:nav2_mission_planner/widgets/sensors/joystick_thumb_widget.dart';
+import 'package:nav2_mission_planner/widgets/sensors/image_viwer.dart';
 import 'package:nav2_mission_planner/providers/settings_provider.dart';
 import 'package:nav2_mission_planner/services/delete_map_service.dart';
-import 'package:nav2_mission_planner/widgets/navigation_toolbar.dart';
-import 'package:nav2_mission_planner/widgets/visibility_toolbar.dart';
+import 'package:nav2_mission_planner/widgets/navigation/navigation_toolbar.dart';
+import 'package:nav2_mission_planner/widgets/navigation/visibility_toolbar.dart';
 import 'package:nav2_mission_planner/services/pose_estimation_service.dart';
 import 'package:nav_msgs/msg.dart' as nav_msgs;
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'dart:async';
 import 'package:nav2_msgs/action.dart';
 import 'package:nav2_mission_planner/helpers/conversions.dart';
-import 'package:nav2_mission_planner/widgets/bookmark_dialog.dart';
+import 'package:nav2_mission_planner/widgets/bookmarks/bookmark_dialog.dart';
 
-import 'package:nav2_mission_planner/widgets/navigation_feedback_widget.dart';
-import 'package:nav2_mission_planner/widgets/bookmark_tooltip.dart';
+import 'package:nav2_mission_planner/widgets/navigation/navigation_feedback_widget.dart';
+import 'package:nav2_mission_planner/widgets/bookmarks/bookmark_tooltip.dart';
 import 'package:uuid/uuid.dart';
 
 import '../modals/mission.dart';
-import '../widgets/waypoint_panel.dart';
+import '../widgets/waypoint_panel/waypoint_panel.dart';
 
 class NavigationScreen extends StatefulWidget {
   final Color modeColor;
@@ -69,7 +69,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _poseEstimationMode = false;
   bool _goalMode = false;
   bool _bookmarksMode = false;
-  GoalService _goalService = GoalService();
+  final GoalService _goalService = GoalService();
   String _selectedTool = '';
   final _goalPositionController =
       StreamController<Map<String, dynamic>>.broadcast();
@@ -88,7 +88,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   // Add late variables to store provider references
   late ConnectionProvider _connectionProvider;
-  late LaunchManager _launchManager;
   bool _isInitialized = false; // Add this flag
 
   List<Bookmark> _localBookmarks = []; // Local list for bookmarks
@@ -108,7 +107,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
     // Store provider references when dependencies change
     _settingsProvider = Provider.of<SettingsProvider>(context);
     _connectionProvider = Provider.of<ConnectionProvider>(context);
-    _launchManager = Provider.of<LaunchManager>(context);
 
     // Initialize only once
     if (!_isInitialized) {
@@ -122,11 +120,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        PoseEstimationService.initializePublisher(context);
-      }
-    });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.delayed(const Duration(milliseconds: 2000));
       if (mounted) {
@@ -250,6 +243,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           _isNavigationActive = true;
         });
         _subscribeToOdometry();
+        PoseEstimationService.initializePublisher(context);
         setState(() {
           // Create map widget
           _mapWidget = _buildMapWidget();
@@ -303,6 +297,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         ),
       );
       _unsubscribeFromOdometry();
+      await PoseEstimationService.shutdown();
       for (final entry in launchManager.activeLaunches.entries) {
         await launchManager.stopLaunch(context, entry.key);
       }
@@ -412,7 +407,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         );
       }
     } catch (e) {
-      print('Error subscribing to odometry: $e');
+      debugPrint('Error subscribing to odometry: $e');
     }
   }
 
@@ -445,23 +440,13 @@ class _NavigationScreenState extends State<NavigationScreen> {
     });
   }
 
-  Future<bool> _checkUnsavedChanges() async {
-    if (_missionMode && _showWaypointPanel) {
-      // Check if there are unsaved changes by calling the waypoint panel's check
-      // This would require exposing the check method from WaypointPanel
-      // For now, we'll implement a simple check here
-      return true; // Allow mode switch
-    }
-    return true;
-  }
-
   void _handleToolSelected(String tool) async {
     // Check for unsaved changes before switching away from mission mode
     if (_missionMode && tool != 'mission') {
       // Add unsaved changes check here if needed
     }
 
-    print('tool selected: $tool');
+    debugPrint('tool selected: $tool');
     setState(() {
       _selectedTool = tool;
       _poseEstimationMode = false;
@@ -712,7 +697,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       );
       _pathSubscriber = subscriber;
     } catch (e) {
-      print('Error subscribing to path topic: $e');
+      debugPrint('Error subscribing to path topic: $e');
     }
   }
 
@@ -834,7 +819,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
           _settingsProvider.bookmarks[_selectedMap!] = updatedBookmarks;
         }
 
-        _localBookmarks.forEach((b) => b.isGoalActive = false);
+        for (var b in _localBookmarks) {
+          b.isGoalActive = false;
+        }
 
         _isGoalActive = false;
         _disableLongPress = false;
@@ -878,7 +865,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _settingsProvider.bookmarks[_selectedMap!] = updatedBookmarks;
       }
 
-      _localBookmarks.forEach((b) => b.isGoalActive = false);
+      for (var b in _localBookmarks) {
+        b.isGoalActive = false;
+      }
 
       _isGoalActive = false;
       _goalPositionController.add({
@@ -900,7 +889,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   void _handleWaypointSelected(int index) {
     // Center view on selected waypoint
     // You may need to implement this based on your map viewer
-    print('Waypoint $index selected');
+    debugPrint('Waypoint $index selected');
   }
 
   void _handleWaypointDeleted(int index) {
@@ -991,7 +980,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             if (matchingBookmark != null) {
               showDialog(
                 context: context,
-                barrierColor: Colors.black.withOpacity(0.5),
+                barrierColor: Colors.black.withValues(alpha: 0.5),
                 barrierDismissible: true,
                 builder: (context) => BookmarkTooltip(
                   bookmark: bookmark,
@@ -1016,7 +1005,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                         _settingsProvider.removeBookmark(_selectedMap!, index);
                       });
                     } else {
-                      print('Could not find bookmark index for deletion');
+                      debugPrint('Could not find bookmark index for deletion');
                     }
                   },
                   onCancel: () {
@@ -1025,11 +1014,13 @@ class _NavigationScreenState extends State<NavigationScreen> {
                 ),
               );
             } else {
-              print('Bookmark not found in current map: $bookmark');
+              debugPrint('Bookmark not found in current map: $bookmark');
             }
           },
           isGoalActive: _isGoalActive,
-          waypoints: _waypoints, // Pass waypoints to OccupancyGridViewer
+          waypoints: _waypoints,
+          useMapService: true,
+          mapServiceName: '/map_server/map',
         ),
       ),
     );
@@ -1055,13 +1046,13 @@ class _NavigationScreenState extends State<NavigationScreen> {
                   .toList() ??
               [];
 
-          print('local bookmarks: $_localBookmarks');
+          debugPrint('local bookmarks: $_localBookmarks');
           _mapWidget = _buildMapWidget();
         });
       } else {
         setState(() {
           _localBookmarks = [];
-          print('local bookmarks: $_localBookmarks');
+          debugPrint('local bookmarks: $_localBookmarks');
           _mapWidget = _buildMapWidget();
         });
       }
@@ -1069,13 +1060,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   void _addBookmarkAsWaypoint(Bookmark bookmark) {
-    // Check if this bookmark is already added as a waypoint
-    final existingWaypoint = _waypoints.any((waypoint) =>
-        waypoint.name == bookmark.name &&
-        waypoint.position != null &&
-        (waypoint.position!.x - bookmark.positionX).abs() < 0.01 &&
-        (waypoint.position!.y - bookmark.positionY).abs() < 0.01);
-
     final waypoint = Waypoint(
       id: Uuid().v4(),
       events: [],
@@ -1128,7 +1112,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                 width: 150,
                 height: 150,
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   shape: BoxShape.circle,
                 ),
                 child: JoystickThumbWidget(modeColor: widget.modeColor),
@@ -1373,7 +1357,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                           ? [
                                               BoxShadow(
                                                 color: Colors.black
-                                                    .withOpacity(0.3),
+                                                    .withValues(alpha: 0.3),
                                                 blurRadius: 3,
                                                 offset: Offset(0, 2),
                                               )

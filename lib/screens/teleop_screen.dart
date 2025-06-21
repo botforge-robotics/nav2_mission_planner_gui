@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
-import '../widgets/image_viwer.dart';
-import '../widgets/joystick_thumb_widget.dart';
+import '../widgets/sensors/image_viwer.dart';
+import '../widgets/sensors/joystick_thumb_widget.dart';
 import '../widgets/camera_snap_button.dart';
 
 class TeleopScreen extends StatelessWidget {

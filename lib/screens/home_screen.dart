@@ -22,20 +22,6 @@ class _HomeScreenState extends State<HomeScreen> {
   AppModes _currentMode = AppModes.teleop;
   AppModes? _previousMode;
 
-  Widget _getScreen(AppModes mode) {
-    final modeColor = ModeColors.modeColorMap[mode]!;
-    switch (mode) {
-      case AppModes.teleop:
-        return TeleopScreen(modeColor: modeColor);
-      case AppModes.mapping:
-        return MappingScreen(modeColor: modeColor);
-      case AppModes.navigation:
-        return NavigationScreen(modeColor: modeColor);
-      case AppModes.settings:
-        return const SizedBox.shrink(); // Should never happen with new design
-    }
-  }
-
   String _getModeStatusText(bool isConnected) {
     if (!isConnected) {
       return 'Connect to Robot';

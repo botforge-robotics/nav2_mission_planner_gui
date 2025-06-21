@@ -49,10 +49,10 @@ class LaunchManager extends ChangeNotifier {
             .map((arg) => '${arg['name']}:=${arg['value']}')
             .join(' '),
       );
-      print(
+      debugPrint(
           'Request: $request. ${settings.mappingArgs.map((arg) => '${arg['name']}:=${arg['value']}').join(' ')}');
       final response = await serviceClient.call(request);
-      if (response.success ?? false) {
+      if (response.success) {
         // Track the unique_id and description
         _activeLaunches[response.unique_id] =
             '${parts[0]}/${parts[1]} ${settings.mappingArgs.map((arg) => '${arg['name']}:=${arg['value']}').join(' ')}';
@@ -62,8 +62,7 @@ class LaunchManager extends ChangeNotifier {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-                'Failed to start mapping: ${response.message ?? "Unknown error"}'),
+            content: Text('Failed to start mapping: ${response.message}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -99,7 +98,7 @@ class LaunchManager extends ChangeNotifier {
       notifyListeners();
       _activeSession = SessionType.none;
     } catch (e) {
-      print('Error stopping launch: $e');
+      debugPrint('Error stopping launch: $e');
       rethrow;
     }
   }
@@ -136,7 +135,7 @@ class LaunchManager extends ChangeNotifier {
       );
 
       final response = await serviceClient.call(request);
-      return response.success ?? false;
+      return response.success;
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
