@@ -141,7 +141,7 @@ class _MappingScreenState extends State<MappingScreen> {
 
           // Occupancy Grid Map Display - only create it when started
           if (_mapWidget != null)
-            Positioned.fill(child: _mapWidget!)
+            Center(child: _mapWidget!)
           else
             Container(
               color: Colors.black87, // 60% - Primary background
