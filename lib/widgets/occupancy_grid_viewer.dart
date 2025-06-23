@@ -9,6 +9,7 @@ import 'package:nav2_mission_planner/modals/mission.dart';
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 import '../providers/connection_provider.dart';
+import '../providers/settings_provider.dart';
 import 'package:nav_msgs/msg.dart' as nav_msgs;
 import 'package:nav_msgs/srv.dart' as nav_srvs;
 import 'package:rosapi_msgs/srv.dart';
@@ -1071,6 +1072,9 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
           name: widget.mapServiceName,
           type: nav_srvs.GetMap().fullType,
           serviceType: nav_srvs.GetMap(),
+          timeout: Provider.of<SettingsProvider>(context, listen: false)
+              .communicationTimeout
+              .toDouble(),
         );
 
         final response = await client.call(nav_srvs.GetMapRequest());

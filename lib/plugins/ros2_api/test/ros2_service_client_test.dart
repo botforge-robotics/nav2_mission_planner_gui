@@ -25,6 +25,7 @@ void main() {
         name: '/rosapi/services',
         type: Services().fullType,
         serviceType: Services(),
+        timeout: 120,
       );
 
       final request =

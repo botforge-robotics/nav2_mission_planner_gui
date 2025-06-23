@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 import '../../../../providers/connection_provider.dart';
+import '../../../../providers/settings_provider.dart';
 import 'package:rosapi_msgs/srv.dart';
 
 class LidarTopicInput extends StatefulWidget {
@@ -37,6 +38,8 @@ class _LidarTopicInputState extends State<LidarTopicInput> {
 
   Future<void> _fetchTopics() async {
     final connectionProvider = context.read<ConnectionProvider>();
+    final settings = context.read<SettingsProvider>();
+    final double timeoutSeconds = settings.communicationTimeout.toDouble();
     final ros2 = connectionProvider.ros2Client;
 
     setState(() {
@@ -51,6 +54,7 @@ class _LidarTopicInputState extends State<LidarTopicInput> {
         name: '/rosapi/topics_for_type',
         type: TopicsForType().fullType,
         serviceType: TopicsForType(),
+        timeout: timeoutSeconds,
       );
 
       final response = await client

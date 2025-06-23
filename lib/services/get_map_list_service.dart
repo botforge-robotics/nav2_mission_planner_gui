@@ -17,6 +17,7 @@ class MapListService {
         ros2: connection.ros2Client!,
         type: GetMapList().fullType,
         serviceType: GetMapList(),
+        timeout: settings.communicationTimeout.toDouble(),
       );
 
       final request = GetMapListRequest(path: settings.mapsPath);

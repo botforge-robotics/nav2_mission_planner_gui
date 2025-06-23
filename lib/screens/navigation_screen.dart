@@ -155,48 +155,33 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   /// Delete remote+local map, then remove from the list on success
-  Future<void> _deleteMap(String mapName) async {
+  Future<void> _deleteMap(String mapName, int removedIndex) async {
     if (!mounted) return;
-
-    setState(() {
-      _deletingMaps.add(mapName);
-    });
 
     final success = await DeleteMapService().deleteMap(context, mapName);
 
     if (!mounted) return;
 
-    setState(() {
-      _deletingMaps.remove(mapName);
+    if (success) {
+      // Remove bookmarks for this map
+      final bookmarksCount = _settingsProvider.bookmarks[mapName]?.length ?? 0;
+      _settingsProvider.bookmarks.remove(mapName);
 
-      if (success) {
-        // Get the number of bookmarks for this map
-        final bookmarksCount =
-            _settingsProvider.bookmarks[mapName]?.length ?? 0;
-
-        // Remove bookmarks for this map
-        _settingsProvider.bookmarks.remove(mapName);
-
-        _mapList.remove(mapName);
-
-        if (_selectedMap == mapName) {
-          _selectedMap = _mapList.isNotEmpty ? _mapList.first : null;
-        }
-
-        // Show a snackbar with deletion details
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Map "$mapName" deleted${bookmarksCount > 0 ? " (with $bookmarksCount associated bookmarks)" : ""}',
-                style: TextStyle(color: Colors.white),
-              ),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      }
-    });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Map "$mapName" deleted${bookmarksCount > 0 ? " (with $bookmarksCount associated bookmarks)" : ""}',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } else {
+      // Deletion failed – restore item to list
+      setState(() {
+        _mapList.insert(removedIndex, mapName);
+      });
+    }
   }
 
   Future<void> _startNavigation() async {
@@ -1332,7 +1317,18 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                         ) ??
                                         false;
                                   },
-                                  onDismissed: (_) => _deleteMap(map),
+                                  onDismissed: (_) {
+                                    final removedIndex = index;
+                                    setState(() {
+                                      _mapList.removeAt(removedIndex);
+                                      if (_selectedMap == map) {
+                                        _selectedMap = _mapList.isNotEmpty
+                                            ? _mapList.first
+                                            : null;
+                                      }
+                                    });
+                                    _deleteMap(map, removedIndex);
+                                  },
                                   background: Container(
                                     color: Colors.transparent,
                                   ),

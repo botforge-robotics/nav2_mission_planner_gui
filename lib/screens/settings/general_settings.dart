@@ -7,6 +7,7 @@ import 'widgets/setting_card.dart';
 import 'widgets/setting_header.dart';
 import 'widgets/odom_topic_input.dart';
 import 'widgets/lidar_topic_input.dart';
+import 'widgets/communication_timeout_input.dart';
 
 class GeneralSettings extends StatelessWidget {
   final Size screenSize;
@@ -72,6 +73,19 @@ class GeneralSettings extends StatelessWidget {
                   content: LidarTopicInput(
                     initialValue: settings.lidarTopic,
                     onChanged: settings.setLidarTopic,
+                    screenSize: screenSize,
+                    modeColor: modeColor,
+                  ),
+                ),
+                SettingCard(
+                  title: 'Communication Timeout',
+                  description:
+                      'Maximum time without robot messages before connection is considered lost (seconds)',
+                  modeColor: modeColor,
+                  screenSize: screenSize,
+                  content: CommunicationTimeoutInput(
+                    initialValue: settings.communicationTimeout,
+                    onChanged: settings.setCommunicationTimeout,
                     screenSize: screenSize,
                     modeColor: modeColor,
                   ),

@@ -50,4 +50,7 @@ class DefaultSettings {
   static const Map<String, List<Bookmark>> defaultBookmarks = {};
 
   static const bool defaultBookmarksVisible = true;
+
+  // Add default communication timeout in seconds
+  static const int defaultCommunicationTimeout = 120;
 }

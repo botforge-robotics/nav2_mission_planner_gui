@@ -44,6 +44,9 @@ class SettingsProvider extends ChangeNotifier {
   // Add to existing properties
   String _lidarTopic = DefaultSettings.defaultLidarTopic;
 
+  // Communication timeout (in seconds)
+  int _communicationTimeout = DefaultSettings.defaultCommunicationTimeout;
+
   // Add these to the class
   bool _cameraVisible = DefaultSettings.defaultCameraVisible;
   bool _joystickVisible = DefaultSettings.defaultJoystickVisible;
@@ -86,6 +89,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get joystickVisible => _joystickVisible;
   String get pathTopic => _pathTopic;
   Map<String, List<Bookmark>> get bookmarks => _bookmarks;
+  int get communicationTimeout => _communicationTimeout;
   bool get bookmarksVisible => _bookmarksVisible;
   Map<String, Mission> get missions => _missions;
 
@@ -168,6 +172,10 @@ class SettingsProvider extends ChangeNotifier {
     _lidarTopic = prefs.getString('$settingsKey:lidarTopic') ??
         DefaultSettings.defaultLidarTopic;
 
+    // Load communication timeout
+    _communicationTimeout = prefs.getInt('$settingsKey:communicationTimeout') ??
+        DefaultSettings.defaultCommunicationTimeout;
+
     // Load visibility settings
     _cameraVisible = prefs.getBool('$settingsKey:cameraVisible') ??
         DefaultSettings.defaultCameraVisible;
@@ -238,6 +246,8 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setString(
         '$settingsKey:saveMapArgs', json.encode(_saveMapArgs));
     await prefs.setString('$settingsKey:lidarTopic', _lidarTopic);
+    await prefs.setInt(
+        '$settingsKey:communicationTimeout', _communicationTimeout);
     await prefs.setBool('$settingsKey:cameraVisible', _cameraVisible);
     await prefs.setBool('$settingsKey:joystickVisible', _joystickVisible);
     await prefs.setString('$settingsKey:pathTopic', _pathTopic);
@@ -443,6 +453,15 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Communication timeout setter
+  void setCommunicationTimeout(int timeoutSeconds) {
+    if (timeoutSeconds >= 0) {
+      _communicationTimeout = timeoutSeconds;
+      _saveSettings();
+      notifyListeners();
+    }
+  }
+
   void toggleCameraVisibility() {
     _cameraVisible = !_cameraVisible;
     notifyListeners();
@@ -593,6 +612,7 @@ class SettingsProvider extends ChangeNotifier {
       '$settingsKey:saveMapLaunchFile',
       '$settingsKey:saveMapArgs',
       '$settingsKey:lidarTopic',
+      '$settingsKey:communicationTimeout',
       '$settingsKey:cameraVisible',
       '$settingsKey:joystickVisible',
       '$settingsKey:pathTopic',

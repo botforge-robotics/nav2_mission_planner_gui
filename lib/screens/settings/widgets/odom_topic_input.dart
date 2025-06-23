@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:rosapi_msgs/srv.dart';
 import 'package:nav2_mission_planner/providers/connection_provider.dart';
+import 'package:nav2_mission_planner/providers/settings_provider.dart';
 
 class OdomTopicInput extends StatefulWidget {
   final String initialValue;
@@ -41,6 +42,8 @@ class _OdomTopicInputState extends State<OdomTopicInput> {
 
   Future<void> _fetchTopics() async {
     final connectionProvider = context.read<ConnectionProvider>();
+    final settings = context.read<SettingsProvider>();
+    final double timeoutSeconds = settings.communicationTimeout.toDouble();
     final ros2 = connectionProvider.ros2Client;
 
     setState(() {
@@ -56,6 +59,7 @@ class _OdomTopicInputState extends State<OdomTopicInput> {
         name: '/rosapi/topics_for_type',
         type: TopicsForType().fullType,
         serviceType: TopicsForType(),
+        timeout: timeoutSeconds,
       );
 
       final typesToCheck = [

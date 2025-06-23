@@ -57,12 +57,15 @@ class ImageViewerState extends State<ImageViewer> {
     try {
       final ros2 =
           Provider.of<ConnectionProvider>(context, listen: false).ros2Client!;
+      final settings = Provider.of<SettingsProvider>(context, listen: false);
+      final double timeoutSeconds = settings.communicationTimeout.toDouble();
       final client = ServiceClient<TopicsForType, TopicsForTypeRequest,
           TopicsForTypeResponse>(
         ros2: ros2,
         name: '/rosapi/topics_for_type',
         type: TopicsForType().fullType,
         serviceType: TopicsForType(),
+        timeout: timeoutSeconds,
       );
       final resp = await client.call(
         TopicsForTypeRequest(type: 'sensor_msgs/msg/CompressedImage'),

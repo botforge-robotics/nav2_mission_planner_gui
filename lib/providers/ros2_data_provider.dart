@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nav2_mission_planner/providers/connection_provider.dart';
+import 'package:nav2_mission_planner/providers/settings_provider.dart';
 import 'package:nav2_mission_planner/services/message_parser.dart';
 import 'dart:async';
 import 'package:rosapi_msgs/srv.dart';
@@ -7,6 +8,7 @@ import 'package:ros2_api/ros2_api.dart';
 
 class ROS2DataProvider extends ChangeNotifier {
   final ConnectionProvider _connectionProvider;
+  final SettingsProvider _settingsProvider;
 
   // Data storage
   Map<String, String> _topics = {};
@@ -36,7 +38,10 @@ class ROS2DataProvider extends ChangeNotifier {
       _isLoadingActions ||
       _isLoadingMessageStructure;
 
-  ROS2DataProvider(this._connectionProvider);
+  ROS2DataProvider(this._connectionProvider, this._settingsProvider);
+
+  Duration get _timeout =>
+      Duration(seconds: _settingsProvider.communicationTimeout);
 
   // Check if ROS2 client is available
   bool get isConnected =>
@@ -59,6 +64,7 @@ class ROS2DataProvider extends ChangeNotifier {
         name: '/rosapi/topics',
         type: Topics().fullType,
         serviceType: Topics(),
+        timeout: _timeout.inSeconds.toDouble(),
       );
 
       final response = await client.call(TopicsRequest());
@@ -72,6 +78,7 @@ class ROS2DataProvider extends ChangeNotifier {
             name: '/rosapi/topic_type',
             type: TopicType().fullType,
             serviceType: TopicType(),
+            timeout: _timeout.inSeconds.toDouble(),
           );
 
           final typeResponse =
@@ -107,6 +114,7 @@ class ROS2DataProvider extends ChangeNotifier {
         name: '/rosapi/services',
         type: Services().fullType,
         serviceType: Services(),
+        timeout: _timeout.inSeconds.toDouble(),
       );
 
       final response = await client.call(ServicesRequest());
@@ -120,6 +128,7 @@ class ROS2DataProvider extends ChangeNotifier {
             name: '/rosapi/service_type',
             type: ServiceType().fullType,
             serviceType: ServiceType(),
+            timeout: _timeout.inSeconds.toDouble(),
           );
 
           final typeResponse =
@@ -156,6 +165,7 @@ class ROS2DataProvider extends ChangeNotifier {
         name: '/rosapi/action_servers',
         type: GetActionServers().fullType,
         serviceType: GetActionServers(),
+        timeout: _timeout.inSeconds.toDouble(),
       );
 
       final response = await client.call(GetActionServersRequest());
@@ -188,6 +198,7 @@ class ROS2DataProvider extends ChangeNotifier {
         name: '/rosapi/message_details',
         type: MessageDetails().fullType,
         serviceType: MessageDetails(),
+        timeout: _timeout.inSeconds.toDouble(),
       );
 
       final response =
@@ -226,6 +237,7 @@ class ROS2DataProvider extends ChangeNotifier {
         name: '/rosapi/service_request_details',
         type: ServiceRequestDetails().fullType,
         serviceType: ServiceRequestDetails(),
+        timeout: _timeout.inSeconds.toDouble(),
       );
 
       final response =
@@ -264,6 +276,7 @@ class ROS2DataProvider extends ChangeNotifier {
         name: '/rosapi/service_response_details',
         type: ServiceResponseDetails().fullType,
         serviceType: ServiceResponseDetails(),
+        timeout: _timeout.inSeconds.toDouble(),
       );
 
       final response =
@@ -302,6 +315,7 @@ class ROS2DataProvider extends ChangeNotifier {
         name: '/rosapi/action_goal_details',
         type: ActionGoalDetails().fullType,
         serviceType: ActionGoalDetails(),
+        timeout: _timeout.inSeconds.toDouble(),
       );
 
       final response =
@@ -335,6 +349,7 @@ class ROS2DataProvider extends ChangeNotifier {
         name: '/rosapi/service_type',
         type: ServiceType().fullType,
         serviceType: ServiceType(),
+        timeout: _timeout.inSeconds.toDouble(),
       );
 
       final typeResponse =
@@ -359,6 +374,7 @@ class ROS2DataProvider extends ChangeNotifier {
         name: '/rosapi/action_type',
         type: ActionType().fullType,
         serviceType: ActionType(),
+        timeout: _timeout.inSeconds.toDouble(),
       );
 
       final typeResponse =

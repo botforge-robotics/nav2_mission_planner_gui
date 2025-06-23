@@ -13,12 +13,14 @@ class ServiceClient<
     required this.name,
     required this.type,
     required this.serviceType,
+    required this.timeout,
   });
 
   final Ros2 ros2;
   final String name;
   final String type;
   final T serviceType;
+  final double timeout;
   StreamSubscription? _listener;
 
   /// Call the service with a request
@@ -52,6 +54,7 @@ class ServiceClient<
       'service': name,
       'type': type,
       'args': request.toJson(),
+      'timeout': timeout,
     });
 
     return completer.future;
@@ -138,7 +141,8 @@ Future<bool> serviceExists(Ros2 ros2, String serviceName) async {
           ros2: ros2,
           name: '/rosapi/services',
           type: Services().fullType,
-          serviceType: Services());
+          serviceType: Services(),
+          timeout: 120);
 
   try {
     final request = ServicesRequest();

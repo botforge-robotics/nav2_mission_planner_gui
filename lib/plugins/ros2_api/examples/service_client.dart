@@ -15,6 +15,7 @@ void main() async {
     name: '/rosapi/services',
     type: Services().fullType,
     serviceType: Services(),
+    timeout: 120,
   );
 
   try {

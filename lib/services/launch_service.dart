@@ -40,6 +40,7 @@ class LaunchManager extends ChangeNotifier {
         ros2: connection.ros2Client!,
         type: LaunchWithArgs().fullType,
         serviceType: LaunchWithArgs(),
+        timeout: settings.communicationTimeout.toDouble(),
       );
 
       final request = LaunchWithArgsRequest(
@@ -83,6 +84,7 @@ class LaunchManager extends ChangeNotifier {
 
   Future<void> stopLaunch(BuildContext context, String uniqueId) async {
     final connection = Provider.of<ConnectionProvider>(context, listen: false);
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
     try {
       final serviceClient =
           ServiceClient<StopLaunch, StopLaunchRequest, StopLaunchResponse>(
@@ -90,6 +92,7 @@ class LaunchManager extends ChangeNotifier {
         ros2: connection.ros2Client!,
         type: StopLaunch().fullType,
         serviceType: StopLaunch(),
+        timeout: settings.communicationTimeout.toDouble(),
       );
 
       final request = StopLaunchRequest(unique_id: uniqueId);
@@ -125,6 +128,7 @@ class LaunchManager extends ChangeNotifier {
         ros2: connection.ros2Client!,
         type: LaunchWithArgs().fullType,
         serviceType: LaunchWithArgs(),
+        timeout: settings.communicationTimeout.toDouble(),
       );
 
       final request = LaunchWithArgsRequest(
@@ -169,6 +173,7 @@ class LaunchManager extends ChangeNotifier {
         ros2: connection.ros2Client!,
         type: LaunchWithArgs().fullType,
         serviceType: LaunchWithArgs(),
+        timeout: settings.communicationTimeout.toDouble(),
       );
 
       // Get arguments directly from settings

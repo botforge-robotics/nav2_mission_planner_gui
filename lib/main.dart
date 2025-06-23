@@ -41,13 +41,16 @@ void main() {
             return previous!;
           },
         ),
-        ChangeNotifierProxyProvider<ConnectionProvider, ROS2DataProvider>(
+        ChangeNotifierProxyProvider2<ConnectionProvider, SettingsProvider,
+            ROS2DataProvider>(
           create: (context) => ROS2DataProvider(
             Provider.of<ConnectionProvider>(context, listen: false),
+            Provider.of<SettingsProvider>(context, listen: false),
           ),
-          update: (context, connectionProvider, previous) {
-            // If previous provider exists, return it since it already has the connection provider
-            return previous ?? ROS2DataProvider(connectionProvider);
+          update: (context, connectionProvider, settingsProvider, previous) {
+            // Recreate provider if dependencies changed
+            return previous ??
+                ROS2DataProvider(connectionProvider, settingsProvider);
           },
         ),
         // ROS2DataProvider already exposes topics/services/actions; thin wrappers removed.

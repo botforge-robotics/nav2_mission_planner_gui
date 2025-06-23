@@ -3,10 +3,12 @@ import 'package:ros2_api/ros2_api.dart';
 import 'dart:convert';
 import '../providers/connection_provider.dart';
 import 'package:rosapi_msgs/srv.dart';
+import '../constants/default_settings.dart';
+import '../providers/settings_provider.dart';
 
 class RosParameterService {
-  static Future<bool> setParameter(
-      ConnectionProvider connectionProvider, String name, dynamic value) async {
+  static Future<bool> setParameter(ConnectionProvider connectionProvider,
+      SettingsProvider settingsProvider, String name, dynamic value) async {
     if (!connectionProvider.isConnected ||
         connectionProvider.ros2Client == null) {
       throw Exception('Not connected to ROS2');
@@ -19,6 +21,7 @@ class RosParameterService {
         ros2: connectionProvider.ros2Client!,
         type: SetParam().fullType,
         serviceType: SetParam(),
+        timeout: settingsProvider.communicationTimeout.toDouble(),
       );
 
       final response = await serviceClient.call(SetParamRequest(
@@ -35,8 +38,8 @@ class RosParameterService {
     }
   }
 
-  static Future<dynamic> getParameter(
-      ConnectionProvider connectionProvider, String name) async {
+  static Future<dynamic> getParameter(ConnectionProvider connectionProvider,
+      SettingsProvider settingsProvider, String name) async {
     if (!connectionProvider.isConnected ||
         connectionProvider.ros2Client == null) {
       throw Exception('Not connected to ROS2');
@@ -49,6 +52,7 @@ class RosParameterService {
         ros2: connectionProvider.ros2Client!,
         type: GetParam().fullType,
         serviceType: GetParam(),
+        timeout: settingsProvider.communicationTimeout.toDouble(),
       );
 
       final response = await serviceClient.call(GetParamRequest(
