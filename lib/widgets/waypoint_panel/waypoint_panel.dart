@@ -307,6 +307,16 @@ class _WaypointPanelState extends State<WaypointPanel> {
     });
   }
 
+  int _missionIndexToWaypointIndex(int missionIdx) {
+    int wpIdx = 0;
+    for (int i = 0; i < missionIdx; i++) {
+      if (_missionItems[i].type == MissionItemType.goto) {
+        wpIdx++;
+      }
+    }
+    return wpIdx;
+  }
+
   void _handleReorder(int oldIndex, int newIndex) {
     if (oldIndex < newIndex) {
       newIndex -= 1;
@@ -315,6 +325,12 @@ class _WaypointPanelState extends State<WaypointPanel> {
       final MissionItem item = _missionItems.removeAt(oldIndex);
       _missionItems.insert(newIndex, item);
       _trackChanges();
+    });
+
+    // After any mission-item reorder, notify parent of new waypoint ordering
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final orderedWaypoints = _getWaypointsInMissionOrder();
+      widget.onWaypointsLoaded(List<Waypoint>.from(orderedWaypoints));
     });
   }
 
@@ -448,6 +464,21 @@ class _WaypointPanelState extends State<WaypointPanel> {
           item.type == MissionItemType.goto &&
           !currentWaypointIds.contains(item.id));
     });
+  }
+
+  // Returns the current waypoint list ordered according to the mission items
+  List<Waypoint> _getWaypointsInMissionOrder() {
+    // Build a lookup map from waypoint id to waypoint instance
+    final Map<String?, Waypoint> waypointMap = {
+      for (final wp in widget.waypoints) wp.id: wp,
+    };
+
+    // Extract the waypoints in the same order as the GOTO mission items
+    return _missionItems
+        .where((item) => item.type == MissionItemType.goto)
+        .map((item) => waypointMap[item.id])
+        .whereType<Waypoint>()
+        .toList();
   }
 
   void _showSaveMissionDialog() {
@@ -682,13 +713,13 @@ class _WaypointPanelState extends State<WaypointPanel> {
                           );
                           settingsProvider.saveMission(mission);
 
-                          // Update the state to reflect the saved mission
-                          setState(() {
-                            _selectedMission = mission.missionName;
-                            _originalItems =
-                                List<MissionItem>.from(_missionItems);
-                            _hasUnsavedChanges = false;
-                          });
+                          // Force mission path repaint by notifying the parent with current ordering
+                          final orderedWaypoints =
+                              _getWaypointsInMissionOrder();
+                          if (orderedWaypoints.isNotEmpty) {
+                            widget.onWaypointsLoaded(
+                                List<Waypoint>.from(orderedWaypoints));
+                          }
 
                           Navigator.pop(context);
 
@@ -1289,6 +1320,15 @@ class _WaypointPanelState extends State<WaypointPanel> {
                                                   context,
                                                   listen: false);
                                           settingsProvider.saveMission(mission);
+
+                                          // Force mission path repaint by notifying the parent with current ordering
+                                          final orderedWaypoints =
+                                              _getWaypointsInMissionOrder();
+                                          if (orderedWaypoints.isNotEmpty) {
+                                            widget.onWaypointsLoaded(
+                                                List<Waypoint>.from(
+                                                    orderedWaypoints));
+                                          }
                                         }
 
                                         // Now proceed with the new selection
@@ -1329,11 +1369,13 @@ class _WaypointPanelState extends State<WaypointPanel> {
                                     ),
                                   ),
                                   child: IconButton(
-                                    icon:
-                                        Icon(Icons.delete, color: Colors.white),
+                                    icon: Icon(Icons.delete,
+                                        color: Colors.white, size: 18),
                                     onPressed: _confirmDeleteMission,
                                     tooltip: 'Delete Mission',
-                                    padding: EdgeInsets.all(12),
+                                    padding: EdgeInsets.zero,
+                                    constraints: BoxConstraints.tightFor(
+                                        width: 40, height: 40),
                                   ),
                                 ),
                               ),
@@ -1361,10 +1403,13 @@ class _WaypointPanelState extends State<WaypointPanel> {
                                     ),
                                   ),
                                   child: IconButton(
-                                    icon: Icon(Icons.save, color: Colors.white),
+                                    icon: Icon(Icons.save,
+                                        color: Colors.white, size: 18),
                                     onPressed: _showSaveMissionDialog,
                                     tooltip: 'Save Mission',
-                                    padding: EdgeInsets.all(12),
+                                    padding: EdgeInsets.zero,
+                                    constraints: BoxConstraints.tightFor(
+                                        width: 40, height: 40),
                                   ),
                                 ),
                               ),

@@ -1004,6 +1004,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           },
           isGoalActive: _isGoalActive,
           waypoints: _waypoints,
+          showWaypointPath: _missionMode,
           useMapService: true,
           mapServiceName: '/map_server/map',
         ),

@@ -17,6 +17,7 @@ import 'sensors/robot_position_marker.dart';
 import 'navigation/Arrow_painter.dart';
 import 'Simple_rotation_slider.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
+import 'package:flutter/foundation.dart';
 
 class OccupancyGridViewer extends StatefulWidget {
   final bool enabled;
@@ -36,6 +37,7 @@ class OccupancyGridViewer extends StatefulWidget {
   final List<Waypoint>? waypoints;
   final bool useMapService;
   final String mapServiceName;
+  final bool showWaypointPath;
 
   const OccupancyGridViewer({
     super.key,
@@ -56,6 +58,7 @@ class OccupancyGridViewer extends StatefulWidget {
     this.waypoints,
     this.useMapService = false,
     this.mapServiceName = '/map_server/map',
+    this.showWaypointPath = false,
   });
 
   @override
@@ -179,6 +182,32 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
   @override
   void didUpdateWidget(OccupancyGridViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    // Check if waypoints changed (including order changes)
+    bool waypointsChanged = false;
+    if (widget.waypoints != null && oldWidget.waypoints != null) {
+      if (widget.waypoints!.length != oldWidget.waypoints!.length) {
+        waypointsChanged = true;
+      } else {
+        for (int i = 0; i < widget.waypoints!.length; i++) {
+          if (widget.waypoints![i].id != oldWidget.waypoints![i].id) {
+            waypointsChanged = true;
+            break;
+          }
+        }
+      }
+    } else if ((widget.waypoints == null) != (oldWidget.waypoints == null)) {
+      waypointsChanged = true;
+    }
+
+    // Force rebuild when waypoint path display changes
+    if (widget.showWaypointPath != oldWidget.showWaypointPath ||
+        waypointsChanged) {
+      setState(() {
+        // Just trigger a rebuild
+      });
+    }
+
     if (oldWidget.useMapService != widget.useMapService) {
       _unsubscribe();
       if (widget.useMapService) {
@@ -653,6 +682,31 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                               mapOriginTheta: _mapOriginTheta,
                               scale: _currentScale,
                               pathColor: _pathColor,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // 2b. Planned Waypoint path
+                    if (_mapImage != null &&
+                        widget.showWaypointPath &&
+                        widget.waypoints != null &&
+                        widget.waypoints!.isNotEmpty)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: WaypointPathPainter(
+                              robotX: _robotX,
+                              robotY: _robotY,
+                              waypoints: widget.waypoints!,
+                              mapOriginX: _mapOriginX,
+                              mapOriginY: _mapOriginY,
+                              mapResolution: _mapResolution,
+                              mapHeight: _mapHeight,
+                              mapWidth: _mapWidth,
+                              mapOriginTheta: _mapOriginTheta,
+                              scale: _currentScale,
+                              color: widget.appModeColor,
                             ),
                           ),
                         ),
@@ -1207,6 +1261,90 @@ class PathPainter extends CustomPainter {
   @override
   bool shouldRepaint(PathPainter oldDelegate) {
     return path != oldDelegate.path || scale != oldDelegate.scale;
+  }
+}
+
+// Painter to draw connecting lines between robot and waypoints
+class WaypointPathPainter extends CustomPainter {
+  final double robotX;
+  final double robotY;
+  final List<Waypoint> waypoints;
+
+  // Map metadata for coordinate conversion
+  final double mapOriginX;
+  final double mapOriginY;
+  final double mapResolution;
+  final int mapHeight;
+  final int mapWidth;
+  final double mapOriginTheta;
+
+  final double scale;
+  final Color color;
+
+  WaypointPathPainter({
+    required this.robotX,
+    required this.robotY,
+    required this.waypoints,
+    required this.mapOriginX,
+    required this.mapOriginY,
+    required this.mapResolution,
+    required this.mapHeight,
+    required this.mapWidth,
+    required this.mapOriginTheta,
+    required this.scale,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (waypoints.isEmpty) return;
+
+    final paint = Paint()
+      ..color = color.withOpacity(0.8)
+      ..strokeWidth = 1.5 / scale
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    path.moveTo(robotX, robotY);
+
+    for (final waypoint in waypoints) {
+      final transformed = transformToMapFrame(
+        waypoint.position.x,
+        waypoint.position.y,
+        eulerToQuaternion(0, 0, waypoint.position.theta),
+        mapOriginX,
+        mapOriginY,
+        mapResolution,
+        mapHeight,
+        mapWidth,
+        mapOriginTheta,
+      );
+      path.lineTo(transformed.x, transformed.y);
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant WaypointPathPainter oldDelegate) {
+    // Check if waypoint order or content has changed by comparing IDs and positions
+    bool waypointsChanged = waypoints.length != oldDelegate.waypoints.length;
+
+    if (!waypointsChanged) {
+      for (int i = 0; i < waypoints.length; i++) {
+        if (waypoints[i].id != oldDelegate.waypoints[i].id ||
+            waypoints[i].position.x != oldDelegate.waypoints[i].position.x ||
+            waypoints[i].position.y != oldDelegate.waypoints[i].position.y) {
+          waypointsChanged = true;
+          break;
+        }
+      }
+    }
+
+    return robotX != oldDelegate.robotX ||
+        robotY != oldDelegate.robotY ||
+        waypointsChanged ||
+        scale != oldDelegate.scale;
   }
 }
 
