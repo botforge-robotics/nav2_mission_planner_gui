@@ -117,32 +117,55 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
     return Scaffold(
       backgroundColor: Colors.grey.shade900,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            _buildHeader(),
-            _buildProgressIndicator(),
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _buildSensorStep(),
-                  _buildTeleopStep(),
-                  _buildMappingStep(),
-                  _buildNavigationStep(),
-                ],
-              ),
+            // Main content column (header + pages)
+            Column(
+              children: [
+                _buildHeader(context),
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      _buildSensorStep(),
+                      _buildTeleopStep(),
+                      _buildMappingStep(),
+                      _buildNavigationStep(),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            _buildNavigationButtons(),
+            // Floating navigation buttons pinned to the screen edges.
+            Positioned(
+              bottom: 12,
+              left: 0,
+              right: 0,
+              child: _buildNavigationButtons(),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
+    final Size screenSize = MediaQuery.of(context).size;
+    // Treat devices with a shortestSide < 600px as mobile/compact (e.g., phones
+    // held in landscape). Using a breakpoint instead of a percentage keeps the
+    // header height predictable and responsive without relying on exact
+    // percentages that can mis-size on very tall/short screens.
+    final bool isMobile = screenSize.shortestSide < 600;
+
+    // Tighter spacing on mobile to avoid the header dominating the limited
+    // vertical space in landscape mode.
+    final double pad = isMobile ? 8 : 16;
+    final double iconSize = isMobile ? 18 : 24;
+    final double titleSize = isMobile ? 14 : 20;
+    final double subtitleSize = isMobile ? 11 : 14;
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pad),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -160,48 +183,54 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
           ),
         ],
       ),
-      child: Column(
+      child: Stack(
+        alignment: Alignment.center,
         children: [
+          _buildProgressIndicator(context),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _steps[_currentStep].color.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _steps[_currentStep].color.withValues(alpha: 0.5),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _steps[_currentStep].color.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color:
+                            _steps[_currentStep].color.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Icon(
+                      _steps[_currentStep].icon,
+                      color: _steps[_currentStep].color,
+                      size: iconSize,
+                    ),
                   ),
-                ),
-                child: Icon(
-                  _steps[_currentStep].icon,
-                  color: _steps[_currentStep].color,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Setup ${widget.robot.name}',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Setup ${widget.robot.name}',
+                        style: TextStyle(
+                          fontSize: titleSize,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Step ${_currentStep + 1} of $_totalSteps: ${_steps[_currentStep].title}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade400,
+                      SizedBox(height: isMobile ? 2 : 4),
+                      Text(
+                        '${_steps[_currentStep].title}',
+                        style: TextStyle(
+                          fontSize: subtitleSize,
+                          color: Colors.grey.shade400,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
               IconButton(
                 onPressed: _showExitDialog,
@@ -212,22 +241,18 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            _steps[_currentStep].subtitle,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade300,
-            ),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildProgressIndicator() {
+  Widget _buildProgressIndicator(BuildContext context) {
+    final Size screenSize = MediaQuery.of(context).size;
+    final bool isMobile = screenSize.shortestSide < 600;
+    final double padV = isMobile ? 6 : 14;
+    final double stepFont = isMobile ? 12 : 16;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: EdgeInsets.symmetric(horizontal: 24, vertical: padV),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -249,7 +274,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                   style: TextStyle(
                     color: _steps[_currentStep].color,
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                    fontSize: stepFont,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -443,32 +468,6 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center, // Center content
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center, // Center header
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: _steps[_currentStep].color,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade400,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
           Expanded(
             child: Center(
               // Center the content
@@ -492,7 +491,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
     return Container(
       width: 600, // Fixed width for landscape
       margin: const EdgeInsets.only(bottom: 24),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.grey.shade800,
         borderRadius: BorderRadius.circular(16),
@@ -510,67 +509,67 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _steps[_currentStep].color.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: _steps[_currentStep].color,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          // Icon
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _steps[_currentStep].color.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: _steps[_currentStep].color,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Title + description column
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
                         ),
-                        if (required) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            '*',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red.shade400,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      description,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade400,
                       ),
                     ),
+                    if (required) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        '*',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red.shade400,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Content widget occupies remaining width below description
+                content,
+              ],
+            ),
           ),
-          const SizedBox(height: 20),
-          Center(child: content),
         ],
       ),
     );
@@ -1105,18 +1104,8 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
   }
 
   Widget _buildNavigationButtons() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade800,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -1128,7 +1117,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.grey.shade700,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1137,9 +1126,10 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
               ),
             )
           else
-            SizedBox(width: 120), // Placeholder to maintain spacing
+            const SizedBox(
+                width: 120), // maintain right-aligned spacing when first step
           SizedBox(
-            width: 200, // Fixed width
+            width: 200, // Fixed width for the primary button
             child: ElevatedButton(
               onPressed: _canProceed
                   ? (_currentStep < _totalSteps - 1
@@ -1149,7 +1139,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
               style: ElevatedButton.styleFrom(
                 backgroundColor: _steps[_currentStep].color,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -1275,47 +1265,73 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
   void _showExitDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.grey.shade800,
-        title: const Text(
-          'Exit Setup?',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          'Your robot setup is not complete. Exiting will disconnect from the robot and discard all changes. Are you sure?',
-          style: TextStyle(color: Colors.grey),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white),
-            ),
+      builder: (context) => Dialog(
+        child: Container(
+          width: 400, // Reduced width
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade800,
+            borderRadius: BorderRadius.circular(16),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              // Disconnect from robot
-              final connectionProvider = context.read<ConnectionProvider>();
-              if (connectionProvider.isConnected) {
-                await connectionProvider.disconnect();
-              }
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Exit Setup?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Your robot setup is not complete. Exiting will disconnect from the robot and discard all changes. Are you sure?',
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () async {
+                      // Disconnect from robot
+                      final connectionProvider =
+                          context.read<ConnectionProvider>();
+                      if (connectionProvider.isConnected) {
+                        await connectionProvider.disconnect();
+                      }
 
-              // Delete incomplete robot configuration
-              connectionProvider.deleteRobot(widget.robot.id);
+                      // Delete incomplete robot configuration
+                      connectionProvider.deleteRobot(widget.robot.id);
 
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const HomeScreen()),
-                (route) => false,
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text(
-              'Exit & Disconnect',
-              style: TextStyle(color: Colors.white),
-            ),
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                            builder: (context) => const HomeScreen()),
+                        (route) => false,
+                      );
+                    },
+                    style:
+                        ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                    child: const Text(
+                      'Exit & Disconnect',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

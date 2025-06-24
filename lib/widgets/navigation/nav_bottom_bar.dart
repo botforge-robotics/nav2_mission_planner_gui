@@ -53,7 +53,7 @@ class _NavBottomBarState extends State<NavBottomBar>
     }
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final barWidth = screenWidth * 0.35; // 50% of screen width
+    final barWidth = 500.0; // 50% of screen width
 
     return Visibility(
       visible: widget.visible,

@@ -225,30 +225,54 @@ class MissionItem {
     );
   }
 
+  /// Returns a descriptive subtitle for this item
   String get subtitle {
     switch (type) {
       case MissionItemType.goto:
-        if (position != null) {
-          return 'X: ${position!.x.toStringAsFixed(2)}, Y: ${position!.y.toStringAsFixed(2)}';
+        if (name != null) {
+          return 'Go to $name';
+        } else if (position != null) {
+          return 'Position (${position!.x.toStringAsFixed(2)}, ${position!.y.toStringAsFixed(2)})';
         }
         return 'No position set';
+
       case MissionItemType.wait:
-        return '${waitDuration?.toStringAsFixed(0) ?? '0'} seconds';
+        return 'Wait for ${waitDuration?.toStringAsFixed(1) ?? '0'} seconds';
+
       case MissionItemType.publish:
-        final topic = publishTopic ?? 'No topic';
-        final freq = publishFrequencyType ?? 'once';
-        return '$topic • $freq';
+        String details = publishTopic ?? 'No topic set';
+
+        // Add frequency information if available
+        if (publishFrequencyType == 'hz' && publishFrequency != null) {
+          details += ' • ${publishFrequency} Hz';
+        } else if (publishFrequencyType == 'duration' &&
+            publishDuration != null) {
+          details += ' • ${publishDuration}s';
+        } else if (publishFrequencyType == 'once') {
+          details += ' • Once';
+        }
+
+        return details;
+
       case MissionItemType.callService:
-        final service = serviceName ?? 'No service';
-        final wait = waitForServiceResponse == true
-            ? 'wait for response'
-            : 'fire and forget';
-        return '$service • $wait';
+        String details = serviceName ?? 'No service set';
+
+        // Add waiting information
+        if (waitForServiceResponse == true) {
+          details += ' • Wait for response';
+        }
+
+        return details;
+
       case MissionItemType.callAction:
-        final action = actionName ?? 'No action';
-        final wait =
-            waitForActionResult == true ? 'wait for result' : 'send goal only';
-        return '$action • $wait';
+        String details = actionName ?? 'No action set';
+
+        // Add waiting information
+        if (waitForActionResult == true) {
+          details += ' • Wait for result';
+        }
+
+        return details;
     }
   }
 

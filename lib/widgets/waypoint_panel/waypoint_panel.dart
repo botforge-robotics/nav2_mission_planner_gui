@@ -12,6 +12,7 @@ import 'header_toggle.dart';
 import 'publish_form.dart';
 import 'service_form.dart';
 import 'action_form.dart';
+import 'package:nav2_mission_planner/services/mission_execution_service.dart';
 
 class WaypointPanel extends StatefulWidget {
   final List<Waypoint> waypoints;
@@ -34,10 +35,10 @@ class WaypointPanel extends StatefulWidget {
   });
 
   @override
-  State<WaypointPanel> createState() => _WaypointPanelState();
+  State<WaypointPanel> createState() => WaypointPanelState();
 }
 
-class _WaypointPanelState extends State<WaypointPanel> {
+class WaypointPanelState extends State<WaypointPanel> {
   String? _selectedMission;
   final TextEditingController _missionNameController = TextEditingController();
   final TextEditingController _missionDescController = TextEditingController();
@@ -61,6 +62,13 @@ class _WaypointPanelState extends State<WaypointPanel> {
   void initState() {
     super.initState();
     _initializeServices();
+
+    // Listen for mission execution status changes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final missionService =
+          Provider.of<MissionExecutionService>(context, listen: false);
+      missionService.addListener(_handleMissionStateChange);
+    });
   }
 
   void _initializeServices() {
@@ -293,6 +301,14 @@ class _WaypointPanelState extends State<WaypointPanel> {
 
   @override
   void dispose() {
+    // Remove mission execution listener
+    try {
+      Provider.of<MissionExecutionService>(context, listen: false)
+          .removeListener(_handleMissionStateChange);
+    } catch (e) {
+      // Ignore if provider is not available during disposal
+    }
+
     _missionNameController.dispose();
     _missionDescController.dispose();
     _scrollController.dispose();
@@ -565,7 +581,7 @@ class _WaypointPanelState extends State<WaypointPanel> {
                               BorderSide(color: widget.modeColor, width: 2),
                         ),
                         contentPadding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       ),
                     ),
                     if (_missionNameError != null) // Show error message
@@ -612,7 +628,7 @@ class _WaypointPanelState extends State<WaypointPanel> {
                               BorderSide(color: widget.modeColor, width: 2),
                         ),
                         contentPadding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       ),
                     ),
                   ],
@@ -1203,40 +1219,113 @@ class _WaypointPanelState extends State<WaypointPanel> {
                           ),
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Expanded(
                               child: Container(
                                 padding: EdgeInsets.symmetric(horizontal: 8),
                                 child: DropdownButtonFormField<String>(
                                   value: _selectedMission,
-                                  hint: Text(
-                                    'Select Mission',
-                                    style: TextStyle(color: Colors.grey[400]),
-                                    overflow: TextOverflow.ellipsis,
+                                  hint: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.add_circle_outline,
+                                        color: widget.modeColor,
+                                        size: 18,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Select Mission',
+                                        style:
+                                            TextStyle(color: Colors.grey[400]),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
                                   ),
                                   isExpanded: true,
-                                  dropdownColor: Colors.grey[800],
-                                  icon: Icon(Icons.keyboard_arrow_down,
-                                      color: widget.modeColor),
+                                  dropdownColor: Colors.grey[850],
+                                  icon: Container(
+                                    padding: EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: widget.modeColor.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Icon(
+                                      Icons.keyboard_arrow_down,
+                                      color: widget.modeColor,
+                                      size: 20,
+                                    ),
+                                  ),
                                   decoration: InputDecoration(
                                     contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 12),
+                                        horizontal: 12, vertical: 4),
                                     border: InputBorder.none,
                                     isDense: true,
                                   ),
+                                  menuMaxHeight: 400,
+                                  borderRadius: BorderRadius.circular(16),
                                   items: [
                                     DropdownMenuItem(
                                       value: null,
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.add_circle_outline,
-                                              color: widget.modeColor,
-                                              size: 18),
-                                          SizedBox(width: 8),
-                                          Text('New Mission',
-                                              style: TextStyle(
-                                                  color: Colors.white)),
-                                        ],
+                                      child: Container(
+                                        constraints: BoxConstraints(
+                                          maxHeight: 45,
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              padding: EdgeInsets.symmetric(
+                                                  horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: widget.modeColor
+                                                    .withOpacity(0.15),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Icon(
+                                                Icons.add_circle_outline,
+                                                color: widget.modeColor,
+                                                size: 16,
+                                              ),
+                                            ),
+                                            SizedBox(width: 12),
+                                            Flexible(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    'New Mission',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 13,
+                                                      height: 1.0,
+                                                    ),
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    maxLines: 1,
+                                                  ),
+                                                  SizedBox(height: 1),
+                                                  Text(
+                                                    'Create from current waypoints',
+                                                    style: TextStyle(
+                                                      color: Colors.grey[400],
+                                                      fontSize: 10,
+                                                      height: 0.9,
+                                                    ),
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    maxLines: 1,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                     ...settingsProvider.missions.entries
@@ -1244,13 +1333,74 @@ class _WaypointPanelState extends State<WaypointPanel> {
                                             entry.value.mapName ==
                                             widget.currentMap)
                                         .map((entry) {
+                                      final missionName =
+                                          entry.value.missionName;
+                                      final waypoints =
+                                          entry.value.waypoints.length;
+
                                       return DropdownMenuItem(
-                                        value: entry.value.missionName,
-                                        child: Text(
-                                          entry.value.missionName,
-                                          style: TextStyle(
-                                              color: Colors.white,
-                                              overflow: TextOverflow.ellipsis),
+                                        value: missionName,
+                                        child: Container(
+                                          padding:
+                                              EdgeInsets.symmetric(vertical: 0),
+                                          constraints: BoxConstraints(
+                                            maxHeight: 38,
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                padding: EdgeInsets.all(6),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.blue[700]!
+                                                      .withOpacity(0.2),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                                child: Icon(
+                                                  Icons.route,
+                                                  color: Colors.blue[400],
+                                                  size: 16,
+                                                ),
+                                              ),
+                                              SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      missionName,
+                                                      style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        fontSize: 13,
+                                                        height: 1.0,
+                                                      ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      maxLines: 1,
+                                                    ),
+                                                    SizedBox(height: 1),
+                                                    Text(
+                                                      '$waypoints waypoints',
+                                                      style: TextStyle(
+                                                        color: Colors.grey[400],
+                                                        fontSize: 10,
+                                                        height: 0.9,
+                                                      ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      maxLines: 1,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       );
                                     }).toList(),
@@ -1349,70 +1499,146 @@ class _WaypointPanelState extends State<WaypointPanel> {
                                 ),
                               ),
                             ),
-                            if (_selectedMission != null)
-                              Container(
+                            // Extended dropdown button with actions
+                            PopupMenuButton<String>(
+                              icon: Container(
+                                padding: EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  border: Border(
-                                    left: BorderSide(
-                                      color: Colors.grey[700]!,
-                                      width: 1,
-                                    ),
-                                  ),
+                                  color: widget.modeColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.red[600]!,
-                                        Colors.red[600]!.withOpacity(0.8)
-                                      ],
-                                    ),
-                                  ),
-                                  child: IconButton(
-                                    icon: Icon(Icons.delete,
-                                        color: Colors.white, size: 18),
-                                    onPressed: _confirmDeleteMission,
-                                    tooltip: 'Delete Mission',
-                                    padding: EdgeInsets.zero,
-                                    constraints: BoxConstraints.tightFor(
-                                        width: 40, height: 40),
-                                  ),
+                                child: Icon(
+                                  Icons.more_horiz,
+                                  color: widget.modeColor,
                                 ),
                               ),
-                            if (_missionItems.isNotEmpty)
-                              Container(
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    left: BorderSide(
-                                      color: Colors.grey[700]!,
-                                      width: 1,
-                                    ),
-                                  ),
-                                ),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        widget.modeColor,
-                                        widget.modeColor.withOpacity(0.8)
-                                      ],
-                                    ),
-                                    borderRadius: BorderRadius.only(
-                                      topRight: Radius.circular(12),
-                                      bottomRight: Radius.circular(12),
-                                    ),
-                                  ),
-                                  child: IconButton(
-                                    icon: Icon(Icons.save,
-                                        color: Colors.white, size: 18),
-                                    onPressed: _showSaveMissionDialog,
-                                    tooltip: 'Save Mission',
-                                    padding: EdgeInsets.zero,
-                                    constraints: BoxConstraints.tightFor(
-                                        width: 40, height: 40),
-                                  ),
+                              offset: Offset(0, 10),
+                              color: Colors.grey[850],
+                              elevation: 8,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: BorderSide(
+                                  color: widget.modeColor.withOpacity(0.2),
+                                  width: 1,
                                 ),
                               ),
+                              itemBuilder: (context) => [
+                                if (_missionItems.isNotEmpty)
+                                  PopupMenuItem(
+                                    value: 'save',
+                                    height: 56,
+                                    child: Container(
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 8),
+                                      decoration: BoxDecoration(
+                                        border: Border(
+                                          bottom: _selectedMission != null
+                                              ? BorderSide(
+                                                  color: Colors.grey[700]!,
+                                                  width: 0.5)
+                                              : BorderSide.none,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: widget.modeColor
+                                                  .withOpacity(0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: Icon(
+                                              Icons.save_outlined,
+                                              color: widget.modeColor,
+                                              size: 22,
+                                            ),
+                                          ),
+                                          SizedBox(width: 12),
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Save Mission',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                              Text(
+                                                'Save current waypoints and settings',
+                                                style: TextStyle(
+                                                  color: Colors.grey[400],
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                if (_selectedMission != null)
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    height: 56,
+                                    child: Container(
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 8),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red[400]!
+                                                  .withOpacity(0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: Icon(
+                                              Icons.delete_outline,
+                                              color: Colors.red[400],
+                                              size: 22,
+                                            ),
+                                          ),
+                                          SizedBox(width: 12),
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Delete Mission',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                              Text(
+                                                'Remove this mission permanently',
+                                                style: TextStyle(
+                                                  color: Colors.grey[400],
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                              onSelected: (value) {
+                                if (value == 'delete') {
+                                  _confirmDeleteMission();
+                                } else if (value == 'save') {
+                                  _showSaveMissionDialog();
+                                }
+                              },
+                            ),
                           ],
                         ),
                       ),
@@ -2249,5 +2475,58 @@ class _WaypointPanelState extends State<WaypointPanel> {
         setStateDialog(() {});
       },
     );
+  }
+
+  void startMissionExecution() {
+    if (widget.currentMap == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No map selected for mission'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_missionItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Mission has no items to execute'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final mission = Mission(
+      missionName: _missionNameController.text.trim().isEmpty
+          ? 'Mission ${DateTime.now().millisecondsSinceEpoch}'
+          : _missionNameController.text.trim(),
+      missionDescription: _missionDescController.text.trim(),
+      mapName: widget.currentMap!,
+      items: List<MissionItem>.from(_missionItems),
+    );
+
+    // Disable editing during mission execution
+    setState(() {
+      _isCollapsed = true;
+    });
+
+    Provider.of<MissionExecutionService>(context, listen: false)
+        .startMission(context, mission);
+  }
+
+  // Handle changes in mission execution state
+  void _handleMissionStateChange() {
+    if (!mounted) return;
+    final missionService =
+        Provider.of<MissionExecutionService>(context, listen: false);
+
+    // If mission is not running, re-enable the panel
+    if (!missionService.isRunning && _isCollapsed) {
+      setState(() {
+        _isCollapsed = false;
+      });
+    }
   }
 }

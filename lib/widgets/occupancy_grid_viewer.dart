@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:nav2_mission_planner/helpers/conversions.dart';
 import 'package:nav2_mission_planner/modals/bookmark.dart';
 import 'package:nav2_mission_planner/modals/mission.dart';
+import 'package:nav2_mission_planner/services/mission_execution_service.dart';
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 import '../providers/connection_provider.dart';
@@ -667,8 +668,12 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                       filterQuality: FilterQuality.medium,
                     ),
 
-                    // 2. Path (if active)
-                    if (_mapImage != null && widget.isGoalActive)
+                    // 2. Path (if active goal or mission execution)
+                    if (_mapImage != null &&
+                        (widget.isGoalActive ||
+                            Provider.of<MissionExecutionService>(context,
+                                    listen: false)
+                                .isRunning))
                       Positioned.fill(
                         child: IgnorePointer(
                           child: CustomPaint(
@@ -687,11 +692,14 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                         ),
                       ),
 
-                    // 2b. Planned Waypoint path
+                    // 2b. Planned Waypoint path - only show when not in mission execution
                     if (_mapImage != null &&
                         widget.showWaypointPath &&
                         widget.waypoints != null &&
-                        widget.waypoints!.isNotEmpty)
+                        widget.waypoints!.isNotEmpty &&
+                        !Provider.of<MissionExecutionService>(context,
+                                listen: false)
+                            .isRunning)
                       Positioned.fill(
                         child: IgnorePointer(
                           child: CustomPaint(

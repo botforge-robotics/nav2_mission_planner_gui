@@ -7,6 +7,7 @@ import 'theme/app_theme.dart';
 import 'providers/connection_provider.dart';
 import 'providers/ros2_data_provider.dart';
 import 'services/launch_service.dart';
+import 'services/mission_execution_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +54,7 @@ void main() {
                 ROS2DataProvider(connectionProvider, settingsProvider);
           },
         ),
+        ChangeNotifierProvider(create: (_) => MissionExecutionService()),
         // ROS2DataProvider already exposes topics/services/actions; thin wrappers removed.
       ],
       child: const Nav2MissionPlanner(),
