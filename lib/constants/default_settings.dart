@@ -6,7 +6,7 @@ class DefaultSettings {
   static const double defaultLinearVelocity = 1.0;
   static const double defaultAngularVelocity = 1.0;
   static const double velocityStep = 0.05;
-  static const String defaultTwistType = 'geometry_msgs/msg/Twist';
+  static const String defaultTwistType = 'geometry_msgs/msg/TwistStamped';
 
   // Available twist message types
   static const List<String> availableTwistTypes = [

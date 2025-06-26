@@ -832,12 +832,37 @@ class WaypointPanelState extends State<WaypointPanel> {
                         .map((type) => Container(
                               margin: EdgeInsets.only(bottom: 8),
                               child: InkWell(
-                                onTap: () {
+                                onTap: () async {
+                                  // Close the selector sheet first
                                   Navigator.pop(context);
+
                                   if (type == MissionItemType.goto) {
+                                    // Special handling for GOTO
                                     _showGotoOptionsDialog();
                                   } else {
-                                    _addMissionItem(type);
+                                    // Delay until the sheet is closed before opening the config sheet
+                                    await Future.delayed(
+                                        const Duration(milliseconds: 50));
+
+                                    final newIndex = _addMissionItem(type);
+
+                                    // Open the appropriate configuration sheet immediately
+                                    switch (type) {
+                                      case MissionItemType.publish:
+                                        _showPublishItemDialog(
+                                            context, newIndex);
+                                        break;
+                                      case MissionItemType.callService:
+                                        _showServiceItemDialog(
+                                            context, newIndex);
+                                        break;
+                                      case MissionItemType.callAction:
+                                        _showActionItemDialog(
+                                            context, newIndex);
+                                        break;
+                                      default:
+                                        break;
+                                    }
                                   }
                                 },
                                 borderRadius: BorderRadius.circular(12),
@@ -1133,8 +1158,9 @@ class WaypointPanelState extends State<WaypointPanel> {
     }
   }
 
-  void _addMissionItem(MissionItemType type) {
-    // Count existing items of this specific type
+  /// Adds a new [MissionItem] and returns the index at which it was inserted.
+  int _addMissionItem(MissionItemType type) {
+    // Count existing items of this specific type to give incremental names
     final typeCount =
         _missionItems.where((item) => item.type == type).length + 1;
 
@@ -1153,10 +1179,15 @@ class WaypointPanelState extends State<WaypointPanel> {
       publishMsgType: type == MissionItemType.publish ? '' : null,
     );
 
+    final int insertIndex =
+        _missionItems.length; // index where the item will be inserted
+
     setState(() {
       _missionItems.add(newItem);
       _trackChanges();
     });
+
+    return insertIndex;
   }
 
   void _deleteMissionItem(int index) {
@@ -1219,7 +1250,6 @@ class WaypointPanelState extends State<WaypointPanel> {
                           ),
                         ),
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Expanded(
                               child: Container(
@@ -1245,7 +1275,6 @@ class WaypointPanelState extends State<WaypointPanel> {
                                   isExpanded: true,
                                   dropdownColor: Colors.grey[850],
                                   icon: Container(
-                                    padding: EdgeInsets.all(4),
                                     decoration: BoxDecoration(
                                       color: widget.modeColor.withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(4),
@@ -1269,10 +1298,9 @@ class WaypointPanelState extends State<WaypointPanel> {
                                       value: null,
                                       child: Container(
                                         constraints: BoxConstraints(
-                                          maxHeight: 45,
+                                          maxHeight: 50,
                                         ),
                                         child: Row(
-                                          mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Container(
                                               padding: EdgeInsets.symmetric(

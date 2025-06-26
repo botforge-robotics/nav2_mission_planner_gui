@@ -38,6 +38,7 @@ dependencies:
     path: ./lib/plugins/builtin_interfaces
   uuid: ^4.5.1
   duration_picker: ^1.2.0
+  flutter_launcher_icons: ^0.14.4
 dev_dependencies:
   flutter_test:
     sdk: flutter

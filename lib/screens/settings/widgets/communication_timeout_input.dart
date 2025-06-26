@@ -60,7 +60,7 @@ class _CommunicationTimeoutInputState extends State<CommunicationTimeoutInput> {
             style: const TextStyle(fontSize: 12, color: Colors.white),
             decoration: InputDecoration(
               filled: true,
-              fillColor: Colors.grey.shade800,
+              fillColor: Colors.grey.shade900,
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide:

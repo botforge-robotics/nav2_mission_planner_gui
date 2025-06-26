@@ -988,7 +988,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
     List<Map<String, String>> args = _tempSettings[key] ?? [];
 
     return SizedBox(
-      width: 500,
+      width: 450,
       child: Column(
         children: [
           ...args.asMap().entries.map((entry) {
@@ -997,13 +997,14 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
 
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: Colors.grey.shade900,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
+                  // Argument name field
                   Expanded(
                     child: TextFormField(
                       initialValue: arg['name'] ?? '',
@@ -1011,7 +1012,19 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                       decoration: InputDecoration(
                         hintText: 'Argument name',
                         hintStyle: TextStyle(color: Colors.grey.shade500),
-                        border: InputBorder.none,
+                        filled: true,
+                        fillColor: Colors.grey.shade900,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide:
+                              BorderSide(color: _steps[_currentStep].color),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14, horizontal: 12),
                         isDense: true,
                       ),
                       onChanged: (value) {
@@ -1022,6 +1035,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                     ),
                   ),
                   const SizedBox(width: 8),
+                  // Argument value field
                   Expanded(
                     child: TextFormField(
                       initialValue: arg['value'] ?? '',
@@ -1029,7 +1043,19 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                       decoration: InputDecoration(
                         hintText: 'Value',
                         hintStyle: TextStyle(color: Colors.grey.shade500),
-                        border: InputBorder.none,
+                        filled: true,
+                        fillColor: Colors.grey.shade900,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide:
+                              BorderSide(color: _steps[_currentStep].color),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14, horizontal: 12),
                         isDense: true,
                       ),
                       onChanged: (value) {
