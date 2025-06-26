@@ -4,6 +4,7 @@ import 'teleop_settings.dart';
 import 'mapping_settings.dart';
 import 'navigation_settings.dart';
 import 'general_settings.dart';
+import 'about_settings.dart';
 
 class SettingsContent extends StatelessWidget {
   final String category;
@@ -61,6 +62,11 @@ class SettingsContent extends StatelessWidget {
       );
     } else if (category == 'General') {
       return GeneralSettings(
+        screenSize: screenSize,
+        modeColor: _getModeColor('General'),
+      );
+    } else if (category == 'About') {
+      return AboutSettings(
         screenSize: screenSize,
         modeColor: _getModeColor('General'),
       );

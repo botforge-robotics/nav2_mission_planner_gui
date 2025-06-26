@@ -9,7 +9,7 @@ import 'settings/settings_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/connection_provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../widgets/connection_ui/connection_screen.dart';
+import 'connection_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

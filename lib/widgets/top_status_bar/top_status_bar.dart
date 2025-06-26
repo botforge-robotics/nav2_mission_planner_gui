@@ -145,9 +145,9 @@ class TopStatusBar extends StatelessWidget {
               ),
               const TopStatusCenterTitle(),
               Positioned(
-                right: 0,
+                right: -9,
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (connection.isConnected)
                       TopStatusNetworkInfo(
@@ -162,6 +162,29 @@ class TopStatusBar extends StatelessWidget {
                               .activeLaunches
                               .isNotEmpty,
                     ),
+                    Container(
+                      padding: EdgeInsets.all(height * 0.2),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomRight,
+                          end: Alignment.topLeft,
+                          colors: [
+                            Colors.orange.shade600.withOpacity(0.9),
+                            Colors.orange.shade600.withOpacity(0.0),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(height * 0.25),
+                          bottomLeft: Radius.circular(height * 0.25),
+                        ),
+                      ),
+                      child: Image.asset(
+                        'assets/favicon_light.png',
+                        height: height * 0.5,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                   ],
                 ),
               ),

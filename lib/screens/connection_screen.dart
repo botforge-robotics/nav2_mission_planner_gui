@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
-import '../../providers/connection_provider.dart';
-import '../../screens/robot_setup_wizard.dart';
+import '../providers/connection_provider.dart';
+import 'robot_setup_wizard.dart';
 import 'dart:ui';
 
 class ConnectionScreen extends StatefulWidget {
@@ -94,7 +94,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(color: Colors.blue.shade300),
+              CircularProgressIndicator(color: Colors.orange.shade300),
               const SizedBox(height: 16),
               Text(
                 'Connecting to Robot...',
@@ -459,7 +459,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                   width: 6,
                   height: 70,
                   decoration: BoxDecoration(
-                    color: Colors.blueAccent,
+                    color: Colors.orangeAccent,
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(16),
                       bottomLeft: Radius.circular(16),
@@ -474,8 +474,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                         topRight: Radius.circular(16),
                         bottomRight: Radius.circular(16),
                       ),
-                      splashColor: Colors.blue.withOpacity(0.1),
-                      highlightColor: Colors.blue.withOpacity(0.05),
+                      splashColor: Colors.orange.withOpacity(0.1),
+                      highlightColor: Colors.orange.withOpacity(0.05),
                       onTap: () => _connectToExistingRobot(
                         context,
                         robot.name,
@@ -491,12 +491,12 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: Colors.blueAccent.withOpacity(0.2),
+                                color: Colors.orangeAccent.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Icon(
                                 FontAwesomeIcons.robot,
-                                color: Colors.blueAccent,
+                                color: Colors.orangeAccent,
                                 size: 20,
                               ),
                             ),
@@ -639,9 +639,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide:
-                BorderSide(color: Colors.blue.withOpacity(0.5), width: 1),
+                BorderSide(color: Colors.orange.withOpacity(0.5), width: 1),
           ),
-          labelStyle: TextStyle(color: Colors.blue.shade200),
+          labelStyle: TextStyle(color: Colors.orange.shade200),
           hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
         ),
       ),
@@ -668,7 +668,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           errorText: errorText,
           prefixIcon: Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 8, 0),
-            child: Icon(icon, color: Colors.blue.shade200, size: 18),
+            child: Icon(icon, color: Colors.orange.shade200, size: 18),
           ),
         ),
       ),
@@ -695,8 +695,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Color(0xFF3366FF),
-                Color(0xFF00CCFF),
+                Color(0xFFFF9800), // deep orange
+                Color(0xFFFFC107), // amber
               ],
             ),
             borderRadius: BorderRadius.circular(12),
