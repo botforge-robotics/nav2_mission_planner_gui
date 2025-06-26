@@ -1380,14 +1380,14 @@ class WaypointPanelState extends State<WaypointPanel> {
                                               Container(
                                                 padding: EdgeInsets.all(6),
                                                 decoration: BoxDecoration(
-                                                  color: Colors.blue[700]!
+                                                  color: Colors.orange[700]!
                                                       .withOpacity(0.2),
                                                   borderRadius:
                                                       BorderRadius.circular(6),
                                                 ),
                                                 child: Icon(
                                                   Icons.route,
-                                                  color: Colors.blue[400],
+                                                  color: Colors.orange[400],
                                                   size: 16,
                                                 ),
                                               ),
@@ -2470,6 +2470,7 @@ class WaypointPanelState extends State<WaypointPanel> {
       modeColor: MissionItemType.publish.color,
       onChanged: () {
         _trackChanges();
+        setState(() {});
         setStateDialog(() {});
       },
     );
@@ -2485,6 +2486,7 @@ class WaypointPanelState extends State<WaypointPanel> {
       modeColor: MissionItemType.callService.color,
       onChanged: () {
         _trackChanges();
+        setState(() {});
         setStateDialog(() {});
       },
     );
@@ -2500,6 +2502,7 @@ class WaypointPanelState extends State<WaypointPanel> {
       modeColor: MissionItemType.callAction.color,
       onChanged: () {
         _trackChanges();
+        setState(() {});
         setStateDialog(() {});
       },
     );

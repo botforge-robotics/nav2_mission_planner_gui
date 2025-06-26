@@ -843,7 +843,7 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                               x: 0,
                               y: 0,
                               theta: _robotTheta,
-                              color: widget.appModeColor,
+                              color: Colors.green,
                               size: 30.0,
                             ),
                           ),
@@ -1059,8 +1059,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         _mapOriginTheta,
       );
 
-      print(
-          'Transforming position: ($x, $y) to (${transformedPose.x}, ${transformedPose.y})'); // Debug print
       setState(() {
         _robotX = transformedPose.x;
         _robotY = transformedPose.y;
@@ -1092,8 +1090,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
           _mapOriginTheta,
         );
 
-        print(
-            'Transforming position: (${data['x']}, ${data['y']}) to (${transformedPose.x}, ${transformedPose.y})'); // Debug print
         setState(() {
           _goalX = transformedPose.x;
           _goalY = transformedPose.y;

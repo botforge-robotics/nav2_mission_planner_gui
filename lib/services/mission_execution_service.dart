@@ -66,6 +66,9 @@ class MissionExecutionService extends ChangeNotifier {
   // Keep reference to active goal client so we can cancel cleanly
   GoalService? _activeGoalService;
 
+  // Keep track of active periodic publishers to cancel when needed
+  final List<Timer> _activePublishTimers = [];
+
   /// Starts executing [mission].  If another mission is already running it will
   /// be ignored.
   Future<void> startMission(BuildContext context, Mission mission) async {
@@ -104,6 +107,10 @@ class MissionExecutionService extends ChangeNotifier {
     } finally {
       _isRunning = false;
       _isPaused = false;
+
+      // Ensure any background publishers are stopped when mission finishes
+      _cancelActivePublishers();
+
       _broadcast();
     }
   }
@@ -129,6 +136,9 @@ class MissionExecutionService extends ChangeNotifier {
       _activeGoalService?.cancelCurrentGoal();
     } catch (_) {}
     _activeGoalService = null;
+
+    // Cancel all active periodic publishers – used when mission cancelled/finished
+    _cancelActivePublishers();
 
     _broadcast();
   }
@@ -229,29 +239,95 @@ class MissionExecutionService extends ChangeNotifier {
       case 'once':
         _publishOnce();
         break;
+
+      // Legacy or explicit Hz option
       case 'hz':
-        final periodMs = (1000 / hz).round();
-        final count = (durationSecs * hz).ceil();
-        for (int i = 0; i < count; i++) {
-          if (!_isRunning || _isPaused) break;
-          _publishOnce();
-          await Future.delayed(Duration(milliseconds: periodMs));
-        }
-        break;
       case 'duration':
-        final periodMs = 100; // 10 Hz default
-        final totalMs = (durationSecs * 1000).round();
-        for (int elapsed = 0; elapsed < totalMs; elapsed += periodMs) {
-          if (!_isRunning || _isPaused) break;
-          _publishOnce();
-          await Future.delayed(Duration(milliseconds: periodMs));
+      case 'frequency':
+        // For consistency we treat all these the same and look at publishDuration.
+
+        // Specific duration (>0): block execution until time elapses
+        if (item.publishDuration != null && item.publishDuration! > 0) {
+          final periodMs = (1000 / hz).round();
+          final totalMs = (item.publishDuration! * 1000).round();
+          for (int elapsed = 0; elapsed < totalMs; elapsed += periodMs) {
+            if (!_isRunning || _isPaused) break;
+            _publishOnce();
+            await Future.delayed(Duration(milliseconds: periodMs));
+          }
+          break;
         }
-        break;
+
+        // Mission end (duration == -1) => keep publishing until mission stops
+        if (item.publishDuration != null && item.publishDuration == -1) {
+          final periodMs = (1000 / hz).round();
+          Timer? timer;
+          timer = Timer.periodic(Duration(milliseconds: periodMs), (t) {
+            if (!_isRunning || _isPaused)
+              return; // still running but maybe paused
+            if (!_isRunning) {
+              // Mission finished, stop timer
+              t.cancel();
+              _activePublishTimers.remove(t);
+              ros2.send({'op': 'unadvertise', 'topic': item.publishTopic});
+              return;
+            }
+            _publishOnce();
+          });
+          _activePublishTimers.add(timer);
+          // Do not block – continue to next mission item
+          return true;
+        }
+
+        // Until next waypoint (publishDuration == null)
+        {
+          final periodMs = (1000 / hz).round();
+
+          // Determine index of the next GOTO item *after* this publish item
+          int nextGotoIndex = -1;
+          if (_mission != null) {
+            for (int i = _currentIndex + 1; i < _mission!.items.length; i++) {
+              if (_mission!.items[i].type == MissionItemType.goto) {
+                nextGotoIndex = i;
+                break;
+              }
+            }
+          }
+
+          Timer? timer;
+          timer = Timer.periodic(Duration(milliseconds: periodMs), (t) {
+            if (!_isRunning) {
+              t.cancel();
+              _activePublishTimers.remove(t);
+              ros2.send({'op': 'unadvertise', 'topic': item.publishTopic});
+              return;
+            }
+
+            if (_isPaused) {
+              return; // Skip publishing while paused
+            }
+
+            // If we have passed the next GOTO (or no future goto exists and mission ended), stop
+            if (nextGotoIndex != -1 && _currentIndex > nextGotoIndex) {
+              t.cancel();
+              _activePublishTimers.remove(t);
+              ros2.send({'op': 'unadvertise', 'topic': item.publishTopic});
+              return;
+            }
+
+            _publishOnce();
+          });
+
+          _activePublishTimers.add(timer);
+          // Do not block execution – move to next item immediately
+          return true;
+        }
+
       default:
         _publishOnce();
     }
 
-    // Unadvertise after publishing
+    // Unadvertise after blocking publish loop finishes
     ros2.send({
       'op': 'unadvertise',
       'topic': item.publishTopic,
@@ -385,8 +461,17 @@ class MissionExecutionService extends ChangeNotifier {
     _isWaitingForResult = false;
   }
 
+  // Cancel all active periodic publishers – used when mission cancelled/finished
+  void _cancelActivePublishers() {
+    for (final t in List<Timer>.from(_activePublishTimers)) {
+      t.cancel();
+    }
+    _activePublishTimers.clear();
+  }
+
   @override
   void dispose() {
+    _cancelActivePublishers();
     _progressController.close();
     super.dispose();
   }

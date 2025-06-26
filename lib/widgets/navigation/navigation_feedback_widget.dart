@@ -39,7 +39,7 @@ class NavigationFeedbackWidget extends StatelessWidget {
               children: [
                 Icon(
                   Icons.navigation,
-                  color: Colors.blue.shade300,
+                  color: Colors.orange.shade300,
                   size: 20,
                 ),
                 const SizedBox(width: 12),

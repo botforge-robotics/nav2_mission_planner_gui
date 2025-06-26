@@ -449,7 +449,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       // Add unsaved changes check here if needed
     }
 
-    debugPrint('tool selected: $tool');
+    //debugPrint('tool selected: $tool');
     setState(() {
       _selectedTool = tool;
       _poseEstimationMode = false;
@@ -736,6 +736,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _pathSubscriber = null;
     _pathSubscribed = false;
     _currentPathTopic = null;
+
+    // Clear any existing path data so UI immediately removes path overlay
+    _pathController.add([]);
   }
 
   void _handleBookmarkGoal(Bookmark bookmark) {
@@ -901,7 +904,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   void _handleWaypointSelected(int index) {
     // Center view on selected waypoint
     // You may need to implement this based on your map viewer
-    debugPrint('Waypoint $index selected');
+    // debugPrint('Waypoint $index selected');
   }
 
   void _handleWaypointDeleted(int index) {
@@ -1111,14 +1114,21 @@ class _NavigationScreenState extends State<NavigationScreen> {
           // Subscribe to path topic during mission execution
           Consumer<MissionExecutionService>(
             builder: (context, missionService, _) {
-              if (missionService.isRunning) {
-                // Ensure path subscription is active during mission execution
+              // We need to keep path subscription active either while a mission is running
+              // OR while a standalone goal is active.
+              final bool shouldSubscribe =
+                  missionService.isRunning || _isGoalActive;
+
+              if (shouldSubscribe) {
+                // Ensure path subscription is active when required
                 _subscribeToPath();
+              } else {
+                // Otherwise, make sure we are not wasting traffic
+                if (_pathSubscribed) {
+                  _unsubscribePath();
+                }
               }
-              // Mission ended – ensure we unsubscribe to stop traffic
-              if (!missionService.isRunning && _pathSubscribed) {
-                _unsubscribePath();
-              }
+
               return const SizedBox.shrink();
             },
           ),
@@ -1804,7 +1814,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                             width: 16,
                             height: 16,
                             decoration: BoxDecoration(
-                              color: Colors.blue,
+                              color: Colors.orange,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: Colors.grey[800]!,

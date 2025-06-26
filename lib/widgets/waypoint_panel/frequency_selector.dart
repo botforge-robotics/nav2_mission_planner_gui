@@ -22,16 +22,48 @@ class FrequencySelector extends StatefulWidget {
 class _FrequencySelectorState extends State<FrequencySelector> {
   MissionItem get _item => widget.item;
 
+  late final TextEditingController _hzController;
+  late final TextEditingController _durationController;
+  final FocusNode _hzFocus = FocusNode();
+  final FocusNode _durationFocus = FocusNode();
+
   @override
   void initState() {
     super.initState();
     // Ensure defaults
     _item.publishFrequencyType ??= 'once';
+
+    _hzController = TextEditingController(
+        text: (_item.publishFrequency ?? 1).toInt().toString());
+    _durationController = TextEditingController(
+        text: (_item.publishDuration ?? 5).toInt().toString());
+  }
+
+  @override
+  void dispose() {
+    _hzFocus.dispose();
+    _durationFocus.dispose();
+    _hzController.dispose();
+    _durationController.dispose();
+    super.dispose();
+  }
+
+  // Call this whenever underlying mission item values change to keep controllers
+  void _syncControllers() {
+    if (!_hzFocus.hasFocus) {
+      _hzController.text = (_item.publishFrequency ?? 1).toInt().toString();
+    }
+    if (!_durationFocus.hasFocus) {
+      if (_item.publishDuration != null && _item.publishDuration! > 0) {
+        _durationController.text = _item.publishDuration!.toInt().toString();
+      }
+    }
   }
 
   void _notify() {
     widget.onChanged();
     setState(() {});
+    _syncControllers();
   }
 
   @override
@@ -171,8 +203,8 @@ class _FrequencySelectorState extends State<FrequencySelector> {
               SizedBox(
                 width: 80,
                 child: TextFormField(
-                  controller: TextEditingController(
-                      text: (_item.publishFrequency ?? 1).toInt().toString()),
+                  controller: _hzController,
+                  focusNode: _hzFocus,
                   style: const TextStyle(color: Colors.white),
                   textAlign: TextAlign.center,
                   keyboardType: TextInputType.number,
@@ -189,8 +221,17 @@ class _FrequencySelectorState extends State<FrequencySelector> {
                     contentPadding: const EdgeInsets.symmetric(vertical: 8),
                   ),
                   onChanged: (value) {
+                    if (value.isEmpty) return;
                     final v = int.tryParse(value) ?? 1;
                     _item.publishFrequency = v.clamp(1, 30).toDouble();
+                    _notify();
+                  },
+                  onEditingComplete: () {
+                    if (_hzController.text.trim().isEmpty) {
+                      _item.publishFrequency = 1.0;
+                      _hzController.text = '1';
+                    }
+                    _hzFocus.unfocus();
                     _notify();
                   },
                 ),
@@ -263,8 +304,8 @@ class _FrequencySelectorState extends State<FrequencySelector> {
           SizedBox(
             width: 80,
             child: TextFormField(
-              controller: TextEditingController(
-                  text: _item.publishDuration!.toInt().toString()),
+              controller: _durationController,
+              focusNode: _durationFocus,
               style: const TextStyle(color: Colors.white),
               keyboardType: TextInputType.number,
               inputFormatters: [
@@ -281,8 +322,17 @@ class _FrequencySelectorState extends State<FrequencySelector> {
                     const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
               ),
               onChanged: (v) {
+                if (v.isEmpty) return;
                 final d = int.tryParse(v) ?? 5;
                 _item.publishDuration = d.clamp(1, 3600).toDouble();
+                _notify();
+              },
+              onEditingComplete: () {
+                if (_durationController.text.trim().isEmpty) {
+                  _item.publishDuration = 5.0;
+                  _durationController.text = '5';
+                }
+                _durationFocus.unfocus();
                 _notify();
               },
             ),

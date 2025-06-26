@@ -50,7 +50,7 @@ class _TopStatusConnectionButtonState extends State<TopStatusConnectionButton> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.yellow.withOpacity(0.9),
+        backgroundColor: Colors.green.withOpacity(0.9),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
