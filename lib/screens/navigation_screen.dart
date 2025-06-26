@@ -312,7 +312,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Navigation stopped'),
-            backgroundColor: Colors.orange.withOpacity(0.9),
+            backgroundColor: Colors.green.withOpacity(0.9),
           ),
         );
       }
