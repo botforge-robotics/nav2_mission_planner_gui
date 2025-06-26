@@ -56,9 +56,9 @@ class TopStatusBar extends StatelessWidget {
                       newMode != AppModes.settings &&
                       newMode != AppModes.mapping) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
+                      SnackBar(
                         content: Text('Stop mapping before changing modes'),
-                        backgroundColor: Colors.red,
+                        backgroundColor: Colors.red.withOpacity(0.9),
                         duration: Duration(seconds: 2),
                       ),
                     );
@@ -70,9 +70,9 @@ class TopStatusBar extends StatelessWidget {
                       newMode != AppModes.settings &&
                       newMode != AppModes.navigation) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
+                      SnackBar(
                         content: Text('Stop navigation before changing modes'),
-                        backgroundColor: Colors.red,
+                        backgroundColor: Colors.red.withOpacity(0.9),
                         duration: Duration(seconds: 2),
                       ),
                     );
@@ -108,7 +108,7 @@ class TopStatusBar extends StatelessWidget {
                             ),
                             ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
+                                backgroundColor: Colors.red.withOpacity(0.9),
                                 foregroundColor: Colors.white,
                               ),
                               onPressed: () => Navigator.pop(context, true),
@@ -128,7 +128,7 @@ class TopStatusBar extends StatelessWidget {
                               SnackBar(
                                 content: Text(
                                     'Failed to stop session: ${e.toString()}'),
-                                backgroundColor: Colors.red,
+                                backgroundColor: Colors.red.withOpacity(0.9),
                               ),
                             );
                           }

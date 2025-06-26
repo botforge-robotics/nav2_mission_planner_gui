@@ -33,7 +33,7 @@ class DeleteMapService {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to delete map: ${response.message}'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.red.withOpacity(0.9),
           ),
         );
         return false;
@@ -42,7 +42,7 @@ class DeleteMapService {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error deleting map: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.red.withOpacity(0.9),
         ),
       );
       return false;

@@ -172,7 +172,7 @@ class WaypointPanelState extends State<WaypointPanel> {
           SnackBar(
             content: Text(
                 'Some mission items may have outdated message structures. Check items for warnings.'),
-            backgroundColor: Colors.orange,
+            backgroundColor: Colors.yellow.withOpacity(0.9),
             duration: Duration(seconds: 5),
             action: SnackBarAction(
               label: 'Dismiss',
@@ -187,7 +187,7 @@ class WaypointPanelState extends State<WaypointPanel> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error loading mission data: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.red.withOpacity(0.9),
           ),
         );
       }
@@ -700,7 +700,7 @@ class WaypointPanelState extends State<WaypointPanel> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text('No map selected for mission'),
-                                backgroundColor: Colors.red[600],
+                                backgroundColor: Colors.red.withOpacity(0.9),
                               ),
                             );
                             return;
@@ -749,7 +749,7 @@ class WaypointPanelState extends State<WaypointPanel> {
                                       'Mission "${mission.missionName}" saved successfully'),
                                 ],
                               ),
-                              backgroundColor: Colors.green[600],
+                              backgroundColor: Colors.green.withOpacity(0.9),
                             ),
                           );
                         },
@@ -2162,7 +2162,7 @@ class WaypointPanelState extends State<WaypointPanel> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Mission "$_selectedMission" deleted'),
-        backgroundColor: Colors.orange,
+        backgroundColor: Colors.green.withOpacity(0.9),
       ),
     );
   }
@@ -2510,7 +2510,7 @@ class WaypointPanelState extends State<WaypointPanel> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('No map selected for mission'),
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.red.withOpacity(0.9),
         ),
       );
       return;
@@ -2520,7 +2520,7 @@ class WaypointPanelState extends State<WaypointPanel> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Mission has no items to execute'),
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.red.withOpacity(0.9),
         ),
       );
       return;

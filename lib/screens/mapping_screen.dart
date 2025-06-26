@@ -374,7 +374,7 @@ class _MappingScreenState extends State<MappingScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text('Error stopping mapping: $e'),
-                                backgroundColor: Colors.red,
+                                backgroundColor: Colors.red.withOpacity(0.9),
                               ),
                             );
                           }
@@ -448,7 +448,7 @@ class _MappingScreenState extends State<MappingScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Map saved as $mapName'),
-                              backgroundColor: Colors.green,
+                              backgroundColor: Colors.green.withOpacity(0.9),
                             ),
                           );
 
@@ -463,7 +463,8 @@ class _MappingScreenState extends State<MappingScreen> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text('Error stopping mapping: $e'),
-                                    backgroundColor: Colors.red,
+                                    backgroundColor:
+                                        Colors.red.withOpacity(0.9),
                                   ),
                                 );
                               }
@@ -479,7 +480,7 @@ class _MappingScreenState extends State<MappingScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Failed to save map $mapName'),
-                              backgroundColor: Colors.red,
+                              backgroundColor: Colors.red.withOpacity(0.9),
                             ),
                           );
                         }

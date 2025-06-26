@@ -118,9 +118,9 @@ class TopStatusModeSelector extends StatelessWidget {
             selectedMode != AppModes.mapping &&
             selectedMode != AppModes.settings) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text('Cannot switch modes while mapping is active'),
-              backgroundColor: Colors.red,
+              backgroundColor: Colors.red.withOpacity(0.9),
               duration: Duration(seconds: 2),
             ),
           );
@@ -131,9 +131,9 @@ class TopStatusModeSelector extends StatelessWidget {
             selectedMode != AppModes.navigation &&
             selectedMode != AppModes.settings) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text('Cannot switch modes while navigation is active'),
-              backgroundColor: Colors.red,
+              backgroundColor: Colors.red.withOpacity(0.9),
               duration: Duration(seconds: 2),
             ),
           );

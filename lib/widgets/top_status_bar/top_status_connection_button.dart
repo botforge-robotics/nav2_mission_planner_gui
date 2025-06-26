@@ -50,7 +50,7 @@ class _TopStatusConnectionButtonState extends State<TopStatusConnectionButton> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.orange,
+        backgroundColor: Colors.yellow.withOpacity(0.9),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
@@ -62,7 +62,7 @@ class _TopStatusConnectionButtonState extends State<TopStatusConnectionButton> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red,
+        backgroundColor: Colors.red.withOpacity(0.9),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
@@ -101,7 +101,7 @@ class _TopStatusConnectionButtonState extends State<TopStatusConnectionButton> {
             icon: const Icon(Icons.link_off),
             label: const Text('Disconnect'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: Colors.red.withOpacity(0.9),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               shape: RoundedRectangleBorder(

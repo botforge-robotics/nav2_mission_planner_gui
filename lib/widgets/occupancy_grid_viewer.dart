@@ -335,11 +335,11 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
             pixels[pixelIndex + 2] = 0;
             pixels[pixelIndex + 3] = 0;
           } else if (value == 0) {
-            // Free space - light version of mode color
-            pixels[pixelIndex] = lightR;
-            pixels[pixelIndex + 1] = lightG;
-            pixels[pixelIndex + 2] = lightB;
-            pixels[pixelIndex + 3] = 255; // Fully opaque
+            // Free space – pure white
+            pixels[pixelIndex] = 255;
+            pixels[pixelIndex + 1] = 255;
+            pixels[pixelIndex + 2] = 255;
+            pixels[pixelIndex + 3] = 255; // fully opaque
           } else if (value == 100) {
             // Fully occupied - dark version of mode color
             pixels[pixelIndex] = darkR;
@@ -348,11 +348,10 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
             pixels[pixelIndex + 3] = 255; // Fully opaque
           } else {
             // Partially occupied - calculate color between mode color and dark
-            final double ratio = value / 100.0;
-            pixels[pixelIndex] = (appR + (darkR - appR) * ratio).round();
-            pixels[pixelIndex + 1] = (appG + (darkG - appG) * ratio).round();
-            pixels[pixelIndex + 2] = (appB + (darkB - appB) * ratio).round();
-            pixels[pixelIndex + 3] = 255; // Fully opaque
+            pixels[pixelIndex] = 255;
+            pixels[pixelIndex + 1] = 255;
+            pixels[pixelIndex + 2] = 255;
+            pixels[pixelIndex + 3] = 255; // fully opaque
           }
         } else {
           // Out of bounds - transparent
@@ -752,7 +751,7 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                             // Use the same color logic as in BookmarkWidget
                             waypointColor = matchingBookmark.isGoalActive
                                 ? Colors.green
-                                : Colors.red;
+                                : Colors.orange;
                           } catch (e) {
                             // No matching bookmark found, keep default color
                           }
@@ -820,7 +819,7 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                                 theta: bookmark.theta,
                                 color: bookmark.isGoalActive
                                     ? Colors.green
-                                    : Colors.red,
+                                    : Colors.orange,
                                 size: 40.0,
                                 icon: bookmark.icon,
                                 label: bookmark.name,
@@ -854,7 +853,7 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                     // 6. Goal marker
                     if (widget.showMarkers && _showGoal)
                       _buildTargetMarker(_goalX, _goalY, _goalTheta,
-                          color: Colors.red),
+                          color: Colors.green),
 
                     // 7. Pose estimation marker
                     if (widget.showMarkers)
@@ -1181,7 +1180,7 @@ class MapPainter extends CustomPainter {
     );
 
     // Draw grid lines (optional)
-    paint.color = Colors.blue.withOpacity(0.3);
+    paint.color = Colors.orange.withOpacity(0.3);
     paint.strokeWidth = 1.0;
 
     // Draw a grid based on map resolution

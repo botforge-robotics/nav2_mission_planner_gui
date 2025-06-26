@@ -99,7 +99,7 @@ class ActionForm extends StatelessWidget {
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                             content: Text('Failed to fetch action servers: $e'),
-                            backgroundColor: Colors.red));
+                            backgroundColor: Colors.red.withOpacity(0.9)));
                       }
                     },
             ),

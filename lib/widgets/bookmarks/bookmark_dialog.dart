@@ -199,13 +199,13 @@ class _BookmarkDialogState extends State<BookmarkDialog> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Please enter a location name.'),
-                              backgroundColor: Colors.red,
+                              backgroundColor: Colors.red.withOpacity(0.9),
                             ),
                           );
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
+                        backgroundColor: Colors.orange,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),

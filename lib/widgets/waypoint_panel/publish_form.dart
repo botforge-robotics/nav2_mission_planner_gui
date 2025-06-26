@@ -131,7 +131,7 @@ class TopicSelector extends StatelessWidget {
                         } catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                               content: Text('Failed to fetch topics: $e'),
-                              backgroundColor: Colors.red));
+                              backgroundColor: Colors.red.withOpacity(0.9)));
                         }
                       },
               ),
@@ -186,7 +186,7 @@ class TopicSelector extends StatelessWidget {
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text('Failed to load message structure: $e'),
-                    backgroundColor: Colors.red));
+                    backgroundColor: Colors.red.withOpacity(0.9)));
               }
             },
           ),

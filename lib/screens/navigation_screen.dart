@@ -186,7 +186,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             'Map "$mapName" deleted${bookmarksCount > 0 ? " (with $bookmarksCount associated bookmarks)" : ""}',
             style: TextStyle(color: Colors.white),
           ),
-          backgroundColor: Colors.orange,
+          backgroundColor: Colors.green.withOpacity(0.9),
         ),
       );
     } else {
@@ -251,7 +251,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Navigation started with map: $_selectedMap'),
-              backgroundColor: Colors.green,
+              backgroundColor: Colors.green.withOpacity(0.9),
             ),
           );
         }
@@ -261,7 +261,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error starting navigation: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.red.withOpacity(0.9),
           ),
         );
       }
@@ -312,7 +312,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Navigation stopped'),
-            backgroundColor: Colors.orange,
+            backgroundColor: Colors.orange.withOpacity(0.9),
           ),
         );
       }
@@ -324,7 +324,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error stopping navigation: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.red.withOpacity(0.9),
           ),
         );
       }
@@ -589,7 +589,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to initialize mission mode: $e'),
-              backgroundColor: Colors.red,
+              backgroundColor: Colors.red.withOpacity(0.9),
             ),
           );
         }
@@ -1382,10 +1382,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
                     _waypointPanelKey.currentState!.startMissionExecution();
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
+                      SnackBar(
                         content:
                             Text('Cannot start mission. Please try again.'),
-                        backgroundColor: Colors.red,
+                        backgroundColor: Colors.red.withOpacity(0.9),
                       ),
                     );
                   }

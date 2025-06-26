@@ -29,7 +29,7 @@ class MapListService {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to get map list: ${response.message}'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.red.withOpacity(0.9),
           ),
         );
         return [];
@@ -38,7 +38,7 @@ class MapListService {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error fetching map list: ${e.toString()}'),
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.red.withOpacity(0.9),
         ),
       );
       return [];

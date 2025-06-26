@@ -19,9 +19,9 @@ class LaunchManager extends ChangeNotifier {
     final parts = settings.mappingLaunchFile.split('/');
     if (parts.length != 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Invalid launch file format'),
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.red.withOpacity(0.9),
         ),
       );
       return false;
@@ -64,7 +64,7 @@ class LaunchManager extends ChangeNotifier {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to start mapping: ${response.message}'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.red.withOpacity(0.9),
           ),
         );
         _activeSession = SessionType.none;
@@ -74,7 +74,7 @@ class LaunchManager extends ChangeNotifier {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error calling launch service: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.red.withOpacity(0.9),
         ),
       );
       _activeSession = SessionType.none;
@@ -144,7 +144,7 @@ class LaunchManager extends ChangeNotifier {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error saving map: ${e.toString()}'),
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.red.withOpacity(0.9),
         ),
       );
       return false;
@@ -158,9 +158,9 @@ class LaunchManager extends ChangeNotifier {
     final parts = settings.navigationLaunchFile.split('/');
     if (parts.length != 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Invalid navigation launch file format'),
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.red.withOpacity(0.9),
         ),
       );
       return false;
@@ -204,7 +204,7 @@ class LaunchManager extends ChangeNotifier {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Navigation error: ${e.toString()}'),
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.red.withOpacity(0.9),
         ),
       );
       return false;

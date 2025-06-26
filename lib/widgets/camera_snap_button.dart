@@ -23,7 +23,7 @@ class CameraSnapButton extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Image saved to gallery'),
-            backgroundColor: modeColor,
+            backgroundColor: Colors.green.withOpacity(0.9),
           ),
         );
       }
