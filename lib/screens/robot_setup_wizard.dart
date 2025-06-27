@@ -6,6 +6,7 @@ import '../providers/connection_provider.dart';
 import '../modals/robotProfile.dart';
 import '../constants/default_settings.dart';
 import 'home_screen.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class RobotSetupWizard extends StatefulWidget {
   final RobotProfile robot;
@@ -72,6 +73,15 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
 
     _initializeTempSettings();
     _updateProgress();
+
+    // If the camera option is already enabled (e.g., user navigated back to
+    // this wizard) ensure the required storage permission is granted before
+    // the mission or any camera stream starts.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_tempSettings['cameraEnabled'] == true) {
+        _handleCameraToggle(true);
+      }
+    });
   }
 
   void _initializeTempSettings() {
@@ -621,10 +631,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                   Switch(
                     value: _tempSettings['cameraEnabled'] ?? false,
                     onChanged: (value) {
-                      setState(() {
-                        _tempSettings['cameraEnabled'] = value;
-                      });
-                      _validateCurrentStep();
+                      _handleCameraToggle(value);
                     },
                     activeColor: _steps[_currentStep].color,
                   ),
@@ -1360,6 +1367,67 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
         ),
       ),
     );
+  }
+
+  // Request storage permission when the user enables the camera option.
+  Future<void> _handleCameraToggle(bool enable) async {
+    if (!enable) {
+      setState(() {
+        _tempSettings['cameraEnabled'] = false;
+      });
+      _validateCurrentStep();
+      return;
+    }
+
+    final granted = await _requestStoragePermission();
+
+    setState(() {
+      _tempSettings['cameraEnabled'] = granted;
+    });
+
+    _validateCurrentStep();
+  }
+
+  Future<bool> _requestStoragePermission() async {
+    Permission permission = Permission.storage;
+
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      permission = Permission.photosAddOnly;
+    }
+
+    Future<PermissionStatus> ask(Permission p) async {
+      if (await p.isGranted) return PermissionStatus.granted;
+      return p.request();
+    }
+
+    PermissionStatus status = await ask(permission);
+
+    if (status.isDenied || status.isRestricted) {
+      if (permission != Permission.photos &&
+          permission != Permission.photosAddOnly) {
+        status = await ask(Permission.photos);
+      }
+    }
+
+    if (status.isGranted) return true;
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          action: status.isPermanentlyDenied
+              ? SnackBarAction(
+                  label: 'Settings',
+                  onPressed: openAppSettings,
+                )
+              : null,
+          content: const Text(
+              'Camera image saving requires permission. Enable it in settings.'),
+          backgroundColor: Colors.red.withOpacity(0.9),
+        ),
+      );
+    }
+
+    return false;
   }
 }
 

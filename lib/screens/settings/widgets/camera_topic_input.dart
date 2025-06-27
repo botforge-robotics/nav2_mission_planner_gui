@@ -4,6 +4,7 @@ import 'package:ros2_api/ros2_api.dart';
 import '../../../../providers/connection_provider.dart';
 import '../../../../providers/settings_provider.dart';
 import 'package:rosapi_msgs/srv.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class CameraTopicInput extends StatefulWidget {
   final String initialValue;
@@ -39,6 +40,16 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
     // Only fetch if we haven't fetched before in this session
     if (_sessionTopics.isEmpty) {
       _fetchTopics();
+    }
+
+    // If the camera is already enabled, ensure we have the required
+    // permission as soon as the widget is built. Requesting it upfront
+    // avoids problems later while a mission is running.
+    if (widget.enabled) {
+      // Delay until after build so that context is fully available.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _handleToggle(true);
+      });
     }
   }
 
@@ -107,9 +118,12 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
                     color: Colors.grey.shade400,
                   ),
                 ),
+                // Intercept toggle to request storage permission when enabling camera
                 Switch(
                   value: widget.enabled,
-                  onChanged: widget.onEnabledChanged,
+                  onChanged: (value) {
+                    _handleToggle(value);
+                  },
                   activeColor: widget.modeColor,
                 ),
               ],
@@ -250,5 +264,81 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
         ],
       ),
     );
+  }
+
+  // Helper to request the required permission before enabling camera
+  Future<void> _handleToggle(bool enable) async {
+    if (!enable) {
+      widget.onEnabledChanged(false);
+      return;
+    }
+
+    bool granted = await _requestStoragePermission();
+
+    if (granted) {
+      widget.onEnabledChanged(true);
+    } else {
+      widget.onEnabledChanged(false);
+    }
+  }
+
+  Future<bool> _requestStoragePermission() async {
+    // Start with the platform-appropriate primary permission
+    Permission permission = Permission.storage;
+
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      permission = Permission.photosAddOnly;
+    }
+
+    // For Android 13+ storage permission maps to READ_MEDIA_IMAGES which is
+    // exposed via Permission.photos. If the regular storage permission is
+    // denied we will fallback to requesting photos.
+
+    // Helper that actually asks the OS.
+    Future<PermissionStatus> ask(Permission p) async {
+      if (await p.isGranted) return PermissionStatus.granted;
+      return p.request();
+    }
+
+    PermissionStatus status = await ask(permission);
+
+    if (status.isDenied || status.isRestricted) {
+      // Try fallback photos permission (Android 13) only if we haven't tried it
+      if (permission != Permission.photos &&
+          permission != Permission.photosAddOnly) {
+        status = await ask(Permission.photos);
+      }
+    }
+
+    if (status.isGranted) return true;
+
+    if (status.isPermanentlyDenied) {
+      // Offer to open app settings so user can enable manually
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: openAppSettings,
+            ),
+            content: const Text(
+                'Camera image saving requires permission. Enable it in settings.'),
+            backgroundColor: Colors.red.withOpacity(0.9),
+          ),
+        );
+      }
+    } else {
+      // Simple denial (not permanent) – silently keep disabled.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Permission denied – camera disabled.'),
+            backgroundColor: Colors.red.withOpacity(0.9),
+          ),
+        );
+      }
+    }
+
+    return false;
   }
 }

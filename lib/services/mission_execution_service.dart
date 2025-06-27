@@ -7,6 +7,12 @@ import '../helpers/conversions.dart';
 import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:nav2_mission_planner/providers/connection_provider.dart';
+import 'package:image_gallery_saver/image_gallery_saver.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:sensor_msgs/msg.dart' as sensor_msgs;
+import 'dart:typed_data';
+import 'package:nav2_mission_planner/providers/settings_provider.dart';
+import 'package:ros2_api/ros2_api.dart';
 
 /// Holds live information about mission execution progress
 class MissionProgress {
@@ -203,6 +209,9 @@ class MissionExecutionService extends ChangeNotifier {
 
       case MissionItemType.callAction:
         return await _handleActionCall(context, item);
+
+      case MissionItemType.captureImage:
+        return await _handleCaptureImage(context, item);
     }
   }
 
@@ -433,6 +442,88 @@ class MissionExecutionService extends ChangeNotifier {
     _isWaitingForResult = false;
     _broadcast();
     return success;
+  }
+
+  Future<bool> _handleCaptureImage(
+      BuildContext context, MissionItem item) async {
+    final conn = Provider.of<ConnectionProvider>(context, listen: false);
+    final ros2 = conn.ros2Client;
+    if (!conn.isConnected || ros2 == null) return false;
+
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    final topic = settings.cameraImageTopic;
+
+    if (topic.isEmpty) return false;
+
+    try {
+      // Request storage/photos permission (Android 13+, iOS)
+      Permission permission = Permission.storage;
+      if (Theme.of(context).platform == TargetPlatform.iOS) {
+        permission = Permission.photosAddOnly;
+      }
+
+      Future<PermissionStatus> ask(Permission p) async {
+        if (await p.isGranted) return PermissionStatus.granted;
+        return p.request();
+      }
+
+      PermissionStatus status = await ask(permission);
+      if (status.isDenied || status.isRestricted) {
+        if (permission != Permission.photos &&
+            permission != Permission.photosAddOnly) {
+          status = await ask(Permission.photos);
+        }
+      }
+
+      if (!status.isGranted) {
+        return false;
+      }
+
+      // Wait for a single compressed image message
+      final completer = Completer<sensor_msgs.CompressedImage?>();
+      late Subscriber<sensor_msgs.CompressedImage> sub;
+      sub = Subscriber<sensor_msgs.CompressedImage>(
+        name: topic,
+        type: sensor_msgs.CompressedImage().fullType,
+        ros2: ros2,
+        callback: (msg) {
+          if (!completer.isCompleted) {
+            completer.complete(msg);
+          }
+        },
+        prototype: sensor_msgs.CompressedImage(),
+      );
+
+      // Wait for first frame or timeout
+      final imgMsg = await completer.future
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+
+      // Clean up subscription
+      sub.shutdown();
+
+      if (imgMsg == null || imgMsg.data.isEmpty) return false;
+
+      final bytes = Uint8List.fromList(imgMsg.data);
+      final result = await ImageGallerySaver.saveImage(
+        bytes,
+        quality: 90,
+        name: 'mission_${DateTime.now().millisecondsSinceEpoch}',
+      );
+
+      // Optionally show snackbar if context has ScaffoldMessenger
+      try {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Image captured'),
+            backgroundColor: Colors.green.withOpacity(0.9),
+          ),
+        );
+      } catch (_) {}
+
+      return result['isSuccess'] == true || result == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   bool _currentIndexItemSame(MissionItem item) {

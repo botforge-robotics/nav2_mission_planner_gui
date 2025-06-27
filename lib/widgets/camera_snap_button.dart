@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/foundation.dart';
 
 class CameraSnapButton extends StatelessWidget {
   final Color modeColor;
@@ -16,18 +17,56 @@ class CameraSnapButton extends StatelessWidget {
   });
 
   Future<void> _saveImage(BuildContext context) async {
-    if (await Permission.storage.request().isGranted) {
-      final frame = await getCurrentFrame();
-      if (frame != null) {
-        await ImageGallerySaver.saveImage(frame, quality: 90);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Image saved to gallery'),
-            backgroundColor: Colors.green.withOpacity(0.9),
-          ),
-        );
+    final granted = await _requestStoragePermission(context);
+    if (!granted) return;
+
+    final frame = await getCurrentFrame();
+    if (frame != null) {
+      final result = await ImageGallerySaver.saveImage(frame, quality: 90);
+      final success = result['isSuccess'] ?? (kIsWeb ? true : false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Image saved to gallery' : 'Failed to save'),
+          backgroundColor: success
+              ? Colors.green.withOpacity(0.9)
+              : Colors.red.withOpacity(0.9),
+        ),
+      );
+    }
+  }
+
+  Future<bool> _requestStoragePermission(BuildContext context) async {
+    Permission permission = Permission.storage;
+
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      permission = Permission.photosAddOnly;
+    }
+
+    Future<PermissionStatus> ask(Permission p) async {
+      if (await p.isGranted) return PermissionStatus.granted;
+      return p.request();
+    }
+
+    PermissionStatus status = await ask(permission);
+    if (status.isDenied || status.isRestricted) {
+      if (permission != Permission.photos &&
+          permission != Permission.photosAddOnly) {
+        status = await ask(Permission.photos);
       }
     }
+
+    if (status.isGranted) return true;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        action: status.isPermanentlyDenied
+            ? SnackBarAction(label: 'Settings', onPressed: openAppSettings)
+            : null,
+        content: const Text('Storage permission required to save images'),
+        backgroundColor: Colors.red.withOpacity(0.9),
+      ),
+    );
+    return false;
   }
 
   @override

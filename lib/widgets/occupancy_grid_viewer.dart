@@ -1228,9 +1228,18 @@ class PathPainter extends CustomPainter {
     if (path.isEmpty) return;
 
     final pathPaint = Paint()
-      ..color = pathColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.5 / scale;
+      ..strokeWidth = 1.0 / scale; // slightly thicker
+
+    // Determine gradient start/end based on first and last points
+    final Offset startPt = _toOffset(path.first);
+    final Offset endPt = _toOffset(path.last);
+
+    pathPaint.shader = ui.Gradient.linear(
+      startPt,
+      endPt,
+      [pathColor, Colors.black],
+    );
 
     final dotPaint = Paint()
       ..color = pathColor
@@ -1264,6 +1273,12 @@ class PathPainter extends CustomPainter {
   @override
   bool shouldRepaint(PathPainter oldDelegate) {
     return path != oldDelegate.path || scale != oldDelegate.scale;
+  }
+
+  // helper
+  Offset _toOffset(Map<String, dynamic> poseJson) {
+    final position = poseJson['position'];
+    return Offset(position['x'].toDouble(), position['y'].toDouble());
   }
 }
 
@@ -1302,13 +1317,9 @@ class WaypointPathPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (waypoints.isEmpty) return;
 
-    final paint = Paint()
-      ..color = color.withOpacity(0.8)
-      ..strokeWidth = 1.5 / scale
-      ..style = PaintingStyle.stroke;
-
-    final path = Path();
-    path.moveTo(robotX, robotY);
+    // Build list of sequential points (robot + waypoints)
+    final List<Offset> pts = [];
+    pts.add(Offset(robotX, robotY));
 
     for (final waypoint in waypoints) {
       final transformed = transformToMapFrame(
@@ -1322,10 +1333,25 @@ class WaypointPathPainter extends CustomPainter {
         mapWidth,
         mapOriginTheta,
       );
-      path.lineTo(transformed.x, transformed.y);
+      pts.add(Offset(transformed.x, transformed.y));
     }
 
-    canvas.drawPath(path, paint);
+    // Draw each segment with its own gradient
+    for (int i = 0; i < pts.length - 1; i++) {
+      final Offset p0 = pts[i];
+      final Offset p1 = pts[i + 1];
+
+      final paint = Paint()
+        ..strokeWidth = 2.5 / scale
+        ..style = PaintingStyle.stroke
+        ..shader = ui.Gradient.linear(
+          p0,
+          p1,
+          [color.withOpacity(0.8), Colors.black],
+        );
+
+      canvas.drawLine(p0, p1, paint);
+    }
   }
 
   @override
@@ -1413,9 +1439,13 @@ class _BookmarkPainter extends CustomPainter {
     final centerY = size.height / 2;
     final radius = size.width * 0.4; // Larger circular background
 
-    // Draw circular background
-    final backgroundPaint = Paint()
-      ..color = color.withOpacity(0.7)
+    // Linear gradient across the circle from left (color) to right (black)
+    final Paint backgroundPaint = Paint()
+      ..shader = ui.Gradient.linear(
+        Offset(centerX - radius, centerY),
+        Offset(centerX + radius, centerY),
+        [color, Colors.black],
+      )
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(

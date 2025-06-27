@@ -87,6 +87,11 @@ enum MissionItemType {
     displayName: 'Action',
     icon: Icons.play_arrow,
     color: Colors.green,
+  ),
+  captureImage(
+    displayName: 'Capture Image',
+    icon: Icons.camera_alt,
+    color: Colors.orange,
   );
 
   final String displayName;
@@ -273,6 +278,9 @@ class MissionItem {
         }
 
         return details;
+
+      case MissionItemType.captureImage:
+        return 'Capture and save camera image';
     }
   }
 

@@ -1155,6 +1155,8 @@ class WaypointPanelState extends State<WaypointPanel> {
         return 'Call a ROS service';
       case MissionItemType.callAction:
         return 'Send a goal to a ROS action';
+      case MissionItemType.captureImage:
+        return 'Capture an image';
     }
   }
 
