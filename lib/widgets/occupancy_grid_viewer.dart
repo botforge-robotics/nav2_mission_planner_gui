@@ -1119,6 +1119,10 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
       _hasError = false;
     });
 
+    // Add a flag to track if service was detected
+    bool _serviceDetected = false;
+    DateTime? _serviceDetectedTime;
+
     _mapServiceTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
       if (_isFetchingMap) return;
       _isFetchingMap = true;
@@ -1134,6 +1138,26 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
               .toDouble(),
         );
 
+        // Check if service is available without calling it
+        if (!_serviceDetected) {
+          // Service is available, mark detection time
+          _serviceDetected = true;
+          _serviceDetectedTime = DateTime.now();
+          setState(() {
+            _statusMessage = 'Map service detected, Getting map...';
+          });
+          _isFetchingMap = false;
+          return;
+        }
+
+        // If service was detected but 5 seconds haven't passed yet
+        if (_serviceDetected &&
+            DateTime.now().difference(_serviceDetectedTime!).inSeconds < 5) {
+          _isFetchingMap = false;
+          return;
+        }
+
+        // 5 seconds have passed since service detection, make the call
         final response = await client.call(nav_srvs.GetMapRequest());
         if (mounted) {
           _processMapMessage(response.map);
@@ -1145,6 +1169,14 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
           }
         }
       } catch (e) {
+        // Reset service detection if there's an error
+        if (_serviceDetected) {
+          _serviceDetected = false;
+          _serviceDetectedTime = null;
+          setState(() {
+            _statusMessage = 'Waiting for map service...';
+          });
+        }
         // Service might not be available yet; silently ignore
       } finally {
         _isFetchingMap = false;
