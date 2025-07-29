@@ -7,6 +7,7 @@ import 'package:nav2_mission_planner/widgets/navigation/nav_bottom_bar.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:nav2_mission_planner/providers/connection_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:nav2_mission_planner/providers/branding_provider.dart';
 import 'package:nav2_mission_planner/services/get_map_list_service.dart';
 import 'package:nav2_mission_planner/services/launch_service.dart';
 import 'package:nav2_mission_planner/widgets/occupancy_grid_viewer.dart';
@@ -1814,7 +1815,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
                             width: 16,
                             height: 16,
                             decoration: BoxDecoration(
-                              color: Colors.orange,
+                              color: Provider.of<BrandingProvider>(context,
+                                      listen: false)
+                                  .themeColor,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: Colors.grey[800]!,

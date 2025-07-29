@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/branding_provider.dart';
 
 class AboutSettings extends StatelessWidget {
   final Size screenSize;
@@ -9,79 +11,94 @@ class AboutSettings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Logo
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: modeColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Image.asset(
-                'assets/sticker.png',
-                width: screenSize.width * 0.22,
-                fit: BoxFit.contain,
-              ),
-            ),
-
-            const SizedBox(height: 15),
-            Text(
-              'Crafting autonomous solutions with passion and precision.',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade400,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 15),
-            // Contact details
-            Column(
+    return Consumer<BrandingProvider>(
+      builder: (context, branding, child) {
+        return Center(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                // Dynamic Logo
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: branding.themeColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Image.asset(
+                    branding.logoUrl,
+                    width: screenSize.width * 0.22,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Fallback to default logo
+                      return Image.asset(
+                        'assets/sticker.png',
+                        width: screenSize.width * 0.22,
+                        fit: BoxFit.contain,
+                      );
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 15),
+                // Dynamic Tagline
+                Text(
+                  branding.tagLine,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade400,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 15),
+                // Contact details
+                Column(
                   children: [
-                    const Icon(Icons.email, size: 16, color: Colors.white70),
-                    const SizedBox(width: 6),
-                    Text(
-                      'reachus@botforge.in',
-                      style:
-                          const TextStyle(fontSize: 15, color: Colors.white70),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.email,
+                            size: 16, color: Colors.white70),
+                        const SizedBox(width: 6),
+                        Text(
+                          branding.supportEmail,
+                          style: const TextStyle(
+                              fontSize: 15, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                    InkWell(
+                      onTap: () {},
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.language,
+                              size: 16, color: Colors.white70),
+                          const SizedBox(width: 6),
+                          Text(
+                            branding.website,
+                            style: TextStyle(
+                                fontSize: 15,
+                                color: branding.themeColor,
+                                decoration: TextDecoration.underline),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                InkWell(
-                  onTap: () {},
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.language,
-                          size: 16, color: Colors.white70),
-                      const SizedBox(width: 6),
-                      Text(
-                        'https://botforge.in',
-                        style: TextStyle(
-                            fontSize: 15,
-                            color: modeColor,
-                            decoration: TextDecoration.underline),
-                      ),
-                    ],
-                  ),
+
+                const SizedBox(height: 30),
+                // Dynamic Footer Credits
+                Text(
+                  branding.footerCredits,
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                 ),
               ],
             ),
-
-            const SizedBox(height: 30),
-            Text(
-              'Made with ❤️ for ROS2 developers',
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

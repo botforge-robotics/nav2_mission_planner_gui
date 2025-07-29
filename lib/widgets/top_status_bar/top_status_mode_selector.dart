@@ -3,6 +3,7 @@ import 'package:nav2_mission_planner/providers/connection_provider.dart';
 import '../../constants/modes.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../services/launch_service.dart';
+import '../../providers/branding_provider.dart';
 import 'package:provider/provider.dart';
 
 class TopStatusModeSelector extends StatelessWidget {
@@ -167,7 +168,8 @@ class TopStatusModeSelector extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: mode == currentMode
-              ? ModeColors.modeColorMap[mode]!.withValues(alpha: 0.1)
+              ? ModeColors.getModeColorMap(context)[mode]!
+                  .withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
         ),
@@ -176,8 +178,9 @@ class TopStatusModeSelector extends StatelessWidget {
           children: [
             Icon(icon,
                 size: 20,
-                color:
-                    isDisabled ? Colors.grey : ModeColors.modeColorMap[mode]!),
+                color: isDisabled
+                    ? Colors.grey
+                    : ModeColors.getModeColorMap(context)[mode]!),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -193,7 +196,7 @@ class TopStatusModeSelector extends StatelessWidget {
             if (mode == currentMode && !isDisabled) ...[
               const SizedBox(width: 8),
               Icon(Icons.check,
-                  size: 18, color: ModeColors.modeColorMap[mode]!),
+                  size: 18, color: ModeColors.getModeColorMap(context)[mode]!),
             ],
           ],
         ),

@@ -8,6 +8,7 @@ import 'navigation_screen.dart';
 import 'settings/settings_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/connection_provider.dart';
+import '../providers/branding_provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'connection_screen.dart';
 
@@ -58,72 +59,76 @@ class _HomeScreenState extends State<HomeScreen> {
             ? _previousMode ?? AppModes.teleop
             : _currentMode;
 
-        return Scaffold(
-          body: Stack(
-            children: [
-              // Main content with status bar and screen stack
-              Column(
+        return Consumer<BrandingProvider>(
+          builder: (context, brandingProvider, child) {
+            return Scaffold(
+              body: Stack(
                 children: [
-                  TopStatusBar(
-                    currentMode: _currentMode,
-                    onModeChanged: (mode) {
-                      setState(() {
-                        if (mode == AppModes.settings) {
-                          // Store previous mode before switching to settings
-                          _previousMode = _currentMode;
-                        } else {
-                          _previousMode = null;
-                        }
-                        _currentMode = mode;
-                      });
-                    },
-                    statusText:
-                        _getModeStatusText(connectionProvider.isConnected),
-                    statusColor: connectionProvider.isConnected
-                        ? ModeColors.modeColorMap[
-                            _currentMode == AppModes.settings
-                                ? _previousMode ?? AppModes.teleop
-                                : _currentMode]!
-                        : Colors.red,
-                    height: AppTheme.statusBarHeight,
-                    icon: connectionProvider.isConnected
-                        ? null
-                        : FontAwesomeIcons.robot,
+                  // Main content with status bar and screen stack
+                  Column(
+                    children: [
+                      TopStatusBar(
+                        currentMode: _currentMode,
+                        onModeChanged: (mode) {
+                          setState(() {
+                            if (mode == AppModes.settings) {
+                              // Store previous mode before switching to settings
+                              _previousMode = _currentMode;
+                            } else {
+                              _previousMode = null;
+                            }
+                            _currentMode = mode;
+                          });
+                        },
+                        statusText:
+                            _getModeStatusText(connectionProvider.isConnected),
+                        statusColor: connectionProvider.isConnected
+                            ? ModeColors.getModeColorMap(context)[
+                                _currentMode == AppModes.settings
+                                    ? _previousMode ?? AppModes.teleop
+                                    : _currentMode]!
+                            : Colors.red,
+                        height: AppTheme.statusBarHeight,
+                        icon: connectionProvider.isConnected
+                            ? null
+                            : FontAwesomeIcons.robot,
+                      ),
+
+                      // Keep all screens alive with IndexedStack
+                      Expanded(
+                        child: connectionProvider.isConnected
+                            ? IndexedStack(
+                                index: _getScreenIndex(activeScreen),
+                                children: [
+                                  TeleopScreen(
+                                      modeColor: ModeColors.getModeColorMap(
+                                          context)[AppModes.teleop]!),
+                                  MappingScreen(
+                                      modeColor: ModeColors.getModeColorMap(
+                                          context)[AppModes.mapping]!),
+                                  NavigationScreen(
+                                      modeColor: ModeColors.getModeColorMap(
+                                          context)[AppModes.navigation]!),
+                                ],
+                              )
+                            : const ConnectionScreen(showTopStatusBar: false),
+                      ),
+                    ],
                   ),
 
-                  // Keep all screens alive with IndexedStack
-                  Expanded(
-                    child: connectionProvider.isConnected
-                        ? IndexedStack(
-                            index: _getScreenIndex(activeScreen),
-                            children: [
-                              TeleopScreen(
-                                  modeColor: ModeColors
-                                      .modeColorMap[AppModes.teleop]!),
-                              MappingScreen(
-                                  modeColor: ModeColors
-                                      .modeColorMap[AppModes.mapping]!),
-                              NavigationScreen(
-                                  modeColor: ModeColors
-                                      .modeColorMap[AppModes.navigation]!),
-                            ],
-                          )
-                        : ConnectionScreen(),
-                  ),
+                  // Settings overlay when in settings mode
+                  if (_currentMode == AppModes.settings)
+                    Positioned.fill(
+                      top: AppTheme.statusBarHeight,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: const SettingsScreen(),
+                      ),
+                    ),
                 ],
               ),
-
-              // Settings overlay when in settings mode
-              if (_currentMode == AppModes.settings)
-                Positioned.fill(
-                  top: AppTheme.statusBarHeight,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: const SettingsScreen(),
-                  ),
-                ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

@@ -39,6 +39,15 @@ dependencies:
   uuid: ^4.5.1
   duration_picker: ^1.2.0
   flutter_launcher_icons: ^0.14.4
+  # License system dependencies
+  device_info_plus: ^10.1.0
+  package_info_plus: ^8.3.0
+  crypto: ^3.0.3
+  http: ^0.13.6
+  connectivity_plus: ^5.0.2
+  flutter_secure_storage: ^9.0.0
+  qr_code_scanner_plus: ^2.0.10+1
+  path_provider: ^2.1.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

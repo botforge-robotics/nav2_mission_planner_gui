@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:builtin_interfaces/msg.dart';
 import 'package:nav2_msgs/action.dart';
+import 'package:provider/provider.dart';
+import '../../providers/branding_provider.dart';
 
 class NavigationFeedbackWidget extends StatelessWidget {
   final NavigateToPoseFeedback feedback;
@@ -39,7 +41,8 @@ class NavigationFeedbackWidget extends StatelessWidget {
               children: [
                 Icon(
                   Icons.navigation,
-                  color: Colors.orange.shade300,
+                  color: Provider.of<BrandingProvider>(context, listen: false)
+                      .themeColor,
                   size: 20,
                 ),
                 const SizedBox(width: 12),

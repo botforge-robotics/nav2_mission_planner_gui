@@ -2,11 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/connection_provider.dart';
+import '../providers/branding_provider.dart';
+import '../widgets/top_status_bar/top_status_bar.dart';
+import '../constants/modes.dart';
+import '../theme/app_theme.dart';
 import 'robot_setup_wizard.dart';
+import 'home_screen.dart';
 import 'dart:ui';
 
 class ConnectionScreen extends StatefulWidget {
-  const ConnectionScreen({super.key});
+  final bool showTopStatusBar;
+
+  const ConnectionScreen({super.key, this.showTopStatusBar = true});
 
   @override
   State<ConnectionScreen> createState() => _ConnectionScreenState();
@@ -46,7 +53,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.green.withOpacity(0.9),
+        backgroundColor: Colors.green.withValues(alpha: 0.9),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         elevation: 4,
@@ -59,7 +66,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.redAccent.withOpacity(0.9),
+        backgroundColor: Colors.redAccent.withValues(alpha: 0.9),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         elevation: 4,
@@ -94,7 +101,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(color: Colors.orange.shade300),
+              CircularProgressIndicator(
+                  color: Provider.of<BrandingProvider>(context, listen: false)
+                      .themeColor),
               const SizedBox(height: 16),
               Text(
                 'Connecting to Robot...',
@@ -139,10 +148,15 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
             );
           }
         } else {
-          // Clear the form for existing configured robots
-          nameController.clear();
-          ipController.clear();
-          portController.clear();
+          // Navigate to home screen for existing configured robots
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const HomeScreen(),
+              ),
+            );
+          }
         }
       } else {
         _showErrorSnackBar(context, 'Connection failed');
@@ -168,21 +182,44 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ConnectionProvider>(
-      builder: (context, connectionProvider, _) {
+    return Consumer2<ConnectionProvider, BrandingProvider>(
+      builder: (context, connectionProvider, brandingProvider, _) {
         final hasRecentConnections = connectionProvider.robots.isNotEmpty;
 
-        return GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.grey.shade900.withOpacity(0.3),
-            ),
-            child: SafeArea(
-              child: hasRecentConnections
-                  ? _buildSplitScreen(context, connectionProvider)
-                  : _buildFullScreen(context),
-            ),
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Column(
+            children: [
+              // Conditional TopStatusBar - only show when widget.showTopStatusBar is true
+              if (widget.showTopStatusBar)
+                TopStatusBar(
+                  currentMode: AppModes.teleop,
+                  onModeChanged: (mode) {
+                    // No mode changes allowed on connection screen
+                  },
+                  statusText: 'Connect to Robot',
+                  statusColor: Colors.red,
+                  height: AppTheme.statusBarHeight,
+                  icon: FontAwesomeIcons.robot,
+                ),
+              // Main content
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => FocusScope.of(context).unfocus(),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade900.withValues(alpha: 0.3),
+                    ),
+                    child: SafeArea(
+                      child: hasRecentConnections
+                          ? _buildSplitScreen(
+                              context, connectionProvider, brandingProvider)
+                          : _buildFullScreen(context),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -190,7 +227,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
   }
 
   Widget _buildSplitScreen(
-      BuildContext context, ConnectionProvider connectionProvider) {
+      BuildContext context,
+      ConnectionProvider connectionProvider,
+      BrandingProvider brandingProvider) {
     final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
     final screenHeight = MediaQuery.of(context).size.height;
 
@@ -200,10 +239,10 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           Container(
             width: 300,
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
+              color: Colors.black.withValues(alpha: 0.6),
               border: Border(
-                right:
-                    BorderSide(color: Colors.white.withOpacity(0.05), width: 1),
+                right: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.05), width: 1),
               ),
             ),
             child: Column(
@@ -211,7 +250,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               children: [
                 _buildListHeader(context),
                 Expanded(
-                  child: _buildConnectionsList(context, connectionProvider),
+                  child: _buildConnectionsList(
+                      context, connectionProvider, brandingProvider),
                 ),
               ],
             ),
@@ -284,7 +324,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
             'Enter connection details',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.white.withValues(alpha: 0.7),
             ),
           ),
           const SizedBox(height: 30),
@@ -301,10 +341,10 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
           decoration: BoxDecoration(
-            color: Colors.grey.shade900.withOpacity(0.7),
+            color: Colors.grey.shade900.withValues(alpha: 0.7),
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 width: 1,
               ),
             ),
@@ -339,7 +379,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
   }
 
   Widget _buildConnectionsList(
-      BuildContext context, ConnectionProvider connectionProvider) {
+      BuildContext context,
+      ConnectionProvider connectionProvider,
+      BrandingProvider brandingProvider) {
     return ListView.builder(
       padding: EdgeInsets.symmetric(vertical: 8),
       itemCount: connectionProvider.robots.length,
@@ -446,7 +488,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               border: Border.all(color: Colors.grey[700]!),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 4,
                   offset: Offset(0, 2),
                 ),
@@ -459,7 +501,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                   width: 6,
                   height: 70,
                   decoration: BoxDecoration(
-                    color: Colors.orangeAccent,
+                    color: brandingProvider.themeColor,
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(16),
                       bottomLeft: Radius.circular(16),
@@ -474,8 +516,10 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                         topRight: Radius.circular(16),
                         bottomRight: Radius.circular(16),
                       ),
-                      splashColor: Colors.orange.withOpacity(0.1),
-                      highlightColor: Colors.orange.withOpacity(0.05),
+                      splashColor:
+                          brandingProvider.themeColor.withValues(alpha: 0.1),
+                      highlightColor:
+                          brandingProvider.themeColor.withValues(alpha: 0.05),
                       onTap: () => _connectToExistingRobot(
                         context,
                         robot.name,
@@ -491,12 +535,13 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: Colors.orangeAccent.withOpacity(0.2),
+                                color: brandingProvider.themeColor
+                                    .withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Icon(
                                 FontAwesomeIcons.robot,
-                                color: Colors.orangeAccent,
+                                color: brandingProvider.themeColor,
                                 size: 20,
                               ),
                             ),
@@ -625,8 +670,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
       data: Theme.of(context).copyWith(
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.white.withOpacity(0.06),
-          hoverColor: Colors.white.withOpacity(0.1),
+          fillColor: Colors.white.withValues(alpha: 0.06),
+          hoverColor: Colors.white.withValues(alpha: 0.1),
           contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
@@ -634,15 +679,18 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide:
-                BorderSide(color: Colors.orange.withOpacity(0.5), width: 1),
+            borderSide: BorderSide(
+                color: Provider.of<BrandingProvider>(context, listen: false)
+                    .themeColor
+                    .withValues(alpha: 0.5),
+                width: 1),
           ),
-          labelStyle: TextStyle(color: Colors.orange.shade200),
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
+          labelStyle: TextStyle(color: Colors.grey.shade400),
+          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
         ),
       ),
       child: TextField(
@@ -668,7 +716,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           errorText: errorText,
           prefixIcon: Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 8, 0),
-            child: Icon(icon, color: Colors.orange.shade200, size: 18),
+            child: Icon(icon,
+                color: Colors.white.withValues(alpha: 0.7), size: 18),
           ),
         ),
       ),
@@ -695,8 +744,11 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                Color(0xFFFF9800), // deep orange
-                Color(0xFFFFC107), // amber
+                Provider.of<BrandingProvider>(context, listen: false)
+                    .themeColor,
+                Provider.of<BrandingProvider>(context, listen: false)
+                    .themeColor
+                    .withValues(alpha: 0.8),
               ],
             ),
             borderRadius: BorderRadius.circular(12),

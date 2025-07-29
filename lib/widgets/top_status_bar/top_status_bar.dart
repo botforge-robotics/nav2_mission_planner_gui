@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/connection_provider.dart';
 import '../../constants/modes.dart';
+import '../../providers/branding_provider.dart';
 import 'top_status_mode_selector.dart';
 import 'top_status_center_title.dart';
 import 'top_status_network_info.dart';
 import 'top_status_connection_button.dart';
+import 'top_status_trial_indicator.dart';
 
 class TopStatusBar extends StatelessWidget {
   final String statusText;
@@ -154,6 +156,7 @@ class TopStatusBar extends StatelessWidget {
                         height: height,
                         connectionStatusColor: connectionStatusColor,
                       ),
+                    const TopStatusTrialIndicator(),
                     TopStatusConnectionButton(
                       height: height,
                       connectionStatusColor: connectionStatusColor,
@@ -162,27 +165,39 @@ class TopStatusBar extends StatelessWidget {
                               .activeLaunches
                               .isNotEmpty,
                     ),
-                    Container(
-                      padding: EdgeInsets.all(height * 0.2),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomRight,
-                          end: Alignment.topLeft,
-                          colors: [
-                            Colors.orange.shade600.withOpacity(0.9),
-                            Colors.orange.shade600.withOpacity(0.0),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(height * 0.25),
-                          bottomLeft: Radius.circular(height * 0.25),
-                        ),
-                      ),
-                      child: Image.asset(
-                        'assets/favicon_light.png',
-                        height: height * 0.5,
-                        fit: BoxFit.contain,
-                      ),
+                    Consumer<BrandingProvider>(
+                      builder: (context, branding, child) {
+                        return Container(
+                          padding: EdgeInsets.all(height * 0.2),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomRight,
+                              end: Alignment.topLeft,
+                              colors: [
+                                branding.themeColor.withOpacity(0.9),
+                                branding.themeColor.withOpacity(0.0),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(height * 0.25),
+                              bottomLeft: Radius.circular(height * 0.25),
+                            ),
+                          ),
+                          child: Image.asset(
+                            branding.faviconUrl,
+                            height: height * 0.5,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              // Fallback to default favicon
+                              return Image.asset(
+                                'assets/favicon_light.png',
+                                height: height * 0.5,
+                                fit: BoxFit.contain,
+                              );
+                            },
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(width: 10),
                   ],

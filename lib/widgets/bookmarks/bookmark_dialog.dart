@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/branding_provider.dart';
 
 class BookmarkDialog extends StatefulWidget {
   final Function(IconData icon, String name) onDone;
@@ -113,68 +115,79 @@ class _BookmarkDialogState extends State<BookmarkDialog> {
                 const SizedBox(height: 20),
 
                 // Name input field
-                TextField(
-                  controller: _nameController,
-                  style: TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Location Name',
-                    labelStyle: TextStyle(color: Colors.grey[400]),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.grey[700]!),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.blue),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey[800],
-                  ),
+                Consumer<BrandingProvider>(
+                  builder: (context, brandingProvider, child) {
+                    return TextField(
+                      controller: _nameController,
+                      style: TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Location Name',
+                        labelStyle: TextStyle(color: Colors.grey[400]),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey[700]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide:
+                              BorderSide(color: brandingProvider.themeColor),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[800],
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 20),
                 // Icon grid
-                Container(
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[800],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: SingleChildScrollView(
-                    child: GridView.builder(
-                      physics: NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      padding: EdgeInsets.all(8),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 6,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
+                Consumer<BrandingProvider>(
+                  builder: (context, brandingProvider, child) {
+                    return Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[800],
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      itemCount: _availableIcons.length,
-                      itemBuilder: (context, index) {
-                        final icon = _availableIcons[index];
-                        final isSelected = icon == _selectedIcon;
-                        return InkWell(
-                          onTap: () {
-                            setState(() {
-                              _selectedIcon = icon;
-                            });
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color:
-                                  isSelected ? Colors.blue : Colors.grey[700],
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              icon,
-                              color: Colors.white,
-                              size: 24,
-                            ),
+                      child: SingleChildScrollView(
+                        child: GridView.builder(
+                          physics: NeverScrollableScrollPhysics(),
+                          shrinkWrap: true,
+                          padding: EdgeInsets.all(8),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 6,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
                           ),
-                        );
-                      },
-                    ),
-                  ),
+                          itemCount: _availableIcons.length,
+                          itemBuilder: (context, index) {
+                            final icon = _availableIcons[index];
+                            final isSelected = icon == _selectedIcon;
+                            return InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _selectedIcon = icon;
+                                });
+                              },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? brandingProvider.themeColor
+                                      : Colors.grey[700],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  icon,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 20),
 
@@ -205,7 +218,9 @@ class _BookmarkDialogState extends State<BookmarkDialog> {
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
+                        backgroundColor: Provider.of<BrandingProvider>(context,
+                                listen: false)
+                            .themeColor,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),

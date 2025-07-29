@@ -4,6 +4,7 @@ import 'package:nav2_mission_planner/screens/settings/widgets/odom_topic_input.d
 import 'package:nav2_mission_planner/screens/settings/widgets/path_input.dart';
 import 'package:provider/provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/branding_provider.dart';
 import 'widgets/setting_card.dart';
 import 'widgets/setting_header.dart';
 import 'widgets/launch_file_input.dart';
@@ -71,7 +72,8 @@ class NavigationSettings extends StatelessWidget {
                   'Note: The name of map file will be asked when starting navigation. Please make sure the argument name "map" is correct in your launch file.',
                   style: TextStyle(
                     fontSize: 10,
-                    color: Colors.orange.shade300,
+                    color: Provider.of<BrandingProvider>(context, listen: false)
+                        .themeColor,
                   ),
                 ),
               ],

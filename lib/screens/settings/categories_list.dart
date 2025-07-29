@@ -15,21 +15,21 @@ class CategoriesList extends StatelessWidget {
   });
 
   // Helper method to get color from mode
-  Color _getModeColor(String category) {
+  Color _getModeColor(BuildContext context, String category) {
     switch (category) {
       case 'General':
-        return ModeColors.modeColorMap[AppModes.settings]!;
+        return ModeColors.getModeColorMap(context)[AppModes.settings]!;
       case 'Teleop':
-        return ModeColors.modeColorMap[AppModes.teleop]!;
+        return ModeColors.getModeColorMap(context)[AppModes.teleop]!;
       case 'Mapping':
-        return ModeColors.modeColorMap[AppModes.mapping]!;
+        return ModeColors.getModeColorMap(context)[AppModes.mapping]!;
       case 'Navigation':
-        return ModeColors.modeColorMap[AppModes.navigation]!;
+        return ModeColors.getModeColorMap(context)[AppModes.navigation]!;
       case 'About':
-        return ModeColors.modeColorMap[AppModes.settings]!;
+        return ModeColors.getModeColorMap(context)[AppModes.settings]!;
 
       default:
-        return ModeColors.modeColorMap[AppModes.settings]!;
+        return ModeColors.getModeColorMap(context)[AppModes.settings]!;
     }
   }
 
@@ -39,22 +39,27 @@ class CategoriesList extends StatelessWidget {
       padding: EdgeInsets.zero,
       children: [
         _buildCategoryTile(
+          context,
           icon: FontAwesomeIcons.gear,
           title: 'General',
         ),
         _buildCategoryTile(
+          context,
           icon: FontAwesomeIcons.gamepad,
           title: 'Teleop',
         ),
         _buildCategoryTile(
+          context,
           icon: FontAwesomeIcons.map,
           title: 'Mapping',
         ),
         _buildCategoryTile(
+          context,
           icon: FontAwesomeIcons.mapLocationDot,
           title: 'Navigation',
         ),
         _buildCategoryTile(
+          context,
           icon: FontAwesomeIcons.circleInfo,
           title: 'About',
         ),
@@ -62,12 +67,13 @@ class CategoriesList extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryTile({
+  Widget _buildCategoryTile(
+    BuildContext context, {
     required IconData icon,
     required String title,
   }) {
     final isSelected = selectedCategory == title;
-    final modeColor = _getModeColor(title);
+    final modeColor = _getModeColor(context, title);
 
     return Container(
       margin: EdgeInsets.symmetric(

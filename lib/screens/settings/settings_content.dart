@@ -17,18 +17,18 @@ class SettingsContent extends StatelessWidget {
   });
 
   // Helper method to get color from mode
-  Color _getModeColor(String category) {
+  Color _getModeColor(BuildContext context, String category) {
     switch (category) {
       case 'Teleop':
-        return ModeColors.modeColorMap[AppModes.teleop]!;
+        return ModeColors.getModeColorMap(context)[AppModes.teleop]!;
       case 'Mapping':
-        return ModeColors.modeColorMap[AppModes.mapping]!;
+        return ModeColors.getModeColorMap(context)[AppModes.mapping]!;
       case 'Navigation':
-        return ModeColors.modeColorMap[AppModes.navigation]!;
+        return ModeColors.getModeColorMap(context)[AppModes.navigation]!;
       case 'General':
-        return ModeColors.modeColorMap[AppModes.settings]!;
+        return ModeColors.getModeColorMap(context)[AppModes.settings]!;
       default:
-        return ModeColors.modeColorMap[AppModes.settings]!;
+        return ModeColors.getModeColorMap(context)[AppModes.settings]!;
     }
   }
 
@@ -38,37 +38,37 @@ class SettingsContent extends StatelessWidget {
       children: [
         SizedBox(height: 12),
         Expanded(
-          child: _getSettingsContent(),
+          child: _getSettingsContent(context),
         ),
       ],
     );
   }
 
-  Widget _getSettingsContent() {
+  Widget _getSettingsContent(BuildContext context) {
     if (category == 'Teleop') {
       return TeleopSettings(
         screenSize: screenSize,
-        modeColor: _getModeColor('Teleop'),
+        modeColor: _getModeColor(context, 'Teleop'),
       );
     } else if (category == 'Mapping') {
       return MappingSettings(
         screenSize: screenSize,
-        modeColor: _getModeColor('Mapping'),
+        modeColor: _getModeColor(context, 'Mapping'),
       );
     } else if (category == 'Navigation') {
       return NavigationSettings(
         screenSize: screenSize,
-        modeColor: _getModeColor('Navigation'),
+        modeColor: _getModeColor(context, 'Navigation'),
       );
     } else if (category == 'General') {
       return GeneralSettings(
         screenSize: screenSize,
-        modeColor: _getModeColor('General'),
+        modeColor: _getModeColor(context, 'General'),
       );
     } else if (category == 'About') {
       return AboutSettings(
         screenSize: screenSize,
-        modeColor: _getModeColor('General'),
+        modeColor: _getModeColor(context, 'General'),
       );
     }
     return Center(

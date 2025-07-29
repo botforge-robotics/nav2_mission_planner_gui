@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 import '../providers/connection_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/branding_provider.dart';
 import 'package:nav_msgs/msg.dart' as nav_msgs;
 import 'package:nav_msgs/srv.dart' as nav_srvs;
 import 'package:rosapi_msgs/srv.dart';
@@ -751,7 +752,9 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                             // Use the same color logic as in BookmarkWidget
                             waypointColor = matchingBookmark.isGoalActive
                                 ? Colors.green
-                                : Colors.orange;
+                                : Provider.of<BrandingProvider>(context,
+                                        listen: false)
+                                    .themeColor;
                           } catch (e) {
                             // No matching bookmark found, keep default color
                           }
@@ -819,7 +822,9 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                                 theta: bookmark.theta,
                                 color: bookmark.isGoalActive
                                     ? Colors.green
-                                    : Colors.orange,
+                                    : Provider.of<BrandingProvider>(context,
+                                            listen: false)
+                                        .themeColor,
                                 size: 40.0,
                                 icon: bookmark.icon,
                                 label: bookmark.name,
@@ -1208,7 +1213,7 @@ class MapPainter extends CustomPainter {
     );
 
     // Draw grid lines (optional)
-    paint.color = Colors.orange.withOpacity(0.3);
+    paint.color = Colors.grey.withOpacity(0.3);
     paint.strokeWidth = 1.0;
 
     // Draw a grid based on map resolution

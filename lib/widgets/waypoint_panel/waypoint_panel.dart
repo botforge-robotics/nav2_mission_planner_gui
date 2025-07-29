@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:nav2_mission_planner/providers/settings_provider.dart';
 import 'package:nav2_mission_planner/providers/connection_provider.dart';
 import 'package:nav2_mission_planner/providers/ros2_data_provider.dart';
+import 'package:nav2_mission_planner/providers/branding_provider.dart';
 import 'package:nav2_mission_planner/services/message_parser.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:async';
@@ -1382,14 +1383,22 @@ class WaypointPanelState extends State<WaypointPanel> {
                                               Container(
                                                 padding: EdgeInsets.all(6),
                                                 decoration: BoxDecoration(
-                                                  color: Colors.orange[700]!
+                                                  color: Provider.of<
+                                                              BrandingProvider>(
+                                                          context,
+                                                          listen: false)
+                                                      .themeColor
                                                       .withOpacity(0.2),
                                                   borderRadius:
                                                       BorderRadius.circular(6),
                                                 ),
                                                 child: Icon(
                                                   Icons.route,
-                                                  color: Colors.orange[400],
+                                                  color: Provider.of<
+                                                              BrandingProvider>(
+                                                          context,
+                                                          listen: false)
+                                                      .themeColor,
                                                   size: 16,
                                                 ),
                                               ),

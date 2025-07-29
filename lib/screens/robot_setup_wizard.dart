@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/connection_provider.dart';
+import '../providers/branding_provider.dart';
 import '../modals/robotProfile.dart';
 import '../constants/default_settings.dart';
 import 'home_screen.dart';
@@ -36,32 +37,36 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
     3: false, // Navigation (required)
   };
 
-  final List<StepConfig> _steps = [
-    StepConfig(
-      title: 'Sensor Configuration',
-      subtitle: 'Robot sensor settings',
-      icon: FontAwesomeIcons.gear,
-      color: Color(0xFF2196F3), // Accent blue
-    ),
-    StepConfig(
-      title: 'Teleoperation Setup',
-      subtitle: 'Movement and control parameters',
-      icon: FontAwesomeIcons.gamepad,
-      color: Color(0xFF2196F3), // Accent blue
-    ),
-    StepConfig(
-      title: 'Mapping Configuration',
-      subtitle: 'SLAM and mapping settings',
-      icon: FontAwesomeIcons.map,
-      color: Color(0xFF2196F3), // Accent blue
-    ),
-    StepConfig(
-      title: 'Navigation Setup',
-      subtitle: 'Path planning and navigation',
-      icon: FontAwesomeIcons.route,
-      color: Color(0xFF2196F3), // Accent blue
-    ),
-  ];
+  List<StepConfig> get _steps {
+    final brandingProvider =
+        Provider.of<BrandingProvider>(context, listen: false);
+    return [
+      StepConfig(
+        title: 'Sensor Configuration',
+        subtitle: 'Robot sensor settings',
+        icon: FontAwesomeIcons.gear,
+        color: brandingProvider.themeColor,
+      ),
+      StepConfig(
+        title: 'Teleoperation Setup',
+        subtitle: 'Movement and control parameters',
+        icon: FontAwesomeIcons.gamepad,
+        color: brandingProvider.themeColor,
+      ),
+      StepConfig(
+        title: 'Mapping Configuration',
+        subtitle: 'SLAM and mapping settings',
+        icon: FontAwesomeIcons.map,
+        color: brandingProvider.themeColor,
+      ),
+      StepConfig(
+        title: 'Navigation Setup',
+        subtitle: 'Path planning and navigation',
+        icon: FontAwesomeIcons.route,
+        color: brandingProvider.themeColor,
+      ),
+    ];
+  }
 
   @override
   void initState() {
@@ -124,39 +129,43 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade900,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // Main content column (header + pages)
-            Column(
+    return Consumer<BrandingProvider>(
+      builder: (context, branding, child) {
+        return Scaffold(
+          backgroundColor: Colors.grey.shade900,
+          body: SafeArea(
+            child: Stack(
               children: [
-                _buildHeader(context),
-                Expanded(
-                  child: PageView(
-                    controller: _pageController,
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      _buildSensorStep(),
-                      _buildTeleopStep(),
-                      _buildMappingStep(),
-                      _buildNavigationStep(),
-                    ],
-                  ),
+                // Main content column (header + pages)
+                Column(
+                  children: [
+                    _buildHeader(context),
+                    Expanded(
+                      child: PageView(
+                        controller: _pageController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          _buildSensorStep(),
+                          _buildTeleopStep(),
+                          _buildMappingStep(),
+                          _buildNavigationStep(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                // Floating navigation buttons pinned to the screen edges.
+                Positioned(
+                  bottom: 12,
+                  left: 0,
+                  right: 0,
+                  child: _buildNavigationButtons(),
                 ),
               ],
             ),
-            // Floating navigation buttons pinned to the screen edges.
-            Positioned(
-              bottom: 12,
-              left: 0,
-              right: 0,
-              child: _buildNavigationButtons(),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
