@@ -50,8 +50,7 @@ class LaunchManager extends ChangeNotifier {
             .map((arg) => '${arg['name']}:=${arg['value']}')
             .join(' '),
       );
-      debugPrint(
-          'Request: $request. ${settings.mappingArgs.map((arg) => '${arg['name']}:=${arg['value']}').join(' ')}');
+      // Launch request
       final response = await serviceClient.call(request);
       if (response.success) {
         // Track the unique_id and description
@@ -101,7 +100,6 @@ class LaunchManager extends ChangeNotifier {
       notifyListeners();
       _activeSession = SessionType.none;
     } catch (e) {
-      debugPrint('Error stopping launch: $e');
       rethrow;
     }
   }

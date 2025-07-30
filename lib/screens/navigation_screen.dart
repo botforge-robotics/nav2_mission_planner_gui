@@ -411,7 +411,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         );
       }
     } catch (e) {
-      debugPrint('Error subscribing to odometry: $e');
+      // Silent error handling
     }
   }
 
@@ -707,7 +707,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _currentPathTopic = _settingsProvider.pathTopic;
       _pathSubscribed = true;
     } catch (e) {
-      debugPrint('Error subscribing to path topic: $e');
+      // Silent error handling
     }
   }
 
@@ -1023,7 +1023,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                         _settingsProvider.removeBookmark(_selectedMap!, index);
                       });
                     } else {
-                      debugPrint('Could not find bookmark index for deletion');
+                      // Could not find bookmark index for deletion
                     }
                   },
                   onCancel: () {
@@ -1032,7 +1032,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                 ),
               );
             } else {
-              debugPrint('Bookmark not found in current map: $bookmark');
+              // Bookmark not found in current map
             }
           },
           isGoalActive: _isGoalActive,
@@ -1065,13 +1065,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
                   .toList() ??
               [];
 
-          debugPrint('local bookmarks: $_localBookmarks');
           _mapWidget = _buildMapWidget();
         });
       } else {
         setState(() {
           _localBookmarks = [];
-          debugPrint('local bookmarks: $_localBookmarks');
           _mapWidget = _buildMapWidget();
         });
       }

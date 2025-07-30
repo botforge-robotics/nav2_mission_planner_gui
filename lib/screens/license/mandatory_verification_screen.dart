@@ -121,57 +121,66 @@ class MandatoryVerificationScreen extends StatelessWidget {
               Column(
                 children: [
                   // Retry Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final provider = context.read<LicenseProvider>();
-                        await provider.checkLicense();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  Consumer<BrandingProvider>(
+                    builder: (context, brandingProvider, child) {
+                      return SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final provider = context.read<LicenseProvider>();
+                            await provider.checkLicense();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: brandingProvider.themeColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Connect & Verify',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        'Connect & Verify',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 12),
 
                   // Check Connection Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () async {
-                        final provider = context.read<LicenseProvider>();
-                        await provider.checkLicense();
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.primaryColor,
-                        side: BorderSide(color: AppTheme.primaryColor),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  Consumer<BrandingProvider>(
+                    builder: (context, brandingProvider, child) {
+                      return SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () async {
+                            final provider = context.read<LicenseProvider>();
+                            await provider.checkLicense();
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: brandingProvider.themeColor,
+                            side:
+                                BorderSide(color: brandingProvider.themeColor),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Check Connection',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        'Check Connection',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 12),

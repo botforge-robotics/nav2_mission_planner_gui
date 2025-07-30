@@ -13,6 +13,7 @@ class LicenseProvider extends ChangeNotifier {
   LicenseData? _licenseData;
   TrialData? _trialData;
   BrandingProvider? _brandingProvider;
+  bool _isStartingTrial = false;
 
   // Prevent multiple simultaneous license checks
   static bool _isChecking = false;
@@ -22,6 +23,7 @@ class LicenseProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   LicenseData? get licenseData => _licenseData;
   TrialData? get trialData => _trialData;
+  bool get isStartingTrial => _isStartingTrial;
 
   // Set branding provider reference
   void setBrandingProvider(BrandingProvider brandingProvider) {
@@ -59,13 +61,29 @@ class LicenseProvider extends ChangeNotifier {
                 response['body']['licenseVerified'] == true) {
               // Parse and store the license data
               final licenseData = _parseLicenseResponse(response['body']);
+
+              // Check if cloud data is different from local data
+              final localLicenseData =
+                  await SecureStorageService.getLicenseData();
+              bool shouldUpdateBranding = true;
+
+              if (localLicenseData != null &&
+                  licenseData.licenseType == localLicenseData.licenseType &&
+                  licenseData.appTitle == localLicenseData.appTitle &&
+                  licenseData.themeColor == localLicenseData.themeColor &&
+                  licenseData.companyName == localLicenseData.companyName) {
+                shouldUpdateBranding = false;
+              }
+
               await SecureStorageService.storeLicenseData(licenseData);
 
-              // Handle organization branding
-              if (licenseData.licenseType == 'organization') {
+              // Handle organization branding - always store for organization licenses
+              if (licenseData.licenseType == 'organization' ||
+                  licenseData.licenseType == 'organisation') {
                 await SecureStorageService.storeOrganizationBranding(
                     licenseData);
-                _brandingProvider?.updateOrganizationBranding(licenseData);
+                await _brandingProvider
+                    ?.updateOrganizationBranding(licenseData);
               } else {
                 // Clear organization branding for individual licenses
                 await SecureStorageService.clearOrganizationBranding();
@@ -95,6 +113,15 @@ class LicenseProvider extends ChangeNotifier {
 
         // Use local license data if available (offline or cloud failed)
         if (localLicenseData != null) {
+          // Apply local branding immediately for fast startup
+          if (localLicenseData.licenseType == 'organization' ||
+              localLicenseData.licenseType == 'organisation') {
+            await _brandingProvider
+                ?.updateOrganizationBranding(localLicenseData);
+          } else {
+            _brandingProvider?.clearOrganizationBranding();
+          }
+
           final lastCheck = await SecureStorageService.getLastLicenseCheck();
 
           if (lastCheck != null) {
@@ -112,17 +139,12 @@ class LicenseProvider extends ChangeNotifier {
           _status = LicenseStatus.valid;
           _licenseData = localLicenseData;
 
-          // Update branding provider with local organization data
-          if (localLicenseData.licenseType == 'organization') {
-            _brandingProvider?.updateOrganizationBranding(localLicenseData);
-          } else {
-            _brandingProvider?.clearOrganizationBranding();
-          }
-
           _errorMessage = null;
           notifyListeners();
           _isChecking = false;
           return;
+        } else {
+          // No local license data found
         }
 
         // If we have token but no local data, and offline, require online verification
@@ -155,26 +177,70 @@ class LicenseProvider extends ChangeNotifier {
           final response = await ApiService.getTrialStatus(deviceId);
           await SecureStorageService.storeLastTrialCheck(trialNow);
           cloudChecked = true;
+
+          // Handle 404 as new device - should have trial access
+          if (response['statusCode'] == 404) {
+            try {
+              // Register the device automatically
+              final deviceData =
+                  await DeviceService.getDeviceRegistrationData();
+              final registerResponse =
+                  await ApiService.registerDevice(deviceData);
+
+              if (registerResponse['statusCode'] == 200 &&
+                  registerResponse['body']['success'] == true) {
+                await SecureStorageService.storeDeviceRegistered(true);
+              }
+            } catch (e) {
+              // Silent error handling
+            }
+
+            _status = LicenseStatus.welcome;
+            _errorMessage = null;
+            notifyListeners();
+            _isChecking = false;
+            return;
+          }
+
           if (response['statusCode'] == 200 &&
               response['body']['success'] == true) {
             final cloudData = response['body']['data'];
             final cloudTrialStatus = cloudData['trialStatus'];
-            final cloudTrialStartTime =
-                DateTime.parse(cloudData['trialStartTime']);
-            final cloudTrialEndTime = DateTime.parse(cloudData['trialEndTime']);
-            await SecureStorageService.storeTrialStartTime(cloudTrialStartTime);
-            await SecureStorageService.storeTrialEndTime(cloudTrialEndTime);
-            await SecureStorageService.storeDeviceRegistered(true);
 
-            // Always use cloud trial status, regardless of local status
-            if (cloudTrialStatus == 'valid') {
+            // Handle different trial statuses
+            if (cloudTrialStatus == 'not_started') {
+              _status = LicenseStatus.welcome;
+              _errorMessage = 'Trial available for 7 days - Activate trial';
+              notifyListeners();
+              _isChecking = false;
+              return;
+            } else if (cloudTrialStatus == 'valid') {
+              // Store trial data if available
+              if (cloudData['trialStartTime'] != null) {
+                final cloudTrialStartTime =
+                    DateTime.parse(cloudData['trialStartTime']);
+                await SecureStorageService.storeTrialStartTime(
+                    cloudTrialStartTime);
+              }
+              if (cloudData['trialEndTime'] != null) {
+                final cloudTrialEndTime =
+                    DateTime.parse(cloudData['trialEndTime']);
+                await SecureStorageService.storeTrialEndTime(cloudTrialEndTime);
+              }
+              await SecureStorageService.storeDeviceRegistered(true);
+
               _status = LicenseStatus.welcome;
               _errorMessage = null;
               notifyListeners();
               _isChecking = false;
               return;
             } else {
-              _status = LicenseStatus.welcome;
+              // Trial expired or other status - sync with cloud
+              // Clear local trial data to sync with cloud
+              await SecureStorageService.clearTrialData();
+
+              // Update status to reflect expired trial
+              _status = LicenseStatus.expired;
               _errorMessage = 'Trial expired';
               notifyListeners();
               _isChecking = false;
@@ -256,11 +322,15 @@ class LicenseProvider extends ChangeNotifier {
     final data = response['data'];
     final licenseType = response['licenseType'] ?? 'individual';
 
+    print('🔍 Parsing license response:');
+    print('License Type: $licenseType');
+    print('Raw data: $data');
+
     // Handle case where data is an empty array or null
     Map<String, dynamic> dataMap = {};
     if (data is Map<String, dynamic>) {
       dataMap = data;
-    } else {}
+    }
 
     final licenseData = LicenseData(
       licenseType: licenseType,
@@ -278,7 +348,7 @@ class LicenseProvider extends ChangeNotifier {
     return licenseData;
   }
 
-  // Register device and start trial
+  // Start trial using the new API endpoint
   Future<bool> startTrial() async {
     try {
       if (!await _isOnline()) {
@@ -287,26 +357,57 @@ class LicenseProvider extends ChangeNotifier {
         return false;
       }
 
-      final deviceData = await DeviceService.getDeviceRegistrationData();
-      final response = await ApiService.registerDevice(deviceData);
+      _isStartingTrial = true;
+      // Keep the current error message to maintain UI state during API call
+      notifyListeners();
+
+      final deviceId = await DeviceService.getDeviceId();
+      final response = await ApiService.startTrial(deviceId);
 
       if (response['statusCode'] == 200 &&
           response['body']['success'] == true) {
-        await SecureStorageService.storeDeviceRegistered(true);
-        await TrialService.startTrial();
+        // Store trial data from response
+        final data = response['body']['data'];
+        if (data['trialStartTime'] != null) {
+          final trialStartTime = DateTime.parse(data['trialStartTime']);
+          await SecureStorageService.storeTrialStartTime(trialStartTime);
+        }
+        if (data['trialEndTime'] != null) {
+          final trialEndTime = DateTime.parse(data['trialEndTime']);
+          await SecureStorageService.storeTrialEndTime(trialEndTime);
+        }
 
+        await SecureStorageService.storeDeviceRegistered(true);
+
+        // Only change status to trial after successful API response
         _status = LicenseStatus.trial;
-        _trialData = await TrialService.getTrialData() as TrialData?;
         _errorMessage = null;
+        _isStartingTrial = false;
         notifyListeners();
         return true;
+      } else if (response['statusCode'] == 409) {
+        _errorMessage = 'Trial already started';
+        _isStartingTrial = false;
+        // Keep status as welcome to prevent access without successful activation
+        notifyListeners();
+        return false;
+      } else if (response['statusCode'] == 404) {
+        _errorMessage = 'Device not found - please register first';
+        _isStartingTrial = false;
+        // Keep status as welcome to prevent access without successful activation
+        notifyListeners();
+        return false;
       } else {
         _errorMessage = response['body']['message'] ?? 'Failed to start trial';
+        _isStartingTrial = false;
+        // Keep status as welcome to prevent access without successful activation
         notifyListeners();
         return false;
       }
     } catch (e) {
       _errorMessage = 'Error starting trial: ${e.toString()}';
+      _isStartingTrial = false;
+      // Keep status as welcome to prevent access without successful activation
       notifyListeners();
       return false;
     }
@@ -524,21 +625,33 @@ class LicenseProvider extends ChangeNotifier {
 
   // Allow trial usage (called from trial modal)
   void allowTrialUsage() {
-    _status = LicenseStatus.valid;
+    _status = LicenseStatus.trial;
     _errorMessage = null;
     notifyListeners();
   }
 
   // Update license status (for license activation)
-  Future<void> updateLicenseStatus(LicenseStatus status) async {
+  Future<void> updateLicenseStatus(LicenseStatus status,
+      {LicenseData? licenseData}) async {
     _status = status;
     _errorMessage = null;
 
-    // If status is valid, load the license data
+    // If status is valid, clear trial data and load the license data
     if (status == LicenseStatus.valid) {
-      // Note: This will need to be updated when the new LicenseData model is integrated
-      // For now, we'll leave it as null to avoid type conflicts
-      _licenseData = null;
+      // Clear trial data when a valid license is activated
+      await TrialService.resetTrialData();
+      _trialData = null;
+
+      // Set the license data if provided
+      if (licenseData != null) {
+        _licenseData = licenseData;
+      }
+    }
+
+    // If status is expired, clear trial data to sync with cloud
+    if (status == LicenseStatus.expired) {
+      await SecureStorageService.clearTrialData();
+      _trialData = null;
     }
 
     notifyListeners();

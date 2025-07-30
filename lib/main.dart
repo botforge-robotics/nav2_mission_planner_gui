@@ -12,11 +12,38 @@ import 'services/launch_service.dart';
 import 'services/mission_execution_service.dart';
 import 'services/device_service.dart';
 import 'services/secure_storage_service.dart';
+import 'services/api_service.dart';
 
 import 'screens/license/tampering_warning_screen.dart';
 import 'screens/license/license_checking_screen.dart';
 import 'screens/onboarding/welcome_screen.dart';
 import 'models/license_model.dart';
+import 'widgets/branding_loading_screen.dart';
+
+// Function to handle device registration on first installation
+Future<void> _handleDeviceRegistration() async {
+  try {
+    // Check if device is already registered
+    final isRegistered = await SecureStorageService.isDeviceRegistered();
+
+    if (!isRegistered) {
+      // Get device registration data
+      final deviceData = await DeviceService.getDeviceRegistrationData();
+
+      // Attempt to register device
+      final response = await ApiService.registerDevice(deviceData);
+
+      if (response['statusCode'] == 200 &&
+          response['body']['success'] == true) {
+        // Mark device as registered
+        await SecureStorageService.storeDeviceRegistered(true);
+      }
+      // Don't throw error - app should still work even if registration fails
+    }
+  } catch (e) {
+    // Don't throw error - app should still work even if registration fails
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +52,9 @@ void main() async {
   // Initialize license system services
   await DeviceService.initialize();
   await SecureStorageService.initialize();
+
+  // Handle device registration on first installation
+  await _handleDeviceRegistration();
 
   // Force landscape mode
   SystemChrome.setPreferredOrientations([
@@ -93,16 +123,20 @@ class Nav2MissionPlanner extends StatelessWidget {
             if (licenseProvider.status == LicenseStatus.checking) {
               licenseProvider.checkLicense();
             }
-            // Load cached branding on app start
-            brandingProvider.loadCachedBranding();
           });
+
+          // Show loading screen until branding is initialized
+          if (!brandingProvider.isInitialized) {
+            return const BrandingLoadingScreen();
+          }
 
           // Always show connection screen as base
           return Stack(
             children: [
               const ConnectionScreen(),
               // Overlay license screens as dialogs (including checking)
-              if (licenseProvider.status != LicenseStatus.valid)
+              if (licenseProvider.status != LicenseStatus.valid &&
+                  licenseProvider.status != LicenseStatus.trial)
                 _buildLicenseOverlay(context, licenseProvider),
             ],
           );
@@ -169,65 +203,69 @@ class Nav2MissionPlanner extends StatelessWidget {
               color: Colors.grey[900],
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Container(
-              constraints: const BoxConstraints(
-                maxWidth: 600,
-                maxHeight: 700,
-              ),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFFFF9800).withValues(alpha: 0.1),
-                    const Color(0xFFFFC107).withValues(alpha: 0.05),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0xFFFF9800).withValues(alpha: 0.3),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+            child: Consumer<BrandingProvider>(
+              builder: (context, brandingProvider, child) {
+                return Container(
+                  constraints: const BoxConstraints(
+                    maxWidth: 600,
+                    maxHeight: 700,
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Stack(
-                  children: [
-                    licenseScreen,
-                    // Close button (only if dismissible)
-                    if (isDismissible)
-                      Positioned(
-                        top: 16,
-                        right: 16,
-                        child: GestureDetector(
-                          onTap: () {
-                            // Close the dialog
-                            Navigator.of(context).pop();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 20,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        brandingProvider.themeColor.withValues(alpha: 0.1),
+                        brandingProvider.themeColor.withValues(alpha: 0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: brandingProvider.themeColor.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Stack(
+                      children: [
+                        licenseScreen,
+                        // Close button (only if dismissible)
+                        if (isDismissible)
+                          Positioned(
+                            top: 16,
+                            right: 16,
+                            child: GestureDetector(
+                              onTap: () {
+                                // Close the dialog
+                                Navigator.of(context).pop();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         )

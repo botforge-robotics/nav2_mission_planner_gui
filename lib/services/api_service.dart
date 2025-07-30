@@ -27,8 +27,13 @@ class ApiService {
       request.write(jsonEncode(body));
       final response = await request.close();
 
+      final responseBody = await response.transform(utf8.decoder).join();
+
       // Consider any 2xx-5xx response as server reachable
-      return response.statusCode >= 200 && response.statusCode < 600;
+      final isReachable =
+          response.statusCode >= 200 && response.statusCode < 600;
+
+      return isReachable;
     } catch (e) {
       return false;
     }
@@ -51,15 +56,18 @@ class ApiService {
       final responseBody = await response.transform(utf8.decoder).join();
       final responseData = jsonDecode(responseBody);
 
-      return {
+      final result = {
         'statusCode': response.statusCode,
         'body': responseData,
       };
+
+      return result;
     } catch (e) {
-      return {
+      final errorResult = {
         'statusCode': 500,
         'body': {'error': e.toString()},
       };
+      return errorResult;
     }
   }
 
@@ -81,21 +89,33 @@ class ApiService {
         'token': token,
       };
 
+      print('🔍 API Request - verifyLicense:');
+      print('   URL: $url');
+      print('   Body: ${jsonEncode(body)}');
+
       request.write(jsonEncode(body));
       final response = await request.close();
 
       final responseBody = await response.transform(utf8.decoder).join();
       final responseData = jsonDecode(responseBody);
 
-      return {
+      print('📡 API Response - verifyLicense:');
+      print('   Status Code: ${response.statusCode}');
+      print('   Response Body: $responseBody');
+      print('   Parsed Response: ${jsonEncode(responseData)}');
+
+      final result = {
         'statusCode': response.statusCode,
         'body': responseData,
       };
+
+      return result;
     } catch (e) {
-      return {
+      final errorResult = {
         'statusCode': 500,
         'body': {'error': e.toString()},
       };
+      return errorResult;
     }
   }
 
@@ -119,21 +139,24 @@ class ApiService {
       final responseBody = await response.transform(utf8.decoder).join();
       final responseData = jsonDecode(responseBody);
 
-      return {
+      final result = {
         'statusCode': response.statusCode,
         'body': responseData,
       };
+
+      return result;
     } catch (e) {
-      return {
+      final errorResult = {
         'statusCode': 500,
         'body': {'error': e.toString()},
       };
+      return errorResult;
     }
   }
 
   static Future<Map<String, dynamic>> getTrialStatus(String deviceId) async {
     try {
-      final url = Uri.parse('$baseUrl/trial/status');
+      final url = Uri.parse('$baseUrl/trial/status?deviceId=$deviceId');
 
       final httpClient = HttpClient();
       httpClient.badCertificateCallback = (cert, host, port) => true;
@@ -146,15 +169,53 @@ class ApiService {
       final responseBody = await response.transform(utf8.decoder).join();
       final responseData = jsonDecode(responseBody);
 
-      return {
+      final result = {
         'statusCode': response.statusCode,
         'body': responseData,
       };
+
+      return result;
     } catch (e) {
-      return {
+      final errorResult = {
         'statusCode': 500,
         'body': {'error': e.toString()},
       };
+      return errorResult;
+    }
+  }
+
+  static Future<Map<String, dynamic>> startTrial(String deviceId) async {
+    try {
+      final url = Uri.parse('$baseUrl/trial/start');
+
+      final httpClient = HttpClient();
+      httpClient.badCertificateCallback = (cert, host, port) => true;
+
+      final request = await httpClient.postUrl(url);
+      request.headers.set('Content-Type', 'application/json');
+
+      final body = {
+        'deviceId': deviceId,
+      };
+
+      request.write(jsonEncode(body));
+      final response = await request.close();
+
+      final responseBody = await response.transform(utf8.decoder).join();
+      final responseData = jsonDecode(responseBody);
+
+      final result = {
+        'statusCode': response.statusCode,
+        'body': responseData,
+      };
+
+      return result;
+    } catch (e) {
+      final errorResult = {
+        'statusCode': 500,
+        'body': {'error': e.toString()},
+      };
+      return errorResult;
     }
   }
 }

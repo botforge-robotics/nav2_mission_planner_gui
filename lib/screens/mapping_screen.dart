@@ -95,7 +95,7 @@ class _MappingScreenState extends State<MappingScreen> {
         );
       }
     } catch (e) {
-      print('Error subscribing to odometry: $e');
+      // Silent error handling
     }
   }
 

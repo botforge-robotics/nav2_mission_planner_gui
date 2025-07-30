@@ -122,6 +122,8 @@ class TrialService {
           case 'valid':
             return TrialStatus.active;
           case 'expired':
+            // Sync local storage when cloud reports trial expired
+            await SecureStorageService.clearTrialData();
             return TrialStatus.expired;
           default:
             return TrialStatus.notStarted;

@@ -25,18 +25,9 @@ class AboutSettings extends StatelessWidget {
                     color: branding.themeColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Image.asset(
-                    branding.logoUrl,
+                  child: branding.createLogoWidget(
                     width: screenSize.width * 0.22,
                     fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      // Fallback to default logo
-                      return Image.asset(
-                        'assets/sticker.png',
-                        width: screenSize.width * 0.22,
-                        fit: BoxFit.contain,
-                      );
-                    },
                   ),
                 ),
 

@@ -26,7 +26,7 @@ class ImageCacheService {
         return file.path;
       }
     } catch (e) {
-      print('Failed to cache image: $e');
+      // Silent error handling
     }
     return null;
   }

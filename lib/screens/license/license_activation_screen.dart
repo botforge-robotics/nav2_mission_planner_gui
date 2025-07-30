@@ -29,6 +29,8 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
   }
 
   Future<void> _generateShortId() async {
+    if (!mounted) return;
+
     setState(() {
       _isGeneratingShortId = true;
     });
@@ -38,7 +40,8 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
 
       final response = await ApiService.generateShortId(deviceId);
 
-      if (response['statusCode'] == 200 &&
+      if (mounted &&
+          response['statusCode'] == 200 &&
           response['body']['success'] == true) {
         setState(() {
           _shortId = response['body']['data']['shortId'];
@@ -47,9 +50,11 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
     } catch (e) {
       // Handle error silently
     } finally {
-      setState(() {
-        _isGeneratingShortId = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isGeneratingShortId = false;
+        });
+      }
     }
   }
 
@@ -78,12 +83,22 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
 
         // Parse and store license data
         final licenseData = _parseLicenseResponse(response['body']);
+
         await SecureStorageService.storeLicenseData(licenseData);
+
+        // Update branding provider with organization data if it's an organization license
+        if (licenseData.licenseType == 'organization' ||
+            licenseData.licenseType == 'organisation') {
+          final brandingProvider =
+              Provider.of<BrandingProvider>(context, listen: false);
+          await brandingProvider.updateOrganizationBranding(licenseData);
+        }
 
         // Update license provider status
         final licenseProvider =
             Provider.of<LicenseProvider>(context, listen: false);
-        await licenseProvider.updateLicenseStatus(LicenseStatus.valid);
+        await licenseProvider.updateLicenseStatus(LicenseStatus.valid,
+            licenseData: licenseData);
 
         // Show success message
         if (context.mounted) {
@@ -270,23 +285,27 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: const Color(0xFFFF9800),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Device Registration Instructions',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+              Consumer<BrandingProvider>(
+                builder: (context, brandingProvider, child) {
+                  return Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: brandingProvider.themeColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Device Registration Instructions',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 12),
               Row(
@@ -336,95 +355,112 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.device_hub,
-                              color: const Color(0xFFFF9800),
-                              size: 18,
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'Device ID',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                        Consumer<BrandingProvider>(
+                          builder: (context, brandingProvider, child) {
+                            return Row(
+                              children: [
+                                Icon(
+                                  Icons.device_hub,
+                                  color: brandingProvider.themeColor,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'Device ID',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(height: 8),
                         if (_isGeneratingShortId)
-                          const Row(
-                            children: [
-                              SizedBox(
-                                width: 12,
-                                height: 12,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      Color(0xFFFF9800)),
-                                ),
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                'Generating...',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                          Consumer<BrandingProvider>(
+                            builder: (context, brandingProvider, child) {
+                              return Row(
+                                children: [
+                                  SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          brandingProvider.themeColor),
+                                    ),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Generating...',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           )
                         else if (_shortId != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFF9800)
-                                  .withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: const Color(0xFFFF9800)
-                                    .withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              _shortId!,
-                              style: const TextStyle(
-                                color: Color(0xFFFF9800),
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 2,
-                              ),
-                            ),
+                          Consumer<BrandingProvider>(
+                            builder: (context, brandingProvider, child) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: brandingProvider.themeColor
+                                      .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: brandingProvider.themeColor
+                                        .withValues(alpha: 0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  _shortId!,
+                                  style: TextStyle(
+                                    color: brandingProvider.themeColor,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                              );
+                            },
                           )
                         else
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: _generateShortId,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFFF9800),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 6, horizontal: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
+                          Consumer<BrandingProvider>(
+                            builder: (context, brandingProvider, child) {
+                              return SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _generateShortId,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        brandingProvider.themeColor,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 6, horizontal: 8),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.refresh, size: 12),
+                                  label: const Text(
+                                    'Generate',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              icon: const Icon(Icons.refresh, size: 12),
-                              label: const Text(
-                                'Generate',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
+                              );
+                            },
                           ),
                       ],
                     ),
@@ -458,221 +494,233 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
         const SizedBox(height: 32),
 
         // Manual Input Section
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1a1a1a),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: const Color(0xFFFF9800).withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Enter License Token',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+        Consumer<BrandingProvider>(
+          builder: (context, brandingProvider, child) {
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1a1a1a),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: brandingProvider.themeColor.withValues(alpha: 0.3),
+                  width: 1,
                 ),
               ),
-              const SizedBox(height: 10),
-              // License Input and Button Row
-              Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextField(
-                      controller: _tokenController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Enter your license token here...',
-                        hintStyle: TextStyle(
-                            color: Colors.grey.withValues(alpha: 0.6)),
-                        filled: true,
-                        fillColor: Colors.black.withValues(alpha: 0.3),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                              color: const Color(0xFFFF9800)
-                                  .withValues(alpha: 0.3)),
+                  const Text(
+                    'Enter License Token',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // License Input and Button Row
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: _tokenController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Enter your license token here...',
+                            hintStyle: TextStyle(
+                                color: Colors.grey.withValues(alpha: 0.6)),
+                            filled: true,
+                            fillColor: Colors.black.withValues(alpha: 0.3),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                  color: brandingProvider.themeColor
+                                      .withValues(alpha: 0.3)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                  color: brandingProvider.themeColor
+                                      .withValues(alpha: 0.3)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                  color: brandingProvider.themeColor, width: 2),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                          ),
                         ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                              color: const Color(0xFFFF9800)
-                                  .withValues(alpha: 0.3)),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 100,
+                        height: 44,
+                        child: ElevatedButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  final token = _tokenController.text.trim();
+                                  if (token.isNotEmpty) {
+                                    _activateLicense(token);
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: brandingProvider.themeColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
+                                  ),
+                                )
+                              : const Text(
+                                  'Activate',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(
-                              color: Color(0xFFFF9800), width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 24),
+
+        // OR Separator
+        Consumer<BrandingProvider>(
+          builder: (context, brandingProvider, child) {
+            return Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          brandingProvider.themeColor.withValues(alpha: 0.3),
+                          Colors.transparent,
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'OR',
+                    style: TextStyle(
+                      color: Colors.grey.withValues(alpha: 0.6),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          brandingProvider.themeColor.withValues(alpha: 0.3),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 24),
+
+        // QR Code Section
+        Consumer<BrandingProvider>(
+          builder: (context, brandingProvider, child) {
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1a1a1a),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: brandingProvider.themeColor.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Scan QR Code',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Scan the QR code from your dashboard page on our website',
+                    style: TextStyle(
+                      color: Colors.grey.withValues(alpha: 0.8),
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   SizedBox(
-                    width: 100,
                     height: 44,
                     child: ElevatedButton(
                       onPressed: _isLoading
                           ? null
                           : () {
-                              final token = _tokenController.text.trim();
-                              if (token.isNotEmpty) {
-                                _activateLicense(token);
-                              }
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => QRScannerScreen(
+                                    onQRCodeScanned: (String qrCode) async {
+                                      await _activateLicense(qrCode);
+                                    },
+                                  ),
+                                ),
+                              );
                             },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF9800),
+                        backgroundColor: brandingProvider.themeColor,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Text(
-                              'Activate',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                      child: const Text(
+                        'Scan QR Code',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // OR Separator
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                height: 1,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      const Color(0xFFFF9800).withValues(alpha: 0.3),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'OR',
-                style: TextStyle(
-                  color: Colors.grey.withValues(alpha: 0.6),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Container(
-                height: 1,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      const Color(0xFFFF9800).withValues(alpha: 0.3),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        // QR Code Section
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1a1a1a),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: const Color(0xFFFF9800).withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Scan QR Code',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Scan the QR code from your dashboard page on our website',
-                style: TextStyle(
-                  color: Colors.grey.withValues(alpha: 0.8),
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 44,
-                child: OutlinedButton(
-                  onPressed: _isLoading
-                      ? null
-                      : () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => QRScannerScreen(
-                                onQRCodeScanned: (String qrCode) async {
-                                  await _activateLicense(qrCode);
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFFF9800),
-                    side: const BorderSide(color: Color(0xFFFF9800), width: 2),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    'Scan QR Code',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
         const Spacer(),
         // Bottom padding for keyboard
@@ -699,23 +747,27 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: const Color(0xFFFF9800),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Device Registration Instructions',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+              Consumer<BrandingProvider>(
+                builder: (context, brandingProvider, child) {
+                  return Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: brandingProvider.themeColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Device Registration Instructions',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 12),
               Row(
@@ -779,95 +831,112 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.device_hub,
-                              color: const Color(0xFFFF9800),
-                              size: 18,
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'Device ID',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                        Consumer<BrandingProvider>(
+                          builder: (context, brandingProvider, child) {
+                            return Row(
+                              children: [
+                                Icon(
+                                  Icons.device_hub,
+                                  color: brandingProvider.themeColor,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'Device ID',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(height: 8),
                         if (_isGeneratingShortId)
-                          const Row(
-                            children: [
-                              SizedBox(
-                                width: 12,
-                                height: 12,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      Color(0xFFFF9800)),
-                                ),
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                'Generating...',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                          Consumer<BrandingProvider>(
+                            builder: (context, brandingProvider, child) {
+                              return Row(
+                                children: [
+                                  SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          brandingProvider.themeColor),
+                                    ),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Generating...',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           )
                         else if (_shortId != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFF9800)
-                                  .withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: const Color(0xFFFF9800)
-                                    .withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              _shortId!,
-                              style: const TextStyle(
-                                color: Color(0xFFFF9800),
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 2,
-                              ),
-                            ),
+                          Consumer<BrandingProvider>(
+                            builder: (context, brandingProvider, child) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: brandingProvider.themeColor
+                                      .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: brandingProvider.themeColor
+                                        .withValues(alpha: 0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  _shortId!,
+                                  style: TextStyle(
+                                    color: brandingProvider.themeColor,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 2,
+                                  ),
+                                ),
+                              );
+                            },
                           )
                         else
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: _generateShortId,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFFF9800),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 6, horizontal: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
+                          Consumer<BrandingProvider>(
+                            builder: (context, brandingProvider, child) {
+                              return SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _generateShortId,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        brandingProvider.themeColor,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 6, horizontal: 8),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.refresh, size: 12),
+                                  label: const Text(
+                                    'Generate',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              icon: const Icon(Icons.refresh, size: 12),
-                              label: const Text(
-                                'Generate',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
+                              );
+                            },
                           ),
                       ],
                     ),
@@ -887,32 +956,38 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // QR Code Icon
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFFFF9800),
-                          const Color(0xFFFFC107),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFFF9800).withValues(alpha: 0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+                  Consumer<BrandingProvider>(
+                    builder: (context, brandingProvider, child) {
+                      return Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              brandingProvider.themeColor,
+                              brandingProvider.themeColor
+                                  .withValues(alpha: 0.8),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: brandingProvider.themeColor
+                                  .withValues(alpha: 0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.qr_code_scanner,
-                      size: 40,
-                      color: Colors.white,
-                    ),
+                        child: const Icon(
+                          Icons.qr_code_scanner,
+                          size: 40,
+                          color: Colors.white,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   const Text(
@@ -925,61 +1000,68 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
                   ),
 
                   const SizedBox(height: 24),
-                  SizedBox(
-                    width: 200,
-                    height: 56,
-                    child: OutlinedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => QRScannerScreen(
-                                    onQRCodeScanned: (String qrCode) async {
-                                      await _activateLicense(qrCode);
-                                    },
-                                  ),
-                                ),
-                              );
-                            },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFFF9800),
-                        side: const BorderSide(
-                            color: Color(0xFFFF9800), width: 2),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                  Consumer<BrandingProvider>(
+                    builder: (context, brandingProvider, child) {
+                      return SizedBox(
+                        width: 200,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => QRScannerScreen(
+                                        onQRCodeScanned: (String qrCode) async {
+                                          await _activateLicense(qrCode);
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: brandingProvider.themeColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: const Text(
+                            'Scan QR Code',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        'Scan QR Code',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ],
               ),
             ),
 
             // Vertical Separator
-            Container(
-              width: 1,
-              margin: const EdgeInsets.symmetric(vertical: 40),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    const Color(0xFFFF9800).withValues(alpha: 0.3),
-                    const Color(0xFFFF9800).withValues(alpha: 0.3),
-                    Colors.transparent,
-                  ],
-                  stops: const [0.0, 0.2, 0.8, 1.0],
-                ),
-              ),
+            Consumer<BrandingProvider>(
+              builder: (context, brandingProvider, child) {
+                return Container(
+                  width: 1,
+                  margin: const EdgeInsets.symmetric(vertical: 40),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        brandingProvider.themeColor.withValues(alpha: 0.3),
+                        brandingProvider.themeColor.withValues(alpha: 0.3),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.2, 0.8, 1.0],
+                    ),
+                  ),
+                );
+              },
             ),
 
             const SizedBox(width: 32),
@@ -990,32 +1072,38 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // License Icon
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFFFF9800),
-                          const Color(0xFFFFC107),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFFF9800).withValues(alpha: 0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+                  Consumer<BrandingProvider>(
+                    builder: (context, brandingProvider, child) {
+                      return Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              brandingProvider.themeColor,
+                              brandingProvider.themeColor
+                                  .withValues(alpha: 0.8),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: brandingProvider.themeColor
+                                  .withValues(alpha: 0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.key,
-                      size: 40,
-                      color: Colors.white,
-                    ),
+                        child: const Icon(
+                          Icons.key,
+                          size: 40,
+                          color: Colors.white,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   const Text(
@@ -1029,87 +1117,93 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
                   const SizedBox(height: 8),
 
                   // License Input and Button Row
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: TextField(
-                          controller: _tokenController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: 'Enter your license token here...',
-                            hintStyle: TextStyle(
-                                color: Colors.grey.withValues(alpha: 0.6)),
-                            filled: true,
-                            fillColor: Colors.black.withValues(alpha: 0.3),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFF9800)
-                                    .withValues(alpha: 0.3),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: const Color(0xFFFF9800)
-                                    .withValues(alpha: 0.3),
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFFF9800),
-                                width: 2,
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        width: 150,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _isLoading
-                              ? null
-                              : () {
-                                  final token = _tokenController.text.trim();
-                                  if (token.isNotEmpty) {
-                                    _activateLicense(token);
-                                  }
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF9800),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white),
-                                  ),
-                                )
-                              : const Text(
-                                  'Activate',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
+                  Consumer<BrandingProvider>(
+                    builder: (context, brandingProvider, child) {
+                      return Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: _tokenController,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: InputDecoration(
+                                hintText: 'Enter your license token here...',
+                                hintStyle: TextStyle(
+                                    color: Colors.grey.withValues(alpha: 0.6)),
+                                filled: true,
+                                fillColor: Colors.black.withValues(alpha: 0.3),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: brandingProvider.themeColor
+                                        .withValues(alpha: 0.3),
                                   ),
                                 ),
-                        ),
-                      ),
-                    ],
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: brandingProvider.themeColor
+                                        .withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: brandingProvider.themeColor,
+                                    width: 2,
+                                  ),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: 150,
+                            height: 56,
+                            child: ElevatedButton(
+                              onPressed: _isLoading
+                                  ? null
+                                  : () {
+                                      final token =
+                                          _tokenController.text.trim();
+                                      if (token.isNotEmpty) {
+                                        _activateLicense(token);
+                                      }
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: brandingProvider.themeColor,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                                Colors.white),
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Activate',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),

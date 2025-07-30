@@ -505,11 +505,7 @@ class SettingsProvider extends ChangeNotifier {
         _bookmarks[mapName]!.removeAt(index);
         _saveSettings();
         notifyListeners();
-      } else {
-        print('Invalid index: $index for map: $mapName');
       }
-    } else {
-      print('Map name not found: $mapName');
     }
   }
 

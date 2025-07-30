@@ -87,13 +87,13 @@ class ROS2DataProvider extends ChangeNotifier {
             topicMap[topic] = typeResponse.type;
           }
         } catch (e) {
-          print('[ROS2DataProvider] Error getting type for $topic: $e');
+          // Silent error handling
         }
       }
 
       _topics = topicMap;
     } catch (e) {
-      print('[ROS2DataProvider] Error fetching topics: $e');
+      // Silent error handling
     } finally {
       _isLoadingTopics = false;
       notifyListeners();
@@ -143,7 +143,7 @@ class ROS2DataProvider extends ChangeNotifier {
 
       _services = serviceMap;
     } catch (e) {
-      print('[ROS2DataProvider] Error fetching services: $e');
+      // Silent error handling
     } finally {
       _isLoadingServices = false;
       notifyListeners();
@@ -171,7 +171,7 @@ class ROS2DataProvider extends ChangeNotifier {
       final response = await client.call(GetActionServersRequest());
       _actionServers = response.action_servers;
     } catch (e) {
-      print('[ROS2DataProvider] Error fetching action servers: $e');
+      // Silent error handling
     } finally {
       _isLoadingActions = false;
       notifyListeners();
@@ -209,7 +209,6 @@ class ROS2DataProvider extends ChangeNotifier {
       _messageStructures[normalizedType] = structure;
       return structure;
     } catch (e) {
-      print('[ROS2DataProvider] Error fetching message structure: $e');
       return {};
     } finally {
       _isLoadingMessageStructure = false;
@@ -248,7 +247,6 @@ class ROS2DataProvider extends ChangeNotifier {
       _messageStructures[key] = structure;
       return structure;
     } catch (e) {
-      print('[ROS2DataProvider] Error fetching service request structure: $e');
       return {};
     } finally {
       _isLoadingMessageStructure = false;
@@ -287,7 +285,6 @@ class ROS2DataProvider extends ChangeNotifier {
       _messageStructures[key] = structure;
       return structure;
     } catch (e) {
-      print('[ROS2DataProvider] Error fetching service response structure: $e');
       return {};
     } finally {
       _isLoadingMessageStructure = false;
@@ -326,7 +323,6 @@ class ROS2DataProvider extends ChangeNotifier {
       _messageStructures[key] = structure;
       return structure;
     } catch (e) {
-      print('[ROS2DataProvider] Error fetching action goal structure: $e');
       return {};
     } finally {
       _isLoadingMessageStructure = false;
@@ -357,8 +353,6 @@ class ROS2DataProvider extends ChangeNotifier {
       _services[serviceName] = typeResponse.type;
       return typeResponse.type;
     } catch (e) {
-      print(
-          '[ROS2DataProvider] Error getting type for service $serviceName: $e');
       return '';
     }
   }
@@ -381,7 +375,6 @@ class ROS2DataProvider extends ChangeNotifier {
           await typeClient.call(ActionTypeRequest(action: actionName));
       return typeResponse.type;
     } catch (e) {
-      print('[ROS2DataProvider] Error getting type for action $actionName: $e');
       return '';
     }
   }

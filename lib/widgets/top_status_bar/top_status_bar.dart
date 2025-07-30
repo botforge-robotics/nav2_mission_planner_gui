@@ -183,18 +183,9 @@ class TopStatusBar extends StatelessWidget {
                               bottomLeft: Radius.circular(height * 0.25),
                             ),
                           ),
-                          child: Image.asset(
-                            branding.faviconUrl,
+                          child: branding.createFaviconWidget(
                             height: height * 0.5,
                             fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) {
-                              // Fallback to default favicon
-                              return Image.asset(
-                                'assets/favicon_light.png',
-                                height: height * 0.5,
-                                fit: BoxFit.contain,
-                              );
-                            },
                           ),
                         );
                       },

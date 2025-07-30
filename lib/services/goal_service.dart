@@ -58,7 +58,6 @@ class GoalService {
       );
       return result;
     } catch (e) {
-      print('Failed to send goal: $e');
       return null;
     }
   }
@@ -67,7 +66,7 @@ class GoalService {
     try {
       _client.cancelGoal();
     } catch (e) {
-      print('Error canceling goal: $e');
+      // Silent error handling
     }
   }
 }

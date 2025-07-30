@@ -36,7 +36,6 @@ class PoseEstimationService {
     }
 
     if (_publisher == null) {
-      print('Error: Publisher not initialized');
       return;
     }
 
@@ -89,7 +88,7 @@ class PoseEstimationService {
       ];
 
     _publisher!.publish(poseMsg);
-    debugPrint('pose estimate published');
+    // Pose estimate published
   }
 
   static Future<void> shutdown() async {

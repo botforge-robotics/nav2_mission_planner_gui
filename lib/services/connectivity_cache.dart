@@ -18,23 +18,18 @@ class ConnectivityCache {
     if (_cachedOnlineStatus != null && _lastConnectivityCheck != null) {
       final timeSinceLastCheck = now.difference(_lastConnectivityCheck!);
       if (timeSinceLastCheck < _cacheDuration) {
-        print(
-            '💾 ConnectivityCache: Using cached status: $_cachedOnlineStatus (${timeSinceLastCheck.inSeconds}s ago)');
         return _cachedOnlineStatus!;
       }
     }
 
     // If there's already a check in progress, wait for it
     if (_isChecking && _pendingCheck != null) {
-      print('⏳ ConnectivityCache: Waiting for ongoing connectivity check...');
       return await _pendingCheck!.future;
     }
 
     // Start new connectivity check
     _isChecking = true;
     _pendingCheck = Completer<bool>();
-
-    print('🔄 ConnectivityCache: Making new connectivity check...');
 
     try {
       final isOnline = await connectivityCheck();
@@ -43,14 +38,10 @@ class ConnectivityCache {
       _cachedOnlineStatus = isOnline;
       _lastConnectivityCheck = now;
 
-      print('💾 ConnectivityCache: Cached connectivity status: $isOnline');
-
       // Complete the pending check
       _pendingCheck!.complete(isOnline);
       return isOnline;
     } catch (e) {
-      print(
-          '⚠️ ConnectivityCache: Connectivity check error, using cached status: ${_cachedOnlineStatus ?? false}');
       final fallbackStatus = _cachedOnlineStatus ?? false;
 
       // Complete the pending check with fallback
@@ -64,7 +55,6 @@ class ConnectivityCache {
 
   // Clear the cache (for manual refresh)
   static void clearCache() {
-    print('🗑️ ConnectivityCache: Clearing cache');
     _cachedOnlineStatus = null;
     _lastConnectivityCheck = null;
     _isChecking = false;

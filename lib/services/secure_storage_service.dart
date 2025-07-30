@@ -180,19 +180,22 @@ class SecureStorageService {
     await prefs.remove(_lastLicenseCheckKey);
   }
 
+  // Clear trial data only
+  static Future<void> clearTrialData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_trialStartTimeKey);
+    await prefs.remove(_trialEndTimeKey);
+    await prefs.remove(_lastTrialCheckKey);
+    await prefs.remove(_lastMandatoryTrialCheckKey);
+  }
+
   // Simple encryption (for basic security)
   static Future<String> _encryptData(String data) async {
     try {
-      // In a production app, use proper encryption
-      // This is a simple hash for demonstration
-      final bytes = utf8.encode(data);
-      final digest = sha256.convert(bytes);
-      final encrypted = base64Encode(
-          utf8.encode('$data:${digest.toString().substring(0, 8)}'));
-      return encrypted;
-    } catch (e) {
-      // Fallback to simple base64 encoding
+      // Simple base64 encoding for now to avoid JSON corruption
       return base64Encode(utf8.encode(data));
+    } catch (e) {
+      throw e;
     }
   }
 
@@ -200,19 +203,9 @@ class SecureStorageService {
   static Future<String> _decryptData(String encryptedData) async {
     try {
       final decoded = utf8.decode(base64Decode(encryptedData));
-      final parts = decoded.split(':');
-      if (parts.length >= 2) {
-        return parts[0];
-      }
-      return encryptedData; // Fallback
+      return decoded;
     } catch (e) {
-      // Try to decode as simple base64
-      try {
-        final decoded = utf8.decode(base64Decode(encryptedData));
-        return decoded;
-      } catch (e2) {
-        throw e2;
-      }
+      throw e;
     }
   }
 
@@ -236,7 +229,8 @@ class SecureStorageService {
 
   // Store organization branding data
   static Future<void> storeOrganizationBranding(LicenseData data) async {
-    if (data.licenseType == 'organization') {
+    if (data.licenseType == 'organization' ||
+        data.licenseType == 'organisation') {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = jsonEncode(data.toJson());
       final encryptedData = await _encryptData(jsonString);
@@ -256,6 +250,7 @@ class SecureStorageService {
   static Future<LicenseData?> getOrganizationBranding() async {
     final prefs = await SharedPreferences.getInstance();
     final encryptedData = prefs.getString(_organizationBrandingKey);
+
     if (encryptedData != null) {
       try {
         final decryptedData = await _decryptData(encryptedData);

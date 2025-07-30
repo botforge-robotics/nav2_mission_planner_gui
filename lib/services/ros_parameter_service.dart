@@ -29,11 +29,9 @@ class RosParameterService {
         value: json.encode(value),
       ));
 
-      debugPrint(
-          'Parameter $name set to $value success: ${response.successful}');
+      // Parameter set
       return response.successful;
     } catch (e) {
-      debugPrint('Error setting parameter $name: $e');
       rethrow;
     }
   }
@@ -62,7 +60,6 @@ class RosParameterService {
 
       return json.decode(response.value);
     } catch (e) {
-      debugPrint('Error getting parameter $name: $e');
       rethrow;
     }
   }
