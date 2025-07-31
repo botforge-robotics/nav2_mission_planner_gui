@@ -1,7 +1,6 @@
 name: nav2_mission_planner
-description: "A new Flutter project."
-publish_to: "none"
-version: 0.1.0
+description: "Nav2 Mission Planner - A comprehensive ROS2 navigation mission planning application for mobile devices."
+version: 1.0.0
 
 environment:
   sdk: ^3.6.1
