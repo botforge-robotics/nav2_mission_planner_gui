@@ -1,4 +1,4 @@
-package com.example.nav2_mission_planner
+package com.botforge.nav2missionplanner
 
 import android.content.Context
 import android.net.wifi.WifiManager
@@ -8,7 +8,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity: FlutterActivity() {
-    private val CHANNEL = "com.example.nav2_mission_planner/wifi"
+    private val CHANNEL = "com.botforge.nav2_mission_planner/wifi"
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
