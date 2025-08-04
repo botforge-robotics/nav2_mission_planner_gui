@@ -12,7 +12,7 @@ class FormGenerator {
     bool forceRefresh = false,
   }) {
     if (forceRefresh) {
-      debugPrint('[FormGenerator] Refreshing form field for $fieldName');
+      // Refreshing form field for $fieldName
     }
 
     // Handle null values

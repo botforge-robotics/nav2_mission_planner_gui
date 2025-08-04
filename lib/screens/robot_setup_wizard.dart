@@ -1129,14 +1129,17 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
         isValid = true; // Can use defaults
         break;
       case 2: // Mapping - Only map path and mapping launch file are required
-        isValid = (_tempSettings['mapsPath']?.toString().isNotEmpty ?? false) &&
-            (_tempSettings['mappingLaunchFile']?.toString().isNotEmpty ??
-                false);
+        final mapsPath = _tempSettings['mapsPath']?.toString() ?? '';
+        final mappingLaunchFile =
+            _tempSettings['mappingLaunchFile']?.toString() ?? '';
+
+        isValid = mapsPath.isNotEmpty && mappingLaunchFile.isNotEmpty;
         break;
       case 3: // Navigation - Only navigation launch file is required
-        isValid =
-            (_tempSettings['navigationLaunchFile']?.toString().isNotEmpty ??
-                false);
+        final navigationLaunchFile =
+            _tempSettings['navigationLaunchFile']?.toString() ?? '';
+
+        isValid = navigationLaunchFile.isNotEmpty;
         break;
     }
 
@@ -1225,8 +1228,12 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
     final settingsProvider = context.read<SettingsProvider>();
     final connectionProvider = context.read<ConnectionProvider>();
 
+    // IMPORTANT: Update the robot ID first to ensure settings are saved to the correct robot
+    final robotId = widget.robot.settingsId;
+    await settingsProvider.updateRobotId(robotId);
+
     // Apply all temp settings to the actual settings
-    _applyTempSettings(settingsProvider);
+    await _applyTempSettings(settingsProvider);
 
     // Mark robot as configured
     connectionProvider.markRobotConfigured(widget.robot.id);
@@ -1240,37 +1247,62 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
     }
   }
 
-  void _applyTempSettings(SettingsProvider settings) {
+  Future<void> _applyTempSettings(SettingsProvider settings) async {
     // Sensor settings
     final cameraImageTopic =
         _tempSettings['cameraImageTopic']?.toString() ?? '';
-    settings
-        .setCameraImageTopic(cameraImageTopic.isEmpty ? '' : cameraImageTopic);
+    settings.setCameraImageTopic(cameraImageTopic);
     settings.setCameraEnabled(_tempSettings['cameraEnabled'] ?? false);
+
+    // Set odom topic
+    final odomTopicValue = _tempSettings['odomTopic']?.toString() ?? '';
+    final odomTopicIsEmpty = odomTopicValue.isEmpty;
+    final finalOdomTopic =
+        odomTopicIsEmpty ? DefaultSettings.defaultOdomTopic : odomTopicValue;
     settings.setOdomTopic(
-      _tempSettings['odomTopic'] ?? DefaultSettings.defaultOdomTopic,
-      _tempSettings['odomTopicType'] ?? DefaultSettings.defaultOdomTopicType,
+      finalOdomTopic,
+      _tempSettings['odomTopicType']?.toString() ??
+          DefaultSettings.defaultOdomTopicType,
     );
-    settings.setLidarTopic(
-        _tempSettings['lidarTopic'] ?? DefaultSettings.defaultLidarTopic);
+    final lidarTopicValue = _tempSettings['lidarTopic']?.toString() ?? '';
+    final lidarTopicIsEmpty = lidarTopicValue.isEmpty;
+    final finalLidarTopic =
+        lidarTopicIsEmpty ? DefaultSettings.defaultLidarTopic : lidarTopicValue;
+    settings.setLidarTopic(finalLidarTopic);
 
     // Teleop settings
-    settings.setCmdVelTopic(
-        _tempSettings['cmdVelTopic'] ?? DefaultSettings.cmdVelTopic);
-    settings.setTwistType(
-        _tempSettings['twistType'] ?? DefaultSettings.defaultTwistType);
-    settings.setLinearVelocity(_tempSettings['linearVelocity'] ??
-        DefaultSettings.defaultLinearVelocity);
-    settings.setAngularVelocity(_tempSettings['angularVelocity'] ??
-        DefaultSettings.defaultAngularVelocity);
+    final cmdVelTopicValue = _tempSettings['cmdVelTopic']?.toString() ?? '';
+    final cmdVelTopicIsEmpty = cmdVelTopicValue.isEmpty;
+    final finalCmdVelTopic =
+        cmdVelTopicIsEmpty ? DefaultSettings.cmdVelTopic : cmdVelTopicValue;
+    settings.setCmdVelTopic(finalCmdVelTopic);
+    settings.setTwistType(_tempSettings['twistType']?.toString() ??
+        DefaultSettings.defaultTwistType);
+    settings.setLinearVelocity(_tempSettings['linearVelocity'] is double
+        ? _tempSettings['linearVelocity'] as double
+        : DefaultSettings.defaultLinearVelocity);
+    settings.setAngularVelocity(_tempSettings['angularVelocity'] is double
+        ? _tempSettings['angularVelocity'] as double
+        : DefaultSettings.defaultAngularVelocity);
 
     // Mapping settings
-    settings.setMapsPath(_tempSettings['mapsPath'] ?? '');
-    settings.setMappingLaunchFile(_tempSettings['mappingLaunchFile'] ?? '');
+    settings.setMapsPath(_tempSettings['mapsPath']?.toString() ?? '');
+
+    // Set the mapping launch file
+    final mappingLaunchFileValue =
+        _tempSettings['mappingLaunchFile']?.toString() ?? '';
+    settings.setMappingLaunchFile(mappingLaunchFileValue);
+
+    final mappingOdomTopicValue =
+        _tempSettings['mappingOdomTopic']?.toString() ?? '';
+    final mappingOdomTopicIsEmpty = mappingOdomTopicValue.isEmpty;
+    final finalMappingOdomTopic = mappingOdomTopicIsEmpty
+        ? DefaultSettings.defaultOdomTopic
+        : mappingOdomTopicValue;
     settings.setMappingOdomTopic(
-      _tempSettings['mappingOdomTopic'] ?? DefaultSettings.defaultOdomTopic,
-      _tempSettings['mappingOdomTopicType'] ??
-          DefaultSettings.defaultOdomTopicType,
+      finalMappingOdomTopic,
+      _tempSettings['mappingOdomTopicType']?.toString() ??
+          DefaultSettings.defaultMappingOdomTopicType,
     );
 
     // Apply mapping arguments
@@ -1283,16 +1315,24 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
     }
 
     // Navigation settings
-    settings
-        .setNavigationLaunchFile(_tempSettings['navigationLaunchFile'] ?? '');
+    settings.setNavigationLaunchFile(
+        _tempSettings['navigationLaunchFile']?.toString() ?? '');
+    final navigationOdomTopicValue =
+        _tempSettings['navigationOdomTopic']?.toString() ?? '';
+    final navigationOdomTopicIsEmpty = navigationOdomTopicValue.isEmpty;
+    final finalNavigationOdomTopic = navigationOdomTopicIsEmpty
+        ? DefaultSettings.defaultNavigationOdomTopic
+        : navigationOdomTopicValue;
     settings.setNavigationOdomTopic(
-      _tempSettings['navigationOdomTopic'] ??
-          DefaultSettings.defaultNavigationOdomTopic,
-      _tempSettings['navigationOdomTopicType'] ??
+      finalNavigationOdomTopic,
+      _tempSettings['navigationOdomTopicType']?.toString() ??
           DefaultSettings.defaultNavigationOdomTopicType,
     );
-    settings.setPathTopic(
-        _tempSettings['pathTopic'] ?? DefaultSettings.defaultPathTopic);
+    final pathTopicValue = _tempSettings['pathTopic']?.toString() ?? '';
+    final pathTopicIsEmpty = pathTopicValue.isEmpty;
+    final finalPathTopic =
+        pathTopicIsEmpty ? DefaultSettings.defaultPathTopic : pathTopicValue;
+    settings.setPathTopic(finalPathTopic);
 
     // Apply navigation arguments
     final navigationArgs =
@@ -1302,6 +1342,9 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
         settings.addNavigationArg(arg['name']!, arg['value']!);
       }
     }
+
+    // Force save all settings to ensure they are persisted
+    await settings.forceSaveSettings();
   }
 
   void _showExitDialog() {

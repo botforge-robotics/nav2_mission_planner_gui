@@ -68,7 +68,7 @@ class _LidarWidgetState extends State<LidarWidget> {
         prototype: LaserScan(),
       );
     } catch (e) {
-      debugPrint('Error subscribing to lidar: $e');
+      // Error subscribing to lidar handled silently
     }
   }
 
@@ -114,7 +114,7 @@ class _LidarWidgetState extends State<LidarWidget> {
         });
       }
     } catch (e) {
-      debugPrint('Lidar error: $e');
+      // Lidar error handled silently
       if (mounted) {
         setState(() {
           _scanPoints = [];

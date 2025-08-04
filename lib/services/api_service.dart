@@ -89,20 +89,11 @@ class ApiService {
         'token': token,
       };
 
-      print('🔍 API Request - verifyLicense:');
-      print('   URL: $url');
-      print('   Body: ${jsonEncode(body)}');
-
       request.write(jsonEncode(body));
       final response = await request.close();
 
       final responseBody = await response.transform(utf8.decoder).join();
       final responseData = jsonDecode(responseBody);
-
-      print('📡 API Response - verifyLicense:');
-      print('   Status Code: ${response.statusCode}');
-      print('   Response Body: $responseBody');
-      print('   Parsed Response: ${jsonEncode(responseData)}');
 
       final result = {
         'statusCode': response.statusCode,

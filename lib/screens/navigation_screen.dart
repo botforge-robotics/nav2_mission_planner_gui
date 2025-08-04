@@ -144,6 +144,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   @override
   void dispose() {
+    _unsubscribeFromOdometry();
     if (_isInitialized) {
       _settingsProvider.removeListener(_subscribeToOdometry);
       _settingsProvider.removeListener(_handleSettingsChange);
@@ -308,6 +309,17 @@ class _NavigationScreenState extends State<NavigationScreen> {
         setState(() {
           _isNavigationActive = false;
           _mapWidget = null;
+          // Reset robot position
+          _robotX = 0.0;
+          _robotY = 0.0;
+          _robotQ = geometry_msgs.Quaternion();
+        });
+
+        // Send reset position through stream
+        _robotPositionController.add({
+          'x': 0.0,
+          'y': 0.0,
+          'q': geometry_msgs.Quaternion(),
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -373,6 +385,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   void _unsubscribeFromOdometry() {
     _odomSubscriber?.shutdown();
+    _odomSubscriber = null;
+    _currentOdomTopic = null;
+    _currentOdomType = null;
   }
 
   void _subscribeToOdometry() {
@@ -971,6 +986,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       child: Transform.translate(
         offset: _offset,
         child: OccupancyGridViewer(
+          key: const ValueKey('navigation_viewer'),
           topic: '/map',
           enabled: true,
           scale: _scale,

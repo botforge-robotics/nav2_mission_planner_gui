@@ -183,7 +183,7 @@ class WaypointPanelState extends State<WaypointPanel> {
         );
       }
     } catch (e) {
-      debugPrint('Error initializing saved data: $e');
+      // Error initializing saved data handled silently
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -232,7 +232,7 @@ class WaypointPanelState extends State<WaypointPanel> {
         item.hasStructureWarning = true;
       }
     } catch (e) {
-      print('Error validating publish message data: $e');
+      // Error validating publish message data handled silently
     }
   }
 
@@ -264,7 +264,7 @@ class WaypointPanelState extends State<WaypointPanel> {
         item.hasStructureWarning = true;
       }
     } catch (e) {
-      print('Error validating service request data: $e');
+      // Error validating service request data handled silently
     }
   }
 
@@ -296,7 +296,7 @@ class WaypointPanelState extends State<WaypointPanel> {
         item.hasStructureWarning = true;
       }
     } catch (e) {
-      print('Error validating action goal data: $e');
+      // Error validating action goal data handled silently
     }
   }
 

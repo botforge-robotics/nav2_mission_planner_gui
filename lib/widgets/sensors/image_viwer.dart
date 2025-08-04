@@ -161,7 +161,9 @@ class ImageViewerState extends State<ImageViewer> {
                   isDense: true,
                   iconSize: 18,
                   padding: EdgeInsets.only(right: 0),
-                  value: widget.topic,
+                  value: _sessionTopics.contains(widget.topic)
+                      ? widget.topic
+                      : null,
                   dropdownColor: Colors.grey[850],
                   underline: const SizedBox(),
                   icon: Icon(Icons.arrow_drop_down, color: Colors.white70),
@@ -209,7 +211,7 @@ class ImageViewerState extends State<ImageViewer> {
         return byteData?.buffer.asUint8List();
       }
     } catch (e) {
-      print('Frame capture error: $e');
+      // Frame capture error handled silently
     }
     return null;
   }

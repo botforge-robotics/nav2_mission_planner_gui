@@ -66,7 +66,8 @@ class ConnectionProvider extends ChangeNotifier {
   }
 
   // Modified connect method with name parameter
-  Future<bool> connect(String ip, String port, {String name = ''}) async {
+  Future<bool> connect(String ip, String port,
+      {String name = '', bool createNew = false}) async {
     try {
       _connectionController.add(ConnectionState.connecting);
       if (!await _isRobotAvailable(ip)) {
@@ -79,18 +80,8 @@ class ConnectionProvider extends ChangeNotifier {
       _ip = ip;
       _port = port;
 
-      // Check if robot already exists
-      final existingIndex =
-          _robots.indexWhere((robot) => robot.ip == ip && robot.port == port);
-
-      if (existingIndex != -1) {
-        // Update existing robot with new name and move to top
-        _robots[existingIndex].name =
-            name.trim().isEmpty ? _robots[existingIndex].name : name.trim();
-        final existingRobot = _robots.removeAt(existingIndex);
-        _robots.insert(0, existingRobot);
-        _activeRobot = _robots[0];
-      } else {
+      // If createNew is true, always create a new robot regardless of existing IP
+      if (createNew) {
         // Create new robot - will need setup
         final robotName = name.trim().isEmpty ? 'Robot $ip' : name.trim();
         final settingsId = Uuid().v4();
@@ -111,6 +102,41 @@ class ConnectionProvider extends ChangeNotifier {
         // Limit to last 10 connections
         if (_robots.length > 10) {
           _robots.removeLast();
+        }
+      } else {
+        // Check if robot already exists (for existing robot connections)
+        final existingIndex =
+            _robots.indexWhere((robot) => robot.ip == ip && robot.port == port);
+
+        if (existingIndex != -1) {
+          // Update existing robot with new name and move to top
+          _robots[existingIndex].name =
+              name.trim().isEmpty ? _robots[existingIndex].name : name.trim();
+          final existingRobot = _robots.removeAt(existingIndex);
+          _robots.insert(0, existingRobot);
+          _activeRobot = _robots[0];
+        } else {
+          // Create new robot - will need setup
+          final robotName = name.trim().isEmpty ? 'Robot $ip' : name.trim();
+          final settingsId = Uuid().v4();
+
+          final connection = RobotProfile(
+            id: Uuid().v4(),
+            name: robotName,
+            ip: ip,
+            port: port,
+            settingsId: settingsId,
+            isConfigured: false, // New robots need setup
+          );
+
+          // Set as active robot but don't save yet - only save after setup completion
+          _activeRobot = connection;
+          _robots.insert(0, connection);
+
+          // Limit to last 10 connections
+          if (_robots.length > 10) {
+            _robots.removeLast();
+          }
         }
       }
 

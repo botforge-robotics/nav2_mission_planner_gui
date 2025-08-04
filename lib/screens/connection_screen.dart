@@ -126,7 +126,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     try {
       final connectionProvider =
           Provider.of<ConnectionProvider>(context, listen: false);
-      final success = await connectionProvider.connect(ip, port, name: name);
+      // Always create a new robot when connecting from the new robot form
+      final success = await connectionProvider.connect(ip, port,
+          name: name, createNew: true);
 
       // Dismiss loading dialog
       if (mounted) Navigator.pop(context);
@@ -171,13 +173,38 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
   // Method to connect to existing robot from the list
   Future<void> _connectToExistingRobot(
       BuildContext context, String name, String ip, String port) async {
-    // Fill the form with existing robot details
-    nameController.text = name;
-    ipController.text = ip;
-    portController.text = port;
+    // Connect to existing robot (don't create new)
+    final connectionProvider =
+        Provider.of<ConnectionProvider>(context, listen: false);
+    final success = await connectionProvider.connect(ip, port,
+        name: name, createNew: false);
 
-    // Connect using existing name
-    await _connectToRobot(context, name, ip, port);
+    if (success) {
+      // Check if robot needs setup
+      if (connectionProvider.activeRobotNeedsSetup) {
+        // Navigate to setup wizard for new robots
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RobotSetupWizard(
+                robot: connectionProvider.activeRobot!,
+              ),
+            ),
+          );
+        }
+      } else {
+        // Navigate to home screen for existing configured robots
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(),
+            ),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -463,7 +490,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
               SnackBar(
                 content: Row(
                   children: [
-                    Icon(Icons.delete, color: Colors.white),
+                    Icon(Icons.delete, color: Colors.black),
                     SizedBox(width: 8),
                     Text('Robot "${robot.name}" deleted'),
                   ],

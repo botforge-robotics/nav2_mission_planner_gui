@@ -7,7 +7,7 @@ import '../constants/default_settings.dart';
 import 'dart:convert';
 
 class SettingsProvider extends ChangeNotifier {
-  final String robotId;
+  String robotId;
   // Teleop Settings
   String _cmdVelTopic = DefaultSettings.cmdVelTopic;
   double _linearVelocity = DefaultSettings.defaultLinearVelocity;
@@ -17,8 +17,8 @@ class SettingsProvider extends ChangeNotifier {
   // Mapping Settings
   String _mapsPath = DefaultSettings.defaultMapsFolder;
   String _mappingLaunchFile = DefaultSettings.defaultMappingLaunchFile;
-  late String _mappingOdomTopic;
-  late String _mappingOdomTopicType;
+  String _mappingOdomTopic = DefaultSettings.defaultOdomTopic;
+  String _mappingOdomTopicType = DefaultSettings.defaultOdomTopicType;
   List<Map<String, String>> _mappingArgs = [];
 
   // Add new save map settings
@@ -102,32 +102,50 @@ class SettingsProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     // Load settings using robot-specific key
     final settingsKey = 'settings_$robotId';
-    _cmdVelTopic = prefs.getString('$settingsKey:cmdVelTopic') ??
-        DefaultSettings.cmdVelTopic;
+
+    _cmdVelTopic = prefs.getString('$settingsKey:cmdVelTopic') != null
+        ? prefs.getString('$settingsKey:cmdVelTopic')!
+        : DefaultSettings.cmdVelTopic;
     _linearVelocity = prefs.getDouble('$settingsKey:linearVelocity') ??
         DefaultSettings.defaultLinearVelocity;
     _angularVelocity = prefs.getDouble('$settingsKey:angularVelocity') ??
         DefaultSettings.defaultAngularVelocity;
-    _twistType = prefs.getString('$settingsKey:twistType') ??
-        DefaultSettings.defaultTwistType;
-    _mapsPath = prefs.getString('$settingsKey:mapsPath') ??
-        DefaultSettings.defaultMapsFolder;
-    _mappingLaunchFile = prefs.getString('$settingsKey:mappingLaunchFile') ??
-        DefaultSettings.defaultMappingLaunchFile;
-    _mappingOdomTopic = prefs.getString('$settingsKey:mappingOdomTopic') ??
-        DefaultSettings.defaultMappingOdomTopic;
+    _twistType = prefs.getString('$settingsKey:twistType') != null
+        ? prefs.getString('$settingsKey:twistType')!
+        : DefaultSettings.defaultTwistType;
+    _mapsPath = prefs.getString('$settingsKey:mapsPath') != null
+        ? prefs.getString('$settingsKey:mapsPath')!
+        : DefaultSettings.defaultMapsFolder;
+
+    // Load mapping launch file
+    final rawMappingLaunchFile =
+        prefs.getString('$settingsKey:mappingLaunchFile');
+
+    // Only use default if the value was never saved (null), not if it's an empty string
+    if (rawMappingLaunchFile != null) {
+      _mappingLaunchFile = rawMappingLaunchFile;
+    } else {
+      _mappingLaunchFile = DefaultSettings.defaultMappingLaunchFile;
+    }
+    _mappingOdomTopic = prefs.getString('$settingsKey:mappingOdomTopic') != null
+        ? prefs.getString('$settingsKey:mappingOdomTopic')!
+        : DefaultSettings.defaultOdomTopic;
     _mappingOdomTopicType =
-        prefs.getString('$settingsKey:mappingOdomTopicType') ??
-            DefaultSettings.defaultMappingOdomTopicType;
+        prefs.getString('$settingsKey:mappingOdomTopicType') != null
+            ? prefs.getString('$settingsKey:mappingOdomTopicType')!
+            : DefaultSettings.defaultMappingOdomTopicType;
     _navigationLaunchFile =
-        prefs.getString('$settingsKey:navigationLaunchFile') ??
-            DefaultSettings.defaultNavigationLaunchFile;
+        prefs.getString('$settingsKey:navigationLaunchFile') != null
+            ? prefs.getString('$settingsKey:navigationLaunchFile')!
+            : DefaultSettings.defaultNavigationLaunchFile;
     _navigationOdomTopic =
-        prefs.getString('$settingsKey:navigationOdomTopic') ??
-            DefaultSettings.defaultNavigationOdomTopic;
+        prefs.getString('$settingsKey:navigationOdomTopic') != null
+            ? prefs.getString('$settingsKey:navigationOdomTopic')!
+            : DefaultSettings.defaultNavigationOdomTopic;
     _navigationOdomTopicType =
-        prefs.getString('$settingsKey:navigationOdomTopicType') ??
-            DefaultSettings.defaultNavigationOdomTopicType;
+        prefs.getString('$settingsKey:navigationOdomTopicType') != null
+            ? prefs.getString('$settingsKey:navigationOdomTopicType')!
+            : DefaultSettings.defaultNavigationOdomTopicType;
     // Load mapping and navigation args
     final String? mappingArgsJson = prefs.getString('$settingsKey:mappingArgs');
     if (mappingArgsJson != null) {
@@ -145,21 +163,26 @@ class SettingsProvider extends ChangeNotifier {
     }
 
     // Add camera topic loading
-    _cameraImageTopic = prefs.getString('$settingsKey:cameraImageTopic') ??
-        DefaultSettings.defaultCameraTopic;
+    _cameraImageTopic = prefs.getString('$settingsKey:cameraImageTopic') != null
+        ? prefs.getString('$settingsKey:cameraImageTopic')!
+        : DefaultSettings.defaultCameraTopic;
 
     // Update _cameraEnabled
     _cameraEnabled = prefs.getBool('$settingsKey:cameraEnabled') ?? false;
 
     // Load new topics
-    _odomTopic = prefs.getString('$settingsKey:odomTopic') ??
-        DefaultSettings.defaultOdomTopic;
-    _odomTopicType = prefs.getString('$settingsKey:odomTopicType') ??
-        DefaultSettings.defaultOdomTopicType;
+    _odomTopic = prefs.getString('$settingsKey:odomTopic') != null
+        ? prefs.getString('$settingsKey:odomTopic')!
+        : DefaultSettings.defaultOdomTopic;
+    _odomTopicType = prefs.getString('$settingsKey:odomTopicType') != null
+        ? prefs.getString('$settingsKey:odomTopicType')!
+        : DefaultSettings.defaultOdomTopicType;
 
     // Load save map settings
-    _saveMapLaunchFile = prefs.getString('$settingsKey:saveMapLaunchFile') ??
-        DefaultSettings.defaultSaveMapLaunchFile;
+    _saveMapLaunchFile =
+        prefs.getString('$settingsKey:saveMapLaunchFile') != null
+            ? prefs.getString('$settingsKey:saveMapLaunchFile')!
+            : DefaultSettings.defaultSaveMapLaunchFile;
 
     final String? saveMapArgsJson = prefs.getString('$settingsKey:saveMapArgs');
     if (saveMapArgsJson != null) {
@@ -169,8 +192,9 @@ class SettingsProvider extends ChangeNotifier {
     }
 
     // Load lidar topic and enabled status
-    _lidarTopic = prefs.getString('$settingsKey:lidarTopic') ??
-        DefaultSettings.defaultLidarTopic;
+    _lidarTopic = prefs.getString('$settingsKey:lidarTopic') != null
+        ? prefs.getString('$settingsKey:lidarTopic')!
+        : DefaultSettings.defaultLidarTopic;
 
     // Load communication timeout
     _communicationTimeout = prefs.getInt('$settingsKey:communicationTimeout') ??
@@ -183,8 +207,9 @@ class SettingsProvider extends ChangeNotifier {
         DefaultSettings.defaultJoystickVisible;
 
     // Load path topic
-    _pathTopic = prefs.getString('$settingsKey:pathTopic') ??
-        DefaultSettings.defaultPathTopic;
+    _pathTopic = prefs.getString('$settingsKey:pathTopic') != null
+        ? prefs.getString('$settingsKey:pathTopic')!
+        : DefaultSettings.defaultPathTopic;
 
     // Load bookmarks
     final String? bookmarksJson = prefs.getString('$settingsKey:bookmarks');
@@ -338,9 +363,14 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   void addMappingArg(String name, String value) {
-    _mappingArgs.add({'name': name.trim(), 'value': value.trim()});
-    _saveSettings(); // Save after updating
-    notifyListeners();
+    // Only add argument if both name and value are not empty
+    final trimmedName = name.trim();
+    final trimmedValue = value.trim();
+    if (trimmedName.isNotEmpty || trimmedValue.isNotEmpty) {
+      _mappingArgs.add({'name': trimmedName, 'value': trimmedValue});
+      _saveSettings(); // Save after updating
+      notifyListeners();
+    }
   }
 
   void removeMappingArg(int index) {
@@ -374,9 +404,14 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   void addNavigationArg(String name, String value) {
-    _navigationArgs.add({'name': name.trim(), 'value': value.trim()});
-    _saveSettings(); // Save after updating
-    notifyListeners();
+    // Only add argument if both name and value are not empty
+    final trimmedName = name.trim();
+    final trimmedValue = value.trim();
+    if (trimmedName.isNotEmpty || trimmedValue.isNotEmpty) {
+      _navigationArgs.add({'name': trimmedName, 'value': trimmedValue});
+      _saveSettings(); // Save after updating
+      notifyListeners();
+    }
   }
 
   void removeNavigationArg(int index) {
@@ -425,9 +460,14 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   void addSaveMapArg(String name, String value) {
-    _saveMapArgs.add({'name': name.trim(), 'value': value.trim()});
-    _saveSettings();
-    notifyListeners();
+    // Only add argument if both name and value are not empty
+    final trimmedName = name.trim();
+    final trimmedValue = value.trim();
+    if (trimmedName.isNotEmpty || trimmedValue.isNotEmpty) {
+      _saveMapArgs.add({'name': trimmedName, 'value': trimmedValue});
+      _saveSettings();
+      notifyListeners();
+    }
   }
 
   void removeSaveMapArg(int index) {
@@ -620,6 +660,31 @@ class SettingsProvider extends ChangeNotifier {
     // Remove all robot-specific settings
     for (String key in keysToDelete) {
       await prefs.remove(key);
+    }
+  }
+
+  // Add public method to force save settings (for debugging)
+  Future<void> forceSaveSettings() async {
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  // Add public method to reload settings from storage (for debugging)
+  Future<void> reloadSettings() async {
+    await _loadSettings();
+  }
+
+  // Add debug method to print all current settings
+  void debugPrintSettings() {
+    // Debug method - can be used for debugging if needed
+  }
+
+  // Add method to update robot ID without recreating the provider
+  Future<void> updateRobotId(String newRobotId) async {
+    if (robotId != newRobotId) {
+      robotId = newRobotId;
+      await _loadSettings();
+      notifyListeners();
     }
   }
 }

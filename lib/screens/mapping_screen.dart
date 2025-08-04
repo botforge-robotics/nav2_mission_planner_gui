@@ -49,6 +49,7 @@ class _MappingScreenState extends State<MappingScreen> {
 
   @override
   void dispose() {
+    _unsubscribeFromOdometry();
     _mapWidget = null;
     _settingsProvider.removeListener(_subscribeToOdometry);
     _robotPositionController.close();
@@ -57,6 +58,9 @@ class _MappingScreenState extends State<MappingScreen> {
 
   void _unsubscribeFromOdometry() {
     _odomSubscriber?.shutdown();
+    _odomSubscriber = null;
+    _currentOdomTopic = null;
+    _currentOdomType = null;
   }
 
   void _subscribeToOdometry() {
@@ -191,9 +195,7 @@ class _MappingScreenState extends State<MappingScreen> {
                           setState(() {
                             _isMappingStarted = true;
                             _isMappingActive = true;
-                          });
-                          _subscribeToOdometry();
-                          setState(() {
+                            _subscribeToOdometry();
                             // Create the widget now that mapping is started
                             _mapWidget = GestureDetector(
                               onScaleStart: (details) {
@@ -216,6 +218,7 @@ class _MappingScreenState extends State<MappingScreen> {
                               child: Transform.translate(
                                 offset: _offset,
                                 child: OccupancyGridViewer(
+                                  key: const ValueKey('mapping_viewer'),
                                   topic: '/map',
                                   enabled: true,
                                   scale: _scale,
@@ -387,6 +390,17 @@ class _MappingScreenState extends State<MappingScreen> {
                           _isMappingStarted = false;
                           _isMappingActive = false;
                           _mapWidget = null;
+                          // Reset robot position
+                          _robotX = 0.0;
+                          _robotY = 0.0;
+                          _robotQ = geometry_msgs.Quaternion();
+                        });
+
+                        // Send reset position through stream
+                        _robotPositionController.add({
+                          'x': 0.0,
+                          'y': 0.0,
+                          'q': geometry_msgs.Quaternion(),
                         });
                       }
                     },
@@ -454,6 +468,7 @@ class _MappingScreenState extends State<MappingScreen> {
 
                           // Only stop mapping if requested AND save was successful
                           if (stopMapping) {
+                            _unsubscribeFromOdometry();
                             for (final entry
                                 in launchManager.activeLaunches.entries) {
                               try {
@@ -474,6 +489,17 @@ class _MappingScreenState extends State<MappingScreen> {
                               _isMappingStarted = false;
                               _isMappingActive = false;
                               _mapWidget = null;
+                              // Reset robot position
+                              _robotX = 0.0;
+                              _robotY = 0.0;
+                              _robotQ = geometry_msgs.Quaternion();
+                            });
+
+                            // Send reset position through stream
+                            _robotPositionController.add({
+                              'x': 0.0,
+                              'y': 0.0,
+                              'q': geometry_msgs.Quaternion(),
                             });
                           }
                         } else {

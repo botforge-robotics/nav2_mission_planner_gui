@@ -81,10 +81,20 @@ void main() async {
             // Update settings provider when active robot changes
             final robotId =
                 connectionProvider.activeRobot?.settingsId ?? 'default';
-            if (previous?.robotId != robotId) {
+
+            // Return the existing provider immediately to avoid null errors
+            if (previous == null) {
               return SettingsProvider(robotId);
             }
-            return previous!;
+
+            // Schedule the update to happen after this build cycle
+            if (previous.robotId != robotId) {
+              Future.microtask(() async {
+                await previous.updateRobotId(robotId);
+              });
+            }
+
+            return previous;
           },
         ),
         ChangeNotifierProxyProvider2<ConnectionProvider, SettingsProvider,

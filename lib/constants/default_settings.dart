@@ -22,6 +22,7 @@ class DefaultSettings {
 
   static const String defaultMapsFolder = 'turtlebot4_navigation/maps';
   static const String defaultMappingLaunchFile = 'turtlebot4_navigation/slam';
+
   static const String defaultMappingOdomTopic = '/odom';
   static const String defaultMappingOdomTopicType = 'nav_msgs/msg/Odometry';
   // Navigation Settings
