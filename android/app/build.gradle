@@ -29,8 +29,8 @@ android {
         applicationId = "com.botforge.nav2missionplanner"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 4
+        versionName = "1.2.0"
     }
 
     signingConfigs {

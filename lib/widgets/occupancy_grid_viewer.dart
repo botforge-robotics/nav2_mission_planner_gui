@@ -378,8 +378,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
   }
 
   void _processMapMessage(nav_msgs.OccupancyGrid message) async {
-    print(
-        'Processing map update! Width: ${message.info.width}, Height: ${message.info.height}');
     // Add coordinate system validation
     _validateCoordinateSystem(message.info);
 

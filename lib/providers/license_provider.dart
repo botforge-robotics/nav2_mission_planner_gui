@@ -322,10 +322,6 @@ class LicenseProvider extends ChangeNotifier {
     final data = response['data'];
     final licenseType = response['licenseType'] ?? 'individual';
 
-    print('🔍 Parsing license response:');
-    print('License Type: $licenseType');
-    print('Raw data: $data');
-
     // Handle case where data is an empty array or null
     Map<String, dynamic> dataMap = {};
     if (data is Map<String, dynamic>) {

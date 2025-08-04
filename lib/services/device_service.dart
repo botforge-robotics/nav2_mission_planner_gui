@@ -2,8 +2,7 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:crypto/crypto.dart';
-import 'dart:convert';
+import 'widevine_service.dart';
 
 class DeviceService {
   static const String _deviceIdKey = 'device_id';
@@ -24,35 +23,29 @@ class DeviceService {
     String? deviceId = prefs.getString(_deviceIdKey);
 
     if (deviceId == null) {
-      deviceId = await _generateDeviceId();
+      deviceId = await _getWidevineId() ?? '';
       await prefs.setString(_deviceIdKey, deviceId);
     }
 
     return deviceId;
   }
 
-  // Generate unique device ID
-  static Future<String> _generateDeviceId() async {
-    final deviceInfo = await _getDeviceInfo();
-    final packageInfo = await _getPackageInfo();
-
-    // Combine multiple device identifiers for uniqueness
-    final deviceData = {
-      'androidId': deviceInfo['androidId'] ?? '',
-      'model': deviceInfo['model'] ?? '',
-      'manufacturer': deviceInfo['manufacturer'] ?? '',
-      'brand': deviceInfo['brand'] ?? '',
-      'product': deviceInfo['product'] ?? '',
-      'packageName': packageInfo.packageName,
-      'version': packageInfo.version,
-    };
-
-    // Create hash from device data
-    final jsonString = jsonEncode(deviceData);
-    final bytes = utf8.encode(jsonString);
-    final digest = sha256.convert(bytes);
-
-    return digest.toString();
+  // Get Widevine ID for stable device identification
+  static Future<String?> _getWidevineId() async {
+    try {
+      if (Platform.isAndroid) {
+        // Check if Widevine is supported
+        final isSupported = await WidevineService.isWidevineSupported();
+        if (isSupported) {
+          final widevineId = await WidevineService.getWidevineId();
+          return widevineId;
+        }
+      }
+      return null;
+    } catch (e) {
+      // Fallback to other methods if Widevine fails
+      return null;
+    }
   }
 
   // Get device installation time
@@ -73,10 +66,10 @@ class DeviceService {
   static Future<Map<String, dynamic>> getDeviceInfo() async {
     final deviceInfo = await _getDeviceInfo();
     final packageInfo = await _getPackageInfo();
+    final widevineId = await _getWidevineId();
 
     return {
-      'deviceId': await getDeviceId(),
-      'androidId': deviceInfo['androidId'] ?? '',
+      'deviceId': widevineId ?? '',
       'model': deviceInfo['model'] ?? '',
       'manufacturer': deviceInfo['manufacturer'] ?? '',
       'brand': deviceInfo['brand'] ?? '',
@@ -92,14 +85,11 @@ class DeviceService {
 
   // Get Android device info
   static Future<Map<String, dynamic>> _getDeviceInfo() async {
-    if (_deviceInfo == null) {
-      _deviceInfo = DeviceInfoPlugin();
-    }
+    _deviceInfo ??= DeviceInfoPlugin();
 
     if (Platform.isAndroid) {
       final androidInfo = await _deviceInfo!.androidInfo;
       return {
-        'androidId': androidInfo.id,
         'model': androidInfo.model,
         'manufacturer': androidInfo.manufacturer,
         'brand': androidInfo.brand,
@@ -110,7 +100,6 @@ class DeviceService {
     } else {
       final iosInfo = await _deviceInfo!.iosInfo;
       return {
-        'androidId': iosInfo.identifierForVendor,
         'model': iosInfo.model,
         'manufacturer': 'Apple',
         'brand': 'Apple',
@@ -122,9 +111,7 @@ class DeviceService {
 
   // Get package info
   static Future<PackageInfo> _getPackageInfo() async {
-    if (_packageInfo == null) {
-      _packageInfo = await PackageInfo.fromPlatform();
-    }
+    _packageInfo ??= await PackageInfo.fromPlatform();
     return _packageInfo!;
   }
 

@@ -135,8 +135,6 @@ class ROS2DataProvider extends ChangeNotifier {
               await typeClient.call(ServiceTypeRequest(service: service));
           serviceMap[service] = typeResponse.type;
         } catch (e) {
-          print(
-              '[ROS2DataProvider] Error getting type for service $service: $e');
           serviceMap[service] = 'unknown';
         }
       }
