@@ -64,70 +64,34 @@ class WelcomeScreen extends StatelessWidget {
           return _buildTrialSection(context, brandingProvider, isSmallScreen);
         } else if (needsActivation || isStartingTrial || hasTrialError) {
           // Show trial activation section when trial needs to be activated
-          if (isSmallScreen) {
-            // Stack vertically on small screens
-            return Column(
-              children: [
-                // Top - Trial Activation
-                Expanded(
-                  child: _buildTrialActivationSection(context, licenseProvider,
-                      brandingProvider, isSmallScreen),
-                ),
-                const SizedBox(height: 16),
-                // Bottom - License
-                Expanded(
-                  child: _buildLicenseSection(
-                      context, brandingProvider, isSmallScreen),
-                ),
-              ],
-            );
-          } else {
-            // Side by side on larger screens
-            return Row(
-              children: [
-                // Left Side - Trial Activation
-                Expanded(
-                  child: _buildTrialActivationSection(context, licenseProvider,
-                      brandingProvider, isSmallScreen),
-                ),
-                // Vertical Separator
-                Container(
-                  width: 1,
-                  margin: const EdgeInsets.symmetric(vertical: 20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        brandingProvider.themeColor.withValues(alpha: 0.3),
-                        brandingProvider.themeColor.withValues(alpha: 0.3),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 0.2, 0.8, 1.0],
-                    ),
+          // Always use Row layout (left/right) for all screen sizes
+          return Row(
+            children: [
+              // Left Side - Trial Activation
+              Expanded(
+                child: _buildTrialActivationSection(
+                    context, licenseProvider, brandingProvider, isSmallScreen),
+              ),
+              // Vertical Separator
+              Container(
+                width: 1,
+                margin: const EdgeInsets.symmetric(vertical: 20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      brandingProvider.themeColor.withValues(alpha: 0.3),
+                      brandingProvider.themeColor.withValues(alpha: 0.3),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.2, 0.8, 1.0],
                   ),
                 ),
-                const SizedBox(width: 24),
-                // Right Side - License
-                Expanded(
-                  child: _buildLicenseSection(
-                      context, brandingProvider, isSmallScreen),
-                ),
-              ],
-            );
-          }
-        } else if (isSmallScreen) {
-          // Stack vertically on small screens
-          return Column(
-            children: [
-              // Top - Free Trial
-              Expanded(
-                child: _buildTrialSection(
-                    context, brandingProvider, isSmallScreen),
               ),
-              const SizedBox(height: 16),
-              // Bottom - License
+              const SizedBox(width: 24),
+              // Right Side - License
               Expanded(
                 child: _buildLicenseSection(
                     context, brandingProvider, isSmallScreen),
@@ -135,7 +99,7 @@ class WelcomeScreen extends StatelessWidget {
             ],
           );
         } else {
-          // Side by side on larger screens
+          // Always use Row layout (left/right) for all screen sizes
           return Row(
             children: [
               // Left Side - Free Trial
@@ -177,65 +141,43 @@ class WelcomeScreen extends StatelessWidget {
         final needsActivation =
             errorMessage?.contains('Activate trial') == true;
 
-        if (isSmallScreen) {
-          // Stack vertically on small screens
-          return Column(
-            children: [
-              // Top - Trial Section (activation or continue)
-              Expanded(
-                child: needsActivation
-                    ? _buildTrialActivationSection(context, licenseProvider,
-                        brandingProvider, isSmallScreen)
-                    : _buildTrialSection(
-                        context, brandingProvider, isSmallScreen),
-              ),
-              const SizedBox(height: 16),
-              // Bottom - License
-              Expanded(
-                child: _buildLicenseSection(
-                    context, brandingProvider, isSmallScreen),
-              ),
-            ],
-          );
-        } else {
-          // Side by side on larger screens
-          return Row(
-            children: [
-              // Left Side - Trial Section (activation or continue)
-              Expanded(
-                child: needsActivation
-                    ? _buildTrialActivationSection(context, licenseProvider,
-                        brandingProvider, isSmallScreen)
-                    : _buildTrialSection(
-                        context, brandingProvider, isSmallScreen),
-              ),
-              // Vertical Separator
-              Container(
-                width: 1,
-                margin: const EdgeInsets.symmetric(vertical: 20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      brandingProvider.themeColor.withValues(alpha: 0.3),
-                      brandingProvider.themeColor.withValues(alpha: 0.3),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.2, 0.8, 1.0],
-                  ),
+        // Always use Row layout (left/right) for all screen sizes
+        return Row(
+          children: [
+            // Left Side - Trial Section (activation or continue)
+            Expanded(
+              child: needsActivation
+                  ? _buildTrialActivationSection(
+                      context, licenseProvider, brandingProvider, isSmallScreen)
+                  : _buildTrialSection(
+                      context, brandingProvider, isSmallScreen),
+            ),
+            // Vertical Separator
+            Container(
+              width: 1,
+              margin: const EdgeInsets.symmetric(vertical: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    brandingProvider.themeColor.withValues(alpha: 0.3),
+                    brandingProvider.themeColor.withValues(alpha: 0.3),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.2, 0.8, 1.0],
                 ),
               ),
-              const SizedBox(width: 24),
-              // Right Side - License
-              Expanded(
-                child: _buildLicenseSection(
-                    context, brandingProvider, isSmallScreen),
-              ),
-            ],
-          );
-        }
+            ),
+            const SizedBox(width: 24),
+            // Right Side - License
+            Expanded(
+              child: _buildLicenseSection(
+                  context, brandingProvider, isSmallScreen),
+            ),
+          ],
+        );
 
       case LicenseStatus.expired:
         return _buildLicenseActivationContent(
@@ -256,49 +198,36 @@ class WelcomeScreen extends StatelessWidget {
             context, licenseProvider, isSmallScreen);
 
       default:
-        if (isSmallScreen) {
-          return Column(
-            children: [
-              Expanded(
-                  child: _buildTrialSection(
-                      context, brandingProvider, isSmallScreen)),
-              const SizedBox(height: 16),
-              Expanded(
-                  child: _buildLicenseSection(
-                      context, brandingProvider, isSmallScreen)),
-            ],
-          );
-        } else {
-          return Row(
-            children: [
-              Expanded(
-                  child: _buildTrialSection(
-                      context, brandingProvider, isSmallScreen)),
-              // Vertical Separator
-              Container(
-                width: 1,
-                margin: const EdgeInsets.symmetric(vertical: 20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      brandingProvider.themeColor.withValues(alpha: 0.3),
-                      brandingProvider.themeColor.withValues(alpha: 0.3),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.2, 0.8, 1.0],
-                  ),
+        // Always use Row layout (left/right) for all screen sizes
+        return Row(
+          children: [
+            Expanded(
+                child: _buildTrialSection(
+                    context, brandingProvider, isSmallScreen)),
+            // Vertical Separator
+            Container(
+              width: 1,
+              margin: const EdgeInsets.symmetric(vertical: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    brandingProvider.themeColor.withValues(alpha: 0.3),
+                    brandingProvider.themeColor.withValues(alpha: 0.3),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.2, 0.8, 1.0],
                 ),
               ),
-              const SizedBox(width: 24),
-              Expanded(
-                  child: _buildLicenseSection(
-                      context, brandingProvider, isSmallScreen)),
-            ],
-          );
-        }
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+                child: _buildLicenseSection(
+                    context, brandingProvider, isSmallScreen)),
+          ],
+        );
     }
   }
 

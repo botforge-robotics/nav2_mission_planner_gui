@@ -1,5 +1,48 @@
 # Nav2 Mission Planner - Changelog
 
+## [1.2.2] - 2024-12-19
+
+### 🔧 Android 15 Compatibility
+
+- **Edge-to-edge support**: Added proper edge-to-edge display support for Android 15
+- **SDK 35 targeting**: Updated to target Android SDK 35 for full Android 15 compatibility
+- **16KB alignment**: Enabled 16KB native library alignment for improved performance on Android 15 devices
+- **Deprecated API migration**: Removed deprecated system UI APIs in favor of modern edge-to-edge APIs
+
+### 🛠️ Technical Improvements
+
+- **Updated MainActivity**: Added `WindowCompat.setDecorFitsSystemWindows()` for edge-to-edge support
+- **Modern system UI**: Replaced deprecated `SystemUiMode.immersiveSticky` with `SystemUiMode.edgeToEdge`
+- **Transparent system bars**: Configured transparent status and navigation bars for seamless edge-to-edge experience
+- **Enhanced packaging**: Added `useLegacyPackaging = false` for 16KB alignment support
+
+### 📱 User Experience
+
+- **Better Android 15 support**: Full compatibility with latest Android version
+- **Improved performance**: 16KB alignment provides better performance on supported devices
+- **Modern UI**: Edge-to-edge display provides more immersive experience
+- **Future-proof**: Ready for Android 15 and beyond
+
+## [1.2.1] - 2024-12-19
+
+### 🎨 UI Layout Improvements
+
+- **Consistent layout across all screen sizes**: Welcome and License Activation screens now always use Row layout (left/right) instead of responsive Column/Row switching
+- **Fixed first install trial display**: Corrected trial status detection to show "Trial Available" instead of "Continue Trial" on first install
+- **Improved user experience**: More predictable and consistent UI behavior across different devices and screen sizes
+
+### 🔧 Technical Fixes
+
+- **Fixed trial remaining days calculation**: Corrected `getTrialRemainingDays()` to return 0 instead of 7 when no trial has been started
+- **Fixed 404 handler message**: Updated device registration 404 handler to show proper trial available message
+- **Enhanced trial status detection**: Improved logic for determining whether to show "Start Free Trial" vs "Continue Trial"
+
+### 📱 User Experience
+
+- **Consistent trial flow**: First-time users now see the correct "Trial Available" message and "Start Free Trial" button
+- **Better layout consistency**: All license screens now maintain the same left/right layout regardless of screen size
+- **Improved onboarding**: More intuitive trial activation process for new users
+
 ## [1.2.0] - 2024-12-19
 
 ### 🔧 Technical Improvements

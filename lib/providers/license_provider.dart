@@ -196,7 +196,7 @@ class LicenseProvider extends ChangeNotifier {
             }
 
             _status = LicenseStatus.welcome;
-            _errorMessage = null;
+            _errorMessage = 'Trial available for 7 days - Activate trial';
             notifyListeners();
             _isChecking = false;
             return;

@@ -62,10 +62,18 @@ void main() async {
     DeviceOrientation.landscapeRight,
   ]);
 
-  // Hide system UI bars
+  // Configure system UI for edge-to-edge compatibility
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarDividerColor: Colors.transparent,
+    ),
+  );
+
+  // Enable edge-to-edge mode
   SystemChrome.setEnabledSystemUIMode(
-    SystemUiMode.immersiveSticky,
-    overlays: [],
+    SystemUiMode.edgeToEdge,
   );
 
   runApp(

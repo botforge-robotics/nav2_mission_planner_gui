@@ -183,7 +183,7 @@ class TrialService {
     // fallback to old logic
     final prefs = await SharedPreferences.getInstance();
     final trialStartTimeStr = prefs.getString('trial_start_time');
-    if (trialStartTimeStr == null) return _trialDays;
+    if (trialStartTimeStr == null) return 0; // Return 0 if no trial started
     final trialStartTime = DateTime.parse(trialStartTimeStr);
     final trialEndTime = trialStartTime.add(Duration(days: _trialDays));
     final daysSinceStart = now.difference(trialStartTime).inDays;

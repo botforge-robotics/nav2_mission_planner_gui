@@ -255,9 +255,8 @@ class _LicenseActivationScreenState extends State<LicenseActivationScreen> {
             child: IntrinsicHeight(
               child: Padding(
                 padding: EdgeInsets.all(isSmallScreen ? 16.0 : 24.0),
-                child: isSmallScreen
-                    ? _buildSmallScreenLayout()
-                    : _buildLargeScreenLayout(),
+                child:
+                    _buildLargeScreenLayout(), // Always use Row layout (left/right)
               ),
             ),
           ),

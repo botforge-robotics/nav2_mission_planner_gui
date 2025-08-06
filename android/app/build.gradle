@@ -13,7 +13,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.botforge.nav2missionplanner"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -27,10 +27,10 @@ android {
 
     defaultConfig {
         applicationId = "com.botforge.nav2missionplanner"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = 4
-        versionName = "1.2.0"
+        minSdk = 21
+        targetSdk = 35
+        versionCode = 6
+        versionName = "1.2.2"
     }
 
     signingConfigs {
@@ -48,6 +48,13 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    // Enable 16KB alignment for Android 15 compatibility
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = false
         }
     }
 }

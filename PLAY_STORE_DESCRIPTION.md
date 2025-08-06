@@ -209,6 +209,19 @@ This app does not collect personal data. All robot communication is local and se
 
 ## Version History
 
+v1.2.2 - Android 15 Compatibility and Performance Improvements
+- Added edge-to-edge display support for Android 15 devices
+- Updated to target Android SDK 35 for full compatibility
+- Enabled 16KB native library alignment for improved performance
+- Migrated from deprecated system UI APIs to modern edge-to-edge APIs
+- Enhanced user experience with transparent system bars and immersive display
+
+v1.2.1 - UI Layout Improvements and Trial Flow Fixes
+- Fixed first install trial display to show "Trial Available" instead of "Continue Trial"
+- Consistent Row layout (left/right) for all license screens across all screen sizes
+- Improved trial status detection and user onboarding experience
+- Enhanced trial remaining days calculation for better accuracy
+
 v1.2.0 - Simplified device identification and performance improvements
 
 - Simplified device identification using direct MediaDRM Widevine ID
