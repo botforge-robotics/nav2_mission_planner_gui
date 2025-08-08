@@ -6,55 +6,26 @@ import 'providers/settings_provider.dart';
 import 'theme/app_theme.dart';
 import 'providers/connection_provider.dart';
 import 'providers/ros2_data_provider.dart';
-import 'providers/license_provider.dart';
 import 'providers/branding_provider.dart';
 import 'services/launch_service.dart';
 import 'services/mission_execution_service.dart';
 import 'services/device_service.dart';
 import 'services/secure_storage_service.dart';
-import 'services/api_service.dart';
-
-import 'screens/license/tampering_warning_screen.dart';
-import 'screens/license/license_checking_screen.dart';
-import 'screens/onboarding/welcome_screen.dart';
-import 'models/license_model.dart';
+import 'services/firebase_service.dart';
 import 'widgets/branding_loading_screen.dart';
-
-// Function to handle device registration on first installation
-Future<void> _handleDeviceRegistration() async {
-  try {
-    // Check if device is already registered
-    final isRegistered = await SecureStorageService.isDeviceRegistered();
-
-    if (!isRegistered) {
-      // Get device registration data
-      final deviceData = await DeviceService.getDeviceRegistrationData();
-
-      // Attempt to register device
-      final response = await ApiService.registerDevice(deviceData);
-
-      if (response['statusCode'] == 200 &&
-          response['body']['success'] == true) {
-        // Mark device as registered
-        await SecureStorageService.storeDeviceRegistered(true);
-      }
-      // Don't throw error - app should still work even if registration fails
-    }
-  } catch (e) {
-    // Don't throw error - app should still work even if registration fails
-  }
-}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FocusManager.instance.primaryFocus?.unfocus();
 
-  // Initialize license system services
+  // Initialize Firebase first
+  await FirebaseService.initialize();
+  print('🚀 Firebase initialized in main()');
+
+  // Initialize services
   await DeviceService.initialize();
   await SecureStorageService.initialize();
-
-  // Handle device registration on first installation
-  await _handleDeviceRegistration();
+  print('✅ Services initialized in main()');
 
   // Force landscape mode
   SystemChrome.setPreferredOrientations([
@@ -80,7 +51,6 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => BrandingProvider()),
-        ChangeNotifierProvider(create: (_) => LicenseProvider()),
         ChangeNotifierProvider(create: (_) => ConnectionProvider()),
         ChangeNotifierProvider(create: (_) => LaunchManager()),
         ChangeNotifierProxyProvider<ConnectionProvider, SettingsProvider>(
@@ -133,161 +103,18 @@ class Nav2MissionPlanner extends StatelessWidget {
     return MaterialApp(
       title: 'Nav2 Mission Planner',
       theme: AppTheme.darkTheme,
-      home: Consumer2<LicenseProvider, BrandingProvider>(
-        builder: (context, licenseProvider, brandingProvider, child) {
-          // Set up connection between providers
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            licenseProvider.setBrandingProvider(brandingProvider);
-            if (licenseProvider.status == LicenseStatus.checking) {
-              licenseProvider.checkLicense();
-            }
-          });
-
+      home: Consumer<BrandingProvider>(
+        builder: (context, brandingProvider, child) {
           // Show loading screen until branding is initialized
           if (!brandingProvider.isInitialized) {
             return const BrandingLoadingScreen();
           }
 
-          // Always show connection screen as base
-          return Stack(
-            children: [
-              const ConnectionScreen(),
-              // Overlay license screens as dialogs (including checking)
-              if (licenseProvider.status != LicenseStatus.valid &&
-                  licenseProvider.status != LicenseStatus.trial)
-                _buildLicenseOverlay(context, licenseProvider),
-            ],
-          );
+          // Show connection screen directly
+          return const ConnectionScreen();
         },
       ),
       debugShowCheckedModeBanner: false,
-    );
-  }
-
-  Widget _buildLicenseOverlay(
-      BuildContext context, LicenseProvider licenseProvider) {
-    // Determine which license screen to show
-    Widget licenseScreen;
-    bool isDismissible = false;
-
-    switch (licenseProvider.status) {
-      case LicenseStatus.checking:
-        licenseScreen = const LicenseCheckingScreen();
-        isDismissible = false; // Cannot dismiss while checking
-        break;
-      case LicenseStatus.trial:
-        licenseScreen = const WelcomeScreen();
-        isDismissible = false; // Cannot dismiss welcome screen
-        break;
-      case LicenseStatus.expired:
-        licenseScreen = const WelcomeScreen();
-        isDismissible = false; // Cannot dismiss welcome screen
-        break;
-      case LicenseStatus.noInternet:
-        licenseScreen = const WelcomeScreen();
-        isDismissible = false; // Cannot dismiss no internet screen
-        break;
-      case LicenseStatus.error:
-        if (licenseProvider.errorMessage?.contains('Time tampering detected') ==
-            true) {
-          licenseScreen = const TamperingWarningScreen();
-          isDismissible = false; // Cannot dismiss tampering warning
-        } else {
-          licenseScreen = const WelcomeScreen();
-          isDismissible = false; // Cannot dismiss welcome screen
-        }
-        break;
-      case LicenseStatus.welcome:
-        licenseScreen = const WelcomeScreen();
-        isDismissible = false; // Cannot dismiss welcome screen
-        break;
-      default:
-        return const SizedBox.shrink();
-    }
-
-    return Stack(
-      children: [
-        // Semi-transparent backdrop - makes connection screen barely visible
-        Positioned.fill(
-          child: Container(
-            color: Colors.black.withValues(alpha: 0.3),
-          ),
-        ),
-        // Dialog content
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(0),
-            decoration: BoxDecoration(
-              color: Colors.grey[900],
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Consumer<BrandingProvider>(
-              builder: (context, brandingProvider, child) {
-                return Container(
-                  constraints: const BoxConstraints(
-                    maxWidth: 600,
-                    maxHeight: 700,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        brandingProvider.themeColor.withValues(alpha: 0.1),
-                        brandingProvider.themeColor.withValues(alpha: 0.05),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: brandingProvider.themeColor.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Stack(
-                      children: [
-                        licenseScreen,
-                        // Close button (only if dismissible)
-                        if (isDismissible)
-                          Positioned(
-                            top: 16,
-                            right: 16,
-                            child: GestureDetector(
-                              onTap: () {
-                                // Close the dialog
-                                Navigator.of(context).pop();
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.5),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: const Icon(
-                                  Icons.close,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        )
-      ],
     );
   }
 }

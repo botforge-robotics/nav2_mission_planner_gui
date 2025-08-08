@@ -39,6 +39,16 @@ dependencies:
   uuid: ^4.5.1
   duration_picker: ^1.2.0
   flutter_launcher_icons: ^0.14.4
+
+  # Firebase Dependencies
+  firebase_core: ^2.24.2
+  cloud_functions: ^4.7.6
+  firebase_app_check: ^0.2.1+14
+
+  # Google Play Billing
+  in_app_purchase: ^3.2.3
+  in_app_purchase_android: ^0.4.0+2
+
   # License system dependencies
   device_info_plus: ^10.1.0
   package_info_plus: ^8.3.0

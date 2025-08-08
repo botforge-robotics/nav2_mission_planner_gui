@@ -1,7 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
-import '../models/license_model.dart';
+import '../models/license_data.dart';
 import 'image_cache_service.dart';
 
 class SecureStorageService {

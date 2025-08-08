@@ -9,7 +9,6 @@ import 'top_status_mode_selector.dart';
 import 'top_status_center_title.dart';
 import 'top_status_network_info.dart';
 import 'top_status_connection_button.dart';
-import 'top_status_trial_indicator.dart';
 
 class TopStatusBar extends StatelessWidget {
   final String statusText;
@@ -156,7 +155,7 @@ class TopStatusBar extends StatelessWidget {
                         height: height,
                         connectionStatusColor: connectionStatusColor,
                       ),
-                    const TopStatusTrialIndicator(),
+                    // const TopStatusTrialIndicator(),
                     TopStatusConnectionButton(
                       height: height,
                       connectionStatusColor: connectionStatusColor,
