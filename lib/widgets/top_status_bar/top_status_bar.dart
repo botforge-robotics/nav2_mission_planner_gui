@@ -9,6 +9,7 @@ import 'top_status_mode_selector.dart';
 import 'top_status_center_title.dart';
 import 'top_status_network_info.dart';
 import 'top_status_connection_button.dart';
+import '../../providers/licensing_provider.dart';
 
 class TopStatusBar extends StatelessWidget {
   final String statusText;
@@ -155,7 +156,7 @@ class TopStatusBar extends StatelessWidget {
                         height: height,
                         connectionStatusColor: connectionStatusColor,
                       ),
-                    // const TopStatusTrialIndicator(),
+                    _TrialBadge(height: height),
                     TopStatusConnectionButton(
                       height: height,
                       connectionStatusColor: connectionStatusColor,
@@ -191,6 +192,48 @@ class TopStatusBar extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                   ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TrialBadge extends StatelessWidget {
+  final double height;
+  const _TrialBadge({required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer2<LicensingProvider, BrandingProvider>(
+      builder: (context, lp, branding, _) {
+        if (lp.state != LicenseGateState.trialActive ||
+            lp.trialEndTime == null) {
+          return const SizedBox.shrink();
+        }
+        final remaining =
+            lp.trialEndTime!.difference(DateTime.now()).inDays.clamp(0, 999);
+        return Container(
+          margin: EdgeInsets.symmetric(horizontal: 8),
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.15),
+            border: Border.all(color: Colors.red.withOpacity(0.85), width: 1),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.hourglass_bottom, size: 14, color: Colors.red),
+              const SizedBox(width: 6),
+              Text(
+                'Trial: $remaining day${remaining == 1 ? '' : 's'} left',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],

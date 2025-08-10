@@ -1,8 +1,9 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:package_info_plus/package_info_plus.dart';
-import 'device_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import '../constants/app_config.dart';
 
 class FirebaseService {
   static FirebaseFunctions? _functions;
@@ -18,27 +19,53 @@ class FirebaseService {
       await Firebase.initializeApp();
       print('✅ Firebase.initializeApp() completed');
 
-      // Initialize App Check with Debug provider for development
-      // Use AndroidProvider.debug for debug builds, PlayIntegrity for release (production)
-      await FirebaseAppCheck.instance.activate(
-        androidProvider: bool.fromEnvironment('dart.vm.product')
-            ? AndroidProvider.playIntegrity
-            : AndroidProvider.debug,
-      );
+      // Initialize App Check (disable on client if requested)
+      if (AppConfig.enableAppCheck) {
+        await FirebaseAppCheck.instance.activate(
+          androidProvider: kDebugMode
+              ? AndroidProvider.debug
+              : AndroidProvider.playIntegrity,
+        );
+        if (kDebugMode) {
+          // Force a token fetch to trigger printing of the App Check debug token in Logcat
+          try {
+            await FirebaseAppCheck.instance.getToken(true);
+            // This does not print the token here; the native SDK logs it to Logcat.
+            // Check Logcat for a line like: "App Check debug token: <TOKEN>"
+          } catch (_) {
+            // ignore
+          }
+        }
+      }
       print(
-          '✅ App Check activated with ${bool.fromEnvironment('dart.vm.product') ? 'PlayIntegrity' : 'Debug'} provider');
+          '✅ App Check activated with ${kDebugMode ? 'Debug' : 'PlayIntegrity'} provider');
 
       _functions = FirebaseFunctions.instance;
+      // Set emulator in dev if needed (optional)
+      // _functions!.useFunctionsEmulator('localhost', 5001);
       _isInitialized = true;
       _initializationError = null;
 
-      print('✅ Firebase initialized successfully with App Check');
-      print(
-          '🔒 App Check enabled with ${bool.fromEnvironment('dart.vm.product') ? 'PlayIntegrity' : 'Debug'} provider for ${bool.fromEnvironment('dart.vm.product') ? 'production' : 'development'}');
+      if (AppConfig.enableAppCheck) {
+        print('✅ Firebase initialized with App Check');
+      } else {
+        print('ℹ️ App Check disabled on client (dev mode)');
+      }
     } catch (e) {
       print('❌ Firebase initialization failed: $e');
       _initializationError = e.toString();
       _isInitialized = true; // Mark as initialized to prevent repeated attempts
+    }
+  }
+
+  static Future<User?> ensureSignedInAnonymously() async {
+    try {
+      final auth = FirebaseAuth.instance;
+      if (auth.currentUser != null) return auth.currentUser;
+      final cred = await auth.signInAnonymously();
+      return cred.user;
+    } catch (e) {
+      return null;
     }
   }
 
@@ -83,16 +110,19 @@ class FirebaseService {
     } catch (e) {
       print('❌ Cloud Function call failed: $e');
 
-      // Handle specific Firebase errors
-      String errorMessage = e.toString();
-      if (errorMessage.contains('Device not found')) {
-        errorMessage = 'Device not found';
-      } else if (errorMessage.contains('PERMISSION_DENIED')) {
-        errorMessage = 'Permission denied';
-      } else if (errorMessage.contains('UNAVAILABLE')) {
-        errorMessage = 'Service unavailable';
-      } else if (errorMessage.contains('timed out')) {
-        errorMessage = 'Request timed out';
+      // Handle specific Firebase errors (short, user-friendly)
+      String errorMessage = 'Service unavailable. Please try again.';
+      final err = e.toString().toLowerCase();
+      if (err.contains('permission_denied')) {
+        errorMessage = 'Permission denied.';
+      } else if (err.contains('unavailable')) {
+        errorMessage = 'Service unavailable.';
+      } else if (err.contains('timed out')) {
+        errorMessage = 'Request timed out.';
+      } else if (err.contains('unauthenticated')) {
+        errorMessage = 'Authentication required.';
+      } else if (err.contains('app attestation failed')) {
+        errorMessage = 'Device attestation failed.';
       }
 
       return {

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'screens/connection_screen.dart';
+import 'screens/licensing/licensing_gate.dart';
 import 'providers/settings_provider.dart';
 import 'theme/app_theme.dart';
 import 'providers/connection_provider.dart';
 import 'providers/ros2_data_provider.dart';
 import 'providers/branding_provider.dart';
+import 'providers/licensing_provider.dart';
 import 'services/launch_service.dart';
 import 'services/mission_execution_service.dart';
 import 'services/device_service.dart';
@@ -33,7 +34,7 @@ void main() async {
     DeviceOrientation.landscapeRight,
   ]);
 
-  // Configure system UI for edge-to-edge compatibility
+  // Configure system UI and hide Android status/navigation bars for full-screen UX
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -41,17 +42,14 @@ void main() async {
       systemNavigationBarDividerColor: Colors.transparent,
     ),
   );
-
-  // Enable edge-to-edge mode
-  SystemChrome.setEnabledSystemUIMode(
-    SystemUiMode.edgeToEdge,
-  );
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => BrandingProvider()),
         ChangeNotifierProvider(create: (_) => ConnectionProvider()),
+        ChangeNotifierProvider(create: (_) => LicensingProvider()),
         ChangeNotifierProvider(create: (_) => LaunchManager()),
         ChangeNotifierProxyProvider<ConnectionProvider, SettingsProvider>(
           create: (context) => SettingsProvider('default'),
@@ -110,8 +108,8 @@ class Nav2MissionPlanner extends StatelessWidget {
             return const BrandingLoadingScreen();
           }
 
-          // Show connection screen directly
-          return const ConnectionScreen();
+          // Route through licensing gate
+          return const LicensingGate();
         },
       ),
       debugShowCheckedModeBanner: false,

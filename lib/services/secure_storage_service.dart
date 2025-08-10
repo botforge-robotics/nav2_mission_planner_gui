@@ -16,6 +16,7 @@ class SecureStorageService {
       'last_mandatory_trial_check';
   static const String _trialEndTimeKey = 'trial_end_time';
   static const String _organizationBrandingKey = 'organization_branding';
+  static const String _licenseSummaryKey = 'license_summary';
 
   // Initialize secure storage
   static Future<void> initialize() async {
@@ -187,6 +188,46 @@ class SecureStorageService {
     await prefs.remove(_trialEndTimeKey);
     await prefs.remove(_lastTrialCheckKey);
     await prefs.remove(_lastMandatoryTrialCheckKey);
+  }
+
+  // Store minimal license summary for offline gate
+  static Future<void> storeLicenseSummary({
+    required String status,
+    String? licenseType,
+    String? enterpriseId,
+    String? offlineAllowedUntil,
+    String? trialEndTime,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final summary = {
+      'status': status,
+      if (licenseType != null) 'licenseType': licenseType,
+      if (enterpriseId != null) 'enterpriseId': enterpriseId,
+      if (offlineAllowedUntil != null)
+        'offlineAllowedUntil': offlineAllowedUntil,
+      if (trialEndTime != null) 'trialEndTime': trialEndTime,
+    };
+    final jsonString = jsonEncode(summary);
+    final encrypted = await _encryptData(jsonString);
+    await prefs.setString(_licenseSummaryKey, encrypted);
+  }
+
+  static Future<Map<String, dynamic>?> getLicenseSummary() async {
+    final prefs = await SharedPreferences.getInstance();
+    final encrypted = prefs.getString(_licenseSummaryKey);
+    if (encrypted == null) return null;
+    try {
+      final jsonStr = await _decryptData(encrypted);
+      return jsonDecode(jsonStr) as Map<String, dynamic>;
+    } catch (_) {
+      await prefs.remove(_licenseSummaryKey);
+      return null;
+    }
+  }
+
+  static Future<void> clearLicenseSummary() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_licenseSummaryKey);
   }
 
   // Simple encryption (for basic security)

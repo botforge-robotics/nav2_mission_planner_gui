@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+
+    // Block client writes; reads are narrowly allowed where harmless
+    match /accounts/{accountId} {
+      allow read: if isSignedIn() && request.auth.uid == accountId;
+      allow write: if false;
+    }
+
+    match /devices/{deviceId} {
+      allow read: if false; // do not expose device mapping
+      allow write: if false;
+    }
+
+    match /purchases/{purchaseId} {
+      allow read, write: if false;
+    }
+
+    match /enterprises/{enterpriseId} {
+      // Prefer serving via Cloud Functions; keep closed by default
+      allow read, write: if false;
+    }
+
+    // Public read-only pricing doc for website
+    match /plans/{planId} {
+      allow read: if planId == "current"; // publicly readable
+      allow write: if false;
+    }
+
+    // default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

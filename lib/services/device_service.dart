@@ -7,6 +7,7 @@ import 'widevine_service.dart';
 class DeviceService {
   static const String _deviceIdKey = 'device_id';
   static const String _installationTimeKey = 'installation_time';
+  static const String _fallbackIdPrefix = 'DEV-';
 
   static DeviceInfoPlugin? _deviceInfo;
   static PackageInfo? _packageInfo;
@@ -22,8 +23,9 @@ class DeviceService {
     final prefs = await SharedPreferences.getInstance();
     String? deviceId = prefs.getString(_deviceIdKey);
 
-    if (deviceId == null) {
-      deviceId = await _getWidevineId() ?? '';
+    if (deviceId == null || deviceId.isEmpty) {
+      final widevine = await _getWidevineId();
+      deviceId = widevine ?? _generateFallbackId();
       await prefs.setString(_deviceIdKey, deviceId);
     }
 
@@ -46,6 +48,15 @@ class DeviceService {
       // Fallback to other methods if Widevine fails
       return null;
     }
+  }
+
+  // Generate a stable per-install fallback id for development when Widevine is unavailable
+  static String _generateFallbackId() {
+    // Very simple, human-readable dev id. Persisted via _deviceIdKey.
+    // In production, Widevine should be available on Android devices.
+    final millis = DateTime.now().millisecondsSinceEpoch;
+    final random = (millis % 1000000).toRadixString(36).toUpperCase();
+    return '$_fallbackIdPrefix$random$millis';
   }
 
   // Get device installation time
@@ -147,10 +158,12 @@ class DeviceService {
 
   // Get device registration data for API
   static Future<Map<String, dynamic>> getDeviceRegistrationData() async {
+    // Always use the same device identifier we send to licensing APIs
+    final stableDeviceId = await getDeviceId();
     final deviceInfo = await getDeviceInfo();
 
     return {
-      'deviceId': deviceInfo['deviceId'],
+      'deviceId': stableDeviceId,
       'appVersion': deviceInfo['appVersion'],
       'platform': deviceInfo['platform'],
       'installationTime': deviceInfo['installationTime'],

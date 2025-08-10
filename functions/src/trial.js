@@ -1,0 +1,1 @@
+// This file's responsibilities have been moved into license.js per spec.
