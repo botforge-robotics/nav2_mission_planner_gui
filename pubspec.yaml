@@ -49,7 +49,7 @@ dependencies:
 
   # Google Play Billing
   in_app_purchase: ^3.2.3
-  in_app_purchase_android: ^0.4.0+2
+  in_app_purchase_android: ^0.4.0+3
 
   # License system dependencies
   device_info_plus: ^11.5.0

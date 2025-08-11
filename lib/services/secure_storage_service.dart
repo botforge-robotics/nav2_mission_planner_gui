@@ -1,5 +1,4 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import '../models/license_data.dart';
 import 'image_cache_service.dart';
@@ -17,6 +16,7 @@ class SecureStorageService {
   static const String _trialEndTimeKey = 'trial_end_time';
   static const String _organizationBrandingKey = 'organization_branding';
   static const String _licenseSummaryKey = 'license_summary';
+  static const String _googleAccountIdKey = 'google_account_id';
 
   // Initialize secure storage
   static Future<void> initialize() async {
@@ -252,7 +252,6 @@ class SecureStorageService {
 
   // Get all stored data (for debugging)
   static Future<Map<String, dynamic>> getAllStoredData() async {
-    final prefs = await SharedPreferences.getInstance();
     final licenseToken = await getLicenseToken();
     final trialStartTime = await getTrialStartTime();
     final lastTrialCheck = await getLastTrialCheck();
@@ -312,5 +311,34 @@ class SecureStorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_organizationBrandingKey);
     await ImageCacheService.clearCachedImages();
+  }
+
+  // Store Google account ID
+  static Future<void> storeGoogleAccountId(String googleId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final encryptedId = await _encryptData(googleId);
+    await prefs.setString(_googleAccountIdKey, encryptedId);
+    print('🔑 Google account ID stored securely');
+  }
+
+  // Get Google account ID
+  static Future<String?> getGoogleAccountId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final encryptedId = prefs.getString(_googleAccountIdKey);
+    if (encryptedId != null) {
+      try {
+        return await _decryptData(encryptedId);
+      } catch (e) {
+        print('⚠️ Error retrieving Google account ID: $e');
+        return null;
+      }
+    }
+    return null;
+  }
+
+  // Clear Google account ID
+  static Future<void> clearGoogleAccountId() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_googleAccountIdKey);
   }
 }

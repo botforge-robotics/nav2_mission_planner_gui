@@ -13,6 +13,7 @@ const transferFunctions = require("./src/transfer");
 const feedbackFunctions = require("./src/feedback");
 const integrityFunctions = require("./src/integrity");
 
+
 // Device management
 exports.registerDevice = deviceFunctions.registerDevice;
 
@@ -20,8 +21,10 @@ exports.registerDevice = deviceFunctions.registerDevice;
 exports.getLicenseStatus = licenseFunctions.getLicenseStatus;
 exports.startTrial = licenseFunctions.startTrial;
 exports.verifyGooglePurchase = purchaseFunctions.verifyGooglePurchase;
+exports.updateLicense = purchaseFunctions.updateLicense;
 exports.transferLicense = transferFunctions.transferLicense;
 exports.getEnterpriseBranding = enterpriseFunctions.getEnterpriseBranding;
+
 
 // Play Integrity
 exports.verifyIntegrityToken = integrityFunctions.verifyIntegrityToken;

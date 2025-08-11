@@ -148,6 +148,64 @@ class LicensingProvider extends ChangeNotifier {
   }
 
   // Attempt to use cached license summary if still within offline grace period
+  // Method to set license as active directly from purchase flow
+  // This is used when skipping server verification for purchases
+  Future<void> setLicenseActive({
+    required String licenseType,
+    required String productId,
+    String? enterpriseId,
+  }) async {
+    print('🔑 Setting license active directly: $licenseType');
+
+    // Set state to license active immediately for UI responsiveness
+    print('🔑 Setting state to LicenseGateState.licenseActive');
+    final oldState = state;
+    state = LicenseGateState.licenseActive;
+    print('🔑 State changed from $oldState to: $state');
+    print('🔑 State comparison: ${state == LicenseGateState.licenseActive}');
+
+    // Set license properties
+    this.licenseType = licenseType;
+    this.enterpriseId = enterpriseId;
+
+    // Set offline allowed until 24 hours from now
+    offlineAllowedUntil = DateTime.now().add(const Duration(days: 1));
+
+    // Cache license summary
+    await SecureStorageService.storeLicenseSummary(
+      status: 'license_active',
+      licenseType: licenseType,
+      enterpriseId: enterpriseId,
+      offlineAllowedUntil: offlineAllowedUntil?.toIso8601String(),
+      trialEndTime: null,
+    );
+
+    // Notify listeners immediately
+    statusMessage = null;
+    notifyListeners();
+    print('✅ License set to active for $licenseType');
+
+    // Ensure UI has time to process the state change
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    // Final notification to ensure UI updates
+    notifyListeners();
+
+    // Do Firebase refresh in background after a longer delay to ensure server has updated
+    Future.delayed(const Duration(seconds: 2), () async {
+      try {
+        print('🔄 Starting background Firebase refresh...');
+        await refresh();
+        print('✅ Background Firebase refresh completed');
+      } catch (e) {
+        print(
+            '⚠️ Background Firebase refresh failed, but license is still active: $e');
+        // Even if Firebase refresh fails, the license is still active locally
+        // The user can continue using the app
+      }
+    });
+  }
+
   Future<bool> _fallbackFromCacheIfValid() async {
     try {
       final summary = await SecureStorageService.getLicenseSummary();

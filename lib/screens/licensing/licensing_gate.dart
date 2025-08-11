@@ -60,7 +60,11 @@ class _LicensingGateState extends State<LicensingGate> {
           });
         }
         return Consumer<LicensingProvider>(builder: (context, lp, _) {
-          print('🎭 LicensingGate Consumer rebuild - State: ${lp.state}');
+          print(
+              '🎭 LicensingGate Consumer rebuild - State: ${lp.state}, LicenseType: ${lp.licenseType}, EnterpriseId: ${lp.enterpriseId}');
+          print(
+              '🎭 LicensingGate - OfflineUntil: ${lp.offlineAllowedUntil}, StatusMessage: ${lp.statusMessage}');
+
           switch (lp.state) {
             case LicenseGateState.loading:
               print('⏳ Showing loading screen');
@@ -85,9 +89,12 @@ class _LicensingGateState extends State<LicensingGate> {
                 ),
               );
             case LicenseGateState.licenseActive:
+              print('✅ Showing ConnectionScreen for active license');
+              // Force rebuild with a key to ensure proper navigation
+              return const ConnectionScreen(key: ValueKey('license_active'));
             case LicenseGateState.trialActive:
-              print('✅ Showing ConnectionScreen for active license/trial');
-              return const ConnectionScreen();
+              print('✅ Showing ConnectionScreen for active trial');
+              return const ConnectionScreen(key: ValueKey('trial_active'));
             case LicenseGateState.noLicense:
             case LicenseGateState.trialExpired:
             case LicenseGateState.linkedToOtherDevice:

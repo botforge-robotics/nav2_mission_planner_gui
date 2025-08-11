@@ -31,6 +31,9 @@ exports.transferLicense = onCall({ enforceAppCheck: config.enableAppCheck }, asy
 
     const now = new Date();
 
+    let isTrial = false; // Initialize outside transaction
+    let prevDeviceId = null;
+
     await db.runTransaction(async (tx) => {
       const accountRef = accountsCol.doc(accountId);
       const accSnap = await tx.get(accountRef);
@@ -38,17 +41,11 @@ exports.transferLicense = onCall({ enforceAppCheck: config.enableAppCheck }, asy
       const acc = accSnap.data();
       if (!acc.licenseType) throw createErrorResponse(404, "No license to transfer");
 
-      // Rate limit: allow max 1 per 30 days
-      const history = Array.isArray(acc.transferHistory)
-        ? acc.transferHistory
-        : [];
-      const since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      const recent = history.filter(h => new Date(h.transferDate) > since);
-      if (recent.length >= (config.transferPolicy.maxPer30Days || 1)) {
-        throw createErrorResponse(403, "Transfer rate limit exceeded");
-      }
+      // No rate limiting - users can transfer immediately
+      // Transfer history is still logged for audit purposes
 
-      const prevDeviceId = acc.linkedDeviceId || null;
+      prevDeviceId = acc.linkedDeviceId || null;
+      isTrial = acc.licenseType === "trial";
 
       tx.update(accountRef, {
         linkedDeviceId: newDeviceId,
@@ -80,19 +77,29 @@ exports.transferLicense = onCall({ enforceAppCheck: config.enableAppCheck }, asy
       );
     });
 
-    return createSuccessResponse(
-      {
-        status: "license_active",
-        linkedDeviceId: newDeviceId,
-        offlineAllowedUntil: addDays(new Date(), 1).toISOString(),
-      },
-      "Transfer complete",
-    );
+    // Return appropriate status based on license type
+    if (isTrial) {
+      return createSuccessResponse(
+        {
+          status: "trial_active",
+          linkedDeviceId: newDeviceId,
+          offlineAllowedUntil: addDays(new Date(), 1).toISOString(),
+        },
+        "Trial transferred",
+      );
+    } else {
+      return createSuccessResponse(
+        {
+          status: "license_active",
+          linkedDeviceId: newDeviceId,
+          offlineAllowedUntil: addDays(new Date(), 1).toISOString(),
+        },
+        "License transferred",
+      );
+    }
   } catch (error) {
     if (error?.error?.code) return error;
     console.error("transferLicense error:", error);
     return createErrorResponse(500, "Internal server error");
   }
 });
-
-

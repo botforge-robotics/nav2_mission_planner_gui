@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'secure_storage_service.dart';
 
 /// Custom exception class for authentication errors with user-friendly messages
 class AuthException implements Exception {
@@ -31,12 +32,32 @@ class AuthService {
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
+      // Store the Google ID for purchase verification
+      final googleId = googleUser.id;
+      print('📱 Google account ID: $googleId');
+
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
       final UserCredential cred = await _auth.signInWithCredential(credential);
+
+      // Store Google ID in user metadata
+      if (cred.user != null) {
+        try {
+          // Store the Google ID in a custom user claim
+          await cred.user!.updateDisplayName(googleUser.displayName);
+          await cred.user!.updatePhotoURL(googleUser.photoUrl);
+
+          // Store Google ID in local storage for use in API calls
+          await SecureStorageService.storeGoogleAccountId(googleId);
+        } catch (e) {
+          print('⚠️ Failed to update user profile: $e');
+          // Non-fatal, continue with sign-in
+        }
+      }
+
       return cred.user;
     } on PlatformException catch (e) {
       print('Google Sign-In Platform Exception: ${e.code} - ${e.message}');
@@ -63,8 +84,6 @@ class AuthService {
         case 'PLAY_SERVICES_NOT_AVAILABLE':
           throw AuthException(
               'Google Play Services not available. Please update or install Google Play Services.');
-        case 'SIGN_IN_REQUIRED':
-          throw AuthException('Sign in required. Please try again.');
         case 'INTERNAL_ERROR':
           throw AuthException(
               'Internal error occurred. Please try again later.');
