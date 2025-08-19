@@ -90,12 +90,12 @@ class TopicSelector extends StatelessWidget {
   final VoidCallback onItemChanged;
 
   const TopicSelector({
-    Key? key,
+    super.key,
     required this.item,
     required this.modeColor,
     required this.provider,
     required this.onItemChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

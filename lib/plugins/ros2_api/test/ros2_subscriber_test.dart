@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:std_msgs/msg.dart';
@@ -47,7 +48,7 @@ void main() {
       // Assert
       expect(messagesReceived, greaterThan(0),
           reason: 'No messages received from /chatter topic');
-      print('Received messages: $receivedMessages');
+      debugPrint('Received messages: $receivedMessages');
 
       // Cleanup
       await subscriber.shutdown();

@@ -1,83 +1,50 @@
 const { onCall } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const config = require("./config");
-const { ensureAuthenticated, ensureAccountMatches } = require("./auth");
 const {
   createSuccessResponse,
   createErrorResponse,
   validateRequiredFields,
+  addDays,
   timestampToISO,
-  encodeDeviceId
 } = require("./utils/response");
+
 
 const db = admin.firestore();
 
-function addDays(date, days) {
-  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
-}
-
-// Pricing endpoint removed: no subscriptions; pricing handled by client/storefront
-
+/**
+ * Get license status for a Firebase account (UID)
+ * Uses Firebase UID as the primary user identifier; googleAccountId is optional metadata
+ */
 exports.getLicenseStatus = onCall({ enforceAppCheck: config.enableAppCheck }, async (request) => {
   try {
     const data = request.data || {};
-    const authErr = await ensureAuthenticated(request);
-    if (authErr) return authErr;
 
     const validationError = validateRequiredFields(data, ["accountId", "deviceId"]);
     if (validationError) return validationError;
 
-    const { accountId, deviceId, googleAccountId } = data;
-    const mismatch = ensureAccountMatches(request, accountId);
-    if (mismatch) return mismatch;
+    const { accountId, deviceId } = data;
 
-    if (googleAccountId) {
-      console.log("📱 Google account ID provided for license check:", googleAccountId);
-    }
+    console.log(`🔍 Getting license status for account: ${accountId}, device: ${deviceId}`);
 
-    const accountsCol = db.collection(config.collections.accounts);
-    const purchasesCol = db.collection(config.collections.purchases);
-
-    // First check if this account has a license
-    const accountSnap = await accountsCol.doc(accountId).get();
-
-    // If Google account ID is provided, also check if there are any purchases linked to it
-    let googleAccountLicense = null;
-    if (googleAccountId && (!accountSnap.exists || accountSnap.data().licenseType === "trial")) {
-      console.log("🔍 Checking for purchases linked to Google account ID:", googleAccountId);
-
-      // Look for purchases with this Google account ID
-      const googlePurchasesQuery = await purchasesCol
-        .where("googleAccountId", "==", googleAccountId)
-        .where("refunded", "==", false)
-        .limit(1)
-        .get();
-
-      if (!googlePurchasesQuery.empty) {
-        const googlePurchase = googlePurchasesQuery.docs[0].data();
-        console.log("👍 Found purchase for Google account ID:", googlePurchase.purchaseId);
-
-        // Look up the account associated with this purchase
-        const linkedAccountSnap = await accountsCol.doc(googlePurchase.accountId).get();
-        if (linkedAccountSnap.exists) {
-          googleAccountLicense = linkedAccountSnap.data();
-          console.log("🔐 Found license linked to Google account ID");
-        }
-      }
-    }
-
-    if (!accountSnap.exists && !googleAccountLicense) {
+    // Read account doc by UID
+    const accountRef = db.collection(config.collections.accounts).doc(accountId);
+    const accountSnap = await accountRef.get();
+    if (!accountSnap.exists) {
+      console.log("❌ No account document found");
       return createSuccessResponse({ status: "no_license" }, "No license found");
     }
+    const account = accountSnap.data();
 
-    // Use the Google account license if available and better than the current account license
-    const account = googleAccountLicense || accountSnap.data();
+    console.log(`📊 Found account: ${accountId}, license type: ${account.licenseType}`);
 
+    // Check if license is revoked
     if (account.licenseRevoked) {
-      return createSuccessResponse(
-        { status: "license_revoked", reason: account.revocationReason || null },
-        "License revoked",
-      );
+      return createSuccessResponse({
+        status: "license_revoked",
+        reason: account.revocationReason || "License revoked",
+        revocationDate: timestampToISO(account.revocationDate),
+      }, "License revoked");
     }
 
     const now = new Date();
@@ -139,46 +106,68 @@ exports.getLicenseStatus = onCall({ enforceAppCheck: config.enableAppCheck }, as
   }
 });
 
+/**
+ * Start trial for a Firebase account (UID)
+ */
 exports.startTrial = onCall({ enforceAppCheck: config.enableAppCheck }, async (request) => {
   try {
     const data = request.data || {};
-    const authErr = await ensureAuthenticated(request);
-    if (authErr) return authErr;
+
     const validationError = validateRequiredFields(data, ["accountId", "deviceId"]);
     if (validationError) return validationError;
-    const { accountId, deviceId, googleAccountId } = data;
 
-    if (googleAccountId) {
-      console.log("📱 Google account ID provided for trial start:", googleAccountId);
-    }
-    const mismatch = ensureAccountMatches(request, accountId);
-    if (mismatch) return mismatch;
+    const { accountId, deviceId } = data;
 
-    const encodedDeviceId = encodeDeviceId(deviceId);
+    console.log(`🚀 Starting trial for account: ${accountId}, device: ${deviceId}`);
+
+    // Use raw device ID to match device registration
     const accountsCol = db.collection(config.collections.accounts);
     const devicesCol = db.collection(config.collections.devices);
 
     const now = new Date();
     const trialEndTime = addDays(now, config.trial.days);
 
-    // Check if this Google account has already used a trial
-    if (googleAccountId) {
-      const existingTrialQuery = await accountsCol
-        .where("googleAccountId", "==", googleAccountId)
-        .where("licenseType", "==", "trial")
-        .limit(1)
-        .get();
+    // Ensure device document exists before proceeding
+    console.log(`🔍 Checking if device document exists: ${deviceId}`);
+    const deviceDoc = await devicesCol.doc(deviceId).get();
 
-      if (!existingTrialQuery.empty) {
-        return createErrorResponse(409, "Trial already used with this Google account");
+    if (!deviceDoc.exists) {
+      console.log(`📝 Creating device document for: ${deviceId}`);
+      // Create basic device document if it doesn't exist
+      await devicesCol.doc(deviceId).set({
+        deviceId: deviceId, // Use raw device ID
+        accountId: accountId,
+        lastLinked: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      console.log("✅ Device document created successfully");
+    } else {
+      console.log(`📊 Existing device document found: ${JSON.stringify(deviceDoc.data())}`);
+    }
+
+    // Check if this account has already used a trial
+    const existingDoc = await accountsCol.doc(accountId).get();
+    if (existingDoc.exists) {
+      const acc = existingDoc.data();
+      if (acc.trialEndTime) {
+        return createErrorResponse(409, "Trial already used");
+      }
+      if (acc.licenseType === "individual" || acc.licenseType === "enterprise") {
+        return createErrorResponse(409, "Already purchased");
       }
     }
 
+    console.log("🔍 Starting transaction for trial creation...");
+
     await db.runTransaction(async (tx) => {
+      // Create/update account document with Firebase UID
       const accountRef = accountsCol.doc(accountId);
       const accountSnap = await tx.get(accountRef);
+
       if (accountSnap.exists) {
         const account = accountSnap.data();
+        console.log(`📊 Existing account found: ${JSON.stringify(account)}`);
         // Enforce single trial using dates only
         if (account.trialEndTime) {
           throw createErrorResponse(409, "Trial already used");
@@ -186,29 +175,44 @@ exports.startTrial = onCall({ enforceAppCheck: config.enableAppCheck }, async (r
         if (account.licenseType === "individual" || account.licenseType === "enterprise") {
           throw createErrorResponse(409, "Already purchased");
         }
+      } else {
+        console.log(`📝 Creating new account document for: ${accountId}`);
       }
-      tx.set(accountRef, {
+
+      // Update account with trial information
+      const accountData = {
         accountId,
         linkedDeviceId: deviceId,
         licenseType: "trial",
         trialStartTime: now,
         trialEndTime: trialEndTime,
         lastVerified: now,
-        googleAccountId: googleAccountId || null, // Store Google account ID if provided
         offlineAllowedUntil: addDays(now, 1),
         licenseRevoked: false,
         flags: {},
-      }, { merge: true });
-
-      const deviceRef = devicesCol.doc(encodedDeviceId);
-      tx.set(deviceRef, {
-        deviceId,
-        accountId,
-        lastLinked: now,
-        licenseRevoked: false,
         updatedAt: now,
-      }, { merge: true });
+      };
+
+      console.log(`💾 Setting account data: ${JSON.stringify(accountData)}`);
+      tx.set(accountRef, accountData, { merge: true });
+
+      // Create/update device document
+      const deviceRef = devicesCol.doc(deviceId);
+      const deviceData = {
+        deviceId: deviceId, // Use raw device ID
+        accountId: accountId,
+        lastLinked: now,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      console.log(`💾 Setting device data: ${JSON.stringify(deviceData)}`);
+      tx.set(deviceRef, deviceData, { merge: true });
+
+      console.log("✅ Transaction operations queued successfully");
     });
+
+    console.log("🎉 Trial creation transaction completed successfully");
 
     return createSuccessResponse({
       status: "trial_active",
@@ -221,4 +225,6 @@ exports.startTrial = onCall({ enforceAppCheck: config.enableAppCheck }, async (r
     return createErrorResponse(500, "Internal server error");
   }
 });
+
+
 

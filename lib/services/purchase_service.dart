@@ -1,347 +1,532 @@
 import 'dart:async';
-import 'dart:io' show Platform;
-
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:in_app_purchase/in_app_purchase.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../providers/licensing_provider.dart';
-import 'licensing_service.dart';
-import 'play_integrity_service.dart';
-import 'secure_storage_service.dart';
+import '../constants/app_config.dart';
+import '../services/device_service.dart';
 
 class PurchaseService {
-  static const Set<String> _productIds = {
-    // Test product IDs
-    'test13', // Individual (test)
-    'test23', // Enterprise (test)
-    // Original product IDs (commented out)
-    // 'n2mp_individual_lifetime',
-    // 'n2mp_enterprise_lifetime',
-  };
+  static const String _baseUrl = AppConfig.cloudFunctionsUrl;
 
-  static final Map<String, ProductDetails> _detailsCache = {};
-  static Completer<void>? _currentPurchaseCompleter;
-  static StreamSubscription<List<PurchaseDetails>>?
-      _currentPurchaseSubscription;
+  // Purchase stream subscription
+  static StreamSubscription<List<PurchaseDetails>>? _subscription;
 
-  // Cancel any ongoing purchase
-  static void cancelCurrentPurchase() {
-    _currentPurchaseSubscription?.cancel();
-    if (_currentPurchaseCompleter != null &&
-        !_currentPurchaseCompleter!.isCompleted) {
-      _currentPurchaseCompleter!.complete();
-    }
-    _currentPurchaseCompleter = null;
-    _currentPurchaseSubscription = null;
+  // Initialize purchase listener
+  static void initializePurchaseListener(LicensingProvider licensingProvider) {
+    _subscription = InAppPurchase.instance.purchaseStream.listen(
+      (purchaseDetailsList) {
+        _handlePurchaseUpdates(purchaseDetailsList, licensingProvider);
+      },
+      onDone: () {
+        _subscription?.cancel();
+      },
+      onError: (error) {
+        debugPrint('❌ Purchase stream error: $error');
+      },
+    );
   }
 
-  static Future<ProductDetails?> _getProductDetails(String productId) async {
-    print('🔍 Querying product details for: $productId');
-    final response =
-        await InAppPurchase.instance.queryProductDetails(<String>{productId});
+  // Handle purchase updates from Google Play
+  static void _handlePurchaseUpdates(
+    List<PurchaseDetails> purchaseDetailsList,
+    LicensingProvider licensingProvider,
+  ) {
+    for (final purchaseDetails in purchaseDetailsList) {
+      debugPrint('📱 Purchase update received: ${purchaseDetails.status}');
+      debugPrint(
+          '🔐 Purchase verification data: ${purchaseDetails.verificationData}');
 
-    print('📦 Query response:');
-    print('   Not found IDs: ${response.notFoundIDs}');
-    print('   Product details count: ${response.productDetails.length}');
+      // Store ALL purchase details in Firebase immediately for audit trail
+      _storePurchaseDetailsInFirebase(purchaseDetails, licensingProvider);
 
-    if (response.notFoundIDs.isNotEmpty) {
-      print('❌ Product not found: $productId');
-      return null;
+      switch (purchaseDetails.status) {
+        case PurchaseStatus.pending:
+          debugPrint('⏳ Purchase is pending...');
+          // Store pending purchase info for UI display
+          _storePendingPurchase(purchaseDetails, licensingProvider);
+          break;
+
+        case PurchaseStatus.purchased:
+          debugPrint('✅ Purchase completed - verifying with backend');
+          _verifyPurchaseWithBackend(purchaseDetails, licensingProvider);
+          break;
+
+        case PurchaseStatus.restored:
+          debugPrint('🔄 Purchase restored - verifying with backend');
+          _verifyPurchaseWithBackend(purchaseDetails, licensingProvider);
+          break;
+
+        case PurchaseStatus.error:
+          debugPrint('❌ Purchase error: ${purchaseDetails.error}');
+          // Handle purchase errors (like declined payments)
+          _handlePurchaseError(purchaseDetails, licensingProvider);
+          break;
+
+        case PurchaseStatus.canceled:
+          debugPrint('❌ Purchase cancelled by user');
+          // Handle user cancellation
+          _handlePurchaseCancellation(purchaseDetails, licensingProvider);
+          break;
+      }
     }
-    final products = response.productDetails;
-    if (products.isEmpty) {
-      print('❌ No products returned');
-      return null;
-    }
-
-    // Since we requested a single id, the first should be our product
-    final product = products.first;
-    print('✅ Product found: ${product.title}');
-    print('   ID: ${product.id}');
-    print('   Price: ${product.price}');
-    print('   Raw Price: ${product.rawPrice}');
-    print('   Currency: ${product.currencyCode}');
-
-    _detailsCache[productId] = product;
-    return product;
   }
 
-  // Public helper to fetch and cache details
-  static Future<ProductDetails?> getProductDetails(String productId) async {
-    if (_detailsCache.containsKey(productId)) return _detailsCache[productId];
-    return _getProductDetails(productId);
-  }
-
-  static Future<String?> getPriceString(String productId) async {
-    final details = await getProductDetails(productId);
-    if (details != null) {
-      print('💰 Product: $productId');
-      print('   Raw Price: ${details.rawPrice}');
-      print('   Price: ${details.price}');
-      print('   Currency Code: ${details.currencyCode}');
-      print('   Title: ${details.title}');
-      print('   Description: ${details.description}');
-    }
-    return details?.price;
-  }
-
-  /// Get the Google Play Store account currently logged in on the device
-  /// This is different from the Firebase Auth account used in the app
-  static Future<String?> getPlayStoreAccount() async {
-    if (!Platform.isAndroid) return null;
-
+  // Store ALL purchase details in Firebase for complete audit trail
+  static Future<void> _storePurchaseDetailsInFirebase(
+    PurchaseDetails purchaseDetails,
+    LicensingProvider licensingProvider,
+  ) async {
     try {
-      // Unfortunately, there's no direct API to get the Play Store account
-      // We'll need to rely on the stored account information
-      final packageInfo = await PackageInfo.fromPlatform();
-      print('📱 Package name: ${packageInfo.packageName}');
+      final accountId = licensingProvider.accountId;
+      final deviceId = await _getDeviceId();
 
-      // We can only know the Play Store account after a purchase is made
-      return null;
-    } catch (e) {
-      print('⚠️ Error getting Play Store account: $e');
-      return null;
+      if (accountId == null || deviceId == null) {
+        debugPrint(
+            '❌ Cannot store purchase details: missing account or device ID');
+        return;
+      }
+
+      debugPrint('💾 Storing purchase details in Firebase for audit trail...');
+
+      // Map Flutter status to our internal status
+      String internalStatus;
+      switch (purchaseDetails.status) {
+        case PurchaseStatus.pending:
+          internalStatus = 'pending';
+          break;
+        case PurchaseStatus.purchased:
+          internalStatus = 'completed';
+          break;
+        case PurchaseStatus.restored:
+          internalStatus = 'restored';
+          break;
+        case PurchaseStatus.error:
+          internalStatus = 'error';
+          break;
+        case PurchaseStatus.canceled:
+          internalStatus = 'cancelled';
+          break;
+        default:
+          internalStatus = 'unknown';
+      }
+
+      // Create unique payment ID using purchaseID or timestamp
+      final paymentId = purchaseDetails.purchaseID?.isNotEmpty == true
+          ? 'PAY-${purchaseDetails.purchaseID}'
+          : 'PAY-${DateTime.now().millisecondsSinceEpoch}';
+
+      // Call the Cloud Function directly
+      final functions = FirebaseFunctions.instance;
+      final callable = functions.httpsCallable('storePurchaseDetails');
+
+      final result = await callable.call({
+        'paymentId': paymentId,
+        'accountId': accountId,
+        'deviceId': deviceId,
+        'productId': purchaseDetails.productID,
+        'purchaseId': purchaseDetails.purchaseID,
+        'status': internalStatus,
+        'transactionDate': purchaseDetails.transactionDate,
+        'verificationData': {
+          'localVerificationData':
+              purchaseDetails.verificationData.localVerificationData,
+          'serverVerificationData':
+              purchaseDetails.verificationData.serverVerificationData,
+          'source': purchaseDetails.verificationData.source,
+        },
+        'errorDetails': purchaseDetails.error?.message,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
+      if (result.data['success'] == true) {
+        debugPrint('✅ Purchase details stored in Firebase: $paymentId');
+      } else {
+        debugPrint('❌ Failed to store purchase details: ${result.data}');
+      }
+    } catch (error) {
+      debugPrint('❌ Error storing purchase details: $error');
     }
   }
 
-  /// Get package name for the app
-  static Future<String> getPackageName() async {
-    final packageInfo = await PackageInfo.fromPlatform();
-    return packageInfo.packageName;
+  // Store pending purchase information
+  static void _storePendingPurchase(
+      PurchaseDetails purchaseDetails, LicensingProvider licensingProvider) {
+    debugPrint('💾 Storing pending purchase info for UI display');
+
+    // Store pending purchase details for UI state management
+    _pendingPurchaseDetails = purchaseDetails;
+    _hasPendingPurchase = true;
+
+    // Store account and device info for backend linking
+    _pendingAccountId = licensingProvider.accountId;
+    _pendingDeviceId = null; // Will be set when device ID is available
+
+    // Notify listeners that purchase state has changed
+    _notifyPurchaseStateChanged();
+
+    // Note: We don't create pending payment session here because:
+    // 1. purchaseID is null/empty during pending status
+    // 2. We'll create it when we get 'purchased' status with real data
+    debugPrint(
+        '⏳ Purchase pending - waiting for completion before creating backend session');
   }
 
-  // Update the server with purchase information in the background
-  static void _updateServerInBackground(
-      String productId, String purchaseToken) async {
-    // Get Google account ID
-    final googleAccountId = await SecureStorageService.getGoogleAccountId();
+  // Pending purchase state management
+  static PurchaseDetails? _pendingPurchaseDetails;
+  static bool _hasPendingPurchase = false;
+  static String? _pendingAccountId;
+  static String? _pendingDeviceId;
+  static final List<Function()> _stateChangeListeners = [];
 
-    // Try to get Play Store account info
-    final playStoreAccount = await getPlayStoreAccount();
-    if (playStoreAccount != null) {
-      print('📱 Play Store account: $playStoreAccount');
-      // Store this for future reference
-      await SecureStorageService.storeGoogleAccountId(playStoreAccount);
-    }
+  // Get pending purchase status
+  static bool get hasPendingPurchase => _hasPendingPurchase;
 
-    // Use Future.delayed to ensure this runs after UI updates
-    Future.delayed(const Duration(seconds: 1), () async {
+  // Get pending purchase details
+  static PurchaseDetails? get pendingPurchaseDetails => _pendingPurchaseDetails;
+
+  // Clear pending purchase state
+  static void clearPendingPurchase() {
+    _pendingPurchaseDetails = null;
+    _hasPendingPurchase = false;
+    _pendingAccountId = null;
+    _pendingDeviceId = null;
+    _notifyPurchaseStateChanged();
+  }
+
+  // Add state change listener
+  static void addStateChangeListener(Function() listener) {
+    _stateChangeListeners.add(listener);
+  }
+
+  // Remove state change listener
+  static void removeStateChangeListener(Function() listener) {
+    _stateChangeListeners.remove(listener);
+  }
+
+  // Notify all listeners of state change
+  static void _notifyPurchaseStateChanged() {
+    for (final listener in _stateChangeListeners) {
       try {
-        print('🔄 Updating server with purchase information');
-        print('📱 Using Google account ID: $googleAccountId');
+        listener();
+      } catch (e) {
+        debugPrint('❌ Error in purchase state change listener: $e');
+      }
+    }
+  }
 
-        final result = await LicensingService.updateLicenseOnServer(
-          productId: productId,
-          purchaseToken: purchaseToken,
-          googleAccountId: googleAccountId,
-        );
+  // Handle purchase errors (like declined payments)
+  static void _handlePurchaseError(
+      PurchaseDetails purchaseDetails, LicensingProvider licensingProvider) {
+    debugPrint('❌ Handling purchase error: ${purchaseDetails.error?.message}');
 
-        if (result['success'] == true) {
-          print('✅ Server license update successful');
+    // Check if it's a payment decline
+    if (purchaseDetails.error?.message?.contains('declined') == true ||
+        purchaseDetails.error?.message?.contains('failed') == true) {
+      debugPrint('💳 Payment was declined or failed');
+      // Update UI to show payment failed message
+      // This should prevent going back to buy screen immediately
+    }
+
+    // Clear pending purchase state since there was an error
+    clearPendingPurchase();
+  }
+
+  // Handle purchase cancellation
+  static void _handlePurchaseCancellation(
+      PurchaseDetails purchaseDetails, LicensingProvider licensingProvider) {
+    debugPrint('❌ Handling purchase cancellation');
+    // Update UI to show cancellation message
+    // This should prevent going back to buy screen immediately
+
+    // Clear pending purchase state since it was cancelled
+    clearPendingPurchase();
+  }
+
+  // Verify purchase with backend using REAL purchase data
+  static Future<void> _verifyPurchaseWithBackend(
+    PurchaseDetails purchaseDetails,
+    LicensingProvider licensingProvider,
+  ) async {
+    try {
+      debugPrint('🔍 Verifying purchase with backend...');
+      debugPrint('📱 Purchase token: ${purchaseDetails.purchaseID}');
+      debugPrint('📦 Product ID: ${purchaseDetails.productID}');
+
+      // Check if we have a valid purchaseID (should be available for completed purchases)
+      if (purchaseDetails.purchaseID == null ||
+          purchaseDetails.purchaseID!.isEmpty) {
+        debugPrint('❌ Cannot verify purchase: missing purchaseID');
+        return;
+      }
+
+      // Get current user info
+      final accountId = licensingProvider.accountId;
+      final deviceId = await _getDeviceId();
+
+      if (accountId == null) {
+        debugPrint('❌ No user account found for purchase verification');
+        return;
+      }
+
+      // Extract the real purchase token from verification data
+      final realPurchaseToken = _extractPurchaseToken(
+          purchaseDetails.verificationData.localVerificationData);
+      final googlePlayOrderId = purchaseDetails.purchaseID;
+
+      debugPrint(
+          '🔑 Real purchase token: ${realPurchaseToken.substring(0, 20)}...');
+      debugPrint('🆔 Google Play order ID: $googlePlayOrderId');
+      debugPrint('📦 Product ID: ${purchaseDetails.productID}');
+
+      // No longer calling verifyGooglePurchase - only using checkPaymentStatus
+      debugPrint('✅ Purchase completed - no verification needed');
+
+      // Update local state
+      licensingProvider.refresh();
+
+      // Complete the purchase
+      await InAppPurchase.instance.completePurchase(purchaseDetails);
+
+      // Clear pending purchase state since it's now completed
+      clearPendingPurchase();
+    } catch (error) {
+      debugPrint('❌ Error completing purchase: $error');
+    }
+  }
+
+  /// Extract the real purchase token from the local verification data
+  static String _extractPurchaseToken(String localVerificationData) {
+    try {
+      // Parse the JSON string to get the purchase token
+      final Map<String, dynamic> verificationMap =
+          jsonDecode(localVerificationData);
+      final String? purchaseToken = verificationMap['purchaseToken'];
+
+      if (purchaseToken != null && purchaseToken.isNotEmpty) {
+        debugPrint(
+            '🔑 Extracted purchase token: ${purchaseToken.substring(0, 20)}...');
+        return purchaseToken;
+      } else {
+        debugPrint('⚠️ No purchase token found in verification data');
+        // Fallback to a default token if extraction fails
+        return 'extracted_token_${DateTime.now().millisecondsSinceEpoch}';
+      }
+    } catch (e) {
+      debugPrint('❌ Error extracting purchase token: $e');
+      // Fallback to a default token if parsing fails
+      return 'fallback_token_${DateTime.now().millisecondsSinceEpoch}';
+    }
+  }
+
+  // Get device ID (implement based on your device identification logic)
+  static Future<String> _getDeviceId() async {
+    try {
+      // Use the DeviceService to get a consistent device ID
+      // This should match what's used in your cloud functions
+      return await DeviceService.getDeviceId();
+    } catch (error) {
+      debugPrint('❌ Error getting device ID: $error');
+      // Fallback to a generated ID if DeviceService fails
+      return 'device_${DateTime.now().millisecondsSinceEpoch}';
+    }
+  }
+
+  // Get authentication token (implement based on your auth system)
+  static Future<String> _getAuthToken() async {
+    try {
+      // Get the current Firebase Auth user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Get the ID token for authentication
+        final token = await user.getIdToken();
+        if (token != null) {
+          return token;
         } else {
-          print(
-              '⚠️ Server license update failed: ${result['error']?['message']}');
+          throw Exception('Failed to get ID token from user');
         }
-      } catch (e) {
-        print('❌ Error updating server license: $e');
+      } else {
+        throw Exception('No authenticated user found');
       }
-    });
-  }
-
-  // Restore purchases from Firebase
-  static Future<bool> restorePurchases(
-      {required LicensingProvider licensingProvider}) async {
-    print('🔄 Restoring purchases from Firebase...');
-
-    try {
-      // Get the current user's license status from Firebase
-      final licenseResult = await LicensingService.getLicenseStatus();
-
-      if (licenseResult['success'] == true) {
-        final data = licenseResult['data'];
-        final status = data['status'] as String?;
-
-        if (status == 'license_active') {
-          // User already has an active license, no need to restore
-          print('✅ User already has active license: ${data['licenseType']}');
-          return true;
-        }
-      }
-
-      // No active license found
-      print('ℹ️ No active license found to restore');
-      return false;
-    } catch (e) {
-      print('❌ Error during Firebase restore: $e');
-      return false;
+    } catch (error) {
+      debugPrint('❌ Error getting auth token: $error');
+      throw Exception('Failed to get authentication token: $error');
     }
   }
 
-  static Future<void> buyProduct(String productId,
-      {required LicensingProvider licensingProvider,
-      bool allowRestore = true}) async {
-    if (!_productIds.contains(productId)) {
-      throw Exception('Unknown productId');
-    }
+  // Dispose of the purchase listener
+  static void dispose() {
+    _subscription?.cancel();
+    _subscription = null;
+  }
 
-    final available = await InAppPurchase.instance.isAvailable();
-    if (!available) {
-      throw Exception('Store not available');
-    }
-
-    // Check device integrity before proceeding with purchase
-    final integrityValid = await PlayIntegrityService().checkDeviceIntegrity();
-    if (!integrityValid) {
-      throw Exception(
-          'Device integrity check failed. Please ensure you are using a genuine device and app.');
-    }
-
-    final product = await _getProductDetails(productId);
-    if (product == null) {
-      throw Exception('Product unavailable');
-    }
-
-    // If allowRestore is true, try to restore purchases first
-    if (allowRestore) {
-      try {
-        print('🔄 Attempting to restore purchases before buying');
-        await restorePurchases(licensingProvider: licensingProvider);
-        // If we get here without an exception, we might have restored successfully
-        // But we'll continue with the purchase flow anyway
-      } catch (e) {
-        print('⚠️ Restore failed, continuing with purchase: $e');
-        // Continue with purchase even if restore fails
-      }
-    }
-
-    final purchaseParam = PurchaseParam(productDetails: product);
-
-    _currentPurchaseCompleter = Completer<void>();
-    bool purchasedHandled = false;
-    // Create the purchase listener only once and keep it alive, so late
-    // events after returning from Play are still delivered.
-    _currentPurchaseSubscription ??=
-        InAppPurchase.instance.purchaseStream.listen((purchases) async {
-      print('🔄 Purchase stream received ${purchases.length} purchase updates');
-      try {
-        for (final purchase in purchases) {
-          print(
-              '📦 Processing purchase: ${purchase.productID} with status: ${purchase.status}');
-          if (purchase.productID != productId) {
-            print(
-                '⏭️ Skipping purchase for different product: ${purchase.productID} != $productId');
-            continue;
-          }
-          print(
-              '🎯 Processing purchase for target product: $productId with status: ${purchase.status}');
-          switch (purchase.status) {
-            case PurchaseStatus.pending:
-              // do nothing, wait
-              break;
-            case PurchaseStatus.error:
-              final errorMessage = purchase.error?.message;
-              if (errorMessage != null &&
-                  errorMessage.contains('already own')) {
-                print(
-                    '⚠️ User already owns this product. Attempting to restore purchase...');
-                try {
-                  // Attempt to restore purchases immediately
-                  await restorePurchases(licensingProvider: licensingProvider);
-
-                  if (!(_currentPurchaseCompleter?.isCompleted ?? true)) {
-                    _currentPurchaseCompleter
-                        ?.complete(); // Complete successfully
-                  }
-                } catch (e) {
-                  print('❌ Error during automatic restore: $e');
-                  if (!(_currentPurchaseCompleter?.isCompleted ?? true)) {
-                    _currentPurchaseCompleter?.completeError(Exception(
-                        'You already own this product, but we couldn\'t restore it automatically. Please try restoring purchases.'));
-                  }
-                }
-              } else {
-                if (!(_currentPurchaseCompleter?.isCompleted ?? true)) {
-                  _currentPurchaseCompleter?.completeError(
-                      Exception(purchase.error?.message ?? 'Purchase failed'));
-                }
-              }
-              break;
-            case PurchaseStatus.canceled:
-              if (!(_currentPurchaseCompleter?.isCompleted ?? true)) {
-                _currentPurchaseCompleter
-                    ?.completeError(Exception('Purchase cancelled'));
-              }
-              break;
-            case PurchaseStatus.purchased:
-            case PurchaseStatus.restored:
-              try {
-                purchasedHandled = true;
-                print('✅ Purchase successful: ${purchase.productID}');
-                final purchaseToken =
-                    purchase.verificationData.serverVerificationData;
-
-                print('🔑 Setting license active in provider...');
-                // Mark the purchase as successful in the provider immediately
-                await licensingProvider.setLicenseActive(
-                  licenseType: productId.contains('enterprise')
-                      ? 'enterprise'
-                      : 'individual',
-                  productId: productId,
-                );
-                print('✅ License provider updated successfully');
-
-                // Update the server in the background
-                print('🔄 Starting background server update...');
-                _updateServerInBackground(productId, purchaseToken);
-              } finally {
-                // Always complete the purchase to finalize in Play
-                // For consumable purchases, this is especially important
-                await InAppPurchase.instance.completePurchase(purchase);
-                print('✅ Purchase finalized in Play Store');
-              }
-              if (!(_currentPurchaseCompleter?.isCompleted ?? true)) {
-                print('✅ Completing purchase future successfully');
-                _currentPurchaseCompleter?.complete();
-              }
-              break;
-          }
-        }
-      } catch (e) {
-        if (!(_currentPurchaseCompleter?.isCompleted ?? true))
-          _currentPurchaseCompleter?.completeError(e);
-      }
-    });
+  // Legacy method - now redirects to new flow
+  static Future<void> buyProduct(
+    String productId, {
+    LicensingProvider? licensingProvider,
+  }) async {
+    debugPrint(
+        '⚠️ buyProduct is deprecated - use purchase stream listener instead');
+    debugPrint('📱 Initiating purchase for product: $productId');
 
     try {
-      // Start non-consumable purchase for lifetime license
-      print('🛒 Starting non-consumable purchase...');
-      final ok = await InAppPurchase.instance.buyNonConsumable(
+      // Start the purchase flow
+      final ProductDetailsResponse response =
+          await InAppPurchase.instance.queryProductDetails({productId});
+
+      if (response.notFoundIDs.isNotEmpty) {
+        debugPrint('❌ Product not found: ${response.notFoundIDs}');
+        return;
+      }
+
+      if (response.productDetails.isEmpty) {
+        debugPrint('❌ No product details available');
+        return;
+      }
+
+      final ProductDetails productDetails = response.productDetails.first;
+      final PurchaseParam purchaseParam =
+          PurchaseParam(productDetails: productDetails);
+
+      // Initiate purchase - the result will come through the purchase stream
+      final bool success = await InAppPurchase.instance.buyConsumable(
         purchaseParam: purchaseParam,
       );
-      if (!ok) {
-        print('❌ Failed to start non-consumable purchase');
-        _currentPurchaseSubscription?.cancel();
-        throw Exception('Failed to start purchase');
+
+      if (success) {
+        debugPrint('✅ Purchase initiated successfully');
+        debugPrint('📱 Waiting for purchase completion via stream...');
+      } else {
+        debugPrint('❌ Failed to initiate purchase');
       }
-      print(
-          '✅ Non-consumable purchase started successfully, waiting for completion...');
-      // Wait for purchase update without timeout
-      // Wait for a purchased/restored event from the persistent listener
-      await _currentPurchaseCompleter!.future;
-      print('✅ Purchase future completed successfully');
-      // Fallback: if purchased event did not arrive (rare), attempt restore.
-      if (!purchasedHandled) {
-        print('🔄 Fallback: calling InAppPurchase.restorePurchases()');
-        await InAppPurchase.instance.restorePurchases();
-        // Give time for restored events to arrive on the same listener
-        await Future.delayed(const Duration(seconds: 2));
-      }
-    } catch (e) {
-      print('❌ Error during purchase: $e');
-      rethrow;
-    } finally {
-      // Do not cancel the subscription here; keep it for late events
-      print('🧹 Purchase flow finished (listener kept alive)');
+    } catch (error) {
+      debugPrint('❌ Error initiating purchase: $error');
     }
+  }
+
+  // Check current payment status
+  static Future<Map<String, dynamic>?> checkPaymentStatus(
+      String accountId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/checkPaymentStatus'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${await _getAuthToken()}',
+        },
+        body: jsonEncode({
+          'accountId': accountId,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        debugPrint('❌ Failed to check payment status: ${response.statusCode}');
+        return null;
+      }
+    } catch (error) {
+      debugPrint('❌ Error checking payment status: $error');
+      return null;
+    }
+  }
+
+  // Get current payment status for UI display
+  static String getCurrentPaymentStatus() {
+    // Check if we have a pending purchase
+    if (_hasPendingPurchase) {
+      return 'pending';
+    }
+
+    // This should now be managed by the LicensingProvider
+    // based on the verified purchase data from backend
+    // For now, return 'none' as the default state
+    return 'none';
+  }
+
+  // Check if payment is completed
+  static bool isPaymentCompleted() {
+    // Check if we have a pending purchase
+    if (_hasPendingPurchase) {
+      return false; // Pending means not completed
+    }
+
+    // This should now be managed by the LicensingProvider
+    // based on the verified purchase data from backend
+    // For now, return false as the default state
+    return false;
+  }
+
+  // Reset payment status (for testing/debugging)
+  static void resetPaymentStatus() {
+    debugPrint('🔄 Payment status reset - clearing pending purchase state');
+    clearPendingPurchase();
+  }
+
+  // Get product information for UI display
+  static Future<Map<String, dynamic>> getProductInfo(String productId) async {
+    try {
+      final response =
+          await InAppPurchase.instance.queryProductDetails({productId});
+
+      if (response.notFoundIDs.isNotEmpty) {
+        return {
+          'available': false,
+          'error': 'Product not found in store',
+        };
+      }
+
+      if (response.productDetails.isEmpty) {
+        return {
+          'available': false,
+          'error': 'No product details available',
+        };
+      }
+
+      final product = response.productDetails.first;
+      return {
+        'available': true,
+        'price': product.price,
+        'title': product.title,
+        'description': product.description,
+        'currencyCode': product.currencyCode,
+      };
+    } catch (error) {
+      debugPrint('❌ Error getting product info: $error');
+      return {
+        'available': false,
+        'error': 'Error querying product: $error',
+      };
+    }
+  }
+
+  // Cancel current purchase (for user cancellation)
+  static void cancelCurrentPurchase() {
+    debugPrint('🔄 Cancelling current purchase');
+    // Cancel the subscription if active
+    _subscription?.cancel();
+    _subscription = null;
+
+    // Clear pending purchase state
+    clearPendingPurchase();
+  }
+
+  // Clear payment status after completion
+  static void clearPaymentStatus() {
+    debugPrint('🧹 Clearing payment status after completion');
+    // Reset any local state if needed
+    // The main state is now managed by LicensingProvider
+  }
+
+  // Complete purchase when payment is confirmed
+  static void completePurchaseWhenPaymentConfirmed() {
+    debugPrint('✅ Completing purchase after payment confirmation');
+    // This method is called when payment status changes to 'paid'
+    // The actual completion is handled by the purchase stream listener
+    // This is mainly for legacy compatibility
   }
 }

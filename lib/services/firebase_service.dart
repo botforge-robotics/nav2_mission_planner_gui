@@ -15,9 +15,9 @@ class FirebaseService {
     if (_isInitialized) return;
 
     try {
-      print('🚀 Starting Firebase initialization...');
+      debugPrint('🚀 Starting Firebase initialization...');
       await Firebase.initializeApp();
-      print('✅ Firebase.initializeApp() completed');
+      debugPrint('✅ Firebase.initializeApp() completed');
 
       // Initialize App Check (disable on client if requested)
       if (AppConfig.enableAppCheck) {
@@ -30,14 +30,14 @@ class FirebaseService {
           // Force a token fetch to trigger printing of the App Check debug token in Logcat
           try {
             await FirebaseAppCheck.instance.getToken(true);
-            // This does not print the token here; the native SDK logs it to Logcat.
+            // This does not debugPrint the token here; the native SDK logs it to Logcat.
             // Check Logcat for a line like: "App Check debug token: <TOKEN>"
           } catch (_) {
             // ignore
           }
         }
       }
-      print(
+      debugPrint(
           '✅ App Check activated with ${kDebugMode ? 'Debug' : 'PlayIntegrity'} provider');
 
       _functions = FirebaseFunctions.instance;
@@ -47,12 +47,12 @@ class FirebaseService {
       _initializationError = null;
 
       if (AppConfig.enableAppCheck) {
-        print('✅ Firebase initialized with App Check');
+        debugPrint('✅ Firebase initialized with App Check');
       } else {
-        print('ℹ️ App Check disabled on client (dev mode)');
+        debugPrint('ℹ️ App Check disabled on client (dev mode)');
       }
     } catch (e) {
-      print('❌ Firebase initialization failed: $e');
+      debugPrint('❌ Firebase initialization failed: $e');
       _initializationError = e.toString();
       _isInitialized = true; // Mark as initialized to prevent repeated attempts
     }
@@ -76,9 +76,9 @@ class FirebaseService {
   ) async {
     try {
       if (_functions == null) {
-        print('❌ Firebase Functions not available');
+        debugPrint('❌ Firebase Functions not available');
         if (_initializationError != null) {
-          print('📋 Initialization error: $_initializationError');
+          debugPrint('📋 Initialization error: $_initializationError');
         }
         return {
           'success': false,
@@ -90,8 +90,8 @@ class FirebaseService {
         };
       }
 
-      print('📞 Calling Cloud Function: $functionName');
-      print('📊 Data: $data');
+      debugPrint('📞 Calling Cloud Function: $functionName');
+      debugPrint('📊 Data: $data');
 
       final callable = _functions!.httpsCallable(functionName);
 
@@ -103,12 +103,12 @@ class FirebaseService {
         },
       );
 
-      print('✅ Cloud Function call successful');
-      print('📊 Response: ${result.data}');
+      debugPrint('✅ Cloud Function call successful');
+      debugPrint('📊 Response: ${result.data}');
 
       return result.data;
     } catch (e) {
-      print('❌ Cloud Function call failed: $e');
+      debugPrint('❌ Cloud Function call failed: $e');
 
       // Handle specific Firebase errors (short, user-friendly)
       String errorMessage = 'Service unavailable. Please try again.';
@@ -138,10 +138,10 @@ class FirebaseService {
   // Health check function - replaces API connectivity test
   static Future<Map<String, dynamic>> healthCheck() async {
     try {
-      print('🏥 Testing health check...');
+      debugPrint('🏥 Testing health check...');
       return await callCloudFunction('healthCheck', {});
     } catch (e) {
-      print('❌ Health check failed: $e');
+      debugPrint('❌ Health check failed: $e');
       return {
         'success': false,
         'error': {
@@ -158,7 +158,7 @@ class FirebaseService {
       final result = await healthCheck();
       return result['success'] == true;
     } catch (e) {
-      print('❌ Connectivity test failed: $e');
+      debugPrint('❌ Connectivity test failed: $e');
       return false;
     }
   }

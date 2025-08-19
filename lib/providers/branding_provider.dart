@@ -12,7 +12,7 @@ class BrandingProvider extends ChangeNotifier {
   static const Map<String, String> _defaultBranding = {
     'appTitle': 'Nav2 Mission Planner',
     'faviconUrl': 'assets/favicon_light.png',
-    'themeColor': '#829800',
+    'themeColor': '#f2771a',
     'logoUrl': 'assets/sticker.png',
     'tagLine': 'Crafting autonomous solutions with passion and precision.',
     'supportEmail': 'reachus@botforge.in',

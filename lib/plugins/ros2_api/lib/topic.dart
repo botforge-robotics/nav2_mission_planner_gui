@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'ros2_websocket.dart';
 import 'package:ros2_msg_utils/ros2_msg_utils.dart';
 
@@ -54,7 +56,7 @@ class Subscriber<T extends RosMessage<T>> {
         callback(_prototype.fromJson(messageData));
       }
     }, onError: (error) {
-      print('Error receiving message: $error');
+      debugPrint('Error receiving message: $error');
     });
   }
 

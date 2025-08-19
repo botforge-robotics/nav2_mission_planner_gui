@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'screens/licensing/licensing_gate.dart';
 import 'providers/settings_provider.dart';
 import 'theme/app_theme.dart';
-import 'providers/connection_provider.dart';
+import 'providers/connection_provider.dart' hide ConnectionState;
 import 'providers/ros2_data_provider.dart';
 import 'providers/branding_provider.dart';
 import 'providers/licensing_provider.dart';
@@ -14,19 +14,21 @@ import 'services/device_service.dart';
 import 'services/secure_storage_service.dart';
 import 'services/firebase_service.dart';
 import 'widgets/branding_loading_screen.dart';
+import 'screens/auth/login_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FocusManager.instance.primaryFocus?.unfocus();
 
-  // Initialize Firebase first
+  // Initialize Firebase
   await FirebaseService.initialize();
-  print('🚀 Firebase initialized in main()');
+  debugPrint('🚀 Firebase initialized in main()');
 
-  // Initialize services
+  // Initialize device service
   await DeviceService.initialize();
   await SecureStorageService.initialize();
-  print('✅ Services initialized in main()');
+  debugPrint('✅ Services initialized in main()');
 
   // Force landscape mode
   SystemChrome.setPreferredOrientations([
@@ -108,8 +110,30 @@ class Nav2MissionPlanner extends StatelessWidget {
             return const BrandingLoadingScreen();
           }
 
-          // Route through licensing gate
-          return const LicensingGate();
+          // Use StreamBuilder to listen to authentication state changes
+          return StreamBuilder<User?>(
+            stream: FirebaseAuth.instance.authStateChanges(),
+            builder: (context, AsyncSnapshot<User?> snapshot) {
+              // Show loading while checking auth state
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              // Check if user is authenticated
+              final user = snapshot.data;
+              if (user == null) {
+                // User not authenticated - show login screen
+                return const LoginScreen();
+              }
+
+              // User is authenticated - route through licensing gate
+              return const LicensingGate();
+            },
+          );
         },
       ),
       debugShowCheckedModeBanner: false,

@@ -674,7 +674,7 @@ class SettingsProvider extends ChangeNotifier {
     await _loadSettings();
   }
 
-  // Add debug method to print all current settings
+  // Add debug method to debugPrint all current settings
   void debugPrintSettings() {
     // Debug method - can be used for debugging if needed
   }

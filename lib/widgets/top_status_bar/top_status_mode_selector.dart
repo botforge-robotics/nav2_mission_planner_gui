@@ -3,7 +3,6 @@ import 'package:nav2_mission_planner/providers/connection_provider.dart';
 import '../../constants/modes.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../services/launch_service.dart';
-import '../../providers/branding_provider.dart';
 import 'package:provider/provider.dart';
 
 class TopStatusModeSelector extends StatelessWidget {

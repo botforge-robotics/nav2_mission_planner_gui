@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:rosapi_msgs/srv.dart'; // Import the service definitions for rosapi
@@ -36,7 +37,7 @@ void main() {
         final response = await serviceClient.call(request);
 
         // Assert
-        print('Available services: ${response.services}');
+        debugPrint('Available services: ${response.services}');
         expect(response.services, isNotEmpty, reason: 'No services available');
       } catch (e) {
         fail('Service call failed: $e');

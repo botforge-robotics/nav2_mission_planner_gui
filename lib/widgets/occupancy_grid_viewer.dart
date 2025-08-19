@@ -279,9 +279,9 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
       _subscriber = null;
       _mapServiceTimer?.cancel();
       _mapServiceTimer = null;
-      //print('Unsubscribed from ${widget.topic}');
+      //debugPrint('Unsubscribed from ${widget.topic}');
     } catch (e) {
-      //print('Error unsubscribing: $e');
+      //debugPrint('Error unsubscribing: $e');
     }
   }
 
@@ -386,7 +386,7 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         ? Matrix4.copy(_transformationController.value)
         : null;
 
-    // print('Processing map update! Width: ${message.info.width}, Height: ${message.info.height}');
+    // debugPrint('Processing map update! Width: ${message.info.width}, Height: ${message.info.height}');
 
     // Only show loading indicator for the first load
     if (_mapImage == null && mounted) {
@@ -410,7 +410,7 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
       _mapOriginTheta =
           extractYawFromOriginQuaternion(message.info.origin.orientation);
 
-      //print('Map origin: ($_mapOriginX, $_mapOriginY), theta: $_mapOriginTheta');
+      //debugPrint('Map origin: ($_mapOriginX, $_mapOriginY), theta: $_mapOriginTheta');
 
       if (_mapWidth <= 0 || _mapHeight <= 0) {
         setState(() {
@@ -452,7 +452,7 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
 
       // Note: caching and timer cancellation are handled in _startMapServicePolling
     } catch (e) {
-      //print('Error processing map data: $e');
+      //debugPrint('Error processing map data: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -497,7 +497,7 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
       widget.onScaleChanged!(_initialMapFitScale);
     }
 
-    //print('Initial map scale calculated: $_initialMapFitScale');
+    //debugPrint('Initial map scale calculated: $_initialMapFitScale');
   }
 
   void _resetView() {
@@ -539,7 +539,7 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
       widget.onScaleChanged!(scale);
     }
 
-    //print('View reset with scale: $scale');
+    //debugPrint('View reset with scale: $scale');
   }
 
   @override
@@ -1123,8 +1123,8 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
     });
 
     // Add a flag to track if service was detected
-    bool _serviceDetected = false;
-    DateTime? _serviceDetectedTime;
+    bool serviceDetected = false;
+    DateTime? serviceDetectedTime;
 
     _mapServiceTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
       if (_isFetchingMap) return;
@@ -1142,10 +1142,10 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         );
 
         // Check if service is available without calling it
-        if (!_serviceDetected) {
+        if (!serviceDetected) {
           // Service is available, mark detection time
-          _serviceDetected = true;
-          _serviceDetectedTime = DateTime.now();
+          serviceDetected = true;
+          serviceDetectedTime = DateTime.now();
           setState(() {
             _statusMessage = 'Map service detected, Getting map...';
           });
@@ -1154,8 +1154,8 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         }
 
         // If service was detected but 5 seconds haven't passed yet
-        if (_serviceDetected &&
-            DateTime.now().difference(_serviceDetectedTime!).inSeconds < 5) {
+        if (serviceDetected &&
+            DateTime.now().difference(serviceDetectedTime!).inSeconds < 5) {
           _isFetchingMap = false;
           return;
         }
@@ -1173,9 +1173,9 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         }
       } catch (e) {
         // Reset service detection if there's an error
-        if (_serviceDetected) {
-          _serviceDetected = false;
-          _serviceDetectedTime = null;
+        if (serviceDetected) {
+          serviceDetected = false;
+          serviceDetectedTime = null;
           setState(() {
             _statusMessage = 'Waiting for map service...';
           });

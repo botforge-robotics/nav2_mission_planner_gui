@@ -11,12 +11,12 @@ class ActionGoalEditor extends StatelessWidget {
   final VoidCallback onChanged;
 
   const ActionGoalEditor({
-    Key? key,
+    super.key,
     required this.item,
     required this.modeColor,
     required this.provider,
     required this.onChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

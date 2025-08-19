@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:std_msgs/msg.dart';
 
@@ -11,7 +12,7 @@ void main() async {
     type: StringMessage().fullType,
     ros2: ros2,
     callback: (message) {
-      print('Received message: ${message.data}');
+      debugPrint('Received message: ${message.data}');
     },
     prototype: StringMessage(),
   );

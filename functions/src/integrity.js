@@ -46,12 +46,12 @@ exports.verifyIntegrityToken = onCall({ enforceAppCheck: config.enableAppCheck }
 
     // Evaluate payload
     const isDeviceGenuine =
-            integrityPayload.deviceIntegrity?.deviceRecognitionVerdict ===
-            "MEETS_DEVICE_INTEGRITY";
+      integrityPayload.deviceIntegrity?.deviceRecognitionVerdict ===
+      "MEETS_DEVICE_INTEGRITY";
     const isAppIntegrity =
-            integrityPayload.appIntegrity?.appRecognitionVerdict === "PLAY_RECOGNIZED";
+      integrityPayload.appIntegrity?.appRecognitionVerdict === "PLAY_RECOGNIZED";
     const isAccountIntegrity =
-            integrityPayload.accountIntegrity?.appLicensingVerdict === "LICENSED";
+      integrityPayload.accountIntegrity?.appLicensingVerdict === "LICENSED";
 
     const isIntegrityValid = isDeviceGenuine && isAppIntegrity && isAccountIntegrity;
 
@@ -63,7 +63,7 @@ exports.verifyIntegrityToken = onCall({ enforceAppCheck: config.enableAppCheck }
       appIntegrity: isAppIntegrity,
       accountIntegrity: isAccountIntegrity,
       overallValid: isIntegrityValid,
-      userId: request.auth?.uid || "anonymous",
+      googleAccountId: data.googleAccountId || "anonymous",
     });
 
     return {

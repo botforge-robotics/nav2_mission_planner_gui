@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:example_interfaces/action.dart'; // Import the action definitions
@@ -42,16 +43,16 @@ void main() {
         final result = await actionClient.sendGoal(goal,
             onFeedback: (FibonacciFeedback feedback) {
           feedbackCount++;
-          print('Received feedback: ${feedback.sequence}');
+          debugPrint('Received feedback: ${feedback.sequence}');
 
           // Preempt the goal after receiving 2 feedbacks
           if (feedbackCount >= 2) {
             actionClient.cancelGoal();
-            print('Goal preempted after receiving 2 feedbacks.');
+            debugPrint('Goal preempted after receiving 2 feedbacks.');
           }
         });
 
-        print('Received result: ${result.sequence}');
+        debugPrint('Received result: ${result.sequence}');
       } catch (e) {
         fail('Action call failed: $e');
       } finally {

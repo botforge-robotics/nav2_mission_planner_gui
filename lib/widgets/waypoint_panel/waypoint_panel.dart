@@ -1442,7 +1442,7 @@ class WaypointPanelState extends State<WaypointPanel> {
                                           ),
                                         ),
                                       );
-                                    }).toList(),
+                                    }),
                                   ],
                                   onChanged: (value) async {
                                     if (_hasUnsavedChanges &&

@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'secure_storage_service.dart';
@@ -34,7 +35,7 @@ class AuthService {
 
       // Store the Google ID for purchase verification
       final googleId = googleUser.id;
-      print('📱 Google account ID: $googleId');
+      debugPrint('📱 Google account ID: $googleId');
 
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
@@ -53,14 +54,14 @@ class AuthService {
           // Store Google ID in local storage for use in API calls
           await SecureStorageService.storeGoogleAccountId(googleId);
         } catch (e) {
-          print('⚠️ Failed to update user profile: $e');
+          debugPrint('⚠️ Failed to update user profile: $e');
           // Non-fatal, continue with sign-in
         }
       }
 
       return cred.user;
     } on PlatformException catch (e) {
-      print('Google Sign-In Platform Exception: ${e.code} - ${e.message}');
+      debugPrint('Google Sign-In Platform Exception: ${e.code} - ${e.message}');
       // Handle specific platform errors with user-friendly messages
       switch (e.code) {
         case 'SIGN_IN_CANCELLED':
@@ -111,7 +112,7 @@ class AuthService {
               'Sign in failed: ${e.message ?? 'Unknown error'}. Please try again.');
       }
     } on FirebaseAuthException catch (e) {
-      print('Firebase Auth Exception: ${e.code} - ${e.message}');
+      debugPrint('Firebase Auth Exception: ${e.code} - ${e.message}');
       switch (e.code) {
         case 'network-request-failed':
           throw AuthException(
@@ -147,7 +148,7 @@ class AuthService {
               'Authentication failed: ${e.message ?? 'Unknown error'}. Please try again.');
       }
     } catch (e) {
-      print('Google Sign-In Error: $e');
+      debugPrint('Google Sign-In Error: $e');
       // Handle other types of errors
       if (e.toString().contains('network') ||
           e.toString().contains('connection')) {
@@ -169,7 +170,7 @@ class AuthService {
       await _googleSignIn.signOut();
       await _auth.signOut();
     } catch (e) {
-      print('Sign out error: $e');
+      debugPrint('Sign out error: $e');
       // Continue even if there's an error
     }
   }

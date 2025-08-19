@@ -54,4 +54,6 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <!-- Google Play Billing permission -->
     <uses-permission android:name="com.android.vending.BILLING" />
+    <!-- Google Account access permission -->
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
 </manifest>

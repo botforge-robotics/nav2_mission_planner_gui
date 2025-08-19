@@ -8,7 +8,7 @@ class WidevineService {
     try {
       final String? widevineId = await _channel.invokeMethod('getWidevineId');
       return widevineId;
-    } on PlatformException catch (e) {
+    } on PlatformException {
       // Log error but don't throw - fallback to other methods
       return null;
     } catch (e) {
@@ -22,7 +22,7 @@ class WidevineService {
       final bool isSupported =
           await _channel.invokeMethod('isWidevineSupported');
       return isSupported;
-    } on PlatformException catch (e) {
+    } on PlatformException {
       return false;
     } catch (e) {
       return false;

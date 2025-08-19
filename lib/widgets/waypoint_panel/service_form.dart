@@ -11,12 +11,12 @@ class ServiceForm extends StatelessWidget {
   final VoidCallback onChanged;
 
   const ServiceForm({
-    Key? key,
+    super.key,
     required this.item,
     required this.provider,
     required this.modeColor,
     required this.onChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

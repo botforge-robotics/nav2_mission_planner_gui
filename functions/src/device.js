@@ -8,16 +8,16 @@ const {
   validateDeviceId,
   sanitizeData,
   createTimestamp,
-  timestampToISO,
-  encodeDeviceId
+  timestampToISO
 } = require("./utils/response");
+
 
 const db = admin.firestore();
 const COLLECTION_NAME = "devices";
 
 /**
  * Register a new device
- * POST /api/device/register
+ * This now uses Google account ID instead of Firebase UID
  */
 exports.registerDevice = onCall({
   enforceAppCheck: config.enableAppCheck
@@ -25,11 +25,12 @@ exports.registerDevice = onCall({
   try {
     const data = request.data;
 
+
     // Validate required fields
     console.log(data);
     const requiredFields = [
       "deviceId", "appVersion", "platform", "installationTime",
-      "deviceModel", "androidVersion", "appBuildNumber"
+      "deviceModel", "androidVersion", "appBuildNumber", "accountId"
     ];
 
     const validationError = validateRequiredFields(data, requiredFields);
@@ -44,13 +45,12 @@ exports.registerDevice = onCall({
 
     // Sanitize input data
     const sanitizedData = sanitizeData(data);
-    const originalDeviceId = sanitizedData.deviceId;
+    const deviceId = sanitizedData.deviceId;
+    const accountId = sanitizedData.accountId;
 
-    // Encode device ID for use as Firestore document ID
-    const encodedDeviceId = encodeDeviceId(originalDeviceId);
 
     // Check if device already exists
-    const deviceDoc = await db.collection(COLLECTION_NAME).doc(encodedDeviceId).get();
+    const deviceDoc = await db.collection(COLLECTION_NAME).doc(deviceId).get();
 
     if (deviceDoc.exists) {
       // Device exists - return existing data
@@ -67,20 +67,25 @@ exports.registerDevice = onCall({
     // Create new device document
     const now = createTimestamp();
     const deviceData = {
-      ...sanitizedData,
-      deviceId: originalDeviceId, // Store original device ID in data
+      deviceId: deviceId,
+      accountId: accountId,
+      appVersion: sanitizedData.appVersion,
+      platform: sanitizedData.platform,
+      installationTime: sanitizedData.installationTime,
+      deviceModel: sanitizedData.deviceModel,
+      androidVersion: sanitizedData.androidVersion,
+      appBuildNumber: sanitizedData.appBuildNumber,
       registrationTime: now,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
     };
 
-    await db.collection(COLLECTION_NAME).doc(encodedDeviceId).set(deviceData);
+    await db.collection(COLLECTION_NAME).doc(deviceId).set(deviceData);
 
-    return createSuccessResponse({
-      deviceId: originalDeviceId, // Return original device ID
-      registrationTime: timestampToISO(deviceData.registrationTime)
-    }, "Device registered successfully");
-
+    return createSuccessResponse(
+      deviceData,
+      "Device registered successfully"
+    );
   } catch (error) {
     console.error("registerDevice error:", error);
     return createErrorResponse(500, "Internal server error");

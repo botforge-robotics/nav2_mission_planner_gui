@@ -1,9 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'dart:convert';
 import '../providers/connection_provider.dart';
 import 'package:rosapi_msgs/srv.dart';
-import '../constants/default_settings.dart';
 import '../providers/settings_provider.dart';
 
 class RosParameterService {

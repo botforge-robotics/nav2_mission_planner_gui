@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:action_tutorials_interfaces/action.dart'; // Import the action definitions
 
@@ -29,13 +30,13 @@ void main() async {
   try {
     final result = await actionClient.sendGoal(goal,
         onFeedback: (FibonacciFeedback feedback) {
-      print('Received feedback: ${feedback.partial_sequence}');
+      debugPrint('Received feedback: ${feedback.partial_sequence}');
     });
 
-    // Print the result
-    print('Received result: ${result.sequence}');
+    // debugPrint the result
+    debugPrint('Received result: ${result.sequence}');
   } catch (e) {
-    print('Action call failed: $e');
+    debugPrint('Action call failed: $e');
   } finally {
     actionClient.dispose(); // Cleanup
     await ros2.close(); // Close the ROS2 connection

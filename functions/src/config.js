@@ -2,30 +2,39 @@
 
 const config = {
   enableAppCheck: false, // temporarily disabled to unblock local/release sideload testing
+  requireAuth: true, // temporarily disabled for testing - set to true in production
   collections: {
     accounts: "accounts",
     devices: "devices",
-    purchases: "purchases",
+    purchases: "purchases", // Legacy - will be replaced by payments
+    payments: "payments", // New secure payment tracking
     enterprises: "enterprises",
     plans: "plans",
+    audit: "audit", // New audit trail collection
   },
   // Map Play product IDs to license metadata
   productMap: {
-    // Test product IDs (non-consumable lifetime)
-    test13: { licenseType: "individual", consumable: false },
-    test23: { licenseType: "enterprise", enterpriseId: null, consumable: false },
-    // Original product IDs
-    n2mp_individual_lifetime: { licenseType: "individual" },
-    n2mp_enterprise_lifetime: { licenseType: "enterprise", enterpriseId: null },
+    // Test product IDs (consumable - allows multiple purchases from same Google account)
+    n2mp_tetsing_id: {
+      licenseType: "individual",
+      consumable: true,
+      price: 2000,
+      currency: "INR"
+    },
   },
   packageName: "com.botforge.nav2missionplanner",
   // Trial configuration
   trial: {
-    days: 7, // 7-day trial period
+    days: 14, // 14-day trial period
   },
   // Transfer policy configuration
   transferPolicy: {
     maxPer30Days: 999, // No practical limit - users can transfer immediately
+  },
+  // Google Play RTDN configuration
+  rtdn: {
+    topic: "projects/nav2-mission-planner/topics/RTDN",
+    enabled: true,
   },
 };
 

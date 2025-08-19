@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:action_tutorials_interfaces/action.dart'; // Import the action definitions
@@ -37,14 +38,14 @@ void main() {
       await actionServer.serve(
         onGoal: (FibonacciGoal goal,
             ActionCallback<FibonacciResult> callback) async {
-          print('Goal received: ${goal.order}');
+          debugPrint('Goal received: ${goal.order}');
 
           int a = 0, b = 1;
           final feedback = FibonacciFeedback()..partial_sequence = [a];
 
           for (int i = 0; i < goal.order; i++) {
             if (callback.isPreemptRequested) {
-              print('Goal preempted.');
+              debugPrint('Goal preempted.');
               return;
             }
 
@@ -62,12 +63,12 @@ void main() {
           );
         },
         onCancel: (String goalId) {
-          print('Goal $goalId canceled.');
+          debugPrint('Goal $goalId canceled.');
         },
       );
 
       // Wait for the action server to be advertised
-      print('Action server /fibonacci is ready to receive goals.');
+      debugPrint('Action server /fibonacci is ready to receive goals.');
       await Future.delayed(const Duration(seconds: 30));
 
       // Cleanup

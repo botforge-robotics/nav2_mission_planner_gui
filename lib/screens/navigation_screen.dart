@@ -1011,45 +1011,41 @@ class _NavigationScreenState extends State<NavigationScreen> {
               orElse: () => bookmark,
             );
 
-            if (matchingBookmark != null) {
-              showDialog(
-                context: context,
-                barrierColor: Colors.black.withValues(alpha: 0.5),
-                barrierDismissible: true,
-                builder: (context) => BookmarkTooltip(
-                  bookmark: bookmark,
-                  modeColor: widget.modeColor,
-                  isMissionMode: _missionMode,
-                  onSendGoal: () {
-                    Navigator.of(context).pop();
-                    _handleBookmarkGoal(bookmark);
-                  },
-                  onAddWaypoint: () {
-                    Navigator.of(context).pop();
-                    _addBookmarkAsWaypoint(bookmark);
-                  },
-                  onDelete: () {
-                    Navigator.of(context).pop();
-                    // Find the index of the matching bookmark
-                    final index = mapBookmarks.indexOf(matchingBookmark);
+            showDialog(
+              context: context,
+              barrierColor: Colors.black.withValues(alpha: 0.5),
+              barrierDismissible: true,
+              builder: (context) => BookmarkTooltip(
+                bookmark: bookmark,
+                modeColor: widget.modeColor,
+                isMissionMode: _missionMode,
+                onSendGoal: () {
+                  Navigator.of(context).pop();
+                  _handleBookmarkGoal(bookmark);
+                },
+                onAddWaypoint: () {
+                  Navigator.of(context).pop();
+                  _addBookmarkAsWaypoint(bookmark);
+                },
+                onDelete: () {
+                  Navigator.of(context).pop();
+                  // Find the index of the matching bookmark
+                  final index = mapBookmarks.indexOf(matchingBookmark);
 
-                    if (index != -1) {
-                      setState(() {
-                        _localBookmarks.removeWhere((b) => b == bookmark);
-                        _settingsProvider.removeBookmark(_selectedMap!, index);
-                      });
-                    } else {
-                      // Could not find bookmark index for deletion
-                    }
-                  },
-                  onCancel: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-              );
-            } else {
-              // Bookmark not found in current map
-            }
+                  if (index != -1) {
+                    setState(() {
+                      _localBookmarks.removeWhere((b) => b == bookmark);
+                      _settingsProvider.removeBookmark(_selectedMap!, index);
+                    });
+                  } else {
+                    // Could not find bookmark index for deletion
+                  }
+                },
+                onCancel: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            );
           },
           isGoalActive: _isGoalActive,
           waypoints: _waypoints,

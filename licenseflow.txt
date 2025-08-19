@@ -1,0 +1,264 @@
+ull Licensing Flow — End-to-End Spec (Individual License Only)
+Version: Aug 2025
+
+1. Overview
+This document describes the complete licensing logic for your app, using Google Play Billing (consumable purchase model) and Firebase Cloud Functions as the only business logic entry point.
+No direct database access from the client app. All writes to Firestore are done by Cloud Functions after verifying requests and purchase status.
+Offline access is limited to 1 day after the last license check.
+
+2. Core Principles
+License Type: Individual only (no enterprise tier).
+
+Purchase Model: Consumable — users can buy multiple times to extend coverage, but if a license is already active, they restore instead of buying again.
+
+Account Binding: License is bound to the Firebase Auth account, not the Play Store account.
+
+Device Binding: One active device per account (identified via Widevine ID).
+
+Service Accounts: Use the Firebase Admin SDK service account with:
+
+Cloud Pub/Sub Subscriber role (to receive Play RTDN events).
+
+Google Play Developer API access with financial permissions.
+
+No Client-side Logic: All license checks, payment validations, and state changes happen on the server.
+
+Offline Access: App works offline only until offlineAllowedUntil (1 day after last server verification).
+
+3. Firestore Data Model
+accounts/{accountId}
+accountId (Firebase UID)
+
+linkedDeviceId (Widevine ID)
+
+licenseStatus (none|trial_active|trial_expired|pending|active|revoked)
+
+trialStartTime / trialEndTime
+
+licenseStart / licenseEnd
+
+lastVerified (ISO timestamp)
+
+offlineAllowedUntil (ISO timestamp)
+
+lastPaymentId
+
+transferHistory (array of {fromDeviceId,toDeviceId,at})
+
+revocationReason / revocationDate
+
+devices/{deviceId}
+deviceId (Widevine)
+
+accountId
+
+lastLinked (ISO timestamp)
+
+payments/{paymentId}
+paymentId
+
+accountId
+
+deviceId
+
+productId
+
+purchaseToken
+
+orderId
+
+status (created|pending|paid|cancelled|failed|refunded|chargeback|error)
+
+amount, currency
+
+createdAt / updatedAt
+
+verificationLog (array of {ts,status,notes})
+
+audit/{auditId}
+action / actor
+
+accountId / deviceId / paymentId
+
+details
+
+timestamp
+
+4. Cloud Functions API
+All calls require:
+
+Valid Firebase ID token (auth)
+
+App Check token
+
+Input validation
+
+4.1 getLicenseStatus
+Purpose: Return current license/trial state.
+Responses:
+
+200 → { licenseStatus, licenseStart, licenseEnd, trialDaysRemaining, offlineAllowedUntil }
+
+401 invalid token
+
+404 account not found
+
+4.2 registerDevice
+Purpose: Bind the current device to the account (Widevine ID).
+Rules: If already linked to another device, return linked_to_other_device.
+Responses:
+
+200 success
+
+409 device linked to another account
+
+4.3 startTrial
+Purpose: Manually start trial after user confirmation.
+Rules: One trial per account.
+Responses:
+
+200 trial activated
+
+409 trial already used
+
+4.4 createPaymentSession
+Purpose: Prepare for Google Play purchase.
+Flow:
+
+Create payments doc with status = pending.
+
+Link to account & device.
+Responses:
+
+200 → { paymentId, status: pending }
+
+4.5 verifyGooglePurchase
+Purpose: Verify purchase token with Google Play API.
+Flow:
+
+Check matching payments record.
+
+Call Google Play API (service account).
+
+Update payments.status based on result:
+
+PURCHASED → paid → update accounts.licenseStatus = active, licenseStart, licenseEnd, offlineAllowedUntil = now + 1 day.
+
+PENDING → keep pending status.
+
+CANCELLED|FAILED|REFUNDED|CHARGEBACK → update payment, revoke license if needed.
+
+Log audit entry.
+Responses:
+
+200 success with { status, licenseStatus, licenseEnd }
+
+402 invalid or unpaid
+
+409 duplicate token
+
+4.6 checkPaymentStatus
+Purpose: Resolve pending payment via Play API check.
+Response: Updated payment & account state.
+
+4.7 transferLicense
+Purpose: Move license to new device.
+Rules:
+
+Rate limit transfers.
+
+Revoke old device.
+Response: Updated account with new linkedDeviceId.
+
+4.8 RTDN Handler (handlePlayRtdn)
+Purpose: Listen to Play RTDN Pub/Sub events for refunds, chargebacks, cancellations.
+Flow:
+
+Parse event & validate.
+
+Match purchaseToken to payments doc.
+
+Update status.
+
+If revoked → update accounts.licenseStatus = revoked.
+
+Log audit.
+
+5. Client App Flow
+Startup
+Firebase login required.
+
+Get Widevine ID.
+
+If offlineAllowedUntil >= now → allow offline mode until expiry.
+
+Else → call getLicenseStatus before enabling features.
+
+First Install
+Call registerDevice.
+
+Show “Activate 7-day trial” or “Buy now”.
+
+Do not auto-start trial.
+
+Purchase Flow
+Call createPaymentSession.
+
+Start Google Play Billing flow.
+
+On purchase result → call verifyGooglePurchase.
+
+Update UI based on:
+
+active → unlock features.
+
+pending → show pending screen, disable re-purchase until resolved.
+
+failed/cancelled → show retry option.
+
+Refund Handling
+On next getLicenseStatus or via push from RTDN:
+
+If revoked → lock features, show message with reason/date.
+
+6. Response Codes Summary
+200 success
+
+400 bad request
+
+401 auth/appcheck fail
+
+402 payment invalid
+
+403 transfer not allowed
+
+404 not found
+
+409 conflict (duplicate)
+
+500 server error
+
+7. Security
+All writes through Cloud Functions only.
+
+Firestore rules deny client direct access.
+
+Play service account credentials in Secret Manager.
+
+All API calls authenticated & app-checked.
+
+Transactions used for multi-doc updates.
+
+8. Testing Scenarios
+Trial start/expire.
+
+Purchase success/pending/fail.
+
+Refund → revoke.
+
+Chargeback → revoke.
+
+License transfer success/rate-limit fail.
+
+Offline expiry enforcement.
+

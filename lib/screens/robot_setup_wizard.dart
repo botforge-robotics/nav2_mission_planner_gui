@@ -241,7 +241,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                       ),
                       SizedBox(height: isMobile ? 2 : 4),
                       Text(
-                        '${_steps[_currentStep].title}',
+                        _steps[_currentStep].title,
                         style: TextStyle(
                           fontSize: subtitleSize,
                           color: Colors.grey.shade400,

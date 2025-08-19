@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:std_msgs/msg.dart';
 
@@ -15,7 +16,7 @@ void main() async {
   for (int i = 0; i < 20; i++) {
     await Future.delayed(const Duration(seconds: 1));
     publisher.publish(StringMessage(data: 'Hello ROS 2! Message number: $i'));
-    print('Published: Hello ROS 2! Message number: $i');
+    debugPrint('Published: Hello ROS 2! Message number: $i');
   }
 
   await publisher.shutdown();

@@ -99,6 +99,18 @@ function sanitizeData(data) {
 }
 
 /**
+ * Add days to a date
+ * @param {Date} date - Base date
+ * @param {number} days - Number of days to add
+ * @returns {Date} New date with days added
+ */
+function addDays(date, days) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+/**
  * Create timestamp for Firestore
  * @returns {Object} Firestore timestamp
  */
@@ -131,27 +143,6 @@ function isoToTimestamp(isoString) {
   return new Date(isoString);
 }
 
-/**
- * Safely encode device ID for use as Firestore document ID
- * Firestore document IDs cannot contain certain characters like '/', '+', etc.
- * @param {string} deviceId - Original device ID
- * @returns {string} Encoded device ID safe for Firestore
- */
-function encodeDeviceId(deviceId) {
-  if (!deviceId) return deviceId;
-
-  // Replace problematic characters for Firestore document IDs
-  return deviceId
-    .replace(/\+/g, "-")  // Replace + with -
-    .replace(/\//g, "_")  // Replace / with _
-    .replace(/=/g, "")    // Remove = padding
-    .replace(/\./g, "dot") // Replace . with 'dot'
-    .replace(/#/g, "hash") // Replace # with 'hash'
-    .replace(/\$/g, "dollar") // Replace $ with 'dollar'
-    .replace(/\[/g, "lbracket") // Replace [ with 'lbracket'
-    .replace(/\]/g, "rbracket") // Replace ] with 'rbracket'
-    .replace(/\//g, "slash"); // Replace / with 'slash'
-}
 
 /**
  * Decode device ID from Firestore document ID format back to original
@@ -188,9 +179,9 @@ module.exports = {
   validateDeviceId,
   validateEmail,
   sanitizeData,
+  addDays,
   createTimestamp,
   timestampToISO,
   isoToTimestamp,
-  encodeDeviceId,
   decodeDeviceId
 };

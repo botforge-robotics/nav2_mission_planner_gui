@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/connection_provider.dart';
 import '../providers/branding_provider.dart';
 import '../widgets/top_status_bar/top_status_bar.dart';
+import '../widgets/background_feature_cards.dart';
 import '../constants/modes.dart';
 import '../theme/app_theme.dart';
 import 'robot_setup_wizard.dart';
@@ -215,36 +216,47 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
         return Scaffold(
           backgroundColor: Colors.transparent,
-          body: Column(
+          body: Stack(
             children: [
-              // Conditional TopStatusBar - only show when widget.showTopStatusBar is true
-              if (widget.showTopStatusBar)
-                TopStatusBar(
-                  currentMode: AppModes.teleop,
-                  onModeChanged: (mode) {
-                    // No mode changes allowed on connection screen
-                  },
-                  statusText: 'Connect to Robot',
-                  statusColor: Colors.red,
-                  height: AppTheme.statusBarHeight,
-                  icon: FontAwesomeIcons.robot,
-                ),
+              // Background feature cards
+              const BackgroundFeatureCards(
+                cardCount: 12,
+                opacity: 0.25,
+                maxRotation: 30.0,
+              ),
               // Main content
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => FocusScope.of(context).unfocus(),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade900.withValues(alpha: 0.3),
+              Column(
+                children: [
+                  // Conditional TopStatusBar - only show when widget.showTopStatusBar is true
+                  if (widget.showTopStatusBar)
+                    TopStatusBar(
+                      currentMode: AppModes.teleop,
+                      onModeChanged: (mode) {
+                        // No mode changes allowed on connection screen
+                      },
+                      statusText: 'Connect to Robot',
+                      statusColor: Colors.red,
+                      height: AppTheme.statusBarHeight,
+                      icon: FontAwesomeIcons.robot,
                     ),
-                    child: SafeArea(
-                      child: hasRecentConnections
-                          ? _buildSplitScreen(
-                              context, connectionProvider, brandingProvider)
-                          : _buildFullScreen(context),
+                  // Main content
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => FocusScope.of(context).unfocus(),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade900.withValues(alpha: 0.3),
+                        ),
+                        child: SafeArea(
+                          child: hasRecentConnections
+                              ? _buildSplitScreen(
+                                  context, connectionProvider, brandingProvider)
+                              : _buildFullScreen(context),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ],
           ),

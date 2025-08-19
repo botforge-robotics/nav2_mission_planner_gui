@@ -236,7 +236,7 @@ class MissionExecutionService extends ChangeNotifier {
     });
 
     // Helper to publish once
-    void _publishOnce() {
+    void publishOnce() {
       ros2.send({
         'op': 'publish',
         'topic': item.publishTopic,
@@ -246,7 +246,7 @@ class MissionExecutionService extends ChangeNotifier {
 
     switch (freqType) {
       case 'once':
-        _publishOnce();
+        publishOnce();
         break;
 
       // Legacy or explicit Hz option
@@ -261,7 +261,7 @@ class MissionExecutionService extends ChangeNotifier {
           final totalMs = (item.publishDuration! * 1000).round();
           for (int elapsed = 0; elapsed < totalMs; elapsed += periodMs) {
             if (!_isRunning || _isPaused) break;
-            _publishOnce();
+            publishOnce();
             await Future.delayed(Duration(milliseconds: periodMs));
           }
           break;
@@ -272,8 +272,9 @@ class MissionExecutionService extends ChangeNotifier {
           final periodMs = (1000 / hz).round();
           Timer? timer;
           timer = Timer.periodic(Duration(milliseconds: periodMs), (t) {
-            if (!_isRunning || _isPaused)
+            if (!_isRunning || _isPaused) {
               return; // still running but maybe paused
+            }
             if (!_isRunning) {
               // Mission finished, stop timer
               t.cancel();
@@ -281,7 +282,7 @@ class MissionExecutionService extends ChangeNotifier {
               ros2.send({'op': 'unadvertise', 'topic': item.publishTopic});
               return;
             }
-            _publishOnce();
+            publishOnce();
           });
           _activePublishTimers.add(timer);
           // Do not block – continue to next mission item
@@ -324,7 +325,7 @@ class MissionExecutionService extends ChangeNotifier {
               return;
             }
 
-            _publishOnce();
+            publishOnce();
           });
 
           _activePublishTimers.add(timer);
@@ -333,7 +334,7 @@ class MissionExecutionService extends ChangeNotifier {
         }
 
       default:
-        _publishOnce();
+        publishOnce();
     }
 
     // Unadvertise after blocking publish loop finishes

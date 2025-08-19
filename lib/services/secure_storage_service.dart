@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/license_data.dart';
@@ -236,7 +237,7 @@ class SecureStorageService {
       // Simple base64 encoding for now to avoid JSON corruption
       return base64Encode(utf8.encode(data));
     } catch (e) {
-      throw e;
+      rethrow;
     }
   }
 
@@ -246,7 +247,7 @@ class SecureStorageService {
       final decoded = utf8.decode(base64Decode(encryptedData));
       return decoded;
     } catch (e) {
-      throw e;
+      rethrow;
     }
   }
 
@@ -318,7 +319,7 @@ class SecureStorageService {
     final prefs = await SharedPreferences.getInstance();
     final encryptedId = await _encryptData(googleId);
     await prefs.setString(_googleAccountIdKey, encryptedId);
-    print('🔑 Google account ID stored securely');
+    debugPrint('🔑 Google account ID stored securely');
   }
 
   // Get Google account ID
@@ -329,7 +330,7 @@ class SecureStorageService {
       try {
         return await _decryptData(encryptedId);
       } catch (e) {
-        print('⚠️ Error retrieving Google account ID: $e');
+        debugPrint('⚠️ Error retrieving Google account ID: $e');
         return null;
       }
     }

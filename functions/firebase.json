@@ -1,22 +1,11 @@
 {
-  "functions": [
-    {
-      "source": ".",
-      "runtime": "nodejs18",
-      "codebase": "default",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "*.local"
-      ],
-      "predeploy": [
-        "npm --prefix \"$RESOURCE_DIR\" run lint",
-        "npm --prefix \"$RESOURCE_DIR\" run build"
-      ]
+  "functions": {
+    "source": ".",
+    "runtime": "nodejs22",
+    "environmentVariables": {
+      "GOOGLE_APPLICATION_CREDENTIALS": "./service-account-play-nav2.json"
     }
-  ],
+  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"

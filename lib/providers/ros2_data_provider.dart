@@ -14,7 +14,7 @@ class ROS2DataProvider extends ChangeNotifier {
   Map<String, String> _topics = {};
   Map<String, String> _services = {};
   List<String> _actionServers = [];
-  Map<String, Map<String, dynamic>> _messageStructures = {};
+  final Map<String, Map<String, dynamic>> _messageStructures = {};
 
   // Loading states
   bool _isLoadingTopics = false;
@@ -48,7 +48,7 @@ class ROS2DataProvider extends ChangeNotifier {
       _connectionProvider.isConnected && _connectionProvider.ros2Client != null;
 
   // Get ROS2 client
-  get ros2 => _connectionProvider.ros2Client;
+  Ros2 get ros2 => _connectionProvider.ros2Client;
 
   // Fetch topics and their types
   Future<void> fetchTopics({bool forceRefresh = false}) async {

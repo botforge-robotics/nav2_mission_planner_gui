@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:std_srvs/srv.dart';
 
@@ -20,12 +21,12 @@ void main() async {
       serviceType: SetBool(),
     );
 
-    print('\nStarting SetBool service server at /set_bool');
-    print('Server will run for 30 seconds...');
+    debugPrint('\nStarting SetBool service server at /set_bool');
+    debugPrint('Server will run for 30 seconds...');
 
     // Start serving and handle requests
     await serviceServer.serve((SetBoolRequest request) async {
-      print('\nReceived request: ${request.toJson()}');
+      debugPrint('\nReceived request: ${request.toJson()}');
 
       // Create and send response
       final response = SetBoolResponse(
@@ -33,20 +34,20 @@ void main() async {
         message: 'Value set to ${request.data}',
       );
 
-      print('Sending response: ${response.toJson()}\n');
+      debugPrint('Sending response: ${response.toJson()}\n');
       return response;
     });
 
     // Keep the server running for 30 seconds
     await Future.delayed(const Duration(seconds: 30));
-    print('Server shutting down...');
+    debugPrint('Server shutting down...');
 
     // Cleanup
     serviceServer.close();
     await Future.delayed(const Duration(seconds: 1));
     await ros2.close();
   } catch (e) {
-    print('Error occurred: $e');
+    debugPrint('Error occurred: $e');
     await ros2.close();
   }
 }

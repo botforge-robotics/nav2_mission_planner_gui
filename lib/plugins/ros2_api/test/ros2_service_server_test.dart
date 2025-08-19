@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:std_srvs/srv.dart'; // Import the service definitions for std_srvs
@@ -42,8 +43,8 @@ void main() {
       // Wait for the service to be advertised
       await Future.delayed(const Duration(seconds: 2));
 
-      // Print a message indicating the service is ready
-      print('Service /set_bool is ready to receive requests.');
+      // debugPrint a message indicating the service is ready
+      debugPrint('Service /set_bool is ready to receive requests.');
 
       // Wait for up to 60 seconds for 3 service calls
       final completer = Completer<void>();

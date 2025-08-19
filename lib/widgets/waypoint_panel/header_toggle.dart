@@ -6,11 +6,11 @@ class HeaderToggle extends StatelessWidget {
   final VoidCallback onToggle;
 
   const HeaderToggle({
-    Key? key,
+    super.key,
     required this.isCollapsed,
     required this.modeColor,
     required this.onToggle,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

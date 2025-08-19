@@ -29,7 +29,7 @@ class ConnectionProvider extends ChangeNotifier {
   bool get isConnected => _isConnected;
   List<RobotProfile> get robots => _robots;
   RobotProfile? get activeRobot => _activeRobot;
-  Ros2? get ros2Client => _ros2Client;
+  Ros2 get ros2Client => _ros2Client!;
 
   // Add this getter for compatibility with connection_screen.dart
   List<Map<String, String>> get recentConnections {

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
@@ -18,7 +17,7 @@ class PlayIntegrityService {
       final String? token = await _channel.invokeMethod('getIntegrityToken');
       return token;
     } catch (e) {
-      print('Error getting integrity token: $e');
+      debugPrint('Error getting integrity token: $e');
       return null;
     }
   }
@@ -33,7 +32,7 @@ class PlayIntegrityService {
 
       return result.data['success'] ?? false;
     } catch (e) {
-      print('Error verifying integrity token: $e');
+      debugPrint('Error verifying integrity token: $e');
       return false;
     }
   }
@@ -44,13 +43,13 @@ class PlayIntegrityService {
     try {
       final token = await getIntegrityToken();
       if (token == null) {
-        print('Failed to get integrity token');
+        debugPrint('Failed to get integrity token');
         return false;
       }
 
       return await verifyIntegrityToken(token);
     } catch (e) {
-      print('Error checking device integrity: $e');
+      debugPrint('Error checking device integrity: $e');
       return false;
     }
   }

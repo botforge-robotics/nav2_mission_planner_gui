@@ -249,7 +249,7 @@ class MissionItem {
 
         // Add frequency information if available
         if (publishFrequencyType == 'hz' && publishFrequency != null) {
-          details += ' • ${publishFrequency} Hz';
+          details += ' • $publishFrequency Hz';
         } else if (publishFrequencyType == 'duration' &&
             publishDuration != null) {
           details += ' • ${publishDuration}s';
