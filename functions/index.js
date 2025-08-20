@@ -42,11 +42,22 @@ exports.submitFeedback = purchaseFunctions.submitFeedback;
 // Health check
 exports.healthCheck = onCall({ enforceAppCheck: config.enableAppCheck }, (request) => {
   const data = request.data || {};
+  const deviceId = data.deviceId || "unknown";
+
+  // Import rate limiter for status check
+  const AppCheckRateLimiter = require("./src/utils/appCheckRateLimiter");
+  const rateLimitStatus = AppCheckRateLimiter.getStatus(deviceId);
+
   return {
     success: true,
     message: "Nav2 Mission Planner Cloud Functions are running",
     timestamp: new Date().toISOString(),
     version: "2.1.0", // Updated version for new payment verification system
     receivedData: data,
+    appCheckStatus: {
+      enabled: config.enableAppCheck,
+      rateLimitStatus: rateLimitStatus,
+      config: config.appCheckConfig
+    }
   };
 });

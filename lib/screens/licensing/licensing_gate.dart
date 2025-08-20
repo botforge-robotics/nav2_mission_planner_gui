@@ -165,16 +165,14 @@ class _LicensingGateState extends State<LicensingGate> {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: context.read<BrandingProvider>().themeColor,
+              ),
               onPressed: () async {
                 final deviceId = await DeviceService.getDeviceId();
                 await lp.transferLicense(deviceId);
               },
               child: const Text('Transfer to This Device'),
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () => lp.refresh(),
-              child: const Text('Refresh Status'),
             ),
           ],
         ),

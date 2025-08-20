@@ -1,9 +1,16 @@
 class AppConfig {
-  // Disable client App Check during development; backend also disabled via config
+  // App Check Configuration
   static const bool enableAppCheck = true;
-  
+
+  // App Check token refresh settings
+  static const int tokenRefreshIntervalMinutes =
+      30; // Refresh token every 30 minutes
+  static const int minFetchIntervalSeconds =
+      5; // Minimum 5 seconds between token fetches
+
   // Firebase Cloud Functions URL
-  static const String cloudFunctionsUrl = 'https://us-central1-nav2-mission-planner.cloudfunctions.net';
+  static const String cloudFunctionsUrl =
+      'https://us-central1-nav2-mission-planner.cloudfunctions.net';
 
   // Google Sign-In
   static const String webClientId = '';

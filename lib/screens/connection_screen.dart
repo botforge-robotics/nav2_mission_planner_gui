@@ -5,8 +5,12 @@ import '../providers/connection_provider.dart';
 import '../providers/branding_provider.dart';
 import '../widgets/top_status_bar/top_status_bar.dart';
 import '../widgets/background_feature_cards.dart';
+import '../widgets/guide_highlight_widget.dart';
+import '../widgets/guide_focus_mask_widget.dart';
 import '../constants/modes.dart';
 import '../theme/app_theme.dart';
+import '../services/guide_service.dart';
+import '../services/guide_launcher_service.dart';
 import 'robot_setup_wizard.dart';
 import 'home_screen.dart';
 import 'dart:ui';
@@ -74,6 +78,70 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
         margin: EdgeInsets.all(8),
       ),
     );
+  }
+
+  /// Show connection guide dialog and mark guide as shown
+  Future<void> _showConnectionGuide(BuildContext context) async {
+    // Mark guide as shown
+    await GuideService.markGuideAsShown(GuideIds.connectionGuide);
+
+    // Show guide dialog
+    await GuideLauncherService.showGuideDialog(
+      context,
+      title: 'Robot Connection Guide',
+      content:
+          'This guide will help you set up your robot for use with Nav2 Mission Planner. '
+          'It includes:\n\n'
+          '• Required ROS2 packages\n'
+          '• Launch file configuration\n'
+          '• Robot setup instructions\n'
+          '• Troubleshooting tips\n\n'
+          'The guide URL will be copied to your clipboard.',
+      actionLabel: 'Copy Guide URL',
+      onAction: () async {
+        await GuideLauncherService.launchNav2Guide();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Guide URL copied to clipboard!'),
+              backgroundColor: Colors.green.shade600,
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  /// Reset connection guide for testing (long press)
+  Future<void> _resetConnectionGuide(BuildContext context) async {
+    await GuideService.resetGuide(GuideIds.connectionGuide);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Guide reset! Highlight will show again.'),
+          backgroundColor: Colors.orange.shade600,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      // Rebuild to show highlight again
+      setState(() {});
+    }
+  }
+
+  /// Dismiss the focus mask and mark guide as shown
+  Future<void> _dismissFocusMask(BuildContext context) async {
+    await GuideService.markGuideAsShown(GuideIds.connectionGuide);
+    if (context.mounted) {
+      setState(() {});
+      // Force rebuild to hide the focus mask
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (context.mounted) {
+        setState(() {});
+      }
+    }
   }
 
   Future<void> _connectToRobot(
@@ -258,6 +326,50 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                   ),
                 ],
               ),
+              // Guide icon in bottom left
+              Positioned(
+                left: 16,
+                bottom: 16,
+                child: FutureBuilder<bool>(
+                  future: GuideService.isGuideShown(GuideIds.connectionGuide),
+                  builder: (context, snapshot) {
+                    final showHighlight = !(snapshot.data ?? false);
+                    if (showHighlight) {
+                      // Show focus mask for first-time users
+                      return GuideFocusMaskWidget(
+                        onTap: () => _showConnectionGuide(context),
+                        onLongPress: () => _resetConnectionGuide(context),
+                        onDismiss: () => _dismissFocusMask(context),
+                        guideUrl:
+                            'https://github.com/botforge-robotics/nav2_mission_planner',
+                        highlightMessage:
+                            'Click here for setup instructions and robot configuration guide',
+                        icon: FontAwesomeIcons.bookOpen,
+                        iconColor: Colors.white, // Manual icon is white
+                        iconSize: 32.0,
+                        iconPadding: const EdgeInsets.all(12.0),
+                        iconPosition: const Offset(
+                            40, 40), // Position relative to bottom-left
+                      );
+                    } else {
+                      // Show regular guide icon for returning users
+                      return GuideHighlightWidget(
+                        onTap: () => _showConnectionGuide(context),
+                        onLongPress: () => _resetConnectionGuide(context),
+                        guideUrl:
+                            'https://github.com/botforge-robotics/nav2_mission_planner',
+                        showHighlight: false,
+                        highlightMessage:
+                            'Click here for setup instructions and robot configuration guide',
+                        icon: FontAwesomeIcons.bookOpen,
+                        iconColor: Colors.white, // Manual icon is white
+                        size: 32.0,
+                        padding: const EdgeInsets.all(12.0),
+                      );
+                    }
+                  },
+                ),
+              ),
             ],
           ),
         );
@@ -272,35 +384,83 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    return Row(
+    return Stack(
       children: [
-        if (!keyboardVisible || screenHeight > 600)
-          Container(
-            width: 300,
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.6),
-              border: Border(
-                right: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.05), width: 1),
+        Row(
+          children: [
+            if (!keyboardVisible || screenHeight > 600)
+              Container(
+                width: 300,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  border: Border(
+                    right: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.05), width: 1),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildListHeader(context),
+                    Expanded(
+                      child: _buildConnectionsList(
+                          context, connectionProvider, brandingProvider),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: KeyboardDismissOnTap(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: _buildScrollableForm(context),
+                ),
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildListHeader(context),
-                Expanded(
-                  child: _buildConnectionsList(
-                      context, connectionProvider, brandingProvider),
-                ),
-              ],
-            ),
-          ),
-        Expanded(
-          child: KeyboardDismissOnTap(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: _buildScrollableForm(context),
-            ),
+          ],
+        ),
+        // Guide icon in bottom left for split screen
+        Positioned(
+          left: 16,
+          bottom: 16,
+          child: FutureBuilder<bool>(
+            future: GuideService.isGuideShown(GuideIds.connectionGuide),
+            builder: (context, snapshot) {
+              final showHighlight = !(snapshot.data ?? false);
+              if (showHighlight) {
+                // Show focus mask for first-time users
+                return GuideFocusMaskWidget(
+                  onTap: () => _showConnectionGuide(context),
+                  onLongPress: () => _resetConnectionGuide(context),
+                  onDismiss: () => _dismissFocusMask(context),
+                  guideUrl:
+                      'https://github.com/botforge-robotics/nav2_mission_planner',
+                  highlightMessage:
+                      'Click here for setup instructions and robot configuration guide',
+                  icon: FontAwesomeIcons.bookOpen,
+                  iconColor: Colors.white, // Manual icon is white
+                  iconSize: 32.0,
+                  iconPadding: const EdgeInsets.all(12.0),
+                  iconPosition:
+                      const Offset(40, 40), // Position relative to bottom-left
+                );
+              } else {
+                // Show regular guide icon for returning users
+                return GuideHighlightWidget(
+                  onTap: () => _showConnectionGuide(context),
+                  onLongPress: () => _showConnectionGuide(context),
+                  guideUrl:
+                      'https://github.com/botforge-robotics/nav2_mission_planner',
+                  showHighlight: false,
+                  highlightMessage:
+                      'Click here for setup instructions and robot configuration guide',
+                  icon: FontAwesomeIcons.bookOpen,
+                  iconColor: Colors.white, // Manual icon is white
+                  size: 32.0,
+                  padding: const EdgeInsets.all(12.0),
+                );
+              }
+            },
           ),
         ),
       ],

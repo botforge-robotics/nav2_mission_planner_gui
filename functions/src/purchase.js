@@ -352,6 +352,21 @@ async function updatePaymentAndAccountStatus(accountId, deviceId, paymentId, sta
     const accountRef = db.collection(config.collections.accounts).doc(accountId);
     const deviceRef = db.collection(config.collections.devices).doc(deviceId);
 
+    // PERFORM ALL READS FIRST (before any writes)
+    let paymentData = null;
+    let accountData = null;
+
+    if (status === "paid" || status === "cancelled") {
+      // Get the payment document to access productId (for paid) or check current status (for cancelled)
+      const paymentDoc = await tx.get(paymentRef);
+      paymentData = paymentDoc.data();
+
+      // Get current account status for cancellation checks
+      const accountSnap = await tx.get(accountRef);
+      accountData = accountSnap.exists ? accountSnap.data() : null;
+    }
+
+    // NOW PERFORM ALL WRITES
     // Update payment status and add verification log
     tx.update(paymentRef, {
       status: status,
@@ -368,9 +383,6 @@ async function updatePaymentAndAccountStatus(accountId, deviceId, paymentId, sta
       // Payment successful - activate license
       console.log(`🔑 Activating license for account ${accountId}`);
 
-      // Get the payment document to access productId
-      const paymentDoc = await tx.get(paymentRef);
-      const paymentData = paymentDoc.data();
       const productId = paymentData?.productId;
 
       // Map product to license type (fallback to premium if mapping not found)
@@ -407,8 +419,7 @@ async function updatePaymentAndAccountStatus(accountId, deviceId, paymentId, sta
 
     } else if (status === "cancelled") {
       // Payment cancelled - check if license was active before revoking
-      const accountSnap = await tx.get(accountRef);
-      const currentLicenseStatus = accountSnap.exists ? accountSnap.data().licenseStatus : null;
+      const currentLicenseStatus = accountData?.licenseStatus;
 
       if (currentLicenseStatus === "active" || currentLicenseStatus === "licensed") {
         // License was active - revoke it
@@ -459,8 +470,7 @@ async function updatePaymentAndAccountStatus(accountId, deviceId, paymentId, sta
 
     } else if (status === "refunded" || status === "chargeback") {
       // Payment refunded/chargeback - check if license was active before revoking
-      const accountSnap = await tx.get(accountRef);
-      const currentLicenseStatus = accountSnap.exists ? accountSnap.data().licenseStatus : null;
+      const currentLicenseStatus = accountData?.licenseStatus;
 
       if (currentLicenseStatus === "active" || currentLicenseStatus === "licensed") {
         // License was active - revoke it
@@ -511,7 +521,6 @@ async function updatePaymentAndAccountStatus(accountId, deviceId, paymentId, sta
     }
   });
 
-
   console.log(`✅ Payment ${paymentId} status updated to ${status} and database records updated`);
 }
 
@@ -556,6 +565,35 @@ exports.handlePlayRtdn = onMessagePublished({ topic: config.rtdn.topic }, async 
     console.error("❌ Error handling RTDN:", error);
   }
 });
+
+/**
+ * Acknowledges a purchase in Google Play to mark it as complete
+ * This prevents "itemAlreadyOwned" errors
+ */
+async function acknowledgePurchaseInGooglePlay(purchaseToken, productId) {
+  try {
+    if (!purchaseToken || !productId) {
+      console.log("⚠️ Missing purchaseToken or productId for acknowledgment");
+      return;
+    }
+
+    const client = getGooglePlayClient();
+
+    console.log(`🔄 Acknowledging purchase in Google Play: ${productId}`);
+
+    // Acknowledge the purchase
+    await client.purchases.products.acknowledge({
+      packageName: config.packageName,
+      productId: productId,
+      token: purchaseToken
+    });
+
+    console.log(`✅ Purchase acknowledged successfully in Google Play: ${productId}`);
+  } catch (error) {
+    console.error("❌ Error acknowledging purchase in Google Play:", error);
+    throw error;
+  }
+}
 
 // Handle OneTimeProductNotification (purchases, cancellations, refunds, deferrals)
 async function handleOneTimeProductNotification(oneTime) {
@@ -771,6 +809,21 @@ async function handleOneTimeProductNotification(oneTime) {
         paymentDoc.id,
         mapRtdnStatusToInternal(status)
       );
+    }
+
+    // MARK PURCHASE AS COMPLETE IN GOOGLE PLAY when status is paid or cancelled
+    if (newStatus === "paid" || newStatus === "cancelled") {
+      try {
+        console.log(`🔄 Marking purchase as complete in Google Play for status: ${newStatus}`);
+
+        // Call Google Play API to acknowledge/complete the purchase
+        await acknowledgePurchaseInGooglePlay(payment.verificationData?.serverVerificationData, payment.productId);
+
+        console.log("✅ Purchase marked as complete in Google Play");
+      } catch (error) {
+        console.error("❌ Failed to mark purchase as complete in Google Play:", error);
+        // Don't fail the entire RTDN processing if this fails
+      }
     }
 
     console.log(`✅ RTDN processing complete for payment: ${paymentDoc.id}`);
@@ -1033,23 +1086,60 @@ async function handleVoidedPurchaseNotification(voidedPurchase) {
 
   console.log(`📊 Voided purchase status mapping: ${refundType} → ${status}`);
 
-  // Find existing payment record
-  const payQuery = await db.collection(config.collections.payments)
+  // Find existing payment record by multiple search strategies
+  let paymentDoc = null;
+  let payment = null;
+
+  // Strategy 1: Search by purchaseToken field
+  let payQuery = await db.collection(config.collections.payments)
     .where("purchaseToken", "==", purchaseToken)
     .limit(1)
     .get();
 
   if (!payQuery.empty) {
-    const paymentDoc = payQuery.docs[0];
-    const payment = paymentDoc.data();
+    paymentDoc = payQuery.docs[0];
+    payment = paymentDoc.data();
+    console.log(`✅ Found payment by purchaseToken field: ${paymentDoc.id}`);
+  } else {
+    // Strategy 2: Search by verificationData.serverVerificationData
+    console.log("🔍 No payment found by purchaseToken, searching by serverVerificationData...");
 
+    payQuery = await db.collection(config.collections.payments)
+      .where("verificationData.serverVerificationData", "==", purchaseToken)
+      .limit(1)
+      .get();
+
+    if (!payQuery.empty) {
+      paymentDoc = payQuery.docs[0];
+      payment = paymentDoc.data();
+      console.log(`✅ Found payment by serverVerificationData: ${paymentDoc.id}`);
+    } else {
+      // Strategy 3: Search by orderId (for Google Play orders)
+      if (orderId && orderId.startsWith("GPA.")) {
+        console.log("🔍 No payment found by serverVerificationData, searching by orderId...");
+
+        payQuery = await db.collection(config.collections.payments)
+          .where("orderId", "==", orderId)
+          .limit(1)
+          .get();
+
+        if (!payQuery.empty) {
+          paymentDoc = payQuery.docs[0];
+          payment = paymentDoc.data();
+          console.log(`✅ Found payment by orderId: ${paymentDoc.id}`);
+        }
+      }
+    }
+  }
+
+  if (paymentDoc && payment) {
+    // Found existing payment - update it instead of creating duplicate
     console.log(`🔄 Updating existing payment ${paymentDoc.id} to ${status}`);
 
     // Update payment status
     await paymentDoc.ref.update({
       status: status,
       refundType: refundType,
-      orderId: orderId,
       rtdnReceived: true,
       rtdnTimestamp: new Date(),
       updatedAt: new Date(),
@@ -1061,6 +1151,20 @@ async function handleVoidedPurchaseNotification(voidedPurchase) {
       })
     });
 
+    // MARK PURCHASE AS COMPLETE IN GOOGLE PLAY for refunds
+    if (status === "refunded" || status === "partially_refunded") {
+      try {
+        console.log("🔄 Marking refunded purchase as complete in Google Play");
+
+        await acknowledgePurchaseInGooglePlay(payment.purchaseToken ||
+          payment.verificationData?.serverVerificationData, payment.productId);
+
+        console.log("✅ Refunded purchase marked as complete in Google Play");
+      } catch (error) {
+        console.error("❌ Failed to mark refunded purchase as complete:", error);
+      }
+    }
+
     // Update account status if we have account info
     if (payment.accountId && payment.deviceId) {
       await updatePaymentAndAccountStatus(
@@ -1071,35 +1175,43 @@ async function handleVoidedPurchaseNotification(voidedPurchase) {
       );
     }
 
-    console.log(`✅ Voided purchase processed: ${paymentDoc.id}`);
+    console.log(`✅ Existing payment updated to ${status}: ${paymentDoc.id}`);
   } else {
+    // No existing payment found - this should be rare but handle gracefully
     console.log(`⚠️ No payment record found for voided purchase token: ${purchaseToken}`);
+    console.log("🔍 Searched by: purchaseToken, serverVerificationData, and orderId");
 
-    // Create orphaned voided payment record
-    const paymentId = `PAY-VOIDED-${Date.now()}-${purchaseToken.substring(0, 8)}`;
-    const now = new Date();
+    // Only create orphaned record if we have minimal required data
+    if (orderId && orderId.startsWith("GPA.")) {
+      console.log(`📝 Creating orphaned voided payment record for order: ${orderId}`);
 
-    const paymentData = {
-      paymentId,
-      purchaseToken,
-      orderId: orderId || null,
-      status: status,
-      refundType: refundType,
-      productType: productType,
-      rtdnReceived: true,
-      rtdnTimestamp: now,
-      createdAt: now,
-      updatedAt: now,
-      verificationLog: [{
-        ts: now,
+      const paymentId = `PAY-VOIDED-${Date.now()}-${purchaseToken.substring(0, 8)}`;
+      const now = new Date();
+
+      const paymentData = {
+        paymentId,
+        purchaseToken,
+        orderId: orderId,
         status: status,
-        notes: `Voided purchase from RTDN: refundType=${refundType}, productType=${productType}`,
-        source: "rtdn_voided"
-      }]
-    };
+        refundType: refundType,
+        productType: productType,
+        rtdnReceived: true,
+        rtdnTimestamp: now,
+        createdAt: now,
+        updatedAt: now,
+        verificationLog: [{
+          ts: now,
+          status: status,
+          notes: `Voided purchase from RTDN: refundType=${refundType}, productType=${productType}`,
+          source: "rtdn_voided"
+        }]
+      };
 
-    await db.collection(config.collections.payments).doc(paymentId).set(paymentData);
-    console.log(`✅ Created voided payment record: ${paymentId}`);
+      await db.collection(config.collections.payments).doc(paymentId).set(paymentData);
+      console.log(`✅ Created orphaned voided payment record: ${paymentId}`);
+    } else {
+      console.log("⚠️ Insufficient data to create orphaned voided payment record");
+    }
   }
 
   // Log the voided purchase processing
@@ -1110,7 +1222,9 @@ async function handleVoidedPurchaseNotification(voidedPurchase) {
       orderId,
       productType,
       refundType,
-      status
+      status,
+      existingPaymentFound: !!(paymentDoc && payment),
+      paymentId: paymentDoc ? paymentDoc.id : null
     },
     timestamp: new Date(),
   });

@@ -2,10 +2,9 @@ buildscript {
     repositories {
         google()
         mavenCentral()
-        jcenter()  // Required for older FFmpeg versions
     }
     dependencies {
-        classpath 'com.google.gms:google-services:4.4.0' // Added for Firebase
+        classpath 'com.google.gms:google-services:4.4.1' // Updated for Firebase
     }
 }
 
@@ -13,7 +12,6 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        jcenter()  // Required for older FFmpeg versions
     }
 }
 

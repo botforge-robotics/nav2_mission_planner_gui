@@ -1,7 +1,17 @@
 // Centralized configuration for Cloud Functions
 
 const config = {
-  enableAppCheck: false, // temporarily disabled to unblock local/release sideload testing
+  // App Check Configuration
+  enableAppCheck: true, // Enable App Check enforcement
+  appCheckConfig: {
+    // Rate limiting for App Check token verification
+    maxTokenRequestsPerMinute: 10,
+    // Allow some flexibility for development/testing
+    allowDebugTokens: process.env.NODE_ENV === "development",
+    // Token refresh grace period (seconds)
+    tokenRefreshGracePeriod: 300, // 5 minutes
+  },
+
   requireAuth: true, // temporarily disabled for testing - set to true in production
   collections: {
     accounts: "accounts",
@@ -15,10 +25,10 @@ const config = {
   // Map Play product IDs to license metadata
   productMap: {
     // Test product IDs (consumable - allows multiple purchases from same Google account)
-    n2mp_tetsing_id: {
+    n2mp_individual_life: {
       licenseType: "individual",
       consumable: true,
-      price: 2000,
+      price: 1990,
       currency: "INR"
     },
   },
