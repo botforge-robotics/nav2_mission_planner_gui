@@ -6,7 +6,8 @@ const { ensureAuthenticated, ensureAccountMatches } = require("./auth");
 const {
   createSuccessResponse,
   createErrorResponse,
-  validateRequiredFields
+  validateRequiredFields,
+  createSafeDocumentId
 } = require("./utils/response");
 
 const db = admin.firestore();
@@ -297,15 +298,15 @@ async function verifyWithGooglePlay(purchaseToken, productId) {
 
     // Determine status based on Google Play purchase state
     switch (purchase.purchaseState) {
-    case 0: // Purchased
-      return { status: "paid", details: purchase };
-    case 1: // Canceled
-      return { status: "cancelled", details: purchase };
-    case 2: // Pending
-      return { status: "pending", details: purchase };
-    default:
-      console.log(`⚠️ Unknown purchase state: ${purchase.purchaseState}`);
-      return { status: "failed", details: purchase };
+      case 0: // Purchased
+        return { status: "paid", details: purchase };
+      case 1: // Canceled
+        return { status: "cancelled", details: purchase };
+      case 2: // Pending
+        return { status: "pending", details: purchase };
+      default:
+        console.log(`⚠️ Unknown purchase state: ${purchase.purchaseState}`);
+        return { status: "failed", details: purchase };
     }
 
   } catch (error) {
@@ -350,7 +351,8 @@ async function updatePaymentAndAccountStatus(accountId, deviceId, paymentId, sta
   await db.runTransaction(async (tx) => {
     const paymentRef = db.collection(config.collections.payments).doc(paymentId);
     const accountRef = db.collection(config.collections.accounts).doc(accountId);
-    const deviceRef = db.collection(config.collections.devices).doc(deviceId);
+    const safeDeviceId = createSafeDocumentId(deviceId);
+    const deviceRef = db.collection(config.collections.devices).doc(safeDeviceId);
 
     // PERFORM ALL READS FIRST (before any writes)
     let paymentData = null;
@@ -613,21 +615,21 @@ async function handleOneTimeProductNotification(oneTime) {
   // Map RTDN notification type to status (RTDN is more reliable than delayed API calls)
   let status;
   switch (notificationType) {
-  case 1: // PURCHASED
-    status = "paid";
-    break;
-  case 2: // CANCELED
-    status = "cancelled";
-    break;
-  case 3: // REFUNDED
-    status = "refunded";
-    break;
-  case 4: // DEFERRED (pending)
-    status = "pending";
-    break;
-  default:
-    status = "unknown";
-    console.log(`⚠️ Unknown RTDN notification type: ${notificationType}`);
+    case 1: // PURCHASED
+      status = "paid";
+      break;
+    case 2: // CANCELED
+      status = "cancelled";
+      break;
+    case 3: // REFUNDED
+      status = "refunded";
+      break;
+    case 4: // DEFERRED (pending)
+      status = "pending";
+      break;
+    default:
+      status = "unknown";
+      console.log(`⚠️ Unknown RTDN notification type: ${notificationType}`);
   }
 
   console.log(`📊 RTDN status mapping: ${notificationType} → ${status}`);
@@ -900,6 +902,9 @@ exports.storePurchaseDetails = onCall({ enforceAppCheck: config.enableAppCheck }
     const now = new Date();
     let purchaseTime = now;
 
+    // Create safe document ID for device operations
+    const safeDeviceId = createSafeDocumentId(deviceId);
+
     if (transactionDate) {
       console.log(`📅 Processing transactionDate: ${transactionDate} (type: ${typeof transactionDate})`);
 
@@ -1022,7 +1027,7 @@ exports.storePurchaseDetails = onCall({ enforceAppCheck: config.enableAppCheck }
       });
 
       // Update device with active license
-      await db.collection(config.collections.devices).doc(deviceId).update({
+      await db.collection(config.collections.devices).doc(safeDeviceId).update({
         licenseActive: true,
         lastLinked: now,
         updatedAt: now
@@ -1074,14 +1079,14 @@ async function handleVoidedPurchaseNotification(voidedPurchase) {
   // Map refund type to status
   let status;
   switch (refundType) {
-  case 1: // REFUND_TYPE_FULL_REFUND
-    status = "refunded";
-    break;
-  case 2: // REFUND_TYPE_QUANTITY_BASED_PARTIAL_REFUND
-    status = "partially_refunded";
-    break;
-  default:
-    status = "voided";
+    case 1: // REFUND_TYPE_FULL_REFUND
+      status = "refunded";
+      break;
+    case 2: // REFUND_TYPE_QUANTITY_BASED_PARTIAL_REFUND
+      status = "partially_refunded";
+      break;
+    default:
+      status = "voided";
   }
 
   console.log(`📊 Voided purchase status mapping: ${refundType} → ${status}`);

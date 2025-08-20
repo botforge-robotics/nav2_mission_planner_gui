@@ -7,6 +7,7 @@ const {
   validateRequiredFields,
   addDays,
   timestampToISO,
+  createSafeDocumentId
 } = require("./utils/response");
 
 
@@ -120,21 +121,22 @@ exports.startTrial = onCall({ enforceAppCheck: config.enableAppCheck }, async (r
 
     console.log(`🚀 Starting trial for account: ${accountId}, device: ${deviceId}`);
 
-    // Use raw device ID to match device registration
+    // Use safe document ID for device operations
     const accountsCol = db.collection(config.collections.accounts);
     const devicesCol = db.collection(config.collections.devices);
+    const safeDeviceId = createSafeDocumentId(deviceId);
 
     const now = new Date();
     const trialEndTime = addDays(now, config.trial.days);
 
     // Ensure device document exists before proceeding
     console.log(`🔍 Checking if device document exists: ${deviceId}`);
-    const deviceDoc = await devicesCol.doc(deviceId).get();
+    const deviceDoc = await devicesCol.doc(safeDeviceId).get();
 
     if (!deviceDoc.exists) {
       console.log(`📝 Creating device document for: ${deviceId}`);
       // Create basic device document if it doesn't exist
-      await devicesCol.doc(deviceId).set({
+      await devicesCol.doc(safeDeviceId).set({
         deviceId: deviceId, // Use raw device ID
         accountId: accountId,
         lastLinked: now,
@@ -197,7 +199,7 @@ exports.startTrial = onCall({ enforceAppCheck: config.enableAppCheck }, async (r
       tx.set(accountRef, accountData, { merge: true });
 
       // Create/update device document
-      const deviceRef = devicesCol.doc(deviceId);
+      const deviceRef = devicesCol.doc(safeDeviceId);
       const deviceData = {
         deviceId: deviceId, // Use raw device ID
         accountId: accountId,

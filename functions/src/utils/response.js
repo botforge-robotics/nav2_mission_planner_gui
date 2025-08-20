@@ -172,6 +172,16 @@ function decodeDeviceId(encodedDeviceId) {
   return decoded;
 }
 
+/**
+ * Create a safe Firestore document ID from a device ID
+ * @param {string} deviceId - The original device ID
+ * @returns {string} A safe document ID for Firestore
+ */
+function createSafeDocumentId(deviceId) {
+  const crypto = require("crypto");
+  return crypto.createHash("sha256").update(deviceId).digest("hex");
+}
+
 module.exports = {
   createSuccessResponse,
   createErrorResponse,
@@ -183,5 +193,6 @@ module.exports = {
   createTimestamp,
   timestampToISO,
   isoToTimestamp,
-  decodeDeviceId
+  decodeDeviceId,
+  createSafeDocumentId
 };

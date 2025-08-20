@@ -6,6 +6,7 @@ const {
   createErrorResponse,
   validateRequiredFields,
   addDays,
+  createSafeDocumentId
 } = require("./utils/response");
 
 
@@ -26,6 +27,8 @@ exports.transferLicense = onCall({ enforceAppCheck: config.enableAppCheck }, asy
 
     const accountsCol = db.collection(config.collections.accounts);
     const devicesCol = db.collection(config.collections.devices);
+    const safeNewDeviceId = createSafeDocumentId(newDeviceId);
+    const safePrevDeviceId = prevDeviceId ? createSafeDocumentId(prevDeviceId) : null;
 
     const now = new Date();
 
@@ -63,11 +66,11 @@ exports.transferLicense = onCall({ enforceAppCheck: config.enableAppCheck }, asy
       });
 
       if (prevDeviceId) {
-        const prevRef = devicesCol.doc(prevDeviceId);
+        const prevRef = devicesCol.doc(safePrevDeviceId);
         tx.set(prevRef, { licenseRevoked: true, updatedAt: now }, { merge: true });
       }
 
-      const newRef = devicesCol.doc(newDeviceId);
+      const newRef = devicesCol.doc(safeNewDeviceId);
       tx.set(
         newRef,
         {

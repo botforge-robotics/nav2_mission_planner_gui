@@ -8,7 +8,8 @@ const {
   validateDeviceId,
   sanitizeData,
   createTimestamp,
-  timestampToISO
+  timestampToISO,
+  createSafeDocumentId
 } = require("./utils/response");
 
 
@@ -48,9 +49,11 @@ exports.registerDevice = onCall({
     const deviceId = sanitizedData.deviceId;
     const accountId = sanitizedData.accountId;
 
+    // Create a safe document ID by hashing the device ID
+    const safeDocumentId = createSafeDocumentId(deviceId);
 
     // Check if device already exists
-    const deviceDoc = await db.collection(COLLECTION_NAME).doc(deviceId).get();
+    const deviceDoc = await db.collection(COLLECTION_NAME).doc(safeDocumentId).get();
 
     if (deviceDoc.exists) {
       // Device exists - return existing data
@@ -80,7 +83,7 @@ exports.registerDevice = onCall({
       updatedAt: now,
     };
 
-    await db.collection(COLLECTION_NAME).doc(deviceId).set(deviceData);
+    await db.collection(COLLECTION_NAME).doc(safeDocumentId).set(deviceData);
 
     return createSuccessResponse(
       deviceData,
