@@ -9,6 +9,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../providers/licensing_provider.dart';
 import '../constants/app_config.dart';
 import '../services/device_service.dart';
+import '../services/licensing_service.dart';
 
 class PurchaseService {
   static const String _baseUrl = AppConfig.cloudFunctionsUrl;
@@ -52,8 +53,11 @@ class PurchaseService {
           break;
 
         case PurchaseStatus.purchased:
-          debugPrint('✅ Purchase completed - verifying with backend');
-          _verifyPurchaseWithBackend(purchaseDetails, licensingProvider);
+          debugPrint(
+              '✅ Purchase completed - waiting 7 seconds for backend sync, then verifying');
+          // Show pending screen while waiting for backend sync
+          _storePendingPurchase(purchaseDetails, licensingProvider);
+          _handleCompletedPurchase(purchaseDetails, licensingProvider);
           break;
 
         case PurchaseStatus.restored:
@@ -247,7 +251,8 @@ class PurchaseService {
     clearPendingPurchase();
   }
 
-  // Verify purchase with backend using REAL purchase data
+  /// Verify purchase with backend and complete the purchase flow
+  /// This method is called after the 7-second delay and manual verification
   static Future<void> _verifyPurchaseWithBackend(
     PurchaseDetails purchaseDetails,
     LicensingProvider licensingProvider,
@@ -296,6 +301,71 @@ class PurchaseService {
       clearPendingPurchase();
     } catch (error) {
       debugPrint('❌ Error completing purchase: $error');
+    }
+  }
+
+  /// Handle completed purchase with 7-second delay for backend sync
+  static Future<void> _handleCompletedPurchase(
+    PurchaseDetails purchaseDetails,
+    LicensingProvider licensingProvider,
+  ) async {
+    try {
+      debugPrint(
+          '⏳ Waiting 7 seconds for Firebase backend to sync payment status...');
+
+      // Wait 7 seconds for Firebase backend to update
+      await Future.delayed(const Duration(seconds: 7));
+
+      debugPrint(
+          '🔍 7 seconds elapsed - now manually verifying payment status');
+
+      // Manually verify payment status with backend
+      final result = await LicensingService.checkPaymentStatus();
+
+      if (result['success'] == true) {
+        final paymentStatus = LicensingService.getPaymentStatus(result);
+        debugPrint(
+            '🔍 Manual verification result - Payment status: $paymentStatus');
+
+        if (paymentStatus == 'paid') {
+          debugPrint('✅ Payment confirmed as paid after manual verification');
+
+          // Complete the purchase flow
+          await _verifyPurchaseWithBackend(purchaseDetails, licensingProvider);
+
+          // Clear pending purchase state since it's now completed
+          clearPendingPurchase();
+
+          // Refresh the licensing provider to update the overall state
+          licensingProvider.refresh();
+
+          debugPrint(
+              '🚀 Purchase flow completed - user should now have access to connection screen');
+        } else if (paymentStatus == 'pending') {
+          debugPrint(
+              '⏳ Payment still pending after 7 seconds - continuing to wait');
+          // Keep waiting - the payment is still being processed
+          // The automatic payment status checking will handle this
+        } else {
+          debugPrint(
+              '❌ Payment status after verification: $paymentStatus - may need manual intervention');
+          // Payment failed or was cancelled - handle accordingly
+          await _verifyPurchaseWithBackend(purchaseDetails, licensingProvider);
+          // Clear pending purchase state for failed payments
+          clearPendingPurchase();
+        }
+      } else {
+        debugPrint(
+            '❌ Manual payment status verification failed: ${result['error']}');
+        // Fall back to original verification method
+        await _verifyPurchaseWithBackend(purchaseDetails, licensingProvider);
+      }
+    } catch (error) {
+      debugPrint('❌ Error in _handleCompletedPurchase: $error');
+      // Fall back to original verification method
+      await _verifyPurchaseWithBackend(purchaseDetails, licensingProvider);
+      // Clear pending purchase state on error
+      clearPendingPurchase();
     }
   }
 
