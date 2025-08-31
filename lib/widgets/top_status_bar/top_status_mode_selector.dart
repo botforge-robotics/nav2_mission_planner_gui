@@ -23,10 +23,8 @@ class TopStatusModeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      left: 0,
-      top: 0,
-      bottom: 0,
+    return Container(
+      height: height, // Take full height of status bar
       child: GestureDetector(
         onTap: () {
           final connection =
@@ -50,6 +48,10 @@ class TopStatusModeSelector extends StatelessWidget {
             ),
           ),
           child: Row(
+            mainAxisAlignment:
+                MainAxisAlignment.center, // Center content vertically
+            crossAxisAlignment:
+                CrossAxisAlignment.center, // Center content horizontally
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/connection_provider.dart';
@@ -96,7 +97,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           '• Launch file configuration\n'
           '• Robot setup instructions\n'
           '• Troubleshooting tips\n\n'
-          'The guide URL will be copied to your clipboard.',
+          'The guide URL will be copied to your clipboard, paste it in your browser to open the guide.',
       actionLabel: 'Copy Guide URL',
       onAction: () async {
         await GuideLauncherService.launchNav2Guide();
@@ -326,17 +327,25 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                   ),
                 ],
               ),
-              // Guide icon in bottom left
+              // Guide icon in bottom left - Single source of truth to prevent duplicates
               Positioned(
                 left: 16,
                 bottom: 16,
                 child: FutureBuilder<bool>(
                   future: GuideService.isGuideShown(GuideIds.connectionGuide),
                   builder: (context, snapshot) {
+                    // Add debug logging to track guide widget rendering
+                    if (kDebugMode) {
+                      debugPrint(
+                          '🔍 Guide widget rendering - showHighlight: ${!(snapshot.data ?? false)}');
+                    }
+
                     final showHighlight = !(snapshot.data ?? false);
                     if (showHighlight) {
                       // Show focus mask for first-time users
                       return GuideFocusMaskWidget(
+                        key: const ValueKey(
+                            'connection_guide_focus_mask'), // Add unique key
                         onTap: () => _showConnectionGuide(context),
                         onLongPress: () => _resetConnectionGuide(context),
                         onDismiss: () => _dismissFocusMask(context),
@@ -354,6 +363,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                     } else {
                       // Show regular guide icon for returning users
                       return GuideHighlightWidget(
+                        key: const ValueKey(
+                            'connection_guide_highlight'), // Add unique key
                         onTap: () => _showConnectionGuide(context),
                         onLongPress: () => _resetConnectionGuide(context),
                         guideUrl:
@@ -419,50 +430,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
             ),
           ],
         ),
-        // Guide icon in bottom left for split screen
-        Positioned(
-          left: 16,
-          bottom: 16,
-          child: FutureBuilder<bool>(
-            future: GuideService.isGuideShown(GuideIds.connectionGuide),
-            builder: (context, snapshot) {
-              final showHighlight = !(snapshot.data ?? false);
-              if (showHighlight) {
-                // Show focus mask for first-time users
-                return GuideFocusMaskWidget(
-                  onTap: () => _showConnectionGuide(context),
-                  onLongPress: () => _resetConnectionGuide(context),
-                  onDismiss: () => _dismissFocusMask(context),
-                  guideUrl:
-                      'https://github.com/botforge-robotics/nav2_mission_planner',
-                  highlightMessage:
-                      'Click here for setup instructions and robot configuration guide',
-                  icon: FontAwesomeIcons.bookOpen,
-                  iconColor: Colors.white, // Manual icon is white
-                  iconSize: 32.0,
-                  iconPadding: const EdgeInsets.all(12.0),
-                  iconPosition:
-                      const Offset(40, 40), // Position relative to bottom-left
-                );
-              } else {
-                // Show regular guide icon for returning users
-                return GuideHighlightWidget(
-                  onTap: () => _showConnectionGuide(context),
-                  onLongPress: () => _showConnectionGuide(context),
-                  guideUrl:
-                      'https://github.com/botforge-robotics/nav2_mission_planner',
-                  showHighlight: false,
-                  highlightMessage:
-                      'Click here for setup instructions and robot configuration guide',
-                  icon: FontAwesomeIcons.bookOpen,
-                  iconColor: Colors.white, // Manual icon is white
-                  size: 32.0,
-                  padding: const EdgeInsets.all(12.0),
-                );
-              }
-            },
-          ),
-        ),
+        // Note: Guide icon is handled in the main Stack to avoid duplicates
       ],
     );
   }

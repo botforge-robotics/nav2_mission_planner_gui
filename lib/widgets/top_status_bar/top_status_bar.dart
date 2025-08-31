@@ -43,120 +43,144 @@ class TopStatusBar extends StatelessWidget {
           color: AppTheme.toolbarColor,
           child: Stack(
             children: [
-              TopStatusModeSelector(
-                height: height,
-                connectionStatusColor: connectionStatusColor,
-                displayStatusText: displayStatusText,
-                currentMode: currentMode,
-                onModeChanged: (newMode) async {
-                  final launchManager =
-                      Provider.of<LaunchManager>(context, listen: false);
-                  final activeSession = launchManager.activeSession;
+              // Left side: Mode selector and trial badge in a row
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TopStatusModeSelector(
+                      height: height,
+                      connectionStatusColor: connectionStatusColor,
+                      displayStatusText: displayStatusText,
+                      currentMode: currentMode,
+                      onModeChanged: (newMode) async {
+                        final launchManager =
+                            Provider.of<LaunchManager>(context, listen: false);
+                        final activeSession = launchManager.activeSession;
 
-                  // Allow only specific mode transitions when sessions are active
-                  if (activeSession == SessionType.mapping &&
-                      newMode != AppModes.settings &&
-                      newMode != AppModes.mapping) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Stop mapping before changing modes'),
-                        backgroundColor: Colors.red.withOpacity(0.9),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                    return;
-                  }
-
-                  // Handle active navigation session
-                  if (activeSession == SessionType.navigation &&
-                      newMode != AppModes.settings &&
-                      newMode != AppModes.navigation) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Stop navigation before changing modes'),
-                        backgroundColor: Colors.red.withOpacity(0.9),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                    return;
-                  }
-
-                  if (newMode == AppModes.settings) {
-                    onModeChanged(newMode);
-                    return;
-                  }
-
-                  // Handle stopping active navigation or mapping sessions
-                  if ((currentMode == AppModes.mapping ||
-                          currentMode == AppModes.navigation) &&
-                      newMode != currentMode) {
-                    final launchManager =
-                        Provider.of<LaunchManager>(context, listen: false);
-                    if (launchManager.activeLaunches.isNotEmpty) {
-                      final shouldStop = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Active Session'),
-                          content: Text(
-                              'You have an active ${currentMode.name} session. Stop it before changing modes?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Keep Running'),
+                        // Allow only specific mode transitions when sessions are active
+                        if (activeSession == SessionType.mapping &&
+                            newMode != AppModes.settings &&
+                            newMode != AppModes.mapping) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content:
+                                  Text('Stop mapping before changing modes'),
+                              backgroundColor: Colors.red.withOpacity(0.9),
+                              duration: Duration(seconds: 2),
                             ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancel'),
-                            ),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red.withOpacity(0.9),
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Stop Session'),
-                            ),
-                          ],
-                        ),
-                      );
+                          );
+                          return;
+                        }
 
-                      if (shouldStop ?? false) {
-                        for (final entry
-                            in launchManager.activeLaunches.entries) {
-                          try {
-                            await launchManager.stopLaunch(context, entry.key);
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
+                        // Handle active navigation session
+                        if (activeSession == SessionType.navigation &&
+                            newMode != AppModes.settings &&
+                            newMode != AppModes.navigation) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content:
+                                  Text('Stop navigation before changing modes'),
+                              backgroundColor: Colors.red.withOpacity(0.9),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                          return;
+                        }
+
+                        if (newMode == AppModes.settings) {
+                          onModeChanged(newMode);
+                          return;
+                        }
+
+                        // Handle stopping active navigation or mapping sessions
+                        if ((currentMode == AppModes.mapping ||
+                                currentMode == AppModes.navigation) &&
+                            newMode != currentMode) {
+                          final launchManager = Provider.of<LaunchManager>(
+                              context,
+                              listen: false);
+                          if (launchManager.activeLaunches.isNotEmpty) {
+                            final shouldStop = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Active Session'),
                                 content: Text(
-                                    'Failed to stop session: ${e.toString()}'),
-                                backgroundColor: Colors.red.withOpacity(0.9),
+                                    'You have an active ${currentMode.name} session. Stop it before changing modes?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('Keep Running'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          Colors.red.withOpacity(0.9),
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: const Text('Stop Session'),
+                                  ),
+                                ],
                               ),
                             );
+
+                            if (shouldStop ?? false) {
+                              for (final entry
+                                  in launchManager.activeLaunches.entries) {
+                                try {
+                                  await launchManager.stopLaunch(
+                                      context, entry.key);
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          'Failed to stop session: ${e.toString()}'),
+                                      backgroundColor:
+                                          Colors.red.withOpacity(0.9),
+                                    ),
+                                  );
+                                }
+                              }
+                            } else {
+                              return; // Abort mode change
+                            }
                           }
                         }
-                      } else {
-                        return; // Abort mode change
-                      }
-                    }
-                  }
 
-                  // Proceed with mode change
-                  onModeChanged(newMode);
-                },
+                        // Proceed with mode change
+                        onModeChanged(newMode);
+                      },
+                    ),
+                    // Trial badge positioned after mode selector with proper spacing
+                    Padding(
+                      padding: EdgeInsets.only(left: 16), // Consistent spacing
+                      child: _TrialBadge(height: height),
+                    ),
+                  ],
+                ),
               ),
               const TopStatusCenterTitle(),
               Positioned(
                 right: -9,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     if (connection.isConnected)
                       TopStatusNetworkInfo(
                         height: height,
                         connectionStatusColor: connectionStatusColor,
                       ),
-                    _TrialBadge(height: height),
                     TopStatusConnectionButton(
                       height: height,
                       connectionStatusColor: connectionStatusColor,
@@ -210,6 +234,7 @@ class _TrialBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer2<LicensingProvider, BrandingProvider>(
       builder: (context, lp, branding, _) {
+        // Production logic - show trial badge only when trial is active
         if (lp.state != LicenseGateState.trialActive ||
             lp.trialEndTime == null) {
           return const SizedBox.shrink();
@@ -218,21 +243,28 @@ class _TrialBadge extends StatelessWidget {
             lp.trialEndTime!.difference(DateTime.now()).inDays.clamp(0, 999);
         return Container(
           margin: EdgeInsets.symmetric(horizontal: 8),
-          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: EdgeInsets.symmetric(
+              horizontal: 10, vertical: 4), // Reduced vertical padding
+          height: height * 0.7, // Decreased height to 70% of status bar height
           decoration: BoxDecoration(
             color: Colors.red.withOpacity(0.15),
             border: Border.all(color: Colors.red.withOpacity(0.85), width: 1),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center, // Center align content
+            crossAxisAlignment:
+                CrossAxisAlignment.center, // Center align vertically
             children: [
-              Icon(Icons.hourglass_bottom, size: 14, color: Colors.red),
-              const SizedBox(width: 6),
+              Icon(Icons.hourglass_bottom,
+                  size: 12, color: Colors.red), // Reduced icon size
+              const SizedBox(width: 4), // Reduced spacing
               Text(
                 'Trial: $remaining day${remaining == 1 ? '' : 's'} left',
                 style: TextStyle(
                   color: Colors.red,
-                  fontSize: 14,
+                  fontSize: 12, // Reduced font size
                   fontWeight: FontWeight.w700,
                 ),
               ),

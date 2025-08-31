@@ -311,8 +311,9 @@ class LicensingProvider extends ChangeNotifier {
   /// It:
   /// 1. Sets the state to loading
   /// 2. Calls the licensing service to transfer the license
-  /// 3. Refreshes the license status after the transfer
-  /// 4. Handles any errors that occur during the transfer
+  /// 3. Sets the license as active immediately for UI responsiveness
+  /// 4. Refreshes the license status after a delay to ensure server consistency
+  /// 5. Handles any errors that occur during the transfer
   ///
   /// Parameters:
   /// - `newDeviceId`: The unique identifier of the current device
@@ -329,7 +330,50 @@ class LicensingProvider extends ChangeNotifier {
         newDeviceId: newDeviceId,
       );
       if (res['success'] == true) {
-        await refresh();
+        debugPrint(
+            '✅ License transfer successful, setting as active immediately');
+
+        // Set license as active immediately for UI responsiveness
+        // This prevents the user from seeing the "linked to other device" screen again
+        final transferData = res['data'] as Map<String, dynamic>?;
+        final licenseType = transferData?['licenseType'] ?? 'individual';
+        final enterpriseId = transferData?['enterpriseId'];
+
+        // Set state to license active immediately
+        state = LicenseGateState.licenseActive;
+        this.licenseType = licenseType;
+        this.enterpriseId = enterpriseId;
+
+        // Set offline allowed until 24 hours from now
+        offlineAllowedUntil = DateTime.now().add(const Duration(days: 1));
+
+        // Cache license summary
+        await SecureStorageService.storeLicenseSummary(
+          status: 'license_active',
+          licenseType: licenseType,
+          enterpriseId: enterpriseId,
+          offlineAllowedUntil: offlineAllowedUntil?.toIso8601String(),
+          trialEndTime: null,
+        );
+
+        // Notify listeners immediately
+        statusMessage = null;
+        notifyListeners();
+
+        debugPrint(
+            '🔑 License set to active after transfer, refreshing from server in background');
+
+        // Refresh from server after a delay to ensure consistency
+        // This allows the server to fully process the transfer
+        Future.delayed(const Duration(seconds: 2), () async {
+          try {
+            await refresh();
+          } catch (e) {
+            debugPrint('⚠️ Background refresh after transfer failed: $e');
+            // Don't change the UI state if background refresh fails
+            // The license is already active locally
+          }
+        });
       } else {
         statusMessage = res['error']?['message'] ?? 'License transfer failed';
         await refresh();

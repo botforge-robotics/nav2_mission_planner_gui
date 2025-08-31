@@ -104,22 +104,39 @@ class _GuideHighlightWidgetState extends State<GuideHighlightWidget>
           child: GestureDetector(
             onTap: widget.onTap,
             onLongPress: widget.onLongPress,
-            child: Container(
-              width: widget.size,
-              height: widget.size,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(widget.size / 2),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  width: 1,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Circular container with just the icon
+                Container(
+                  width: widget.size,
+                  height: widget.size,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(widget.size / 2),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    widget.icon ?? FontAwesomeIcons.circleQuestion,
+                    size: widget.size * 0.6,
+                    color: Colors.white, // Manual icon is now white
+                  ),
                 ),
-              ),
-              child: Icon(
-                widget.icon ?? FontAwesomeIcons.circleQuestion,
-                size: widget.size * 0.6,
-                color: Colors.white, // Manual icon is now white
-              ),
+                // Text below the circular container
+                const SizedBox(height: 4), // Spacing between circle and text
+                Text(
+                  'Manual',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10, // Slightly larger since it's outside
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

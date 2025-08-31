@@ -17,14 +17,19 @@ class TopStatusNetworkInfo extends StatelessWidget {
     final connection = Provider.of<ConnectionProvider>(context);
 
     return Container(
-      height: height,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      height: height * 0.7, // Match trial badge height
+      padding: const EdgeInsets.symmetric(
+          horizontal: 12, vertical: 4), // Reduced vertical padding
       margin: const EdgeInsets.only(right: 8),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center, // Center align content
+        crossAxisAlignment:
+            CrossAxisAlignment.center, // Center align vertically
         children: [
-          Icon(Icons.language, color: connectionStatusColor, size: 15),
-          const SizedBox(width: 2),
+          Icon(Icons.language,
+              color: connectionStatusColor, size: 12), // Reduced icon size
+          const SizedBox(width: 4), // Reduced spacing
           Text(
             connection.ip.isNotEmpty
                 ? 'Robot IP: ${connection.ip}'

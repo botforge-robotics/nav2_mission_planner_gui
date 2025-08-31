@@ -28,12 +28,12 @@ exports.transferLicense = onCall({ enforceAppCheck: config.enableAppCheck }, asy
     const accountsCol = db.collection(config.collections.accounts);
     const devicesCol = db.collection(config.collections.devices);
     const safeNewDeviceId = createSafeDocumentId(newDeviceId);
-    const safePrevDeviceId = prevDeviceId ? createSafeDocumentId(prevDeviceId) : null;
 
     const now = new Date();
 
     let isTrial = false; // Initialize outside transaction
     let prevDeviceId = null;
+    let safePrevDeviceId = null; // Will be set after we get prevDeviceId
 
     await db.runTransaction(async (tx) => {
       // Read account by Firebase UID
@@ -53,6 +53,9 @@ exports.transferLicense = onCall({ enforceAppCheck: config.enableAppCheck }, asy
 
       prevDeviceId = acc.linkedDeviceId || null;
       isTrial = acc.licenseType === "trial";
+
+      // Set safePrevDeviceId after we have prevDeviceId
+      safePrevDeviceId = prevDeviceId ? createSafeDocumentId(prevDeviceId) : null;
 
       tx.update(accountRef, {
         linkedDeviceId: newDeviceId,
