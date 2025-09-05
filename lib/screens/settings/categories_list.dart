@@ -84,29 +84,36 @@ class CategoriesList extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         color: isSelected ? modeColor.withOpacity(0.2) : Colors.transparent,
       ),
-      child: ListTile(
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: screenSize.width * 0.015,
-          vertical: screenSize.height * 0.005,
-        ),
-        minLeadingWidth: 5,
-        leading: Icon(
-          icon,
-          size: 14,
-          color: isSelected ? modeColor : Colors.grey,
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 14,
-            color: isSelected ? modeColor : Colors.grey,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
+      child: InkWell(
         onTap: () => onCategorySelected(title),
-        selected: isSelected,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(15),
+        child: Container(
+          height: 55,
+          padding: EdgeInsets.symmetric(
+            horizontal: 15,
+            vertical: 8,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: isSelected ? modeColor : Colors.grey,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isSelected ? modeColor : Colors.grey,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

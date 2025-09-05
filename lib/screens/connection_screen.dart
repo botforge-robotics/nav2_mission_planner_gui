@@ -274,6 +274,17 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
           );
         }
       }
+    } else {
+      // Show error message when connection fails
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Robot not available at $ip'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -317,6 +328,8 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
                           color: Colors.grey.shade900.withValues(alpha: 0.3),
                         ),
                         child: SafeArea(
+                          left: false,
+                          right: false,
                           child: hasRecentConnections
                               ? _buildSplitScreen(
                                   context, connectionProvider, brandingProvider)

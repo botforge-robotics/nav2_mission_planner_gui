@@ -17,7 +17,7 @@ class MapSaveDialog extends StatefulWidget {
 class _MapSaveDialogState extends State<MapSaveDialog> {
   final _formKey = GlobalKey<FormState>();
   final _controller = TextEditingController();
-  bool _shouldStopMapping = true; // Default to stopping mapping
+  bool _shouldStopMapping = false; // Default to not stopping mapping
   bool _isSaving = false;
 
   bool _isValidMapName(String value) {

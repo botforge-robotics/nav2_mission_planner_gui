@@ -50,10 +50,12 @@ class ImageViewerState extends State<ImageViewer> {
 
   /// Copied & adapted from CameraTopicInput._fetchTopics()
   Future<void> _fetchTopics() async {
-    setState(() {
-      _topicLoading = true;
-      _topicError = null;
-    });
+    if (mounted) {
+      setState(() {
+        _topicLoading = true;
+        _topicError = null;
+      });
+    }
     try {
       final ros2 =
           Provider.of<ConnectionProvider>(context, listen: false).ros2Client;
@@ -71,11 +73,17 @@ class ImageViewerState extends State<ImageViewer> {
         TopicsForTypeRequest(type: 'sensor_msgs/msg/CompressedImage'),
       );
       final topics = resp.topics.where((t) => t.isNotEmpty).toList();
-      setState(() => _sessionTopics = topics);
+      if (mounted) {
+        setState(() => _sessionTopics = topics);
+      }
     } catch (e) {
-      setState(() => _topicError = 'Error fetching topics: $e');
+      if (mounted) {
+        setState(() => _topicError = 'Error fetching topics: $e');
+      }
     } finally {
-      setState(() => _topicLoading = false);
+      if (mounted) {
+        setState(() => _topicLoading = false);
+      }
     }
   }
 
@@ -127,7 +135,9 @@ class ImageViewerState extends State<ImageViewer> {
                       ),
                       error: (context, error, stack) {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                          setState(() => _errorText = 'Stream error: $error');
+                          if (mounted) {
+                            setState(() => _errorText = 'Stream error: $error');
+                          }
                         });
                         return Center(
                           child: Column(

@@ -71,7 +71,8 @@ class ConnectionProvider extends ChangeNotifier {
     try {
       _connectionController.add(ConnectionState.connecting);
       if (!await _isRobotAvailable(ip)) {
-        throw Exception('Robot not available at $ip');
+        _connectionController.add(ConnectionState.disconnected);
+        return false;
       }
 
       _ros2Client = Ros2(url: 'ws://$ip:$port');
@@ -145,7 +146,7 @@ class ConnectionProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _connectionController.add(ConnectionState.disconnected);
-      rethrow;
+      return false;
     }
   }
 

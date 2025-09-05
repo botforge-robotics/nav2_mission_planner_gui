@@ -4,7 +4,6 @@ import 'package:nav2_mission_planner/modals/mission.dart';
 import 'package:nav2_mission_planner/services/goal_service.dart';
 // Provider can be added later if ROS2 interaction is integrated
 import '../helpers/conversions.dart';
-import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:nav2_mission_planner/providers/connection_provider.dart';
 import 'package:image_gallery_saver/image_gallery_saver.dart';
@@ -226,22 +225,17 @@ class MissionExecutionService extends ChangeNotifier {
     // Extract publish parameters with sensible defaults
     final freqType = item.publishFrequencyType ?? 'once';
     final hz = (item.publishFrequency ?? 1).clamp(0.1, 1000);
-    final durationSecs = (item.publishDuration ?? 1).clamp(0.1, 300);
 
-    // Advertise the topic first
-    ros2.send({
-      'op': 'advertise',
-      'topic': item.publishTopic,
-      'type': item.publishMsgType,
-    });
+    // Use DynamicPublisher from ros2_api library
+    final publisher = DynamicPublisher(
+      ros2: ros2,
+      topicName: item.publishTopic!,
+      topicType: item.publishMsgType!,
+    );
 
     // Helper to publish once
     void publishOnce() {
-      ros2.send({
-        'op': 'publish',
-        'topic': item.publishTopic,
-        'msg': item.publishMessage ?? {},
-      });
+      publisher.publish(item.publishMessage ?? {});
     }
 
     switch (freqType) {
@@ -279,7 +273,7 @@ class MissionExecutionService extends ChangeNotifier {
               // Mission finished, stop timer
               t.cancel();
               _activePublishTimers.remove(t);
-              ros2.send({'op': 'unadvertise', 'topic': item.publishTopic});
+              publisher.unadvertise();
               return;
             }
             publishOnce();
@@ -309,7 +303,7 @@ class MissionExecutionService extends ChangeNotifier {
             if (!_isRunning) {
               t.cancel();
               _activePublishTimers.remove(t);
-              ros2.send({'op': 'unadvertise', 'topic': item.publishTopic});
+              publisher.unadvertise();
               return;
             }
 
@@ -321,7 +315,7 @@ class MissionExecutionService extends ChangeNotifier {
             if (nextGotoIndex != -1 && _currentIndex > nextGotoIndex) {
               t.cancel();
               _activePublishTimers.remove(t);
-              ros2.send({'op': 'unadvertise', 'topic': item.publishTopic});
+              publisher.unadvertise();
               return;
             }
 
@@ -338,10 +332,7 @@ class MissionExecutionService extends ChangeNotifier {
     }
 
     // Unadvertise after blocking publish loop finishes
-    ros2.send({
-      'op': 'unadvertise',
-      'topic': item.publishTopic,
-    });
+    publisher.unadvertise();
 
     return true;
   }
@@ -354,46 +345,34 @@ class MissionExecutionService extends ChangeNotifier {
 
     if (item.serviceName == null) return false;
 
-    final callId = ros2.requestServiceCaller(item.serviceName!);
-
     if (item.waitForServiceResponse == true) {
       _isWaitingForResponse = true;
       _broadcast();
     }
 
-    // Listen for the response (if needed)
-    StreamSubscription? sub;
-    Completer<bool> completer = Completer<bool>();
+    try {
+      // Use DynamicServiceClient from ros2_api library
+      final serviceClient = DynamicServiceClient(
+        ros2: ros2,
+        serviceName: item.serviceName!,
+        serviceType: item.serviceType ?? '',
+      );
 
-    if (item.waitForServiceResponse == true) {
-      sub = ros2.stream
-          .where((m) => m['op'] == 'service_response')
-          .where((m) => m['service'] == item.serviceName)
-          .where((m) => m['id'] == callId)
-          .listen((message) {
-        completer.complete(message['result'] == true);
-      });
-    } else {
-      completer.complete(true); // we don't care about response
+      final result = await serviceClient.call(
+        requestArgs: item.serviceRequest ?? {},
+        timeout: const Duration(minutes: 5),
+      );
+
+      final success = result != null;
+
+      _isWaitingForResponse = false;
+      _broadcast();
+      return success;
+    } catch (e) {
+      _isWaitingForResponse = false;
+      _broadcast();
+      return false;
     }
-
-    // Send the request
-    ros2.send({
-      'op': 'call_service',
-      'service': item.serviceName,
-      'args': item.serviceRequest ?? {},
-      'id': callId,
-      'type': item.serviceType ?? '',
-    });
-
-    final success = await completer.future
-        .timeout(const Duration(seconds: 10), onTimeout: () => false);
-
-    await sub?.cancel();
-
-    _isWaitingForResponse = false;
-    _broadcast();
-    return success;
   }
 
   Future<bool> _handleActionCall(BuildContext context, MissionItem item) async {
@@ -403,46 +382,38 @@ class MissionExecutionService extends ChangeNotifier {
 
     if (item.actionName == null) return false;
 
-    final goalId = ros2.requestActionCaller(item.actionName!);
-
     if (item.waitForActionResult == true) {
       _isWaitingForResult = true;
       _broadcast();
     }
 
-    StreamSubscription? sub;
-    Completer<bool> completer = Completer<bool>();
+    try {
+      // Use DynamicActionClient from ros2_api library
+      final actionClient = DynamicActionClient(
+        ros2: ros2,
+        actionName: item.actionName!,
+        actionType: item.actionType ?? '',
+      );
 
-    if (item.waitForActionResult == true) {
-      sub = ros2.stream
-          .where((m) => m['op'] == 'action_result')
-          .where((m) => m['action'] == item.actionName)
-          .where((m) => m['id'] == goalId)
-          .listen((message) {
-        completer.complete(message['result'] == true);
-      });
-    } else {
-      completer.complete(true);
+      final result = await actionClient.send(
+        goalArgs: item.actionGoal ?? {},
+        timeout: const Duration(minutes: 5),
+        onFeedback: (feedback) {
+          // Handle action feedback if needed
+          // This could be used to update UI with progress information
+        },
+      );
+
+      final success = result != null;
+
+      _isWaitingForResult = false;
+      _broadcast();
+      return success;
+    } catch (e) {
+      _isWaitingForResult = false;
+      _broadcast();
+      return false;
     }
-
-    // Optionally listen for feedback to update UI (distance remaining etc.)
-    ros2.send({
-      'op': 'send_action_goal',
-      'action': item.actionName,
-      'action_type': item.actionType ?? '',
-      'id': goalId,
-      'args': item.actionGoal ?? {},
-      'feedback': false,
-    });
-
-    final success = await completer.future
-        .timeout(const Duration(seconds: 30), onTimeout: () => false);
-
-    await sub?.cancel();
-
-    _isWaitingForResult = false;
-    _broadcast();
-    return success;
   }
 
   Future<bool> _handleCaptureImage(

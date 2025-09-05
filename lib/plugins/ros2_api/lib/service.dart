@@ -135,6 +135,142 @@ class ServiceServer<
   }
 }
 
+/// Dynamic Service Client for calling any service without predefined message types
+class DynamicServiceClient {
+  DynamicServiceClient({
+    required this.ros2,
+    required this.serviceName,
+    required this.serviceType,
+  });
+
+  final Ros2 ros2;
+  final String serviceName;
+  final String serviceType;
+  StreamSubscription? _activeSubscription;
+
+  /// Call the service and return the full response
+  Future<Map<String, dynamic>?> call({
+    required Map<String, dynamic> requestArgs,
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final callId = ros2.requestServiceCaller(serviceName);
+    final completer = Completer<Map<String, dynamic>?>();
+
+    _activeSubscription = ros2.stream
+        .where((m) => m['op'] == 'service_response')
+        .where((m) => m['service'] == serviceName)
+        .where((m) => m['id'] == callId)
+        .listen((message) {
+      if (message['result'] == true) {
+        completer.complete(message['values'] as Map<String, dynamic>?);
+      } else {
+        completer.complete(null);
+      }
+    });
+
+    // Send the service call
+    ros2.send({
+      'op': 'call_service',
+      'service': serviceName,
+      'args': requestArgs,
+      'id': callId,
+      'type': serviceType,
+    });
+
+    try {
+      final response = await completer.future.timeout(timeout);
+      return response;
+    } finally {
+      await _activeSubscription?.cancel();
+      _activeSubscription = null;
+    }
+  }
+
+  /// Cancel any active service call
+  void cancel() {
+    _activeSubscription?.cancel();
+    _activeSubscription = null;
+  }
+
+  /// Dispose the service client
+  void dispose() {
+    cancel();
+  }
+}
+
+/// Dynamic Service Server for handling any service without predefined message types
+class DynamicServiceServer {
+  DynamicServiceServer({
+    required this.ros2,
+    required this.serviceName,
+    required this.serviceType,
+    required this.handler,
+  });
+
+  final Ros2 ros2;
+  final String serviceName;
+  final String serviceType;
+  final Future<Map<String, dynamic>> Function(Map<String, dynamic>) handler;
+  StreamSubscription? _subscription;
+  bool _isAdvertised = false;
+
+  bool get isAdvertised => _isAdvertised;
+
+  /// Start the service server
+  Future<void> serve() async {
+    if (_isAdvertised) return;
+
+    ros2.send({
+      'op': 'advertise_service',
+      'type': serviceType,
+      'service': serviceName,
+    });
+
+    _subscription = ros2.stream
+        .where((message) =>
+            message['op'] == 'call_service' &&
+            message['service'] == serviceName)
+        .listen((Map<String, dynamic> message) async {
+      try {
+        final request = message['args'] as Map<String, dynamic>;
+        final response = await handler(request);
+
+        ros2.send({
+          'op': 'service_response',
+          'id': message['id'],
+          'service': serviceName,
+          'values': response,
+          'result': true,
+        });
+      } catch (e) {
+        ros2.send({
+          'op': 'service_response',
+          'id': message['id'],
+          'service': serviceName,
+          'values': {'error': e.toString()},
+          'result': false,
+        });
+      }
+    });
+
+    _isAdvertised = true;
+  }
+
+  /// Stop the service server
+  void close() {
+    if (!_isAdvertised) return;
+
+    ros2.send({
+      'op': 'unadvertise_service',
+      'service': serviceName,
+    });
+
+    _subscription?.cancel();
+    _subscription = null;
+    _isAdvertised = false;
+  }
+}
+
 Future<bool> serviceExists(Ros2 ros2, String serviceName) async {
   final servicesClient =
       ServiceClient<Services, ServicesRequest, ServicesResponse>(

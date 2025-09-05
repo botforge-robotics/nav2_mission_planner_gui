@@ -15,6 +15,9 @@ class AppConfig {
   // Google Sign-In
   static const String webClientId = '';
 
+  // Product IDs for in-app purchases
+  static const String individualLifetimeProductId = 'n2mp_individual_life';
+
   // Feature cards for license screens background
   static const List<Map<String, dynamic>> featureCards = [
     {

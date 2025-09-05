@@ -8,6 +8,7 @@ import '../../services/purchase_service.dart';
 import '../../services/secure_storage_service.dart';
 import '../../services/device_service.dart';
 import '../../widgets/background_feature_cards.dart';
+import '../../constants/app_config.dart';
 
 class TrialOrPurchaseScreen extends StatefulWidget {
   final LicenseGateState state;
@@ -1422,34 +1423,251 @@ class _TrialOrPurchaseScreenState extends State<TrialOrPurchaseScreen>
                         children: [
                           // Redesigned title and details for clear differentiation from app title/subtitle
                           Container(
+                            constraints: const BoxConstraints(
+                              maxWidth: 320,
+                            ),
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 18),
+                                horizontal: 20, vertical: 24),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.07),
-                              borderRadius: BorderRadius.circular(14),
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  brand.withOpacity(0.25),
+                                  brand.withOpacity(0.15),
+                                  Colors.white.withOpacity(0.08),
+                                ],
+                                stops: const [0.0, 0.6, 1.0],
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: brand.withOpacity(0.3),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: brand.withOpacity(0.2),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                  spreadRadius: 0,
+                                ),
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                  spreadRadius: 0,
+                                ),
+                              ],
                             ),
                             child: Column(
                               children: [
-                                Text(
-                                  titleText,
-                                  style: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                    letterSpacing: 0.1,
-                                  ),
-                                  textAlign: TextAlign.center,
+                                // Title with icon
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: brand.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.star_rounded,
+                                        color: brand,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      titleText,
+                                      style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                        letterSpacing: 0.5,
+                                        shadows: [
+                                          Shadow(
+                                            color:
+                                                Colors.black.withOpacity(0.3),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 16),
                                 Text(
                                   detailText,
                                   style: TextStyle(
-                                    fontSize: 15,
-                                    color: Colors.white.withOpacity(0.82),
-                                    fontWeight: FontWeight.w400,
-                                    height: 1.5,
+                                    fontSize: 16,
+                                    color: Colors.white.withOpacity(0.9),
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.4,
+                                    letterSpacing: 0.2,
                                   ),
                                   textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 16),
+                                // Price display for lifetime purchase
+                                FutureBuilder<Map<String, dynamic>>(
+                                  future: PurchaseService.getProductInfo(
+                                      AppConfig.individualLifetimeProductId),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 16, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.05),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
+                                              color: Colors.white
+                                                  .withOpacity(0.1)),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            SizedBox(
+                                              width: 12,
+                                              height: 12,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                            Color>(
+                                                        Colors.white
+                                                            .withOpacity(0.7)),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'Loading price...',
+                                              style: TextStyle(
+                                                color: Colors.white
+                                                    .withOpacity(0.7),
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+
+                                    if (snapshot.hasError ||
+                                        !snapshot.data!['available']) {
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 16, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red.withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
+                                              color:
+                                                  Colors.red.withOpacity(0.3)),
+                                        ),
+                                        child: Text(
+                                          'Price unavailable',
+                                          style: TextStyle(
+                                            color: Colors.red.withOpacity(0.8),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      );
+                                    }
+
+                                    final productInfo = snapshot.data!;
+                                    final rawPrice = productInfo['price'] ??
+                                        'Price unavailable';
+
+                                    // Remove decimals from price (e.g., "$9.99" -> "$9")
+                                    String displayPrice = rawPrice;
+                                    if (rawPrice is String &&
+                                        rawPrice.contains('.')) {
+                                      displayPrice = rawPrice.split('.')[0];
+                                    }
+
+                                    return Column(
+                                      children: [
+                                        RichText(
+                                          textAlign: TextAlign.center,
+                                          text: TextSpan(
+                                            children: [
+                                              TextSpan(
+                                                text: 'After trial expires: ',
+                                                style: TextStyle(
+                                                  color: Colors.white
+                                                      .withOpacity(0.7),
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w400,
+                                                  letterSpacing: 0.2,
+                                                ),
+                                              ),
+                                              TextSpan(
+                                                text: displayPrice,
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  letterSpacing: 0.3,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.all_inclusive_rounded,
+                                              color: brand,
+                                              size: 12,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'Lifetime Access',
+                                              style: TextStyle(
+                                                color: brand,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                letterSpacing: 0.2,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              width: 3,
+                                              height: 3,
+                                              decoration: BoxDecoration(
+                                                color: Colors.white
+                                                    .withOpacity(0.4),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'One-time Purchase',
+                                              style: TextStyle(
+                                                color: Colors.white
+                                                    .withOpacity(0.6),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w400,
+                                                letterSpacing: 0.1,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    );
+                                  },
                                 ),
                               ],
                             ),
@@ -1530,10 +1748,6 @@ class _TrialOrPurchaseScreenState extends State<TrialOrPurchaseScreen>
                             ),
                           ],
 
-                          // Payment information if available
-                          if (_latestPayment != null) ...[
-                            _buildPaymentInfo(_latestPayment!),
-                          ],
                           // Action buttons
                           _buildActionsForState(
                               widget.state, brand, titleText, detailText),
@@ -1552,9 +1766,10 @@ class _TrialOrPurchaseScreenState extends State<TrialOrPurchaseScreen>
       [String? titleText, String? detailText]) {
     switch (state) {
       case LicenseGateState.noLicense:
-        return Row(
+        return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Trial button
             if (_busy)
               Container(
                 padding:
@@ -1587,7 +1802,7 @@ class _TrialOrPurchaseScreenState extends State<TrialOrPurchaseScreen>
               )
             else
               _PrimaryButton(
-                label: 'Start 7-day Trial',
+                label: 'Start 14-day Trial',
                 color: brand,
                 onPressed: () => _startTrial(),
               ),
@@ -1809,7 +2024,7 @@ class _TrialOrPurchaseScreenState extends State<TrialOrPurchaseScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _PrimaryButton(
-              label: 'Start 7-day Trial',
+              label: 'Start 14-day Trial',
               color: brand,
               onPressed: _startTrial,
             ),
@@ -1879,8 +2094,9 @@ extension on _TrialOrPurchaseScreenState {
                 'Included support',
               ],
               ctaLabel: 'Buy',
-              productId: 'n2mp_individual_life',
-              onPressed: () => _buyProduct('n2mp_individual_life'),
+              productId: AppConfig.individualLifetimeProductId,
+              onPressed: () =>
+                  _buyProduct(AppConfig.individualLifetimeProductId),
             ),
           ),
           // const SizedBox(width: 12, height:W 12),
@@ -1896,8 +2112,8 @@ extension on _TrialOrPurchaseScreenState {
           //       'Priority support',
           //     ],
           //     ctaLabel: 'Buy Enterprise',
-          //     productId: 'test23',
-          //     onPressed: () => _buyProduct('test23'),
+          //     productId: AppConfig.enterpriseProductId,
+          //     onPressed: () => _buyProduct(AppConfig.enterpriseProductId),
           //   ),
           // ),
         ];
