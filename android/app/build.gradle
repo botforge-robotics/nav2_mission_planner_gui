@@ -30,8 +30,8 @@ android {
         applicationId = "com.botforge.nav2missionplanner"
         minSdk = 24
         targetSdk = 36
-        versionCode = 12
-        versionName = "1.4.3"
+        versionCode = 13
+        versionName = "1.4.4"
     }
 
     signingConfigs {
