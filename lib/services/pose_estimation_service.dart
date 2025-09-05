@@ -14,12 +14,11 @@ class PoseEstimationService {
     if (_isInitialized) return;
 
     final connection = Provider.of<ConnectionProvider>(context, listen: false);
-    if (connection.ros2Client == null) return;
 
     _publisher = Publisher<geometry_msgs.PoseWithCovarianceStamped>(
       name: '/initialpose',
       type: geometry_msgs.PoseWithCovarianceStamped().fullType,
-      ros2: connection.ros2Client!,
+      ros2: connection.ros2Client,
     );
 
     _isInitialized = true;

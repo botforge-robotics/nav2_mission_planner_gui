@@ -54,7 +54,7 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
     _publisher?.shutdown();
     _publisher = null;
 
-    if (connection.ros2Client != null && connection.isConnected) {
+    if (connection.isConnected) {
       _currentTopic = settings.cmdVelTopic;
       _currentType = settings.twistType;
 
@@ -62,13 +62,13 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
         _publisher = Publisher<TwistStamped>(
           name: settings.cmdVelTopic,
           type: TwistStamped().fullType,
-          ros2: connection.ros2Client!,
+          ros2: connection.ros2Client,
         );
       } else {
         _publisher = Publisher<Twist>(
           name: settings.cmdVelTopic,
           type: Twist().fullType,
-          ros2: connection.ros2Client!,
+          ros2: connection.ros2Client,
         );
       }
     }

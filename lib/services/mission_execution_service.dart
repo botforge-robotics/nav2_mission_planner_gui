@@ -218,7 +218,7 @@ class MissionExecutionService extends ChangeNotifier {
   Future<bool> _handlePublish(BuildContext context, MissionItem item) async {
     final conn = Provider.of<ConnectionProvider>(context, listen: false);
     final ros2 = conn.ros2Client;
-    if (!conn.isConnected || ros2 == null) return false;
+    if (!conn.isConnected) return false;
 
     // Validate required fields
     if (item.publishTopic == null || item.publishMsgType == null) return false;
@@ -350,7 +350,7 @@ class MissionExecutionService extends ChangeNotifier {
       BuildContext context, MissionItem item) async {
     final conn = Provider.of<ConnectionProvider>(context, listen: false);
     final ros2 = conn.ros2Client;
-    if (!conn.isConnected || ros2 == null) return false;
+    if (!conn.isConnected) return false;
 
     if (item.serviceName == null) return false;
 
@@ -399,7 +399,7 @@ class MissionExecutionService extends ChangeNotifier {
   Future<bool> _handleActionCall(BuildContext context, MissionItem item) async {
     final conn = Provider.of<ConnectionProvider>(context, listen: false);
     final ros2 = conn.ros2Client;
-    if (!conn.isConnected || ros2 == null) return false;
+    if (!conn.isConnected) return false;
 
     if (item.actionName == null) return false;
 
@@ -449,7 +449,7 @@ class MissionExecutionService extends ChangeNotifier {
       BuildContext context, MissionItem item) async {
     final conn = Provider.of<ConnectionProvider>(context, listen: false);
     final ros2 = conn.ros2Client;
-    if (!conn.isConnected || ros2 == null) return false;
+    if (!conn.isConnected) return false;
 
     final settings = Provider.of<SettingsProvider>(context, listen: false);
     final topic = settings.cameraImageTopic;

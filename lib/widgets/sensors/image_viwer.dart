@@ -56,7 +56,7 @@ class ImageViewerState extends State<ImageViewer> {
     });
     try {
       final ros2 =
-          Provider.of<ConnectionProvider>(context, listen: false).ros2Client!;
+          Provider.of<ConnectionProvider>(context, listen: false).ros2Client;
       final settings = Provider.of<SettingsProvider>(context, listen: false);
       final double timeoutSeconds = settings.communicationTimeout.toDouble();
       final client = ServiceClient<TopicsForType, TopicsForTypeRequest,

@@ -14,7 +14,7 @@ class MapListService {
       final serviceClient =
           ServiceClient<GetMapList, GetMapListRequest, GetMapListResponse>(
         name: '/get_map_list',
-        ros2: connection.ros2Client!,
+        ros2: connection.ros2Client,
         type: GetMapList().fullType,
         serviceType: GetMapList(),
         timeout: settings.communicationTimeout.toDouble(),

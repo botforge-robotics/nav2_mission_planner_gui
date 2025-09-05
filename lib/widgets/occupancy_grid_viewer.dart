@@ -234,13 +234,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
     if (!widget.enabled) return;
 
     final connection = Provider.of<ConnectionProvider>(context, listen: false);
-    if (connection.ros2Client == null) {
-      setState(() {
-        _statusMessage = 'No ROS2 connection available';
-        _hasError = true;
-      });
-      return;
-    }
 
     setState(() {
       _statusMessage = 'Checking for map topic...';
@@ -254,7 +247,7 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
       _subscriber = Subscriber<nav_msgs.OccupancyGrid>(
         name: widget.topic,
         type: nav_msgs.OccupancyGrid().fullType,
-        ros2: connection.ros2Client!,
+        ros2: connection.ros2Client,
         callback: _processMapMessage,
         prototype: nav_msgs.OccupancyGrid(),
       );
@@ -1106,14 +1099,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
   void _startMapServicePolling() {
     final connection = Provider.of<ConnectionProvider>(context, listen: false);
 
-    if (connection.ros2Client == null) {
-      setState(() {
-        _statusMessage = 'No ROS2 connection available';
-        _hasError = true;
-      });
-      return;
-    }
-
     // Cancel any existing timer
     _mapServiceTimer?.cancel();
 
@@ -1132,7 +1117,7 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
       try {
         final client = ServiceClient<nav_srvs.GetMap, nav_srvs.GetMapRequest,
             nav_srvs.GetMapResponse>(
-          ros2: connection.ros2Client!,
+          ros2: connection.ros2Client,
           name: widget.mapServiceName,
           type: nav_srvs.GetMap().fullType,
           serviceType: nav_srvs.GetMap(),

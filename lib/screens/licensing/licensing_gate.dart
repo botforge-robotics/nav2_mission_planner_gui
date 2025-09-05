@@ -217,7 +217,7 @@ class _LicensingGateState extends State<LicensingGate> {
             ...(() {
               final supportEmail =
                   context.read<BrandingProvider>().supportEmail;
-              if (supportEmail != null && supportEmail.isNotEmpty) {
+              if (supportEmail.isNotEmpty) {
                 return [
                   Text(
                     'Support: $supportEmail',

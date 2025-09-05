@@ -7,8 +7,7 @@ import '../providers/settings_provider.dart';
 class RosParameterService {
   static Future<bool> setParameter(ConnectionProvider connectionProvider,
       SettingsProvider settingsProvider, String name, dynamic value) async {
-    if (!connectionProvider.isConnected ||
-        connectionProvider.ros2Client == null) {
+    if (!connectionProvider.isConnected) {
       throw Exception('Not connected to ROS2');
     }
 
@@ -16,7 +15,7 @@ class RosParameterService {
       final serviceClient =
           ServiceClient<SetParam, SetParamRequest, SetParamResponse>(
         name: '/rosapi/set_param',
-        ros2: connectionProvider.ros2Client!,
+        ros2: connectionProvider.ros2Client,
         type: SetParam().fullType,
         serviceType: SetParam(),
         timeout: settingsProvider.communicationTimeout.toDouble(),
@@ -36,8 +35,7 @@ class RosParameterService {
 
   static Future<dynamic> getParameter(ConnectionProvider connectionProvider,
       SettingsProvider settingsProvider, String name) async {
-    if (!connectionProvider.isConnected ||
-        connectionProvider.ros2Client == null) {
+    if (!connectionProvider.isConnected) {
       throw Exception('Not connected to ROS2');
     }
 
@@ -45,7 +43,7 @@ class RosParameterService {
       final serviceClient =
           ServiceClient<GetParam, GetParamRequest, GetParamResponse>(
         name: '/rosapi/get_param',
-        ros2: connectionProvider.ros2Client!,
+        ros2: connectionProvider.ros2Client,
         type: GetParam().fullType,
         serviceType: GetParam(),
         timeout: settingsProvider.communicationTimeout.toDouble(),

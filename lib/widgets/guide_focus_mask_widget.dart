@@ -217,7 +217,7 @@ class _GuideFocusMaskWidgetState extends State<GuideFocusMaskWidget>
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Container(
+                        SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
                             onPressed: () async {

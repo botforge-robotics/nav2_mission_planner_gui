@@ -57,13 +57,13 @@ class _LidarWidgetState extends State<LidarWidget> {
 
   void _subscribeToLidar() {
     final connection = Provider.of<ConnectionProvider>(context, listen: false);
-    if (connection.ros2Client == null || widget.scanTopic.isEmpty) return;
+    if (widget.scanTopic.isEmpty) return;
 
     try {
       _scanSubscriber = Subscriber<LaserScan>(
         name: widget.scanTopic,
         type: LaserScan().fullType,
-        ros2: connection.ros2Client!,
+        ros2: connection.ros2Client,
         callback: _processScan,
         prototype: LaserScan(),
       );

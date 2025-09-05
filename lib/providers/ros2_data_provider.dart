@@ -44,8 +44,7 @@ class ROS2DataProvider extends ChangeNotifier {
       Duration(seconds: _settingsProvider.communicationTimeout);
 
   // Check if ROS2 client is available
-  bool get isConnected =>
-      _connectionProvider.isConnected && _connectionProvider.ros2Client != null;
+  bool get isConnected => _connectionProvider.isConnected;
 
   // Get ROS2 client
   Ros2 get ros2 => _connectionProvider.ros2Client;
@@ -150,8 +149,12 @@ class ROS2DataProvider extends ChangeNotifier {
 
   // Fetch action servers
   Future<void> fetchActionServers({bool forceRefresh = false}) async {
-    if (!isConnected) return;
-    if (!forceRefresh && _actionServers.isNotEmpty) return;
+    if (!isConnected) {
+      return;
+    }
+    if (!forceRefresh && _actionServers.isNotEmpty) {
+      return;
+    }
 
     try {
       _isLoadingActions = true;
@@ -166,10 +169,12 @@ class ROS2DataProvider extends ChangeNotifier {
         timeout: _timeout.inSeconds.toDouble(),
       );
 
-      final response = await client.call(GetActionServersRequest());
+      final request = GetActionServersRequest();
+      final response = await client.call(request);
+
       _actionServers = response.action_servers;
     } catch (e) {
-      // Silent error handling
+      // Handle error silently
     } finally {
       _isLoadingActions = false;
       notifyListeners();
@@ -293,7 +298,13 @@ class ROS2DataProvider extends ChangeNotifier {
   // Get action goal structure
   Future<Map<String, dynamic>> getActionGoalStructure(
       String actionName, String actionType) async {
-    if (!isConnected) return {};
+    if (!isConnected) {
+      return {};
+    }
+
+    if (actionType.isEmpty) {
+      return {};
+    }
 
     final key = '${actionType}_goal';
     if (_messageStructures.containsKey(key)) {
@@ -313,8 +324,9 @@ class ROS2DataProvider extends ChangeNotifier {
         timeout: _timeout.inSeconds.toDouble(),
       );
 
-      final response =
-          await client.call(ActionGoalDetailsRequest(type: actionType));
+      final request = ActionGoalDetailsRequest(type: actionType);
+      final response = await client.call(request);
+
       final structure = MessageParser.parseMessageStructure(
           response.typedefs, actionType, 'action');
 
@@ -357,7 +369,9 @@ class ROS2DataProvider extends ChangeNotifier {
 
   // Get action type
   Future<String> getActionType(String actionName) async {
-    if (!isConnected) return '';
+    if (!isConnected) {
+      return '';
+    }
 
     try {
       final typeClient =
@@ -369,8 +383,9 @@ class ROS2DataProvider extends ChangeNotifier {
         timeout: _timeout.inSeconds.toDouble(),
       );
 
-      final typeResponse =
-          await typeClient.call(ActionTypeRequest(action: actionName));
+      final request = ActionTypeRequest(action: actionName);
+      final typeResponse = await typeClient.call(request);
+
       return typeResponse.type;
     } catch (e) {
       return '';
@@ -379,7 +394,9 @@ class ROS2DataProvider extends ChangeNotifier {
 
   // Initialize all data
   Future<void> initializeAllData() async {
-    if (!isConnected) return;
+    if (!isConnected) {
+      return;
+    }
 
     await Future.wait([
       fetchTopics(),
@@ -394,6 +411,7 @@ class ROS2DataProvider extends ChangeNotifier {
     _services.clear();
     _actionServers.clear();
     _messageStructures.clear();
+
     notifyListeners();
   }
 }

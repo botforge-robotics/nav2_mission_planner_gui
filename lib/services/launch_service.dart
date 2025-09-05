@@ -37,7 +37,7 @@ class LaunchManager extends ChangeNotifier {
       final serviceClient = ServiceClient<LaunchWithArgs, LaunchWithArgsRequest,
           LaunchWithArgsResponse>(
         name: '/launch_with_args',
-        ros2: connection.ros2Client!,
+        ros2: connection.ros2Client,
         type: LaunchWithArgs().fullType,
         serviceType: LaunchWithArgs(),
         timeout: settings.communicationTimeout.toDouble(),
@@ -88,7 +88,7 @@ class LaunchManager extends ChangeNotifier {
       final serviceClient =
           ServiceClient<StopLaunch, StopLaunchRequest, StopLaunchResponse>(
         name: '/stop_launch',
-        ros2: connection.ros2Client!,
+        ros2: connection.ros2Client,
         type: StopLaunch().fullType,
         serviceType: StopLaunch(),
         timeout: settings.communicationTimeout.toDouble(),
@@ -123,7 +123,7 @@ class LaunchManager extends ChangeNotifier {
       final serviceClient = ServiceClient<LaunchWithArgs, LaunchWithArgsRequest,
           LaunchWithArgsResponse>(
         name: '/launch_with_args',
-        ros2: connection.ros2Client!,
+        ros2: connection.ros2Client,
         type: LaunchWithArgs().fullType,
         serviceType: LaunchWithArgs(),
         timeout: settings.communicationTimeout.toDouble(),
@@ -168,7 +168,7 @@ class LaunchManager extends ChangeNotifier {
       final serviceClient = ServiceClient<LaunchWithArgs, LaunchWithArgsRequest,
           LaunchWithArgsResponse>(
         name: '/launch_with_args',
-        ros2: connection.ros2Client!,
+        ros2: connection.ros2Client,
         type: LaunchWithArgs().fullType,
         serviceType: LaunchWithArgs(),
         timeout: settings.communicationTimeout.toDouble(),

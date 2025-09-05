@@ -85,7 +85,7 @@ class _MappingScreenState extends State<MappingScreen> {
         _odomSubscriber = Subscriber<nav_msgs.Odometry>(
           name: topic,
           type: nav_msgs.Odometry().fullType,
-          ros2: connection.ros2Client!,
+          ros2: connection.ros2Client,
           callback: _processNavOdomMessage,
           prototype: nav_msgs.Odometry(),
         );
@@ -93,7 +93,7 @@ class _MappingScreenState extends State<MappingScreen> {
         _odomSubscriber = Subscriber<geometry_msgs.PoseWithCovarianceStamped>(
           name: topic,
           type: geometry_msgs.PoseWithCovarianceStamped().fullType,
-          ros2: connection.ros2Client!,
+          ros2: connection.ros2Client,
           callback: _processPoseMessage,
           prototype: geometry_msgs.PoseWithCovarianceStamped(),
         );

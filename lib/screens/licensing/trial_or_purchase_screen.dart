@@ -769,7 +769,7 @@ class _TrialOrPurchaseScreenState extends State<TrialOrPurchaseScreen>
 
       debugPrint('🔍 Payment completion screen - Status: $paymentStatus');
       if (_latestPayment != null) {
-        debugPrint('🔍 Latest payment data: ${_latestPayment}');
+        debugPrint('🔍 Latest payment data: $_latestPayment');
       }
 
       return Container(

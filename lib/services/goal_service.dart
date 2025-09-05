@@ -21,7 +21,7 @@ class GoalService {
     required BuildContext context,
   }) {
     _client = ActionClient(
-      ros2: Provider.of<ConnectionProvider>(context, listen: false).ros2Client!,
+      ros2: Provider.of<ConnectionProvider>(context, listen: false).ros2Client,
       actionName: '/navigate_to_pose',
       actionType: NavigateToPose().fullType,
       actionMessage: NavigateToPose(),

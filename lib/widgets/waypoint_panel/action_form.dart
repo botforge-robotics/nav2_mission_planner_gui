@@ -130,15 +130,23 @@ class ActionForm extends StatelessWidget {
                   child: Text(e, style: const TextStyle(color: Colors.white))))
               .toList(),
           onChanged: (val) async {
-            if (val == null) return;
+            if (val == null) {
+              return;
+            }
+
             item.actionName = val;
             onChanged();
+
             final type = await provider.getActionType(val);
             item.actionType = type;
-            final key = '${type}_goal';
-            if (provider.messageStructures[key] == null) {
-              await provider.getActionGoalStructure(val, type);
+
+            if (type.isNotEmpty) {
+              final key = '${type}_goal';
+              if (provider.messageStructures[key] == null) {
+                await provider.getActionGoalStructure(val, type);
+              }
             }
+
             item.actionGoal = {};
             onChanged();
           },

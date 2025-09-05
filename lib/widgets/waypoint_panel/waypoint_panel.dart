@@ -143,14 +143,19 @@ class WaypointPanelState extends State<WaypointPanel> {
           case MissionItemType.callAction:
             if (item.actionName != null && item.actionType != null) {
               try {
-                final key = '${item.actionType}_goal';
-                if (_ros2DataProvider!.messageStructures[key] == null) {
-                  futures.add(_ros2DataProvider!.getActionGoalStructure(
-                      item.actionName!, item.actionType!));
-                }
+                if (item.actionType!.isEmpty) {
+                  errors.add(
+                      'Action type is empty for action ${item.actionName}');
+                } else {
+                  final key = '${item.actionType}_goal';
+                  if (_ros2DataProvider!.messageStructures[key] == null) {
+                    futures.add(_ros2DataProvider!.getActionGoalStructure(
+                        item.actionName!, item.actionType!));
+                  }
 
-                // Validate the action goal data against the structure once loaded
-                futures.add(_validateActionGoalData(item));
+                  // Validate the action goal data against the structure once loaded
+                  futures.add(_validateActionGoalData(item));
+                }
               } catch (e) {
                 errors.add(
                     'Error loading structure for action ${item.actionName}: $e');

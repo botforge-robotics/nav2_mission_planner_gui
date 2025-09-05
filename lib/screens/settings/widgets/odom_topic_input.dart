@@ -55,7 +55,7 @@ class _OdomTopicInputState extends State<OdomTopicInput> {
     try {
       final client = ServiceClient<TopicsForType, TopicsForTypeRequest,
           TopicsForTypeResponse>(
-        ros2: ros2!,
+        ros2: ros2,
         name: '/rosapi/topics_for_type',
         type: TopicsForType().fullType,
         serviceType: TopicsForType(),

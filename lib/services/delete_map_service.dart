@@ -15,7 +15,7 @@ class DeleteMapService {
       final client =
           ServiceClient<DeleteMap, DeleteMapRequest, DeleteMapResponse>(
         name: '/delete_map',
-        ros2: connection.ros2Client!,
+        ros2: connection.ros2Client,
         type: DeleteMap().fullType,
         serviceType: DeleteMap(),
         timeout: settings.communicationTimeout.toDouble(),

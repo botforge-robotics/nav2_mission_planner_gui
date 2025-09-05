@@ -89,7 +89,7 @@ class PurchaseService {
       final accountId = licensingProvider.accountId;
       final deviceId = await _getDeviceId();
 
-      if (accountId == null || deviceId == null) {
+      if (accountId == null) {
         debugPrint(
             '❌ Cannot store purchase details: missing account or device ID');
         return;
@@ -229,8 +229,8 @@ class PurchaseService {
     debugPrint('❌ Handling purchase error: ${purchaseDetails.error?.message}');
 
     // Check if it's a payment decline
-    if (purchaseDetails.error?.message?.contains('declined') == true ||
-        purchaseDetails.error?.message?.contains('failed') == true) {
+    if (purchaseDetails.error?.message.contains('declined') == true ||
+        purchaseDetails.error?.message.contains('failed') == true) {
       debugPrint('💳 Payment was declined or failed');
       // Update UI to show payment failed message
       // This should prevent going back to buy screen immediately

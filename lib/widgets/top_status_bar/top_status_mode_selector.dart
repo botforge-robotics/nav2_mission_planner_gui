@@ -23,7 +23,7 @@ class TopStatusModeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: height, // Take full height of status bar
       child: GestureDetector(
         onTap: () {

@@ -412,7 +412,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _odomSubscriber = Subscriber<nav_msgs.Odometry>(
           name: topic,
           type: nav_msgs.Odometry().fullType,
-          ros2: connection.ros2Client!,
+          ros2: connection.ros2Client,
           callback: _processNavOdomMessage,
           prototype: nav_msgs.Odometry(),
         );
@@ -420,7 +420,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _odomSubscriber = Subscriber<geometry_msgs.PoseWithCovarianceStamped>(
           name: topic,
           type: geometry_msgs.PoseWithCovarianceStamped().fullType,
-          ros2: connection.ros2Client!,
+          ros2: connection.ros2Client,
           callback: _processPoseMessage,
           prototype: geometry_msgs.PoseWithCovarianceStamped(),
         );
@@ -700,7 +700,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   Future<void> _subscribeToPath() async {
     final ros2 = _connectionProvider.ros2Client;
-    if (ros2 == null) return;
 
     // If already subscribed to the desired topic, do nothing
     if (_pathSubscribed && _currentPathTopic == _settingsProvider.pathTopic) {
