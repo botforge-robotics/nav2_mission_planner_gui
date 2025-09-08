@@ -63,6 +63,15 @@ class OccupancyGridViewer extends StatefulWidget {
     this.showWaypointPath = false,
   });
 
+  // Cache fetched maps per service to avoid refetching on widget rebuilds
+  // Note: This cache is cleared when navigation starts to ensure fresh map data
+  static final Map<String, nav_msgs.OccupancyGrid> _serviceMapCache = {};
+
+  // Static method to clear the map cache
+  static void clearMapCache() {
+    _serviceMapCache.clear();
+  }
+
   @override
   State<OccupancyGridViewer> createState() => _OccupancyGridViewerState();
 }
@@ -124,9 +133,6 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
   bool _isFetchingMap = false;
   bool _mapFetched = false;
 
-  // Cache fetched maps per service to avoid refetching on widget rebuilds
-  static final Map<String, nav_msgs.OccupancyGrid> _serviceMapCache = {};
-
   @override
   void initState() {
     super.initState();
@@ -134,8 +140,10 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
     _transformationController.value = Matrix4.identity();
     if (widget.useMapService) {
       // Check cache first
-      if (_serviceMapCache.containsKey(widget.mapServiceName)) {
-        _processMapMessage(_serviceMapCache[widget.mapServiceName]!);
+      if (OccupancyGridViewer._serviceMapCache
+          .containsKey(widget.mapServiceName)) {
+        _processMapMessage(
+            OccupancyGridViewer._serviceMapCache[widget.mapServiceName]!);
         _mapFetched = true;
       } else {
         _startMapServicePolling();
@@ -1151,7 +1159,8 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
           _processMapMessage(response.map);
           if (!_mapFetched) {
             _mapFetched = true;
-            _serviceMapCache[widget.mapServiceName] = response.map;
+            OccupancyGridViewer._serviceMapCache[widget.mapServiceName] =
+                response.map;
             _mapServiceTimer?.cancel();
             _mapServiceTimer = null;
           }

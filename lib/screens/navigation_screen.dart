@@ -239,6 +239,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
       if (mounted) Navigator.pop(context);
 
       if (success && mounted) {
+        // Clear map cache to ensure fresh map data
+        OccupancyGridViewer.clearMapCache();
+
         setState(() {
           _isNavigationActive = true;
         });
@@ -306,6 +309,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
       if (mounted) Navigator.pop(context);
 
       if (mounted) {
+        // Clear map cache when stopping navigation
+        OccupancyGridViewer.clearMapCache();
+
         setState(() {
           _isNavigationActive = false;
           _mapWidget = null;
