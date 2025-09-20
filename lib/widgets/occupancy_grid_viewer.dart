@@ -387,6 +387,14 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         ? Matrix4.copy(_transformationController.value)
         : null;
 
+    // Store previous map metadata to detect changes
+    final double previousMapWidth = _mapWidth.toDouble();
+    final double previousMapHeight = _mapHeight.toDouble();
+    final double previousMapResolution = _mapResolution;
+    final double previousMapOriginX = _mapOriginX;
+    final double previousMapOriginY = _mapOriginY;
+    final double previousMapOriginTheta = _mapOriginTheta;
+
     // debugPrint('Processing map update! Width: ${message.info.width}, Height: ${message.info.height}');
 
     // Only show loading indicator for the first load
@@ -422,6 +430,14 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         return;
       }
 
+      // Check if map metadata has changed significantly
+      final bool mapMetadataChanged = previousMapWidth != _mapWidth ||
+          previousMapHeight != _mapHeight ||
+          previousMapResolution != _mapResolution ||
+          previousMapOriginX != _mapOriginX ||
+          previousMapOriginY != _mapOriginY ||
+          previousMapOriginTheta != _mapOriginTheta;
+
       // Use the more reliable image creation method
       final ui.Image image = await _createMapImage(message);
 
@@ -437,6 +453,15 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               _calculateInitialScale(context);
+            }
+          });
+        }
+
+        // If map metadata changed, recalculate robot position with new map parameters
+        if (mapMetadataChanged && _mapWidth > 0 && _mapHeight > 0) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _recalculateRobotPositionWithNewMap();
             }
           });
         }
@@ -1048,7 +1073,17 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
     });
   }
 
+  // Store the last received robot position in world coordinates
+  double _lastWorldRobotX = 0.0;
+  double _lastWorldRobotY = 0.0;
+  geometry_msgs.Quaternion _lastWorldRobotQ = geometry_msgs.Quaternion();
+
   void updateRobotPosition(double x, double y, geometry_msgs.Quaternion q) {
+    // Store the world coordinates for recalculation when map changes
+    _lastWorldRobotX = x;
+    _lastWorldRobotY = y;
+    _lastWorldRobotQ = q;
+
     if (_mapWidth > 0 && _mapHeight > 0) {
       // Only transform if we have valid map data
       final transformedPose = transformToMapFrame(
@@ -1073,6 +1108,30 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
       setState(() {
         _robotX = x;
         _robotY = y;
+      });
+    }
+  }
+
+  // Recalculate robot position when map metadata changes
+  void _recalculateRobotPositionWithNewMap() {
+    if (_mapWidth > 0 && _mapHeight > 0) {
+      // Recalculate robot position with new map parameters
+      final transformedPose = transformToMapFrame(
+        _lastWorldRobotX,
+        _lastWorldRobotY,
+        _lastWorldRobotQ,
+        _mapOriginX,
+        _mapOriginY,
+        _mapResolution,
+        _mapHeight,
+        _mapWidth,
+        _mapOriginTheta,
+      );
+
+      setState(() {
+        _robotX = transformedPose.x;
+        _robotY = transformedPose.y;
+        _robotTheta = transformedPose.theta;
       });
     }
   }

@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:ros2_api/ros2_api.dart';
 import 'package:nav2_mission_planner/providers/settings_provider.dart';
 import 'package:nav2_mission_planner/widgets/save_map_dialog.dart';
 import 'package:provider/provider.dart';
-import '../providers/connection_provider.dart';
 import '../services/launch_service.dart';
 import '../widgets/sensors/joystick_thumb_widget.dart';
 import '../widgets/occupancy_grid_viewer.dart';
 import '../widgets/sensors/image_viwer.dart';
-import 'package:nav_msgs/msg.dart' as nav_msgs;
-import 'package:geometry_msgs/msg.dart' as geometry_msgs;
-import 'dart:async';
+import '../services/tf_service.dart';
 
 class MappingScreen extends StatefulWidget {
   final Color modeColor;
@@ -30,108 +26,21 @@ class _MappingScreenState extends State<MappingScreen> {
   // Add this - don't even create the OccupancyGridViewer until we're ready
   Widget? _mapWidget;
 
-  Subscriber<dynamic>? _odomSubscriber;
-  double _robotX = 0.0;
-  double _robotY = 0.0;
-  geometry_msgs.Quaternion _robotQ = geometry_msgs.Quaternion();
-  String? _currentOdomTopic;
-  String? _currentOdomType;
-  late SettingsProvider _settingsProvider;
-  final _robotPositionController =
-      StreamController<Map<String, dynamic>>.broadcast();
+  // Robot position is now handled by TFService
 
   @override
   void initState() {
     super.initState();
-    _settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-    _settingsProvider.addListener(_subscribeToOdometry);
+    TFService.instance.initialize(context);
   }
 
   @override
   void dispose() {
-    _unsubscribeFromOdometry();
     _mapWidget = null;
-    _settingsProvider.removeListener(_subscribeToOdometry);
-    _robotPositionController.close();
     super.dispose();
   }
 
-  void _unsubscribeFromOdometry() {
-    _odomSubscriber?.shutdown();
-    _odomSubscriber = null;
-    _currentOdomTopic = null;
-    _currentOdomType = null;
-  }
-
-  void _subscribeToOdometry() {
-    if (!_isMappingActive) return;
-    final connection = Provider.of<ConnectionProvider>(context, listen: false);
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-
-    // Determine which topic and type to use
-    final (String topic, String type) =
-        (settings.mappingOdomTopic, settings.mappingOdomTopicType);
-    if (topic == _currentOdomTopic && type == _currentOdomType) return;
-    _currentOdomTopic = topic;
-    _currentOdomType = type;
-    // Unsubscribe from old topic
-    if (_odomSubscriber != null) {
-      _odomSubscriber?.shutdown();
-      _odomSubscriber = null;
-    }
-    try {
-      // Create subscriber based on message type
-      if (type == 'nav_msgs/msg/Odometry') {
-        _odomSubscriber = Subscriber<nav_msgs.Odometry>(
-          name: topic,
-          type: nav_msgs.Odometry().fullType,
-          ros2: connection.ros2Client,
-          callback: _processNavOdomMessage,
-          prototype: nav_msgs.Odometry(),
-        );
-      } else if (type == 'geometry_msgs/msg/PoseWithCovarianceStamped') {
-        _odomSubscriber = Subscriber<geometry_msgs.PoseWithCovarianceStamped>(
-          name: topic,
-          type: geometry_msgs.PoseWithCovarianceStamped().fullType,
-          ros2: connection.ros2Client,
-          callback: _processPoseMessage,
-          prototype: geometry_msgs.PoseWithCovarianceStamped(),
-        );
-      }
-    } catch (e) {
-      // Silent error handling
-    }
-  }
-
-  void _processNavOdomMessage(nav_msgs.Odometry message) {
-    setState(() {
-      _robotX = message.pose.pose.position.x;
-      _robotY = message.pose.pose.position.y;
-      _robotQ = message.pose.pose.orientation;
-    });
-
-    // Send position update through stream
-    _robotPositionController.add({
-      'x': _robotX,
-      'y': _robotY,
-      'q': _robotQ,
-    });
-  }
-
-  void _processPoseMessage(geometry_msgs.PoseWithCovarianceStamped message) {
-    setState(() {
-      _robotX = message.pose.pose.position.x;
-      _robotY = message.pose.pose.position.y;
-      _robotQ = message.pose.pose.orientation;
-    });
-
-    // Send position update through stream
-    _robotPositionController.add({
-      'x': _robotX,
-      'y': _robotY,
-      'q': _robotQ,
-    });
-  }
+  // Robot position is now handled by TFService
 
   @override
   Widget build(BuildContext context) {
@@ -195,7 +104,6 @@ class _MappingScreenState extends State<MappingScreen> {
                           setState(() {
                             _isMappingStarted = true;
                             _isMappingActive = true;
-                            _subscribeToOdometry();
                             // Create the widget now that mapping is started
                             _mapWidget = GestureDetector(
                               onScaleStart: (details) {
@@ -225,7 +133,7 @@ class _MappingScreenState extends State<MappingScreen> {
                                   appModeColor: widget.modeColor,
                                   showMarkers: false,
                                   robotPositionStrem:
-                                      _robotPositionController.stream,
+                                      TFService.instance.robotPositionStream,
                                   onScaleChanged: (newScale) {
                                     setState(() {
                                       _scale = newScale;
@@ -367,7 +275,6 @@ class _MappingScreenState extends State<MappingScreen> {
 
                       final launchManager =
                           Provider.of<LaunchManager>(context, listen: false);
-                      _unsubscribeFromOdometry();
                       for (final entry
                           in launchManager.activeLaunches.entries) {
                         try {
@@ -390,17 +297,6 @@ class _MappingScreenState extends State<MappingScreen> {
                           _isMappingStarted = false;
                           _isMappingActive = false;
                           _mapWidget = null;
-                          // Reset robot position
-                          _robotX = 0.0;
-                          _robotY = 0.0;
-                          _robotQ = geometry_msgs.Quaternion();
-                        });
-
-                        // Send reset position through stream
-                        _robotPositionController.add({
-                          'x': 0.0,
-                          'y': 0.0,
-                          'q': geometry_msgs.Quaternion(),
                         });
                       }
                     },
@@ -468,7 +364,6 @@ class _MappingScreenState extends State<MappingScreen> {
 
                           // Only stop mapping if requested AND save was successful
                           if (stopMapping) {
-                            _unsubscribeFromOdometry();
                             for (final entry
                                 in launchManager.activeLaunches.entries) {
                               try {
@@ -489,17 +384,6 @@ class _MappingScreenState extends State<MappingScreen> {
                               _isMappingStarted = false;
                               _isMappingActive = false;
                               _mapWidget = null;
-                              // Reset robot position
-                              _robotX = 0.0;
-                              _robotY = 0.0;
-                              _robotQ = geometry_msgs.Quaternion();
-                            });
-
-                            // Send reset position through stream
-                            _robotPositionController.add({
-                              'x': 0.0,
-                              'y': 0.0,
-                              'q': geometry_msgs.Quaternion(),
                             });
                           }
                         } else {

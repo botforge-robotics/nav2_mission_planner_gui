@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:nav2_mission_planner/screens/settings/widgets/odom_topic_input.dart';
 import 'package:nav2_mission_planner/screens/settings/widgets/path_input.dart';
 import 'package:provider/provider.dart';
 import '../../providers/settings_provider.dart';
@@ -77,20 +76,6 @@ class NavigationSettings extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-          ),
-          // Navigation Odom Topic Setting
-          SettingCard(
-            title: 'Navigation Odom Topic',
-            description: 'Set the topic for navigation odom data',
-            modeColor: modeColor,
-            screenSize: screenSize,
-            content: OdomTopicInput(
-              initialValue: settings.navigationOdomTopic,
-              initialValueType: settings.navigationOdomTopicType,
-              onChanged: settings.setNavigationOdomTopic,
-              screenSize: screenSize,
-              modeColor: modeColor,
             ),
           ),
           // Navigation Path Topic Setting

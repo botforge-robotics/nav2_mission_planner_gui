@@ -54,6 +54,12 @@ class SettingsProvider extends ChangeNotifier {
   // Add path topic
   String _pathTopic = DefaultSettings.defaultPathTopic;
 
+  // TF Settings
+  String _tfTopic = DefaultSettings.defaultTfTopic;
+  String _mapFrame = DefaultSettings.defaultMapFrame;
+  String _odomFrame = DefaultSettings.defaultOdomFrame;
+  String _baseLinkFrame = DefaultSettings.defaultBaseLinkFrame;
+
   // Add new properti
   Map<String, List<Bookmark>> _bookmarks =
       Map.from(DefaultSettings.defaultBookmarks);
@@ -92,6 +98,12 @@ class SettingsProvider extends ChangeNotifier {
   int get communicationTimeout => _communicationTimeout;
   bool get bookmarksVisible => _bookmarksVisible;
   Map<String, Mission> get missions => _missions;
+
+  // TF Getters
+  String get tfTopic => _tfTopic;
+  String get mapFrame => _mapFrame;
+  String get odomFrame => _odomFrame;
+  String get baseLinkFrame => _baseLinkFrame;
 
   SettingsProvider(this.robotId) {
     _loadSettings();
@@ -177,6 +189,20 @@ class SettingsProvider extends ChangeNotifier {
     _odomTopicType = prefs.getString('$settingsKey:odomTopicType') != null
         ? prefs.getString('$settingsKey:odomTopicType')!
         : DefaultSettings.defaultOdomTopicType;
+
+    // Load TF settings
+    _tfTopic = prefs.getString('$settingsKey:tfTopic') != null
+        ? prefs.getString('$settingsKey:tfTopic')!
+        : DefaultSettings.defaultTfTopic;
+    _mapFrame = prefs.getString('$settingsKey:mapFrame') != null
+        ? prefs.getString('$settingsKey:mapFrame')!
+        : DefaultSettings.defaultMapFrame;
+    _odomFrame = prefs.getString('$settingsKey:odomFrame') != null
+        ? prefs.getString('$settingsKey:odomFrame')!
+        : DefaultSettings.defaultOdomFrame;
+    _baseLinkFrame = prefs.getString('$settingsKey:baseLinkFrame') != null
+        ? prefs.getString('$settingsKey:baseLinkFrame')!
+        : DefaultSettings.defaultBaseLinkFrame;
 
     // Load save map settings
     _saveMapLaunchFile =
@@ -267,6 +293,10 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setBool('$settingsKey:cameraEnabled', _cameraEnabled);
     await prefs.setString('$settingsKey:odomTopic', _odomTopic);
     await prefs.setString('$settingsKey:odomTopicType', _odomTopicType);
+    await prefs.setString('$settingsKey:tfTopic', _tfTopic);
+    await prefs.setString('$settingsKey:mapFrame', _mapFrame);
+    await prefs.setString('$settingsKey:odomFrame', _odomFrame);
+    await prefs.setString('$settingsKey:baseLinkFrame', _baseLinkFrame);
     await prefs.setString('$settingsKey:saveMapLaunchFile', _saveMapLaunchFile);
     await prefs.setString(
         '$settingsKey:saveMapArgs', json.encode(_saveMapArgs));
@@ -448,6 +478,31 @@ class SettingsProvider extends ChangeNotifier {
   void setOdomTopic(String topic, String topicType) {
     _odomTopic = topic.trim();
     _odomTopicType = topicType.trim();
+    _saveSettings();
+    notifyListeners();
+  }
+
+  // TF Setters
+  void setTfTopic(String topic) {
+    _tfTopic = topic.trim();
+    _saveSettings();
+    notifyListeners();
+  }
+
+  void setMapFrame(String frame) {
+    _mapFrame = frame.trim();
+    _saveSettings();
+    notifyListeners();
+  }
+
+  void setOdomFrame(String frame) {
+    _odomFrame = frame.trim();
+    _saveSettings();
+    notifyListeners();
+  }
+
+  void setBaseLinkFrame(String frame) {
+    _baseLinkFrame = frame.trim();
     _saveSettings();
     notifyListeners();
   }

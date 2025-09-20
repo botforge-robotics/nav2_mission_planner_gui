@@ -8,6 +8,7 @@ import '../modals/robotProfile.dart';
 import '../constants/default_settings.dart';
 import 'home_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:nav2_mission_planner/screens/settings/widgets/tf_topic_dropdown.dart';
 
 class RobotSetupWizard extends StatefulWidget {
   final RobotProfile robot;
@@ -104,12 +105,8 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
       'mapsPath': '', // Empty to force user input
       'mappingLaunchFile': '', // Empty to force user input
       'mappingArgs': <Map<String, String>>[],
-      'mappingOdomTopic': DefaultSettings.defaultOdomTopic,
-      'mappingOdomTopicType': DefaultSettings.defaultOdomTopicType,
       'navigationLaunchFile': '', // Empty to force user input
       'navigationArgs': <Map<String, String>>[],
-      'navigationOdomTopic': DefaultSettings.defaultNavigationOdomTopic,
-      'navigationOdomTopicType': DefaultSettings.defaultNavigationOdomTopicType,
       'pathTopic': DefaultSettings.defaultPathTopic,
     });
   }
@@ -354,10 +351,17 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
             _buildCameraInput(),
           ),
           _buildSettingCard(
-            'Odometry Topic',
-            'Set topic for odometry data',
-            Icons.my_location,
-            _buildOdomTopicInput(),
+            'TF Topic',
+            'Set topic for TF transforms',
+            Icons.transform,
+            TFTopicDropdown(
+              initialValue: _tempSettings['tfTopic']?.toString() ?? '/tf',
+              onChanged: (value) {
+                _tempSettings['tfTopic'] = value;
+                _validateCurrentStep();
+              },
+              modeColor: _steps[_currentStep].color,
+            ),
           ),
           _buildSettingCard(
             'Lidar Topic',
@@ -427,12 +431,6 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
             _buildPathInput('mapsPath', 'e.g., ~/maps', true),
             required: true,
           ),
-          _buildSettingCard(
-            'Mapping Odom Topic',
-            'Set the topic for mapping odom data',
-            Icons.my_location,
-            _buildMappingOdomTopicInput(),
-          ),
         ],
       ),
     );
@@ -457,12 +455,6 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
               ],
             ),
             required: true,
-          ),
-          _buildSettingCard(
-            'Navigation Odom Topic',
-            'Set the topic for navigation odom data',
-            Icons.my_location,
-            _buildNavigationOdomTopicInput(),
           ),
           _buildSettingCard(
             'Navigation Path Topic',
@@ -614,7 +606,8 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                     fillColor: Colors.grey.shade900,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+                      borderSide: BorderSide(
+                          color: _steps[_currentStep].color.withOpacity(0.5)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -662,23 +655,24 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
     );
   }
 
-  Widget _buildOdomTopicInput() {
+  Widget _buildTfTopicInput() {
     return SizedBox(
       width: 400, // Fixed width for landscape
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextFormField(
-            initialValue: _tempSettings['odomTopic']?.toString() ?? '',
+            initialValue: _tempSettings['tfTopic']?.toString() ?? '/tf',
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              hintText: 'Enter topic name (e.g., /odom)',
+              hintText: 'Enter TF topic (e.g., /tf)',
               hintStyle: TextStyle(color: Colors.grey.shade500),
               filled: true,
               fillColor: Colors.grey.shade900,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+                borderSide: BorderSide(
+                    color: _steps[_currentStep].color.withOpacity(0.5)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -686,18 +680,99 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
               ),
             ),
             onChanged: (value) {
-              _tempSettings['odomTopic'] = value;
+              _tempSettings['tfTopic'] = value;
               _validateCurrentStep();
             },
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Type: nav_msgs/msg/Odometry',
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey.shade400,
-              fontStyle: FontStyle.italic,
-            ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: _tempSettings['mapFrame']?.toString() ?? 'map',
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Map Frame',
+                    labelStyle: TextStyle(color: Colors.grey.shade400),
+                    hintText: 'map',
+                    hintStyle: TextStyle(color: Colors.grey.shade500),
+                    filled: true,
+                    fillColor: Colors.grey.shade900,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                          color: _steps[_currentStep].color.withOpacity(0.5)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: _steps[_currentStep].color),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    _tempSettings['mapFrame'] = value;
+                    _validateCurrentStep();
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  initialValue:
+                      _tempSettings['odomFrame']?.toString() ?? 'odom',
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Odom Frame',
+                    labelStyle: TextStyle(color: Colors.grey.shade400),
+                    hintText: 'odom',
+                    hintStyle: TextStyle(color: Colors.grey.shade500),
+                    filled: true,
+                    fillColor: Colors.grey.shade900,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                          color: _steps[_currentStep].color.withOpacity(0.5)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: _steps[_currentStep].color),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    _tempSettings['odomFrame'] = value;
+                    _validateCurrentStep();
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  initialValue:
+                      _tempSettings['baseLinkFrame']?.toString() ?? 'base_link',
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Base Link Frame',
+                    labelStyle: TextStyle(color: Colors.grey.shade400),
+                    hintText: 'base_link',
+                    hintStyle: TextStyle(color: Colors.grey.shade500),
+                    filled: true,
+                    fillColor: Colors.grey.shade900,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                          color: _steps[_currentStep].color.withOpacity(0.5)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: _steps[_currentStep].color),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    _tempSettings['baseLinkFrame'] = value;
+                    _validateCurrentStep();
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -766,91 +841,6 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                 _validateCurrentStep();
               }
             },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMappingOdomTopicInput() {
-    return SizedBox(
-      width: 400, // Fixed width for landscape
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextFormField(
-            initialValue: _tempSettings['mappingOdomTopic']?.toString() ?? '',
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'Enter topic name (e.g., /odom)',
-              hintStyle: TextStyle(color: Colors.grey.shade500),
-              filled: true,
-              fillColor: Colors.grey.shade900,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: _steps[_currentStep].color),
-              ),
-            ),
-            onChanged: (value) {
-              _tempSettings['mappingOdomTopic'] = value;
-              _validateCurrentStep();
-            },
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Type: nav_msgs/msg/Odometry',
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey.shade400,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavigationOdomTopicInput() {
-    return SizedBox(
-      width: 400,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextFormField(
-            initialValue:
-                _tempSettings['navigationOdomTopic']?.toString() ?? '',
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'Enter topic name (e.g., /amcl_pose)',
-              hintStyle: TextStyle(color: Colors.grey.shade500),
-              filled: true,
-              fillColor: Colors.grey.shade900,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: _steps[_currentStep].color),
-              ),
-            ),
-            onChanged: (value) {
-              _tempSettings['navigationOdomTopic'] = value;
-              _validateCurrentStep();
-            },
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Type: geometry_msgs/msg/PoseWithCovarianceStamped',
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey.shade400,
-              fontStyle: FontStyle.italic,
-            ),
           ),
         ],
       ),
@@ -1032,7 +1022,9 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                         fillColor: Colors.grey.shade900,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
+                          borderSide: BorderSide(
+                              color:
+                                  _steps[_currentStep].color.withOpacity(0.5)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -1063,7 +1055,9 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                         fillColor: Colors.grey.shade900,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
+                          borderSide: BorderSide(
+                              color:
+                                  _steps[_currentStep].color.withOpacity(0.5)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -1254,16 +1248,31 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
     settings.setCameraImageTopic(cameraImageTopic);
     settings.setCameraEnabled(_tempSettings['cameraEnabled'] ?? false);
 
-    // Set odom topic
-    final odomTopicValue = _tempSettings['odomTopic']?.toString() ?? '';
-    final odomTopicIsEmpty = odomTopicValue.isEmpty;
-    final finalOdomTopic =
-        odomTopicIsEmpty ? DefaultSettings.defaultOdomTopic : odomTopicValue;
-    settings.setOdomTopic(
-      finalOdomTopic,
-      _tempSettings['odomTopicType']?.toString() ??
-          DefaultSettings.defaultOdomTopicType,
-    );
+    // Set TF settings
+    final tfTopicValue = _tempSettings['tfTopic']?.toString() ?? '';
+    final tfTopicIsEmpty = tfTopicValue.isEmpty;
+    final finalTfTopic =
+        tfTopicIsEmpty ? DefaultSettings.defaultTfTopic : tfTopicValue;
+    settings.setTfTopic(finalTfTopic);
+
+    final mapFrameValue = _tempSettings['mapFrame']?.toString() ?? '';
+    final mapFrameIsEmpty = mapFrameValue.isEmpty;
+    final finalMapFrame =
+        mapFrameIsEmpty ? DefaultSettings.defaultMapFrame : mapFrameValue;
+    settings.setMapFrame(finalMapFrame);
+
+    final odomFrameValue = _tempSettings['odomFrame']?.toString() ?? '';
+    final odomFrameIsEmpty = odomFrameValue.isEmpty;
+    final finalOdomFrame =
+        odomFrameIsEmpty ? DefaultSettings.defaultOdomFrame : odomFrameValue;
+    settings.setOdomFrame(finalOdomFrame);
+
+    final baseLinkFrameValue = _tempSettings['baseLinkFrame']?.toString() ?? '';
+    final baseLinkFrameIsEmpty = baseLinkFrameValue.isEmpty;
+    final finalBaseLinkFrame = baseLinkFrameIsEmpty
+        ? DefaultSettings.defaultBaseLinkFrame
+        : baseLinkFrameValue;
+    settings.setBaseLinkFrame(finalBaseLinkFrame);
     final lidarTopicValue = _tempSettings['lidarTopic']?.toString() ?? '';
     final lidarTopicIsEmpty = lidarTopicValue.isEmpty;
     final finalLidarTopic =
@@ -1293,18 +1302,6 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
         _tempSettings['mappingLaunchFile']?.toString() ?? '';
     settings.setMappingLaunchFile(mappingLaunchFileValue);
 
-    final mappingOdomTopicValue =
-        _tempSettings['mappingOdomTopic']?.toString() ?? '';
-    final mappingOdomTopicIsEmpty = mappingOdomTopicValue.isEmpty;
-    final finalMappingOdomTopic = mappingOdomTopicIsEmpty
-        ? DefaultSettings.defaultOdomTopic
-        : mappingOdomTopicValue;
-    settings.setMappingOdomTopic(
-      finalMappingOdomTopic,
-      _tempSettings['mappingOdomTopicType']?.toString() ??
-          DefaultSettings.defaultMappingOdomTopicType,
-    );
-
     // Apply mapping arguments
     final mappingArgs =
         _tempSettings['mappingArgs'] as List<Map<String, String>>? ?? [];
@@ -1317,17 +1314,6 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
     // Navigation settings
     settings.setNavigationLaunchFile(
         _tempSettings['navigationLaunchFile']?.toString() ?? '');
-    final navigationOdomTopicValue =
-        _tempSettings['navigationOdomTopic']?.toString() ?? '';
-    final navigationOdomTopicIsEmpty = navigationOdomTopicValue.isEmpty;
-    final finalNavigationOdomTopic = navigationOdomTopicIsEmpty
-        ? DefaultSettings.defaultNavigationOdomTopic
-        : navigationOdomTopicValue;
-    settings.setNavigationOdomTopic(
-      finalNavigationOdomTopic,
-      _tempSettings['navigationOdomTopicType']?.toString() ??
-          DefaultSettings.defaultNavigationOdomTopicType,
-    );
     final pathTopicValue = _tempSettings['pathTopic']?.toString() ?? '';
     final pathTopicIsEmpty = pathTopicValue.isEmpty;
     final finalPathTopic =

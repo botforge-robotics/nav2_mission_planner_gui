@@ -33,6 +33,7 @@ import '../modals/mission.dart';
 import '../widgets/waypoint_panel/waypoint_panel.dart';
 import 'package:nav2_mission_planner/widgets/navigation/nav_bottom_bar.dart';
 import 'package:nav2_mission_planner/services/mission_execution_service.dart';
+import 'package:nav2_mission_planner/services/tf_service.dart';
 
 class NavigationScreen extends StatefulWidget {
   final Color modeColor;
@@ -124,7 +125,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
     // Initialize only once
     if (!_isInitialized) {
-      _settingsProvider.addListener(_subscribeToOdometry);
+      TFService.instance.initialize(context);
       _settingsProvider.addListener(_handleSettingsChange);
       _goalService.initialize(context: context);
       _isInitialized = true;
@@ -144,12 +145,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   @override
   void dispose() {
-    _unsubscribeFromOdometry();
     if (_isInitialized) {
-      _settingsProvider.removeListener(_subscribeToOdometry);
       _settingsProvider.removeListener(_handleSettingsChange);
     }
-    _robotPositionController.close();
     _unsubscribePath();
     _pathController.close();
     super.dispose();
@@ -1001,7 +999,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
               _scale = newScale;
             });
           },
-          robotPositionStrem: _robotPositionController.stream,
+          robotPositionStrem: TFService.instance.robotPositionStream,
           goalPositionStream: _goalPositionController.stream,
           pathStream: _pathController.stream,
           onMarkerPoseReceived: _handleMarkerPoseReceived,

@@ -801,10 +801,10 @@ packages:
     dependency: "direct main"
     description:
       name: qr_code_scanner_plus
-      sha256: "39696b50d277097ee4d90d4292de36f38c66213a4f5216a06b2bdd2b63117859"
+      sha256: a0f1ac8e13299b3db2646635f252fe2ec67222b848b24ed34d11052faf080bfa
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.10+1"
+    version: "2.0.12"
   ros2_api:
     dependency: "direct main"
     description:
@@ -964,6 +964,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.4"
+  tf2_msgs:
+    dependency: "direct main"
+    description:
+      path: "lib/plugins/tf2_msgs"
+      relative: true
+    source: path
+    version: "0.1.0"
   typed_data:
     dependency: transitive
     description:

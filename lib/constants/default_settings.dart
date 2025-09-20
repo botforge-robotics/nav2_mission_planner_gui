@@ -48,6 +48,12 @@ class DefaultSettings {
   // Add new default path topic
   static const String defaultPathTopic = '/plan';
 
+  // TF Settings
+  static const String defaultTfTopic = '/tf';
+  static const String defaultMapFrame = 'map';
+  static const String defaultOdomFrame = 'odom';
+  static const String defaultBaseLinkFrame = 'base_link';
+
   static const Map<String, List<Bookmark>> defaultBookmarks = {};
 
   static const bool defaultBookmarksVisible = true;
