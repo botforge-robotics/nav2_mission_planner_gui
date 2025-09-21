@@ -7,6 +7,7 @@ import 'package:tf2_msgs/msg.dart' as tf2_msgs;
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import '../providers/connection_provider.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/occupancy_grid_viewer.dart';
 
 class TFService {
   static TFService? _instance;
@@ -83,8 +84,14 @@ class TFService {
     _isTfAvailable = true;
     _lastError = null;
 
-    // Debug: Log TF message reception for high-frequency updates
-    // debugPrint('TF Message received: ${message.transforms.length} transforms');
+    // Debug: Log TF message reception (only log when transforms change significantly)
+    if (message.transforms.isNotEmpty) {
+      final transformPairs = message.transforms
+          .map((t) => '${t.header.frame_id}→${t.child_frame_id}')
+          .join(', ');
+      debugPrint(
+          'TFService: Received TF message with ${message.transforms.length} transforms: $transformPairs');
+    }
   }
 
   void _startRobotPositionUpdates(SettingsProvider settings) {
@@ -105,6 +112,23 @@ class TFService {
 
   void _updateRobotPosition(SettingsProvider settings) {
     try {
+      // Debug: Log available frames in TF buffer
+      final availableFrames = <String>{};
+      for (final parentFrame in _tfBuffer.keys) {
+        availableFrames.add(parentFrame);
+        for (final childFrame in _tfBuffer[parentFrame]!.keys) {
+          availableFrames.add(childFrame);
+        }
+      }
+
+      debugPrint('=== TF ROBOT POSITION DEBUG ===');
+      debugPrint(
+          'Available frames (${availableFrames.length}): ${availableFrames.join(', ')}');
+      debugPrint(
+          'Target chain: ${settings.mapFrame} → ${settings.odomFrame} → ${settings.baseLinkFrame}');
+      debugPrint(
+          'Direct fallback: ${settings.mapFrame} → ${settings.baseLinkFrame}');
+
       // Try full chain: map → odom → base_link
       final robotTransform = _getTransformChain(
         settings.mapFrame,
@@ -116,6 +140,9 @@ class TFService {
         final position = robotTransform.transform.translation;
         final orientation = robotTransform.transform.rotation;
 
+        debugPrint(
+            '✓ Found full chain transform: x=${position.x.toStringAsFixed(3)}, y=${position.y.toStringAsFixed(3)}');
+
         final newPosition = {
           'x': position.x,
           'y': position.y,
@@ -128,8 +155,11 @@ class TFService {
           _robotPositionController.add(newPosition);
           _lastPosition = newPosition;
         }
+        debugPrint('=============================');
         return;
       }
+
+      debugPrint('✗ Full chain failed, trying direct transform...');
 
       // Fallback: try direct map → base_link
       final directTransform = _getDirectTransform(
@@ -141,6 +171,9 @@ class TFService {
         final position = directTransform.transform.translation;
         final orientation = directTransform.transform.rotation;
 
+        debugPrint(
+            '✓ Found direct transform: x=${position.x.toStringAsFixed(3)}, y=${position.y.toStringAsFixed(3)}');
+
         final newPosition = {
           'x': position.x,
           'y': position.y,
@@ -153,8 +186,35 @@ class TFService {
           _robotPositionController.add(newPosition);
           _lastPosition = newPosition;
         }
+        debugPrint('=============================');
         return;
       }
+
+      // No transform available - log detailed debug info
+      debugPrint('✗ No transform available!');
+      debugPrint('Missing frames:');
+      if (!availableFrames.contains(settings.mapFrame)) {
+        debugPrint('  - Missing map frame: ${settings.mapFrame}');
+      }
+      if (!availableFrames.contains(settings.odomFrame)) {
+        debugPrint('  - Missing odom frame: ${settings.odomFrame}');
+      }
+      if (!availableFrames.contains(settings.baseLinkFrame)) {
+        debugPrint('  - Missing base_link frame: ${settings.baseLinkFrame}');
+      }
+
+      // Check for similar frame names
+      final similarFrames = availableFrames
+          .where((frame) =>
+              frame.toLowerCase().contains('base') ||
+              frame.toLowerCase().contains('odom') ||
+              frame.toLowerCase().contains('map'))
+          .toList();
+      if (similarFrames.isNotEmpty) {
+        debugPrint('Similar frames found: ${similarFrames.join(', ')}');
+      }
+
+      debugPrint('=============================');
 
       // No transform available
       _isTfAvailable = false;
@@ -290,6 +350,47 @@ class TFService {
             (newQ.w - lastQ.w) * (newQ.w - lastQ.w));
 
     return orientationChange > orientationThreshold;
+  }
+
+  void clearCache() {
+    debugPrint('TFService: Clearing TF cache and resetting all state');
+
+    // Cancel position update timer
+    _positionUpdateTimer?.cancel();
+    _positionUpdateTimer = null;
+
+    // Shutdown existing TF subscriber
+    _tfSubscriber?.shutdown();
+    _tfSubscriber = null;
+
+    // Clear all TF data
+    _tfBuffer.clear();
+    _lastPosition = null;
+
+    // Reset all state flags
+    _isInitialized = false;
+    _isTfAvailable = false;
+    _lastError = null;
+
+    debugPrint('TFService: All state cleared - ready for new robot connection');
+  }
+
+  // Comprehensive reset for robot switching - clears everything
+  static void resetAllServices() {
+    debugPrint('=== RESETTING ALL SERVICES FOR ROBOT SWITCH ===');
+
+    // Reset TF Service
+    TFService.instance.clearCache();
+
+    // Clear map cache in OccupancyGridViewer
+    try {
+      OccupancyGridViewer.clearMapCache();
+      debugPrint('Map cache cleared successfully');
+    } catch (e) {
+      debugPrint('Error clearing map cache: $e');
+    }
+
+    debugPrint('=== ALL SERVICES RESET COMPLETE ===');
   }
 
   void shutdown() {

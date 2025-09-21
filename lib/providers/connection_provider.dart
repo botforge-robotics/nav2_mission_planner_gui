@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:uuid/uuid.dart';
 import 'package:nav2_mission_planner/modals/robotProfile.dart';
 import 'package:nav2_mission_planner/providers/settings_provider.dart';
+import 'package:nav2_mission_planner/services/tf_service.dart';
 
 class ConnectionProvider extends ChangeNotifier {
   List<RobotProfile> _robots = [];
@@ -80,6 +81,9 @@ class ConnectionProvider extends ChangeNotifier {
       _isConnected = true;
       _ip = ip;
       _port = port;
+
+      // Clear all services when connecting to ensure fresh data
+      TFService.resetAllServices();
 
       // If createNew is true, always create a new robot regardless of existing IP
       if (createNew) {
@@ -162,6 +166,10 @@ class ConnectionProvider extends ChangeNotifier {
       await _ros2Client?.close();
       _isConnected = false;
       _activeRobot = null;
+
+      // Clear all services when disconnecting to prevent stale data
+      TFService.resetAllServices();
+
       notifyListeners();
     } catch (e) {
       rethrow;

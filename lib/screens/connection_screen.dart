@@ -12,6 +12,7 @@ import '../constants/modes.dart';
 import '../theme/app_theme.dart';
 import '../services/guide_service.dart';
 import '../services/guide_launcher_service.dart';
+import '../services/tf_service.dart';
 import 'robot_setup_wizard.dart';
 import 'home_screen.dart';
 import 'dart:ui';
@@ -194,6 +195,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     );
 
     try {
+      // Clear all services before connecting to new robot to prevent stale data
+      TFService.resetAllServices();
+
       final connectionProvider =
           Provider.of<ConnectionProvider>(context, listen: false);
       // Always create a new robot when connecting from the new robot form
@@ -243,6 +247,9 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
   // Method to connect to existing robot from the list
   Future<void> _connectToExistingRobot(
       BuildContext context, String name, String ip, String port) async {
+    // Clear all services before connecting to new robot to prevent stale data
+    TFService.resetAllServices();
+
     // Connect to existing robot (don't create new)
     final connectionProvider =
         Provider.of<ConnectionProvider>(context, listen: false);
