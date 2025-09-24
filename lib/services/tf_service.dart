@@ -65,7 +65,6 @@ class TFService {
     } catch (e) {
       _isTfAvailable = false;
       _lastError = 'Failed to subscribe to TF: $e';
-      debugPrint('TFService Error: $_lastError');
     }
   }
 
@@ -89,8 +88,6 @@ class TFService {
       final transformPairs = message.transforms
           .map((t) => '${t.header.frame_id}→${t.child_frame_id}')
           .join(', ');
-      debugPrint(
-          'TFService: Received TF message with ${message.transforms.length} transforms: $transformPairs');
     }
   }
 
@@ -121,14 +118,6 @@ class TFService {
         }
       }
 
-      debugPrint('=== TF ROBOT POSITION DEBUG ===');
-      debugPrint(
-          'Available frames (${availableFrames.length}): ${availableFrames.join(', ')}');
-      debugPrint(
-          'Target chain: ${settings.mapFrame} → ${settings.odomFrame} → ${settings.baseLinkFrame}');
-      debugPrint(
-          'Direct fallback: ${settings.mapFrame} → ${settings.baseLinkFrame}');
-
       // Try full chain: map → odom → base_link
       final robotTransform = _getTransformChain(
         settings.mapFrame,
@@ -140,9 +129,6 @@ class TFService {
         final position = robotTransform.transform.translation;
         final orientation = robotTransform.transform.rotation;
 
-        debugPrint(
-            '✓ Found full chain transform: x=${position.x.toStringAsFixed(3)}, y=${position.y.toStringAsFixed(3)}');
-
         final newPosition = {
           'x': position.x,
           'y': position.y,
@@ -155,11 +141,8 @@ class TFService {
           _robotPositionController.add(newPosition);
           _lastPosition = newPosition;
         }
-        debugPrint('=============================');
         return;
       }
-
-      debugPrint('✗ Full chain failed, trying direct transform...');
 
       // Fallback: try direct map → base_link
       final directTransform = _getDirectTransform(
@@ -171,9 +154,6 @@ class TFService {
         final position = directTransform.transform.translation;
         final orientation = directTransform.transform.rotation;
 
-        debugPrint(
-            '✓ Found direct transform: x=${position.x.toStringAsFixed(3)}, y=${position.y.toStringAsFixed(3)}');
-
         final newPosition = {
           'x': position.x,
           'y': position.y,
@@ -186,21 +166,7 @@ class TFService {
           _robotPositionController.add(newPosition);
           _lastPosition = newPosition;
         }
-        debugPrint('=============================');
         return;
-      }
-
-      // No transform available - log detailed debug info
-      debugPrint('✗ No transform available!');
-      debugPrint('Missing frames:');
-      if (!availableFrames.contains(settings.mapFrame)) {
-        debugPrint('  - Missing map frame: ${settings.mapFrame}');
-      }
-      if (!availableFrames.contains(settings.odomFrame)) {
-        debugPrint('  - Missing odom frame: ${settings.odomFrame}');
-      }
-      if (!availableFrames.contains(settings.baseLinkFrame)) {
-        debugPrint('  - Missing base_link frame: ${settings.baseLinkFrame}');
       }
 
       // Check for similar frame names
@@ -210,11 +176,6 @@ class TFService {
               frame.toLowerCase().contains('odom') ||
               frame.toLowerCase().contains('map'))
           .toList();
-      if (similarFrames.isNotEmpty) {
-        debugPrint('Similar frames found: ${similarFrames.join(', ')}');
-      }
-
-      debugPrint('=============================');
 
       // No transform available
       _isTfAvailable = false;
@@ -223,7 +184,6 @@ class TFService {
     } catch (e) {
       _isTfAvailable = false;
       _lastError = 'Error updating robot position: $e';
-      debugPrint('TFService Error: $_lastError');
     }
   }
 
@@ -353,8 +313,6 @@ class TFService {
   }
 
   void clearCache() {
-    debugPrint('TFService: Clearing TF cache and resetting all state');
-
     // Cancel position update timer
     _positionUpdateTimer?.cancel();
     _positionUpdateTimer = null;
@@ -371,26 +329,17 @@ class TFService {
     _isInitialized = false;
     _isTfAvailable = false;
     _lastError = null;
-
-    debugPrint('TFService: All state cleared - ready for new robot connection');
   }
 
   // Comprehensive reset for robot switching - clears everything
   static void resetAllServices() {
-    debugPrint('=== RESETTING ALL SERVICES FOR ROBOT SWITCH ===');
-
     // Reset TF Service
     TFService.instance.clearCache();
 
     // Clear map cache in OccupancyGridViewer
     try {
       OccupancyGridViewer.clearMapCache();
-      debugPrint('Map cache cleared successfully');
-    } catch (e) {
-      debugPrint('Error clearing map cache: $e');
-    }
-
-    debugPrint('=== ALL SERVICES RESET COMPLETE ===');
+    } catch (e) {}
   }
 
   void shutdown() {

@@ -105,6 +105,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   bool _showWaypointPanel = false;
 
+  // Add info banner for mission mode
+  bool _showMissionInfoBanner = false;
+
+  // Add info banner for initial pose
+  bool _showInitialPoseBanner = false;
+
   // Add a new state variable to track if a mission is available to start
   bool _missionAvailable = false;
 
@@ -242,6 +248,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
         setState(() {
           _isNavigationActive = true;
+          _showInitialPoseBanner = true;
         });
         _subscribeToOdometry();
         PoseEstimationService.initializePublisher(context);
@@ -481,6 +488,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       // Clear waypoints when switching away from mission mode
       if (!_missionMode) {
         _waypoints.clear();
+        _showMissionInfoBanner = false;
       }
 
       _goalPositionController.add({
@@ -637,6 +645,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
         y: markerPose['y'],
         theta: markerPose['orientation'],
       );
+
+      // Hide initial pose banner after setting initial pose
+      setState(() {
+        _showInitialPoseBanner = false;
+      });
     } else if (_bookmarksMode) {
       showDialog(
         context: context,
@@ -698,6 +711,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       setState(() {
         _waypoints.add(waypoint);
         _mapWidget = _buildMapWidget();
+        _showMissionInfoBanner = false; // Hide banner after adding location
       });
     }
   }
@@ -1125,6 +1139,92 @@ class _NavigationScreenState extends State<NavigationScreen> {
           // Map Display
           Positioned.fill(child: _mapWidget!),
 
+          // Mission Info Banner
+          if (_showMissionInfoBanner)
+            Positioned(
+              top: 20,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: widget.modeColor.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.touch_app,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Long press on map to add location',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Initial Pose Info Banner
+          if (_showInitialPoseBanner)
+            Positioned(
+              top: _showMissionInfoBanner ? 80 : 20,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.my_location,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Send pose estimate',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
           // Subscribe to path topic during mission execution
           Consumer<MissionExecutionService>(
             builder: (context, missionService, _) {
@@ -1268,6 +1368,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
                     onWaypointReordered: _handleWaypointReordered,
                     onWaypointsLoaded: _handleWaypointsLoaded,
                     currentMap: _selectedMap,
+                    onShowMissionBanner: () {
+                      setState(() {
+                        _showMissionInfoBanner = true;
+                      });
+                    },
                   ),
                 ),
               ),
@@ -1390,36 +1495,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             },
           ),
 
-          // Slide-to-start mission button (only shown when mission is available and not running)
-          Consumer<MissionExecutionService>(
-            builder: (context, execService, _) {
-              if (!_missionAvailable ||
-                  execService.isRunning ||
-                  _waypoints.isEmpty) {
-                return const SizedBox.shrink();
-              }
-
-              return NavBottomBar(
-                onSlideRight: () {
-                  // Start mission using the WaypointPanel's method
-                  if (_waypointPanelKey.currentState != null) {
-                    _waypointPanelKey.currentState!.startMissionExecution();
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content:
-                            Text('Cannot start mission. Please try again.'),
-                        backgroundColor: Colors.red.withOpacity(0.9),
-                      ),
-                    );
-                  }
-                },
-                promptText: 'Slide to start mission',
-                visible: true,
-                color: widget.modeColor,
-              );
-            },
-          ),
+          // Removed slide-to-start mission button - mission can be started from the panel
         ],
       );
     }

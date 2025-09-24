@@ -64,7 +64,7 @@ class Mission {
 
 enum MissionItemType {
   goto(
-    displayName: 'GOTO Position',
+    displayName: 'GOTO',
     icon: Icons.navigation,
     color: Colors.blue,
   ),
@@ -234,50 +234,53 @@ class MissionItem {
   String get subtitle {
     switch (type) {
       case MissionItemType.goto:
-        if (name != null) {
-          return 'Go to $name';
-        } else if (position != null) {
-          return 'Position (${position!.x.toStringAsFixed(2)}, ${position!.y.toStringAsFixed(2)})';
+        if (position != null) {
+          // If name starts with "Waypoint " it's a position from map, show coordinates
+          if (name != null && name!.startsWith('Waypoint ')) {
+            return 'X: ${position!.x.toStringAsFixed(2)}, Y: ${position!.y.toStringAsFixed(2)}, θ: ${position!.theta.toStringAsFixed(2)}';
+          } else {
+            // It's a bookmark, show "Bookmark"
+            return 'Bookmark';
+          }
         }
         return 'No position set';
 
       case MissionItemType.wait:
-        return 'Wait for ${waitDuration?.toStringAsFixed(1) ?? '0'} seconds';
+        return 'Wait for specified time';
 
       case MissionItemType.publish:
-        String details = publishTopic ?? 'No topic set';
-
-        // Add frequency information if available
-        if (publishFrequencyType == 'hz' && publishFrequency != null) {
-          details += ' • $publishFrequency Hz';
-        } else if (publishFrequencyType == 'duration' &&
-            publishDuration != null) {
-          details += ' • ${publishDuration}s';
-        } else if (publishFrequencyType == 'once') {
-          details += ' • Once';
+        String details = '';
+        if (publishTopic != null) {
+          details += 'Publish Topic';
         }
-
-        return details;
+        if (publishMsgType != null) {
+          details += details.isNotEmpty
+              ? ' • Type: $publishMsgType'
+              : 'Type: $publishMsgType';
+        }
+        return details.isEmpty ? 'No topic set' : details;
 
       case MissionItemType.callService:
-        String details = serviceName ?? 'No service set';
-
-        // Add waiting information
-        if (waitForServiceResponse == true) {
-          details += ' • Wait for response';
+        String details = '';
+        if (serviceName != null) {
+          details += 'Call Service';
         }
-
-        return details;
+        if (waitForServiceResponse == true) {
+          details +=
+              details.isNotEmpty ? ' • Wait for response' : 'Wait for response';
+        }
+        return details.isEmpty ? 'No service set' : details;
 
       case MissionItemType.callAction:
-        String details = actionName ?? 'No action set';
-
-        // Add waiting information
-        if (waitForActionResult == true) {
-          details += ' • Wait for result';
+        String details = '';
+        if (actionName != null) {
+          details += 'Send Action';
         }
-
-        return details;
+        if (waitForActionResult == true) {
+          details +=
+              details.isNotEmpty ? ' • Wait for result' : 'Wait for result';
+        }
+        return details.isEmpty ? 'No action set' : details;
 
       case MissionItemType.captureImage:
         return 'Capture and save camera image';
@@ -285,7 +288,40 @@ class MissionItem {
   }
 
   String get displayTitle {
-    return name ?? '${type.displayName} ${(id?.substring(0, 8)) ?? ''}';
+    switch (type) {
+      case MissionItemType.goto:
+        // If name starts with "Waypoint " it's a position from map, otherwise it's a bookmark
+        if (name != null && name!.startsWith('Waypoint')) {
+          return name!;
+        } else {
+          // For bookmarks, return the bookmark name
+          return name ?? 'Position';
+        }
+
+      case MissionItemType.wait:
+        return '${waitDuration?.toStringAsFixed(1) ?? '0'}s';
+
+      case MissionItemType.publish:
+        String title = publishTopic ?? 'Publish';
+        if (publishFrequencyType == 'hz' && publishFrequency != null) {
+          title += ' • ${publishFrequency}Hz';
+        } else if (publishFrequencyType == 'duration' &&
+            publishDuration != null) {
+          title += ' • ${publishDuration}s';
+        } else if (publishFrequencyType == 'once') {
+          title += ' • Once';
+        }
+        return title;
+
+      case MissionItemType.callService:
+        return serviceName ?? 'Service Call';
+
+      case MissionItemType.callAction:
+        return actionName ?? 'Action Call';
+
+      case MissionItemType.captureImage:
+        return 'Capture Image';
+    }
   }
 }
 
