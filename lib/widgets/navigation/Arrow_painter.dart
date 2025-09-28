@@ -26,7 +26,7 @@ class ArrowPainter extends CustomPainter {
       ..color = color
       ..style = PaintingStyle.fill;
 
-    final double dotRadius = size.width * 0.2;
+    final double dotRadius = size.width * 0.15;
     canvas.drawCircle(
         Offset(centerX, height), // Bottom center position
         dotRadius, // Dot radius

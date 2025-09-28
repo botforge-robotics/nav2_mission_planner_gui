@@ -31,7 +31,6 @@ import 'package:uuid/uuid.dart';
 
 import '../modals/mission.dart';
 import '../widgets/waypoint_panel/waypoint_panel.dart';
-import 'package:nav2_mission_planner/widgets/navigation/nav_bottom_bar.dart';
 import 'package:nav2_mission_planner/services/mission_execution_service.dart';
 import 'package:nav2_mission_planner/services/tf_service.dart';
 
@@ -102,8 +101,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
   // Add waypoint mode properties
   bool _missionMode = false;
   List<Waypoint> _waypoints = [];
+  List<Waypoint> _previewWaypoints = [];
 
   bool _showWaypointPanel = false;
+  bool _showArrowButton = false;
 
   // Add info banner for mission mode
   bool _showMissionInfoBanner = false;
@@ -485,10 +486,13 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _showGoalBar = false;
       _showWaypointPanel = tool == 'mission';
 
-      // Clear waypoints when switching away from mission mode
+      // Clear waypoints and preview when switching away from mission mode
       if (!_missionMode) {
         _waypoints.clear();
+        _previewWaypoints.clear();
         _showMissionInfoBanner = false;
+        // Clear any pattern preview from waypoint panel
+        _waypointPanelKey.currentState?.clearPatternPreview();
       }
 
       _goalPositionController.add({
@@ -512,6 +516,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _bookmarksMode = false;
         _showWaypointPanel = false;
         _missionMode = false;
+        // Clear any pattern preview when switching to localization
+        _previewWaypoints.clear();
+        _waypointPanelKey.currentState?.clearPatternPreview();
       });
     }
     if (_selectedTool == 'goal') {
@@ -527,6 +534,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _bookmarksMode = false;
         _showWaypointPanel = false;
         _missionMode = false;
+        // Clear any pattern preview when switching to goal
+        _previewWaypoints.clear();
+        _waypointPanelKey.currentState?.clearPatternPreview();
       });
     }
     if (_selectedTool == 'bookmarks') {
@@ -542,6 +552,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _bookmarksMode = true;
         _showWaypointPanel = false;
         _missionMode = false;
+        // Clear any pattern preview when switching to bookmarks
+        _previewWaypoints.clear();
+        _waypointPanelKey.currentState?.clearPatternPreview();
       });
     }
     if (_selectedTool == 'mission') {
@@ -983,6 +996,20 @@ class _NavigationScreenState extends State<NavigationScreen> {
     });
   }
 
+  void _handlePreviewWaypoints(List<Waypoint> previewWaypoints) {
+    setState(() {
+      _previewWaypoints = previewWaypoints;
+      _mapWidget = _buildMapWidget();
+    });
+  }
+
+  void _handleClearPreview() {
+    setState(() {
+      _previewWaypoints = [];
+      _mapWidget = _buildMapWidget();
+    });
+  }
+
   Widget _buildMapWidget() {
     return GestureDetector(
       onScaleStart: (details) {
@@ -1066,6 +1093,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           },
           isGoalActive: _isGoalActive,
           waypoints: _waypoints,
+          previewWaypoints: _previewWaypoints,
           showWaypointPath: _missionMode,
           useMapService: true,
           mapServiceName: '/map_server/map',
@@ -1120,6 +1148,20 @@ class _NavigationScreenState extends State<NavigationScreen> {
     setState(() {
       _waypoints.add(waypoint);
       _mapWidget = _buildMapWidget();
+    });
+  }
+
+  void _handleArrowButtonStateChanged(bool showArrow) {
+    setState(() {
+      _showArrowButton = showArrow;
+    });
+  }
+
+  void _handleMissionItemsChanged() {
+    // Trigger a rebuild to update the slide-to-start mission button
+    setState(() {
+      // This will cause the slide-to-start mission button to rebuild
+      // and check for mission items again
     });
   }
 
@@ -1368,11 +1410,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
                     onWaypointReordered: _handleWaypointReordered,
                     onWaypointsLoaded: _handleWaypointsLoaded,
                     currentMap: _selectedMap,
+                    robotPosition: Position(x: _robotX, y: _robotY, theta: 0),
+                    onPreviewWaypoints: _handlePreviewWaypoints,
+                    onClearPreview: _handleClearPreview,
                     onShowMissionBanner: () {
                       setState(() {
                         _showMissionInfoBanner = true;
                       });
                     },
+                    onArrowButtonStateChanged: _handleArrowButtonStateChanged,
+                    onMissionItemsChanged: _handleMissionItemsChanged,
                   ),
                 ),
               ),
@@ -1495,7 +1542,73 @@ class _NavigationScreenState extends State<NavigationScreen> {
             },
           ),
 
-          // Removed slide-to-start mission button - mission can be started from the panel
+          // Arrow button to reopen waypoint panel patterns
+          if (_showArrowButton && _missionMode)
+            Positioned(
+              bottom: 20,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: () {
+                    _waypointPanelKey.currentState?.reopenPatternDialog();
+                  },
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: widget.modeColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.keyboard_arrow_up,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // Slide-to-start mission button (only shown when mission is available and not running)
+          Consumer<MissionExecutionService>(
+            builder: (context, execService, _) {
+              // Check if there are mission items in the waypoint panel
+              final hasMissionItems =
+                  _waypointPanelKey.currentState?.hasMissionItems() ?? false;
+
+              if (!hasMissionItems || execService.isRunning || !_missionMode) {
+                return const SizedBox.shrink();
+              }
+
+              return NavBottomBar(
+                onSlideRight: () {
+                  // Start mission using the WaypointPanel's method
+                  if (_waypointPanelKey.currentState != null) {
+                    _waypointPanelKey.currentState!.startMissionExecution();
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content:
+                            Text('Cannot start mission. Please try again.'),
+                        backgroundColor: Colors.red.withOpacity(0.9),
+                      ),
+                    );
+                  }
+                },
+                promptText: 'Slide to start mission',
+                visible: true,
+                color: widget.modeColor,
+              );
+            },
+          ),
         ],
       );
     }

@@ -235,8 +235,12 @@ class MissionItem {
     switch (type) {
       case MissionItemType.goto:
         if (position != null) {
-          // If name starts with "Waypoint " it's a position from map, show coordinates
-          if (name != null && name!.startsWith('Waypoint ')) {
+          // If name starts with "Waypoint ", "Circle_", "Spiral_", or "Zigzag_" it's a position from map, show coordinates
+          if (name != null &&
+              (name!.startsWith('Waypoint ') ||
+                  name!.startsWith('Circle_') ||
+                  name!.startsWith('Spiral_') ||
+                  name!.startsWith('Zigzag_'))) {
             return 'X: ${position!.x.toStringAsFixed(2)}, Y: ${position!.y.toStringAsFixed(2)}, θ: ${position!.theta.toStringAsFixed(2)}';
           } else {
             // It's a bookmark, show "Bookmark"
@@ -290,8 +294,12 @@ class MissionItem {
   String get displayTitle {
     switch (type) {
       case MissionItemType.goto:
-        // If name starts with "Waypoint " it's a position from map, otherwise it's a bookmark
-        if (name != null && name!.startsWith('Waypoint')) {
+        // If name starts with "Waypoint", "Circle_", "Spiral_", or "Zigzag_" it's a position from map, otherwise it's a bookmark
+        if (name != null &&
+            (name!.startsWith('Waypoint') ||
+                name!.startsWith('Circle_') ||
+                name!.startsWith('Spiral_') ||
+                name!.startsWith('Zigzag_'))) {
           return name!;
         } else {
           // For bookmarks, return the bookmark name

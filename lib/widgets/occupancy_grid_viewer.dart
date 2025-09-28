@@ -14,7 +14,6 @@ import '../providers/settings_provider.dart';
 import '../providers/branding_provider.dart';
 import 'package:nav_msgs/msg.dart' as nav_msgs;
 import 'package:nav_msgs/srv.dart' as nav_srvs;
-import 'package:rosapi_msgs/srv.dart';
 import 'sensors/robot_position_marker.dart';
 import 'navigation/Arrow_painter.dart';
 import 'Simple_rotation_slider.dart';
@@ -37,6 +36,7 @@ class OccupancyGridViewer extends StatefulWidget {
   final Function(Bookmark)? onBookmarkTap;
   final bool isGoalActive;
   final List<Waypoint>? waypoints;
+  final List<Waypoint>? previewWaypoints;
   final bool useMapService;
   final String mapServiceName;
   final bool showWaypointPath;
@@ -58,6 +58,7 @@ class OccupancyGridViewer extends StatefulWidget {
     this.onBookmarkTap,
     this.isGoalActive = false,
     this.waypoints,
+    this.previewWaypoints,
     this.useMapService = false,
     this.mapServiceName = '/map_server/map',
     this.showWaypointPath = false,
@@ -744,6 +745,101 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                         ),
                       ),
 
+                    // 2c. Preview Waypoint path
+                    if (_mapImage != null &&
+                        widget.previewWaypoints != null &&
+                        widget.previewWaypoints!.isNotEmpty) ...[
+                      // Draw preview path lines
+                      ...List.generate(widget.previewWaypoints!.length - 1,
+                          (i) {
+                        final waypoint1 = widget.previewWaypoints![i];
+                        final waypoint2 = widget.previewWaypoints![i + 1];
+
+                        final transformedPose1 = transformToMapFrame(
+                          waypoint1.position.x,
+                          waypoint1.position.y,
+                          eulerToQuaternion(0, 0, waypoint1.position.theta),
+                          _mapOriginX,
+                          _mapOriginY,
+                          _mapResolution,
+                          _mapHeight,
+                          _mapWidth,
+                          _mapOriginTheta,
+                        );
+
+                        final transformedPose2 = transformToMapFrame(
+                          waypoint2.position.x,
+                          waypoint2.position.y,
+                          eulerToQuaternion(0, 0, waypoint2.position.theta),
+                          _mapOriginX,
+                          _mapOriginY,
+                          _mapResolution,
+                          _mapHeight,
+                          _mapWidth,
+                          _mapOriginTheta,
+                        );
+
+                        return Positioned.fill(
+                          child: CustomPaint(
+                            painter: DashedLinePainter(
+                              start: Offset(
+                                  transformedPose1.x, transformedPose1.y),
+                              end: Offset(
+                                  transformedPose2.x, transformedPose2.y),
+                              color: Colors.orange.withOpacity(0.8),
+                              strokeWidth: 2.0,
+                              dashLength: 5.0,
+                              dashGap: 3.0,
+                            ),
+                          ),
+                        );
+                      }),
+
+                      // Draw preview waypoint markers
+                      ...List.generate(widget.previewWaypoints!.length, (i) {
+                        final waypoint = widget.previewWaypoints![i];
+                        final transformedPose = transformToMapFrame(
+                          waypoint.position.x,
+                          waypoint.position.y,
+                          eulerToQuaternion(0, 0, waypoint.position.theta),
+                          _mapOriginX,
+                          _mapOriginY,
+                          _mapResolution,
+                          _mapHeight,
+                          _mapWidth,
+                          _mapOriginTheta,
+                        );
+
+                        return Positioned(
+                          left: transformedPose.x - 8,
+                          top: transformedPose.y - 8,
+                          child: Stack(
+                            children: [
+                              // Solid circle
+                              Container(
+                                width: 16,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: Colors.orange,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              // Orientation arrow
+                              Positioned.fill(
+                                child: CustomPaint(
+                                  painter: OrientationArrowPainter(
+                                    angle: transformedPose.theta,
+                                    color: Colors.white,
+                                    size: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+
                     // 3. Waypoints (add here, before bookmarks)
                     if (widget.waypoints != null &&
                         widget.waypoints!.isNotEmpty) ...[
@@ -1368,6 +1464,124 @@ class PathPainter extends CustomPainter {
     final position = poseJson['position'];
     return Offset(position['x'].toDouble(), position['y'].toDouble());
   }
+}
+
+// Painter for orientation arrows
+class OrientationArrowPainter extends CustomPainter {
+  final double angle;
+  final Color color;
+  final double size;
+
+  OrientationArrowPainter({
+    required this.angle,
+    required this.color,
+    required this.size,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    // Calculate arrow points
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+    final arrowLength = this.size * 0.4;
+
+    // Arrow head pointing in the direction of theta
+    final endX = centerX + arrowLength * math.cos(angle);
+    final endY = centerY + arrowLength * math.sin(angle);
+
+    // Draw arrow line
+    canvas.drawLine(
+      Offset(centerX, centerY),
+      Offset(endX, endY),
+      paint,
+    );
+
+    // Draw arrow head
+    final arrowHeadLength = this.size * 0.15;
+    final arrowHeadAngle = math.pi / 6; // 30 degrees
+
+    final head1X = endX - arrowHeadLength * math.cos(angle - arrowHeadAngle);
+    final head1Y = endY - arrowHeadLength * math.sin(angle - arrowHeadAngle);
+
+    final head2X = endX - arrowHeadLength * math.cos(angle + arrowHeadAngle);
+    final head2Y = endY - arrowHeadLength * math.sin(angle + arrowHeadAngle);
+
+    canvas.drawLine(Offset(endX, endY), Offset(head1X, head1Y), paint);
+    canvas.drawLine(Offset(endX, endY), Offset(head2X, head2Y), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// Painter for dashed lines
+class DashedLinePainter extends CustomPainter {
+  final Offset start;
+  final Offset end;
+  final Color color;
+  final double strokeWidth;
+  final double dashLength;
+  final double dashGap;
+
+  DashedLinePainter({
+    required this.start,
+    required this.end,
+    required this.color,
+    required this.strokeWidth,
+    required this.dashLength,
+    required this.dashGap,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    // Calculate the distance and direction vector
+    final dx = end.dx - start.dx;
+    final dy = end.dy - start.dy;
+    final distance = math.sqrt(dx * dx + dy * dy);
+
+    // Calculate the normalized direction vector
+    final dirX = dx / distance;
+    final dirY = dy / distance;
+
+    // Draw the dashed line
+    double currentDistance = 0;
+    bool drawDash = true;
+
+    while (currentDistance < distance) {
+      final segmentLength = drawDash ? dashLength : dashGap;
+      final remainingDistance = distance - currentDistance;
+      final segmentDistance = math.min(segmentLength, remainingDistance);
+
+      if (drawDash) {
+        final startX = start.dx + dirX * currentDistance;
+        final startY = start.dy + dirY * currentDistance;
+        final endX = start.dx + dirX * (currentDistance + segmentDistance);
+        final endY = start.dy + dirY * (currentDistance + segmentDistance);
+
+        canvas.drawLine(
+          Offset(startX, startY),
+          Offset(endX, endY),
+          paint,
+        );
+      }
+
+      currentDistance += segmentDistance;
+      drawDash = !drawDash;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 // Painter to draw connecting lines between robot and waypoints
