@@ -5,6 +5,8 @@ import '../../providers/branding_provider.dart';
 import '../connection_screen.dart';
 import 'trial_or_purchase_screen.dart';
 import '../../services/device_service.dart';
+import '../../services/app_usage_tracker.dart';
+import '../../services/migration_service.dart';
 
 /// A gate component that controls access to the main application based on license status.
 ///
@@ -37,14 +39,67 @@ class _LicensingGateState extends State<LicensingGate> {
   /// ensuring a smooth user experience without flickering between states.
   bool _didInitialCheck = false;
 
+  /// Flag indicating whether this is the first app launch
+  bool _isFirstAppLaunch = false;
+
+  /// Flag indicating whether user has ever reached teleop screen
+  bool _hasEverReachedTeleop = false;
+
+  /// Flag indicating whether to show trial reset popup
+  bool _shouldShowTrialResetPopup = false;
+
+  /// Flag indicating whether migration check is in progress
+  bool _isCheckingMigration = false;
+
+  /// Flag indicating whether trial reset is in progress
+  bool _isResettingTrial = false;
+
+  /// Flag indicating whether user just completed trial reset
+  bool _justCompletedTrialReset = false;
+
   @override
   void initState() {
     super.initState();
-    // Initialize the licensing provider asynchronously
+    // Initialize the new flow logic asynchronously
     Future.microtask(() async {
+      debugPrint('🔍 Starting LicensingGate initialization');
+
+      _isFirstAppLaunch = await AppUsageTracker.isFirstAppLaunch();
+      debugPrint('🔍 _isFirstAppLaunch: $_isFirstAppLaunch');
+
+      _hasEverReachedTeleop = await AppUsageTracker.hasEverReachedTeleop();
+      debugPrint('🔍 _hasEverReachedTeleop: $_hasEverReachedTeleop');
+
+      // Check migration status to determine if popup should be shown
+      if (!_isCheckingMigration) {
+        _isCheckingMigration = true;
+        _shouldShowTrialResetPopup =
+            await MigrationService.checkMigrationStatus();
+        debugPrint(
+            '🔍 Migration check result: _shouldShowTrialResetPopup=$_shouldShowTrialResetPopup');
+        _isCheckingMigration = false;
+      }
+
       final provider = context.read<LicensingProvider>();
-      await provider.initialize();
+
+      // Only initialize license check if user has reached teleop before
+      // This implements the new flow: skip license check on first launch
+      if (_hasEverReachedTeleop) {
+        debugPrint('🔍 Initializing license provider');
+        await provider.initialize();
+      } else {
+        debugPrint(
+            '🔍 Skipping license provider initialization (first launch or never reached teleop)');
+      }
+
+      debugPrint('🔍 Setting _didInitialCheck = true');
       _didInitialCheck = true;
+
+      if (mounted) {
+        setState(() {
+          // Trigger rebuild with final state
+        });
+      }
     });
   }
 
@@ -52,8 +107,11 @@ class _LicensingGateState extends State<LicensingGate> {
   Widget build(BuildContext context) {
     return Consumer2<LicensingProvider, BrandingProvider>(
       builder: (context, lp, brandingProvider, _) {
+        debugPrint(
+            '🔍 Build called: _didInitialCheck=$_didInitialCheck, _shouldShowTrialResetPopup=$_shouldShowTrialResetPopup, _isFirstAppLaunch=$_isFirstAppLaunch, _hasEverReachedTeleop=$_hasEverReachedTeleop');
+
         // Show loading while initializing
-        if (!_didInitialCheck || lp.state == LicenseGateState.loading) {
+        if (!_didInitialCheck) {
           return const Scaffold(
             body: Center(
               child: Column(
@@ -68,7 +126,22 @@ class _LicensingGateState extends State<LicensingGate> {
           );
         }
 
-        // Handle error state
+        // NEW FLOW: Show trial reset popup if needed
+        if (_shouldShowTrialResetPopup) {
+          debugPrint('🔍 Showing trial reset popup');
+          return _buildTrialResetPopup(context);
+        }
+
+        // NEW FLOW: Direct to connection screen on first app launch, if never reached teleop, or if just completed trial reset
+        if (_isFirstAppLaunch ||
+            !_hasEverReachedTeleop ||
+            _justCompletedTrialReset) {
+          debugPrint(
+              '🔍 Going to connection screen: _isFirstAppLaunch=$_isFirstAppLaunch, _hasEverReachedTeleop=$_hasEverReachedTeleop, _justCompletedTrialReset=$_justCompletedTrialReset');
+          return const ConnectionScreen();
+        }
+
+        // Handle error state (only for users who have reached teleop before)
         if (lp.state == LicenseGateState.error) {
           return Scaffold(
             body: Center(
@@ -101,7 +174,7 @@ class _LicensingGateState extends State<LicensingGate> {
           );
         }
 
-        // Handle different license states
+        // Handle different license states (only for users who have reached teleop before)
         switch (lp.state) {
           case LicenseGateState.noLicense:
           case LicenseGateState.trialExpired:
@@ -127,6 +200,147 @@ class _LicensingGateState extends State<LicensingGate> {
             );
         }
       },
+    );
+  }
+
+  /// Builds the trial reset popup shown after migration
+  ///
+  /// This popup informs users that their trial has been reset and explains
+  /// the new flow where trial starts after robot connection.
+  Widget _buildTrialResetPopup(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black87,
+      body: Center(
+        child: Container(
+          margin: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.grey[900],
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey[700]!, width: 1),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 64,
+                color: context.read<BrandingProvider>().themeColor,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Trial Reset',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Your trial has been reset. You will get a fresh 14-day trial after successfully connecting to a robot for the first time.',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Colors.grey[300],
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isResettingTrial
+                      ? null
+                      : () async {
+                          if (mounted) {
+                            setState(() {
+                              _isResettingTrial = true;
+                            });
+                          }
+
+                          try {
+                            debugPrint('🔄 Starting trial reset process...');
+                            // Mark popup as shown in cloud and locally
+                            await MigrationService.markMigrationPopupShown();
+                            debugPrint('✅ Trial reset completed successfully');
+
+                            // Reset teleop flag so user can experience new flow
+                            debugPrint(
+                                '🔄 Resetting teleop flag for new flow...');
+                            await AppUsageTracker.resetAllTracking();
+                            debugPrint(
+                                '✅ Teleop flag reset - user can experience new flow');
+
+                            // Refresh license provider to get updated status
+                            debugPrint(
+                                '🔄 Refreshing license provider after trial reset...');
+                            final provider = context.read<LicensingProvider>();
+                            await provider.refresh();
+                            debugPrint('✅ License provider refreshed');
+
+                            if (mounted) {
+                              setState(() {
+                                _shouldShowTrialResetPopup = false;
+                                _isResettingTrial = false;
+                                _justCompletedTrialReset = true;
+                                _hasEverReachedTeleop =
+                                    false; // Reset for new flow
+                              });
+                            }
+                          } catch (e) {
+                            debugPrint('❌ Error during trial reset: $e');
+                            if (mounted) {
+                              setState(() {
+                                _isResettingTrial = false;
+                              });
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isResettingTrial
+                        ? Colors.grey[600]
+                        : context.read<BrandingProvider>().themeColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: _isResettingTrial
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Resetting...',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        )
+                      : const Text(
+                          'OK',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

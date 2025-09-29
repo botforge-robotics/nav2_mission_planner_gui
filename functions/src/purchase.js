@@ -298,15 +298,15 @@ async function verifyWithGooglePlay(purchaseToken, productId) {
 
     // Determine status based on Google Play purchase state
     switch (purchase.purchaseState) {
-      case 0: // Purchased
-        return { status: "paid", details: purchase };
-      case 1: // Canceled
-        return { status: "cancelled", details: purchase };
-      case 2: // Pending
-        return { status: "pending", details: purchase };
-      default:
-        console.log(`⚠️ Unknown purchase state: ${purchase.purchaseState}`);
-        return { status: "failed", details: purchase };
+    case 0: // Purchased
+      return { status: "paid", details: purchase };
+    case 1: // Canceled
+      return { status: "cancelled", details: purchase };
+    case 2: // Pending
+      return { status: "pending", details: purchase };
+    default:
+      console.log(`⚠️ Unknown purchase state: ${purchase.purchaseState}`);
+      return { status: "failed", details: purchase };
     }
 
   } catch (error) {
@@ -615,21 +615,21 @@ async function handleOneTimeProductNotification(oneTime) {
   // Map RTDN notification type to status (RTDN is more reliable than delayed API calls)
   let status;
   switch (notificationType) {
-    case 1: // PURCHASED
-      status = "paid";
-      break;
-    case 2: // CANCELED
-      status = "cancelled";
-      break;
-    case 3: // REFUNDED
-      status = "refunded";
-      break;
-    case 4: // DEFERRED (pending)
-      status = "pending";
-      break;
-    default:
-      status = "unknown";
-      console.log(`⚠️ Unknown RTDN notification type: ${notificationType}`);
+  case 1: // PURCHASED
+    status = "paid";
+    break;
+  case 2: // CANCELED
+    status = "cancelled";
+    break;
+  case 3: // REFUNDED
+    status = "refunded";
+    break;
+  case 4: // DEFERRED (pending)
+    status = "pending";
+    break;
+  default:
+    status = "unknown";
+    console.log(`⚠️ Unknown RTDN notification type: ${notificationType}`);
   }
 
   console.log(`📊 RTDN status mapping: ${notificationType} → ${status}`);
@@ -1079,14 +1079,14 @@ async function handleVoidedPurchaseNotification(voidedPurchase) {
   // Map refund type to status
   let status;
   switch (refundType) {
-    case 1: // REFUND_TYPE_FULL_REFUND
-      status = "refunded";
-      break;
-    case 2: // REFUND_TYPE_QUANTITY_BASED_PARTIAL_REFUND
-      status = "partially_refunded";
-      break;
-    default:
-      status = "voided";
+  case 1: // REFUND_TYPE_FULL_REFUND
+    status = "refunded";
+    break;
+  case 2: // REFUND_TYPE_QUANTITY_BASED_PARTIAL_REFUND
+    status = "partially_refunded";
+    break;
+  default:
+    status = "voided";
   }
 
   console.log(`📊 Voided purchase status mapping: ${refundType} → ${status}`);

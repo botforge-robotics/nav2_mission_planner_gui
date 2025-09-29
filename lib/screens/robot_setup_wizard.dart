@@ -95,6 +95,10 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
     _tempSettings.addAll({
       'cameraImageTopic': '', // Empty by default, optional
       'cameraEnabled': false, // Camera enabled toggle
+      'tfTopic': DefaultSettings.defaultTfTopic,
+      'mapFrame': DefaultSettings.defaultMapFrame,
+      'odomFrame': DefaultSettings.defaultOdomFrame,
+      'baseLinkFrame': DefaultSettings.defaultBaseLinkFrame,
       'odomTopic': DefaultSettings.defaultOdomTopic,
       'odomTopicType': DefaultSettings.defaultOdomTopicType,
       'lidarTopic': DefaultSettings.defaultLidarTopic,
@@ -362,6 +366,12 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
               },
               modeColor: _steps[_currentStep].color,
             ),
+          ),
+          _buildSettingCard(
+            'TF Frames',
+            'Configure coordinate frame names',
+            Icons.layers,
+            _buildTfTopicInput(),
           ),
           _buildSettingCard(
             'Lidar Topic',

@@ -19,6 +19,8 @@ exports.registerDevice = deviceFunctions.registerDevice;
 // Licensing flows
 exports.getLicenseStatus = licenseFunctions.getLicenseStatus;
 exports.startTrial = licenseFunctions.startTrial;
+exports.getMigrationStatus = licenseFunctions.getMigrationStatus;
+exports.markMigrationPopupShown = licenseFunctions.markMigrationPopupShown;
 
 
 exports.checkPaymentStatus = purchaseFunctions.checkPaymentStatus;

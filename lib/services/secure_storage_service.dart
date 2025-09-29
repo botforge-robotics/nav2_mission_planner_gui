@@ -140,6 +140,34 @@ class SecureStorageService {
     await prefs.remove(_licenseDataKey);
   }
 
+  // Generic boolean storage methods
+  static Future<bool?> readBool(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(key);
+  }
+
+  static Future<void> writeBool(String key, bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
+  }
+
+  // Generic string storage methods
+  static Future<String?> readString(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(key);
+  }
+
+  static Future<void> writeString(String key, String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(key, value);
+  }
+
+  // Generic delete method
+  static Future<void> delete(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(key);
+  }
+
   // Store last mandatory trial check time
   static Future<void> storeLastMandatoryTrialCheck(DateTime time) async {
     final prefs = await SharedPreferences.getInstance();

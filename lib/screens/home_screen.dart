@@ -11,6 +11,7 @@ import '../providers/connection_provider.dart';
 import '../providers/branding_provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'connection_screen.dart';
+import '../services/app_usage_tracker.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +23,25 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   AppModes _currentMode = AppModes.teleop;
   AppModes? _previousMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _trackTeleopAccess();
+  }
+
+  /// Track when user first accesses teleop screen
+  Future<void> _trackTeleopAccess() async {
+    try {
+      final hasEverReachedTeleop = await AppUsageTracker.hasEverReachedTeleop();
+      if (!hasEverReachedTeleop) {
+        await AppUsageTracker.markTeleopReached();
+        debugPrint('📱 Marked teleop as reached - trial eligibility triggered');
+      }
+    } catch (e) {
+      debugPrint('Error tracking teleop access: $e');
+    }
+  }
 
   String _getModeStatusText(bool isConnected) {
     if (!isConnected) {
@@ -43,92 +63,97 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Consumer<ConnectionProvider>(
       builder: (context, connectionProvider, child) {
-        // Auto-switch to teleop when disconnected
-        if (!connectionProvider.isConnected &&
-            _currentMode != AppModes.teleop) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            setState(() {
-              _currentMode = AppModes.teleop;
-              _previousMode = null;
-            });
-          });
-        }
+        return _buildMainContent(context, connectionProvider);
+      },
+    );
+  }
 
-        // Track the active underlying screen (teleop, mapping, navigation)
-        final activeScreen = _currentMode == AppModes.settings
-            ? _previousMode ?? AppModes.teleop
-            : _currentMode;
+  /// Builds the main content of the home screen
+  Widget _buildMainContent(
+      BuildContext context, ConnectionProvider connectionProvider) {
+    // Auto-switch to teleop when disconnected
+    if (!connectionProvider.isConnected && _currentMode != AppModes.teleop) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _currentMode = AppModes.teleop;
+          _previousMode = null;
+        });
+      });
+    }
 
-        return Consumer<BrandingProvider>(
-          builder: (context, brandingProvider, child) {
-            return Scaffold(
-              body: Stack(
+    // Track the active underlying screen (teleop, mapping, navigation)
+    final activeScreen = _currentMode == AppModes.settings
+        ? _previousMode ?? AppModes.teleop
+        : _currentMode;
+
+    return Consumer<BrandingProvider>(
+      builder: (context, brandingProvider, child) {
+        return Scaffold(
+          body: Stack(
+            children: [
+              // Main content with status bar and screen stack
+              Column(
                 children: [
-                  // Main content with status bar and screen stack
-                  Column(
-                    children: [
-                      TopStatusBar(
-                        currentMode: _currentMode,
-                        onModeChanged: (mode) {
-                          setState(() {
-                            if (mode == AppModes.settings) {
-                              // Store previous mode before switching to settings
-                              _previousMode = _currentMode;
-                            } else {
-                              _previousMode = null;
-                            }
-                            _currentMode = mode;
-                          });
-                        },
-                        statusText:
-                            _getModeStatusText(connectionProvider.isConnected),
-                        statusColor: connectionProvider.isConnected
-                            ? ModeColors.getModeColorMap(context)[
-                                _currentMode == AppModes.settings
-                                    ? _previousMode ?? AppModes.teleop
-                                    : _currentMode]!
-                            : Colors.red,
-                        height: AppTheme.statusBarHeight,
-                        icon: connectionProvider.isConnected
-                            ? null
-                            : FontAwesomeIcons.robot,
-                      ),
-
-                      // Keep all screens alive with IndexedStack
-                      Expanded(
-                        child: connectionProvider.isConnected
-                            ? IndexedStack(
-                                index: _getScreenIndex(activeScreen),
-                                children: [
-                                  TeleopScreen(
-                                      modeColor: ModeColors.getModeColorMap(
-                                          context)[AppModes.teleop]!),
-                                  MappingScreen(
-                                      modeColor: ModeColors.getModeColorMap(
-                                          context)[AppModes.mapping]!),
-                                  NavigationScreen(
-                                      modeColor: ModeColors.getModeColorMap(
-                                          context)[AppModes.navigation]!),
-                                ],
-                              )
-                            : const ConnectionScreen(showTopStatusBar: false),
-                      ),
-                    ],
+                  TopStatusBar(
+                    currentMode: _currentMode,
+                    onModeChanged: (mode) {
+                      setState(() {
+                        if (mode == AppModes.settings) {
+                          // Store previous mode before switching to settings
+                          _previousMode = _currentMode;
+                        } else {
+                          _previousMode = null;
+                        }
+                        _currentMode = mode;
+                      });
+                    },
+                    statusText:
+                        _getModeStatusText(connectionProvider.isConnected),
+                    statusColor: connectionProvider.isConnected
+                        ? ModeColors.getModeColorMap(context)[
+                            _currentMode == AppModes.settings
+                                ? _previousMode ?? AppModes.teleop
+                                : _currentMode]!
+                        : Colors.red,
+                    height: AppTheme.statusBarHeight,
+                    icon: connectionProvider.isConnected
+                        ? null
+                        : FontAwesomeIcons.robot,
                   ),
 
-                  // Settings overlay when in settings mode
-                  if (_currentMode == AppModes.settings)
-                    Positioned.fill(
-                      top: AppTheme.statusBarHeight,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: const SettingsScreen(),
-                      ),
-                    ),
+                  // Keep all screens alive with IndexedStack
+                  Expanded(
+                    child: connectionProvider.isConnected
+                        ? IndexedStack(
+                            index: _getScreenIndex(activeScreen),
+                            children: [
+                              TeleopScreen(
+                                  modeColor: ModeColors.getModeColorMap(
+                                      context)[AppModes.teleop]!),
+                              MappingScreen(
+                                  modeColor: ModeColors.getModeColorMap(
+                                      context)[AppModes.mapping]!),
+                              NavigationScreen(
+                                  modeColor: ModeColors.getModeColorMap(
+                                      context)[AppModes.navigation]!),
+                            ],
+                          )
+                        : const ConnectionScreen(showTopStatusBar: false),
+                  ),
                 ],
               ),
-            );
-          },
+
+              // Settings overlay when in settings mode
+              if (_currentMode == AppModes.settings)
+                Positioned.fill(
+                  top: AppTheme.statusBarHeight,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: const SettingsScreen(),
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );
