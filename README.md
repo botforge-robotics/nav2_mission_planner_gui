@@ -1,6 +1,6 @@
 # Nav2 Mission Planner
 
-A comprehensive ROS2 navigation mission planning application for mobile devices. Nav2 Mission Planner provides an intuitive interface for connecting to ROS2 robots, performing teleoperation, mapping, and navigation tasks.
+A comprehensive cross-platform ROS2 navigation mission planning application built with Flutter. Nav2 Mission Planner provides an intuitive interface for connecting to ROS2 robots, performing teleoperation, mapping, and navigation tasks. The app supports **Linux**, **Windows**, and **Android** platforms.
 
 ## 📱 App Showcase
 
@@ -10,10 +10,10 @@ A comprehensive ROS2 navigation mission planning application for mobile devices.
 
 ## 📱 Download App
 
-**Download Nav2 Mission Planner for Android:**
+**Download Nav2 Mission Planner:**
 
-- 🚀 **Google Play Store**: [Download Now](https://play.google.com/store/apps/details?id=com.botforge.nav2missionplanner)
-- 📱 **Compatible with**: Android 7.0+ (API level 24+)
+- 🚀 **Android (Compiled App)**: [Download from Google Play Store](https://play.google.com/store/apps/details?id=com.botforge.nav2missionplanner)
+- 💻 **Android/Linux/Windows**: Build from source (see [Building from Source](#building-from-source) section below)
 - 🔧 **Features**: ROS 2 Mapping, Navigation, Mission Planning, Teleoperation
 - 🌐 **Support**: Email support available
 
@@ -27,37 +27,34 @@ A comprehensive ROS2 navigation mission planning application for mobile devices.
 - **Settings Management**: Configure robot-specific settings including topics, frames, and sensor parameters
 - **Multi-Robot Support**: Manage multiple robot configurations
 
-## Requirements
-
-- **Mobile Device**: Android 7.0 (API 24) or higher
-- **ROS2 Robot**: Robot running ROS2 with rosbridge_server
-- **Network**: Device and robot must be on the same network
-
-### ROS2 Setup
-
-Your robot needs to have:
-
-- ROS2 installed (Humble, Iron, or later recommended)
-- `rosbridge_suite` package installed and running
-- Appropriate ROS2 topics and services for navigation, mapping, and teleoperation
-
 ## Installation
 
-### From Google Play Store
+### Install Compiled Android App
 
-The app is available on the Google Play Store. Search for "Nav2 Mission Planner" and install directly to your device.
+The compiled Android app is available on the Google Play Store:
+
+**[📱 Download from Google Play Store](https://play.google.com/store/apps/details?id=com.botforge.nav2missionplanner)**
 
 **▶️ Watch Installation Tutorial**
 
-![Installation Video Tutorial](https://raw.githubusercontent.com/botforge-robotics/nav2_mission_planner/refs/heads/jazzy/images/youtubeThumbail.png)
+[![Installation Video Tutorial](https://raw.githubusercontent.com/botforge-robotics/nav2_mission_planner/refs/heads/jazzy/images/youtubeThumbail.png)](https://www.youtube.com/watch?v=I7syq--gEf4&feature=youtu.be)
+
+### Robot Setup
+
+For robot setup and configuration instructions, please visit:
+
+**[🤖 Robot Setup Guide](https://github.com/botforge-robotics/nav2_mission_planner)**
 
 ### Building from Source
+
+Nav2 Mission Planner is built with Flutter and supports cross-platform development for **Linux**, **Windows**, and **Android**.
 
 1. **Prerequisites**:
 
    - Flutter SDK (3.6.1 or later)
-   - Android Studio or VS Code with Flutter extensions
-   - Android SDK (API 24 or higher)
+   - For Android: Android Studio or VS Code with Flutter extensions, Android SDK (API 24 or higher)
+   - For Linux: Linux development tools
+   - For Windows: Windows development tools
 
 2. **Clone the repository**:
 
@@ -74,19 +71,43 @@ The app is available on the Google Play Store. Search for "Nav2 Mission Planner"
 
 4. **Build the app**:
 
+   **For Android:**
+
    ```bash
    flutter build apk --release
-   ```
-
-   Or for app bundle:
-
-   ```bash
+   # Or for app bundle:
    flutter build appbundle --release
    ```
 
-5. **Install on device**:
+   **For Linux:**
+
+   ```bash
+   flutter build linux --release
+   ```
+
+   **For Windows:**
+
+   ```bash
+   flutter build windows --release
+   ```
+
+5. **Install/Run**:
+
+   **Android:**
+
    ```bash
    flutter install
+   ```
+
+   **Linux/Windows:**
+
+   ```bash
+   # Run directly
+   flutter run -d linux
+   # or
+   flutter run -d windows
+
+   # Or install the built executable from build/linux/release/ or build/windows/release/
    ```
 
 ## Usage
@@ -154,7 +175,7 @@ This project adheres to a Code of Conduct. Please read [CODE_OF_CONDUCT.md](CODE
 
 ## Credits
 
-- Built with Flutter
+- Built with Flutter (cross-platform: Linux, Windows, Android)
 - ROS2 integration via rosbridge
 - Community contributors
 
