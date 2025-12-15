@@ -1,24 +1,5 @@
 class AppConfig {
-  // App Check Configuration
-  static const bool enableAppCheck = true;
-
-  // App Check token refresh settings
-  static const int tokenRefreshIntervalMinutes =
-      30; // Refresh token every 30 minutes
-  static const int minFetchIntervalSeconds =
-      5; // Minimum 5 seconds between token fetches
-
-  // Firebase Cloud Functions URL
-  static const String cloudFunctionsUrl =
-      'https://us-central1-nav2-mission-planner.cloudfunctions.net';
-
-  // Google Sign-In
-  static const String webClientId = '';
-
-  // Product IDs for in-app purchases
-  static const String individualLifetimeProductId = 'n2mp_individual_life';
-
-  // Feature cards for license screens background
+  // Feature cards for background decoration
   static const List<Map<String, dynamic>> featureCards = [
     {
       'title': 'Teleoperation',

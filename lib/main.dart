@@ -1,29 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'screens/licensing/licensing_gate.dart';
 import 'providers/settings_provider.dart';
 import 'theme/app_theme.dart';
 import 'providers/connection_provider.dart' hide ConnectionState;
 import 'providers/ros2_data_provider.dart';
-import 'providers/branding_provider.dart';
-import 'providers/licensing_provider.dart';
 import 'services/launch_service.dart';
 import 'services/mission_execution_service.dart';
 import 'services/device_service.dart';
 import 'services/secure_storage_service.dart';
-import 'services/firebase_service.dart';
-import 'widgets/branding_loading_screen.dart';
-import 'screens/auth/login_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'providers/branding_provider.dart';
+import 'screens/connection_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FocusManager.instance.primaryFocus?.unfocus();
-
-  // Initialize Firebase
-  await FirebaseService.initialize();
-  debugPrint('🚀 Firebase initialized in main()');
 
   // Initialize device service
   await DeviceService.initialize();
@@ -51,7 +42,6 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => BrandingProvider()),
         ChangeNotifierProvider(create: (_) => ConnectionProvider()),
-        ChangeNotifierProvider(create: (_) => LicensingProvider()),
         ChangeNotifierProvider(create: (_) => LaunchManager()),
         ChangeNotifierProxyProvider<ConnectionProvider, SettingsProvider>(
           create: (context) => SettingsProvider('default'),
@@ -103,39 +93,7 @@ class Nav2MissionPlanner extends StatelessWidget {
     return MaterialApp(
       title: 'Nav2 Mission Planner',
       theme: AppTheme.darkTheme,
-      home: Consumer<BrandingProvider>(
-        builder: (context, brandingProvider, child) {
-          // Show loading screen until branding is initialized
-          if (!brandingProvider.isInitialized) {
-            return const BrandingLoadingScreen();
-          }
-
-          // Use StreamBuilder to listen to authentication state changes
-          return StreamBuilder<User?>(
-            stream: FirebaseAuth.instance.authStateChanges(),
-            builder: (context, AsyncSnapshot<User?> snapshot) {
-              // Show loading while checking auth state
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              }
-
-              // Check if user is authenticated
-              final user = snapshot.data;
-              if (user == null) {
-                // User not authenticated - show login screen
-                return const LoginScreen();
-              }
-
-              // User is authenticated - route through licensing gate
-              return const LicensingGate();
-            },
-          );
-        },
-      ),
+      home: const ConnectionScreen(),
       debugShowCheckedModeBanner: false,
     );
   }

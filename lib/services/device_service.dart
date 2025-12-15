@@ -156,22 +156,4 @@ class DeviceService {
     return false;
   }
 
-  // Get device registration data for API
-  static Future<Map<String, dynamic>> getDeviceRegistrationData(
-      {required String accountId}) async {
-    // Always use the same device identifier we send to licensing APIs
-    final stableDeviceId = await getDeviceId();
-    final deviceInfo = await getDeviceInfo();
-
-    return {
-      'accountId': accountId, // Add the required accountId field
-      'deviceId': stableDeviceId,
-      'appVersion': deviceInfo['appVersion'],
-      'platform': deviceInfo['platform'],
-      'installationTime': deviceInfo['installationTime'],
-      'deviceModel': deviceInfo['model'],
-      'androidVersion': deviceInfo['androidVersion'],
-      'appBuildNumber': deviceInfo['appBuildNumber'],
-    };
-  }
 }

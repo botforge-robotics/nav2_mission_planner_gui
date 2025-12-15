@@ -11,7 +11,6 @@ import '../providers/connection_provider.dart';
 import '../providers/branding_provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'connection_screen.dart';
-import '../services/app_usage_tracker.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -27,20 +26,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _trackTeleopAccess();
-  }
-
-  /// Track when user first accesses teleop screen
-  Future<void> _trackTeleopAccess() async {
-    try {
-      final hasEverReachedTeleop = await AppUsageTracker.hasEverReachedTeleop();
-      if (!hasEverReachedTeleop) {
-        await AppUsageTracker.markTeleopReached();
-        debugPrint('📱 Marked teleop as reached - trial eligibility triggered');
-      }
-    } catch (e) {
-      debugPrint('Error tracking teleop access: $e');
-    }
   }
 
   String _getModeStatusText(bool isConnected) {

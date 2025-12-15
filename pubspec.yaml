@@ -1,6 +1,6 @@
 name: nav2_mission_planner
 description: "Nav2 Mission Planner - A comprehensive ROS2 navigation mission planning application for mobile devices."
-version: 1.7.0+17
+version: 2.0.0+1
 publish_to: none
 
 environment:
@@ -42,23 +42,11 @@ dependencies:
   duration_picker: ^1.2.0
   flutter_launcher_icons: ^0.14.4
 
-  # Firebase Dependencies
-  firebase_core: ^3.15.2
-  cloud_functions: ^5.6.2
-  firebase_app_check: ^0.3.2+10
-  firebase_auth: ^5.7.0
-  google_sign_in: 6.2.1
-
-  # Google Play Billing
-  in_app_purchase: ^3.2.3
-
-  # License system dependencies
+  # Device and system info (used for device information display)
   device_info_plus: ^11.5.0
   package_info_plus: ^8.3.0
-  crypto: ^3.0.3
-  http: ^0.13.6
-  connectivity_plus: ^6.1.4
   flutter_secure_storage: ^9.0.0
+  http: ^0.13.6
   qr_code_scanner_plus: ^2.0.10+1
   path_provider: ^2.1.2
   url_launcher: ^6.2.5
@@ -66,12 +54,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  in_app_purchase_platform_interface: ^1.4.0
-
-dependency_overrides:
-  google_sign_in_android: 6.2.1
-  google_sign_in_platform_interface: 2.5.0
-  google_sign_in_web: 0.12.4+4
 
 flutter:
   uses-material-design: true

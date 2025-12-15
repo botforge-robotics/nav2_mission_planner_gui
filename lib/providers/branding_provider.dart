@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 
+/// Simple branding provider with static default values
+/// No dynamic branding - always uses default values
+/// Extends ChangeNotifier for compatibility with Consumer pattern
 class BrandingProvider extends ChangeNotifier {
-  bool _isInitialized = false;
-
-  BrandingProvider() {
-    // Initialize immediately
-    _isInitialized = true;
-  }
-
-  // Default branding
+  // Default branding - static values
   static const Map<String, String> _defaultBranding = {
     'appTitle': 'Nav2 Mission Planner',
     'faviconUrl': 'assets/favicon_light.png',
@@ -20,7 +16,7 @@ class BrandingProvider extends ChangeNotifier {
     'footerCredits': 'Made with ❤️ for ROS2 developers',
   };
 
-  // Getters for branding
+  // Instance getters for Consumer pattern compatibility
   String get appTitle => _defaultBranding['appTitle']!;
 
   String get faviconUrl => _defaultBranding['faviconUrl']!;
@@ -39,9 +35,6 @@ class BrandingProvider extends ChangeNotifier {
   String get website => _defaultBranding['website']!;
 
   String get footerCredits => _defaultBranding['footerCredits']!;
-
-  // Check if branding is initialized
-  bool get isInitialized => _isInitialized;
 
   // Parse hex color string to Color
   Color _parseHexColor(String hexColor) {

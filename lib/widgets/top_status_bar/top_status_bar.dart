@@ -9,7 +9,6 @@ import 'top_status_mode_selector.dart';
 import 'top_status_center_title.dart';
 import 'top_status_network_info.dart';
 import 'top_status_connection_button.dart';
-import '../../providers/licensing_provider.dart';
 
 class TopStatusBar extends StatelessWidget {
   final String statusText;
@@ -161,11 +160,6 @@ class TopStatusBar extends StatelessWidget {
                         onModeChanged(newMode);
                       },
                     ),
-                    // Trial badge positioned after mode selector with proper spacing
-                    Padding(
-                      padding: EdgeInsets.only(left: 16), // Consistent spacing
-                      child: _TrialBadge(height: height),
-                    ),
                   ],
                 ),
               ),
@@ -216,56 +210,6 @@ class TopStatusBar extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                   ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _TrialBadge extends StatelessWidget {
-  final double height;
-  const _TrialBadge({required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer2<LicensingProvider, BrandingProvider>(
-      builder: (context, lp, branding, _) {
-        // Production logic - show trial badge only when trial is active
-        if (lp.state != LicenseGateState.trialActive ||
-            lp.trialEndTime == null) {
-          return const SizedBox.shrink();
-        }
-        final remaining =
-            lp.trialEndTime!.difference(DateTime.now()).inDays.clamp(0, 999);
-        return Container(
-          margin: EdgeInsets.symmetric(horizontal: 8),
-          padding: EdgeInsets.symmetric(
-              horizontal: 10, vertical: 4), // Reduced vertical padding
-          height: height * 0.7, // Decreased height to 70% of status bar height
-          decoration: BoxDecoration(
-            color: Colors.red.withOpacity(0.15),
-            border: Border.all(color: Colors.red.withOpacity(0.85), width: 1),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center, // Center align content
-            crossAxisAlignment:
-                CrossAxisAlignment.center, // Center align vertically
-            children: [
-              Icon(Icons.hourglass_bottom,
-                  size: 12, color: Colors.red), // Reduced icon size
-              const SizedBox(width: 4), // Reduced spacing
-              Text(
-                'Trial: $remaining day${remaining == 1 ? '' : 's'} left',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontSize: 12, // Reduced font size
-                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],

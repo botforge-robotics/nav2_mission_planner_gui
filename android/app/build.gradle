@@ -1,7 +1,6 @@
 plugins {
     id "com.android.application"
     id "kotlin-android"
-    id "com.google.gms.google-services" // Added for Firebase
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id "dev.flutter.flutter-gradle-plugin"
 }
@@ -30,8 +29,8 @@ android {
         applicationId = "com.botforge.nav2missionplanner"
         minSdk = 24
         targetSdk = 36
-        versionCode = 17
-        versionName = "1.7.0"
+        versionCode = 18
+        versionName = "2.0.0"
     }
 
     signingConfigs {
@@ -71,9 +70,7 @@ android {
 }
 
 dependencies {
-    implementation 'com.google.android.play:integrity:1.4.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0'
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.0'
 }
 
 flutter {

@@ -11,6 +11,11 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+# IDE folders
+.cursor/
+.vscode/
+**/.vscode/
+**/.cursor/
 
 # IntelliJ related
 *.iml

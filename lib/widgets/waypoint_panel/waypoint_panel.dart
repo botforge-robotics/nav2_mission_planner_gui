@@ -1702,7 +1702,7 @@ class WaypointPanelState extends State<WaypointPanel> {
         onPressed: _showClearAllConfirmation,
         icon: Icon(
           Icons.clear_all,
-          color: BrandingProvider().themeColor,
+          color: Provider.of<BrandingProvider>(context, listen: false).themeColor,
           size: 24,
         ),
         tooltip: 'Clear All Mission Items',
