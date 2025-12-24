@@ -21,21 +21,8 @@ void main() async {
   await SecureStorageService.initialize();
   debugPrint('✅ Services initialized in main()');
 
-  // Force landscape mode
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
-
-  // Configure system UI and hide Android status/navigation bars for full-screen UX
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarDividerColor: Colors.transparent,
-    ),
-  );
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  // Enable modern edge-to-edge for Android 15+ while allowing system bars
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   runApp(
     MultiProvider(

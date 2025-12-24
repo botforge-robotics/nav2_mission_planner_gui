@@ -29,8 +29,8 @@ android {
         applicationId = "com.botforge.nav2missionplanner"
         minSdk = 24
         targetSdk = 36
-        versionCode = 18
-        versionName = "2.0.0"
+        versionCode = 19
+        versionName = "2.0.1"
     }
 
     signingConfigs {
@@ -71,6 +71,11 @@ android {
 
 dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0'
+}
+
+configurations.all {
+    // Ensure SafetyNet library is not bundled (deprecated in favor of Play Integrity)
+    exclude group: "com.google.android.gms", module: "play-services-safetynet"
 }
 
 flutter {
