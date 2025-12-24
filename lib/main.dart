@@ -24,6 +24,12 @@ void main() async {
   // Enable modern edge-to-edge for Android 15+ while allowing system bars
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
+  // Keep UX locked to landscape (left or right) on handsets/tablets
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+
   runApp(
     MultiProvider(
       providers: [
