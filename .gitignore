@@ -1,20 +1,25 @@
-# Dependencies
-node_modules/
-dist/
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+!build/web/
+android/.gradle/
+ios/Pods/
+linux/flutter/ephemeral/
 
-# Flutter legacy
-flutter_legacy/.dart_tool/
-flutter_legacy/build/
-flutter_legacy/.flutter-plugins-dependencies
-**/android/.gradle/
+# Node (API)
+server/node_modules/
+server/data/
 
 # IDE / OS
 .idea/
 .vscode/
+*.iml
 *.swp
 .DS_Store
 .env
 
 # Logs
 *.log
-npm-debug.log*

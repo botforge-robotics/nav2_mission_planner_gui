@@ -49,7 +49,7 @@ const DEFAULT_SETTINGS = {
   mappingOdomTopicType: 'nav_msgs/msg/Odometry',
   mappingArgs: [
     { name: 'use_sim_time', value: 'false' },
-    { name: 'use_rviz', value: 'false' },
+    
   ],
   saveMapLaunchFile: 'nav2_mission_planner/save_map',
   saveMapArgs: [],
@@ -58,7 +58,7 @@ const DEFAULT_SETTINGS = {
   navigationOdomTopicType: 'geometry_msgs/msg/PoseWithCovarianceStamped',
   navigationArgs: [
     { name: 'use_sim_time', value: 'false' },
-    { name: 'use_rviz', value: 'false' },
+    
   ],
   cameraImageTopic: '',
   cameraEnabled: false,
@@ -287,6 +287,17 @@ app.get('/api/heartbeat', async (_req, res) => {
     robot,
     checkedAt: Date.now(),
   });
+});
+
+app.get('/api/probe', async (req, res) => {
+  const ip = String(req.query.ip || '');
+  const port = Number(req.query.port || 9090);
+  if (!ip) return res.status(400).json({ error: 'ip required' });
+  if (isIgnoredScanIp(ip)) {
+    return res.json({ online: false, ignored: true });
+  }
+  const online = await probePort(ip, port);
+  res.json({ online, ip, port: String(port), checkedAt: Date.now() });
 });
 
 app.get('/api/nearby', async (req, res) => {
