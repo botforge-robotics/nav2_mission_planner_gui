@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+flutter_legacy
+assets
+server/node_modules
+server/data
+*.md
+.env
+.cursor
+.vscode
+CHANGELOG.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+LICENSE

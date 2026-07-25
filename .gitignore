@@ -1,61 +1,20 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
+# Dependencies
+node_modules/
+dist/
+
+# Flutter legacy
+flutter_legacy/.dart_tool/
+flutter_legacy/build/
+flutter_legacy/.flutter-plugins-dependencies
+**/android/.gradle/
+
+# IDE / OS
+.idea/
+.vscode/
 *.swp
 .DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
-# IDE folders
-.cursor/
-.vscode/
-**/.vscode/
-**/.cursor/
+.env
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
-
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-
-# Secrets and credentials
-**/service-account*.json
-**/*credentials*.json
-**/*secret*.json
-**/*.key
-**/*.pem
-functions/service-account*.json
-google-services.json
-**/google-services.json
-android/app/google-services.json
+# Logs
+*.log
+npm-debug.log*

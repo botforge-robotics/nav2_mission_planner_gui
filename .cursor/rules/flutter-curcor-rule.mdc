@@ -1,0 +1,63 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+rules:
+  - name: "Enforce existing modular folder structure"
+    applies_to: "lib/**"
+    description: >
+      Maintain organized folder structure separating constants, providers, screens, widgets, and theme.
+      Enforce deeper structuring in settings and consistent widget placement.
+
+    patterns:
+      - path: "lib/constants/"
+        must_contain:
+          - "default_settings.dart"
+          - "modes.dart"
+
+      - path: "lib/providers/"
+        must_contain:
+          - "settings_provider.dart"
+          - "connection_provider.dart"
+
+      - path: "lib/screens/"
+        must_contain:
+          - "home_screen.dart"
+          - "teleop_screen.dart"
+          - "mapping_screen.dart"
+          - "navigation_screen.dart"
+          - "mission_screen.dart"
+          - "settings/"
+
+      - path: "lib/screens/settings/"
+        must_contain:
+          - "settings_screen.dart"
+          - "settings_content.dart"
+          - "teleop_settings.dart"
+          - "mapping_settings.dart"
+          - "navigation_settings.dart"
+          - "general_settings.dart"
+          - "widgets/"
+
+      - path: "lib/screens/settings/widgets/"
+        must_contain:
+          - "setting_card.dart"
+          - "setting_header.dart"
+          - "camera_topic_input.dart"
+
+      - path: "lib/widgets/"
+        must_contain:
+          - "side_toolbar.dart"
+          - "top_status_bar.dart"
+
+      - path: "lib/theme/"
+        must_contain:
+          - "app_theme.dart"
+
+    error_message: >
+      Project structure violated. Ensure that constants, providers, screens, and widgets
+      are placed in their respective folders as per the defined structure. Check especially
+
+
+      for proper nesting in `settings/widgets` and placement of theme components.

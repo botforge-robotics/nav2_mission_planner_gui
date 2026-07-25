@@ -1,0 +1,79 @@
+{
+  "roots": [
+    "map_msgs"
+  ],
+  "packages": [
+    {
+      "name": "map_msgs",
+      "version": "0.1.0",
+      "dependencies": [
+        "nav_msgs",
+        "ros2_msg_utils",
+        "sensor_msgs",
+        "std_msgs"
+      ],
+      "devDependencies": []
+    },
+    {
+      "name": "std_msgs",
+      "version": "0.1.0",
+      "dependencies": [
+        "builtin_interfaces",
+        "ros2_msg_utils"
+      ]
+    },
+    {
+      "name": "sensor_msgs",
+      "version": "0.1.0",
+      "dependencies": [
+        "builtin_interfaces",
+        "geometry_msgs",
+        "ros2_msg_utils",
+        "std_msgs"
+      ]
+    },
+    {
+      "name": "nav_msgs",
+      "version": "0.1.0",
+      "dependencies": [
+        "builtin_interfaces",
+        "geometry_msgs",
+        "ros2_msg_utils",
+        "std_msgs"
+      ]
+    },
+    {
+      "name": "ros2_msg_utils",
+      "version": "0.0.1",
+      "dependencies": [
+        "actionlib_msgs",
+        "std_msgs"
+      ]
+    },
+    {
+      "name": "builtin_interfaces",
+      "version": "0.1.0",
+      "dependencies": [
+        "ros2_msg_utils"
+      ]
+    },
+    {
+      "name": "geometry_msgs",
+      "version": "0.1.0",
+      "dependencies": [
+        "ros2_msg_utils",
+        "std_msgs"
+      ]
+    },
+    {
+      "name": "actionlib_msgs",
+      "version": "0.1.0",
+      "dependencies": [
+        "builtin_interfaces",
+        "ros2_msg_utils",
+        "std_msgs"
+      ]
+    }
+  ],
+  "configVersion": 1
+}

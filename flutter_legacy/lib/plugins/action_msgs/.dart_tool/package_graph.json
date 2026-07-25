@@ -1,0 +1,58 @@
+{
+  "roots": [
+    "action_msgs"
+  ],
+  "packages": [
+    {
+      "name": "action_msgs",
+      "version": "0.1.0",
+      "dependencies": [
+        "builtin_interfaces",
+        "ros2_msg_utils",
+        "std_msgs",
+        "unique_identifier_msgs"
+      ],
+      "devDependencies": []
+    },
+    {
+      "name": "unique_identifier_msgs",
+      "version": "0.1.0",
+      "dependencies": [
+        "ros2_msg_utils"
+      ]
+    },
+    {
+      "name": "std_msgs",
+      "version": "0.1.0",
+      "dependencies": [
+        "builtin_interfaces",
+        "ros2_msg_utils"
+      ]
+    },
+    {
+      "name": "builtin_interfaces",
+      "version": "0.1.0",
+      "dependencies": [
+        "ros2_msg_utils"
+      ]
+    },
+    {
+      "name": "ros2_msg_utils",
+      "version": "0.0.1",
+      "dependencies": [
+        "actionlib_msgs",
+        "std_msgs"
+      ]
+    },
+    {
+      "name": "actionlib_msgs",
+      "version": "0.1.0",
+      "dependencies": [
+        "builtin_interfaces",
+        "ros2_msg_utils",
+        "std_msgs"
+      ]
+    }
+  ],
+  "configVersion": 1
+}

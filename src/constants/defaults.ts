@@ -1,0 +1,37 @@
+export const DefaultSettings = {
+  cmdVelTopic: '/cmd_vel',
+  defaultLinearVelocity: 1.0,
+  defaultAngularVelocity: 1.0,
+  velocityStep: 0.05,
+  defaultTwistType: 'geometry_msgs/msg/TwistStamped',
+  availableTwistTypes: [
+    'geometry_msgs/msg/Twist',
+    'geometry_msgs/msg/TwistStamped',
+  ] as const,
+  minVelocity: 0.0,
+  maxVelocity: 100.0,
+  defaultMapsFolder: 'turtlebot4_navigation/maps',
+  defaultMappingLaunchFile: 'turtlebot4_navigation/slam',
+  defaultMappingOdomTopic: '/odom',
+  defaultMappingOdomTopicType: 'nav_msgs/msg/Odometry',
+  defaultNavigationLaunchFile: 'turtlebot4_navigation/navigation',
+  defaultNavigationOdomTopic: '/amcl_pose',
+  defaultNavigationOdomTopicType:
+    'geometry_msgs/msg/PoseWithCovarianceStamped',
+  defaultCameraTopic: '',
+  defaultOdomTopic: '/odom',
+  defaultOdomTopicType: 'nav_msgs/msg/Odometry',
+  defaultLidarTopic: '/scan',
+  defaultSaveMapLaunchFile: 'nav2_mission_planner/save_map',
+  defaultCameraVisible: true,
+  defaultJoystickVisible: true,
+  defaultPathTopic: '/plan',
+  defaultTfTopic: '/tf',
+  defaultMapFrame: 'map',
+  defaultOdomFrame: 'odom',
+  defaultBaseLinkFrame: 'base_link',
+  defaultBookmarksVisible: true,
+  defaultCommunicationTimeout: 120,
+} as const;
+
+export type LaunchArg = { name: string; value: string };
