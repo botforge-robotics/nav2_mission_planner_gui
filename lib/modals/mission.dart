@@ -92,6 +92,11 @@ enum MissionItemType {
     displayName: 'Capture Image',
     icon: Icons.camera_alt,
     color: Colors.orange,
+  ),
+  apiCall(
+    displayName: 'API Call',
+    icon: Icons.http,
+    color: Colors.purple,
   );
 
   final String displayName;
@@ -150,6 +155,13 @@ class MissionItem {
   Map<String, dynamic>? actionGoal;
   bool? waitForActionResult;
 
+  // API CALL parameters
+  String? apiUrl;
+  String? apiMethod; // GET, POST, PUT, PATCH, DELETE
+  Map<String, String>? apiHeaders;
+  String? apiBody;
+  bool? apiWaitForResponse;
+
   // Warning flag for structure changes
   bool hasStructureWarning = false;
 
@@ -173,6 +185,11 @@ class MissionItem {
     this.actionType,
     this.actionGoal,
     this.waitForActionResult,
+    this.apiUrl,
+    this.apiMethod,
+    this.apiHeaders,
+    this.apiBody,
+    this.apiWaitForResponse,
     this.hasStructureWarning = false,
   });
 
@@ -197,11 +214,23 @@ class MissionItem {
       'actionType': actionType,
       'actionGoal': actionGoal,
       'waitForActionResult': waitForActionResult,
+      'apiUrl': apiUrl,
+      'apiMethod': apiMethod,
+      'apiHeaders': apiHeaders,
+      'apiBody': apiBody,
+      'apiWaitForResponse': apiWaitForResponse,
       'hasStructureWarning': hasStructureWarning,
     };
   }
 
   factory MissionItem.fromJson(Map<String, dynamic> json) {
+    Map<String, String>? headers;
+    if (json['apiHeaders'] is Map) {
+      headers = (json['apiHeaders'] as Map).map(
+        (key, value) => MapEntry(key.toString(), value.toString()),
+      );
+    }
+
     return MissionItem(
       id: json['id'],
       type: MissionItemType.values.firstWhere(
@@ -226,6 +255,11 @@ class MissionItem {
       actionType: json['actionType'],
       actionGoal: json['actionGoal'],
       waitForActionResult: json['waitForActionResult'],
+      apiUrl: json['apiUrl'],
+      apiMethod: json['apiMethod'],
+      apiHeaders: headers,
+      apiBody: json['apiBody'],
+      apiWaitForResponse: json['apiWaitForResponse'],
       hasStructureWarning: json['hasStructureWarning'] ?? false,
     );
   }
@@ -288,6 +322,20 @@ class MissionItem {
 
       case MissionItemType.captureImage:
         return 'Capture and save camera image';
+
+      case MissionItemType.apiCall:
+        String details = '';
+        if (apiMethod != null) {
+          details += apiMethod!;
+        }
+        if (apiUrl != null && apiUrl!.isNotEmpty) {
+          details += details.isNotEmpty ? ' • $apiUrl' : apiUrl!;
+        }
+        if (apiWaitForResponse == true) {
+          details +=
+              details.isNotEmpty ? ' • Wait for response' : 'Wait for response';
+        }
+        return details.isEmpty ? 'No URL set' : details;
     }
   }
 
@@ -329,6 +377,14 @@ class MissionItem {
 
       case MissionItemType.captureImage:
         return 'Capture Image';
+
+      case MissionItemType.apiCall:
+        final method = apiMethod ?? 'POST';
+        final url = apiUrl;
+        if (url != null && url.isNotEmpty) {
+          return '$method $url';
+        }
+        return 'API Call';
     }
   }
 }

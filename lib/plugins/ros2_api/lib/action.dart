@@ -69,7 +69,17 @@ class ActionClient<
       final isSuccess = status == 4;
 
       if (!isSuccess) {
-        _resultCompleter?.completeError(message['values'] ?? 'Action failed');
+        // 4=SUCCEEDED 5=CANCELED 6=ABORTED
+        final statusLabel = status == 5
+            ? 'canceled'
+            : status == 6
+                ? 'aborted'
+                : 'failed (status $status)';
+        final values = message['values'];
+        final detail = values is Map && (values['error_msg']?.toString().isNotEmpty ?? false)
+            ? values['error_msg']
+            : values;
+        _resultCompleter?.completeError('Goal $statusLabel: $detail');
       } else {
         try {
           final result = actionMessage.result

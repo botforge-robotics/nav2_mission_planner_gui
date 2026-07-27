@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/connection_provider.dart';
@@ -6,6 +9,12 @@ import 'package:ros2_api/ros2_api.dart';
 import '../../providers/settings_provider.dart';
 import 'package:builtin_interfaces/msg.dart' as builtin_interfaces;
 import 'package:std_msgs/msg.dart';
+
+/// How long to keep driving after the last stick-position change.
+const Duration _stagnantStopDelay = Duration(seconds: 2);
+
+/// Minimum normalized stick delta that counts as a "change".
+const double _changeEpsilon = 0.04;
 
 class JoystickThumbWidget extends StatefulWidget {
   final Color modeColor;
@@ -18,10 +27,18 @@ class JoystickThumbWidget extends StatefulWidget {
 class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
   Offset _position = Offset.zero;
   bool _isActive = false;
+  bool _isDriving = false;
   dynamic _publisher;
   SettingsProvider? _settingsProvider;
   String? _currentTopic;
   String? _currentType;
+
+  double _lastNormX = 0.0;
+  double _lastNormY = 0.0;
+  Timer? _stagnantTimer;
+  Timer? _publishTimer;
+  double _cmdLinear = 0.0;
+  double _cmdAngular = 0.0;
 
   @override
   void didChangeDependencies() {
@@ -50,7 +67,6 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
     final connection = context.read<ConnectionProvider>();
     final settings = context.read<SettingsProvider>();
 
-    // Shutdown existing publisher if it exists
     _publisher?.shutdown();
     _publisher = null;
 
@@ -74,91 +90,133 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
     }
   }
 
+  void _publishTwist(double linear, double angular) {
+    if (_publisher == null) return;
+
+    final twist = Twist(
+      linear: Vector3(x: linear, y: 0.0, z: 0.0),
+      angular: Vector3(x: 0.0, y: 0.0, z: angular),
+    );
+
+    final settings = context.read<SettingsProvider>();
+    if (settings.twistType == 'geometry_msgs/msg/TwistStamped') {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final stampedTwist = TwistStamped(
+        header: Header(
+          stamp: builtin_interfaces.Time(
+            sec: now ~/ 1000,
+            nanosec: (now % 1000) * 1000000,
+          ),
+          frame_id: 'base_link',
+        ),
+        twist: twist,
+      );
+      _publisher!.publish(stampedTwist);
+    } else {
+      _publisher!.publish(twist);
+    }
+  }
+
+  void _startDriving(double linear, double angular) {
+    _cmdLinear = linear;
+    _cmdAngular = angular;
+    _isDriving = true;
+    _publishTwist(linear, angular);
+
+    // Keep publishing while the motion window is open (many bases need a stream).
+    _publishTimer?.cancel();
+    _publishTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (!_isDriving) return;
+      _publishTwist(_cmdLinear, _cmdAngular);
+    });
+
+    // Stop if stick position does not change again.
+    _stagnantTimer?.cancel();
+    _stagnantTimer = Timer(_stagnantStopDelay, _stopDrivingKeepStick);
+  }
+
+  /// Stop cmd_vel but leave the thumb where it is (finger may still be down).
+  void _stopDrivingKeepStick() {
+    _publishTimer?.cancel();
+    _publishTimer = null;
+    _stagnantTimer?.cancel();
+    _stagnantTimer = null;
+    _isDriving = false;
+    _cmdLinear = 0.0;
+    _cmdAngular = 0.0;
+    _publishTwist(0.0, 0.0);
+    if (mounted) setState(() {});
+  }
+
   void _updatePosition(Offset localPosition, Size size) {
     final center = size.center(Offset.zero);
     var newPosition = localPosition - center;
     final maxExtent = size.width / 2.5;
 
-    // Limit to circular bounds
     if (newPosition.distance > maxExtent) {
       newPosition = newPosition * (maxExtent / newPosition.distance);
     }
+
+    final normalizedX = -(newPosition.dx / maxExtent).clamp(-1.0, 1.0);
+    final normalizedY = -(newPosition.dy / maxExtent).clamp(-1.0, 1.0);
+
+    final changed = (normalizedX - _lastNormX).abs() > _changeEpsilon ||
+        (normalizedY - _lastNormY).abs() > _changeEpsilon;
 
     setState(() {
       _position = newPosition;
       _isActive = true;
     });
 
-    // Normalize values between -1 and 1
-    final normalizedX = -(newPosition.dx / maxExtent).clamp(-1.0, 1.0);
-    final normalizedY = -(newPosition.dy / maxExtent).clamp(-1.0, 1.0);
+    if (!changed && _isDriving) {
+      // Same stick pose — do not extend motion; stagnant timer keeps running.
+      return;
+    }
+
+    if (!changed && !_isDriving) {
+      // Held still after auto-stop — stay stopped until stick moves again.
+      return;
+    }
+
+    _lastNormX = normalizedX;
+    _lastNormY = normalizedY;
 
     final settings = context.read<SettingsProvider>();
     final linear = normalizedY * settings.linearVelocity;
     final angular = normalizedX * settings.angularVelocity;
 
-    // Create velocity message
-    if (_publisher != null) {
-      final twist = Twist(
-        linear: Vector3(x: linear, y: 0.0, z: 0.0),
-        angular: Vector3(x: 0.0, y: 0.0, z: angular),
-      );
-
-      // Publish based on message type
-      if (settings.twistType == 'geometry_msgs/msg/TwistStamped') {
-        final now = DateTime.now().millisecondsSinceEpoch;
-        final stampedTwist = TwistStamped(
-          header: Header(
-            stamp: builtin_interfaces.Time(
-              sec: now ~/ 1000,
-              nanosec: (now % 1000) * 1000000,
-            ),
-            frame_id: 'base_link',
-          ),
-          twist: twist,
-        );
-        _publisher!.publish(stampedTwist);
-      } else {
-        _publisher!.publish(twist);
-      }
+    // Near-center counts as stop.
+    if (math.sqrt(linear * linear + angular * angular) < 0.01) {
+      _stopDrivingKeepStick();
+      return;
     }
+
+    _startDriving(linear, angular);
   }
 
   void _stopMovement() {
+    _publishTimer?.cancel();
+    _publishTimer = null;
+    _stagnantTimer?.cancel();
+    _stagnantTimer = null;
+    _isDriving = false;
+    _lastNormX = 0.0;
+    _lastNormY = 0.0;
+    _cmdLinear = 0.0;
+    _cmdAngular = 0.0;
+
     setState(() {
       _position = Offset.zero;
       _isActive = false;
     });
 
-    // Send zero velocity
-    if (_publisher != null) {
-      final twist = Twist(
-        linear: Vector3(x: 0.0, y: 0.0, z: 0.0),
-        angular: Vector3(x: 0.0, y: 0.0, z: 0.0),
-      );
-
-      final settings = context.read<SettingsProvider>();
-      if (settings.twistType == 'geometry_msgs/msg/TwistStamped') {
-        final now = DateTime.now().millisecondsSinceEpoch;
-        final stampedTwist = TwistStamped(
-          header: Header(
-            stamp: builtin_interfaces.Time(
-              sec: now ~/ 1000,
-              nanosec: (now % 1000) * 1000000,
-            ),
-            frame_id: 'base_link',
-          ),
-          twist: twist,
-        );
-        _publisher!.publish(stampedTwist);
-      } else {
-        _publisher!.publish(twist);
-      }
-    }
+    _publishTwist(0.0, 0.0);
   }
 
   @override
   void dispose() {
+    _stagnantTimer?.cancel();
+    _publishTimer?.cancel();
     _settingsProvider?.removeListener(_onSettingsChanged);
     _publisher?.shutdown();
     super.dispose();
@@ -193,7 +251,6 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
             ),
             child: Stack(
               children: [
-                // Crosshair guides
                 Center(
                   child: Container(
                     width: baseSize * 0.8,
@@ -208,8 +265,6 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
                     color: widget.modeColor.withOpacity(0.3),
                   ),
                 ),
-
-                // Direction markers
                 Positioned(
                   top: 10,
                   left: 0,
@@ -258,8 +313,6 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
                     ),
                   ),
                 ),
-
-                // Thumb control
                 Center(
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 100),
@@ -272,13 +325,17 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
                       width: 28,
                       height: 28,
                       decoration: BoxDecoration(
-                        color: _isActive ? widget.modeColor : Colors.white,
+                        color: _isDriving
+                            ? widget.modeColor
+                            : (_isActive
+                                ? widget.modeColor.withOpacity(0.45)
+                                : Colors.white),
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: Colors.white,
                           width: 2,
                         ),
-                        boxShadow: _isActive
+                        boxShadow: _isDriving
                             ? [
                                 BoxShadow(
                                   color: widget.modeColor.withOpacity(0.6),

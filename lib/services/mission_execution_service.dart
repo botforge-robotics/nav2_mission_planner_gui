@@ -12,6 +12,7 @@ import 'package:sensor_msgs/msg.dart' as sensor_msgs;
 import 'dart:typed_data';
 import 'package:nav2_mission_planner/providers/settings_provider.dart';
 import 'package:ros2_api/ros2_api.dart';
+import 'package:http/http.dart' as http;
 
 /// Holds live information about mission execution progress
 class MissionProgress {
@@ -211,6 +212,9 @@ class MissionExecutionService extends ChangeNotifier {
 
       case MissionItemType.captureImage:
         return await _handleCaptureImage(context, item);
+
+      case MissionItemType.apiCall:
+        return await _handleApiCall(context, item);
     }
   }
 
@@ -411,6 +415,135 @@ class MissionExecutionService extends ChangeNotifier {
       return success;
     } catch (e) {
       _isWaitingForResult = false;
+      _broadcast();
+      return false;
+    }
+  }
+
+  Future<bool> _handleApiCall(BuildContext context, MissionItem item) async {
+    final url = item.apiUrl?.trim();
+    if (url == null || url.isEmpty) return false;
+
+    final method = (item.apiMethod ?? 'POST').toUpperCase();
+    final waitForResponse = item.apiWaitForResponse ?? true;
+    final headers = <String, String>{
+      if (item.apiHeaders != null) ...item.apiHeaders!,
+    };
+    final body = item.apiBody;
+
+    // Default JSON content-type when sending a body and none is set
+    if (body != null &&
+        body.isNotEmpty &&
+        method != 'GET' &&
+        method != 'DELETE' &&
+        !headers.keys.any((k) => k.toLowerCase() == 'content-type')) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    Uri uri;
+    try {
+      uri = Uri.parse(url);
+    } catch (_) {
+      try {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('API Call failed: invalid URL'),
+            backgroundColor: Colors.red.withOpacity(0.9),
+          ),
+        );
+      } catch (_) {}
+      return false;
+    }
+
+    Future<http.Response> sendRequest() {
+      switch (method) {
+        case 'GET':
+          return http.get(uri, headers: headers);
+        case 'PUT':
+          return http.put(uri, headers: headers, body: body);
+        case 'PATCH':
+          return http.patch(uri, headers: headers, body: body);
+        case 'DELETE':
+          return http.delete(uri, headers: headers, body: body);
+        case 'POST':
+        default:
+          return http.post(uri, headers: headers, body: body);
+      }
+    }
+
+    if (!waitForResponse) {
+      // Fire-and-forget; do not block mission execution
+      unawaited(sendRequest().then((response) {
+        try {
+          final ok = response.statusCode >= 200 && response.statusCode < 300;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(ok
+                  ? 'API Call succeeded (${response.statusCode})'
+                  : 'API Call failed (${response.statusCode})'),
+              backgroundColor:
+                  (ok ? Colors.green : Colors.red).withOpacity(0.9),
+            ),
+          );
+        } catch (_) {}
+      }).catchError((e) {
+        try {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('API Call failed: $e'),
+              backgroundColor: Colors.red.withOpacity(0.9),
+            ),
+          );
+        } catch (_) {}
+      }));
+      return true;
+    }
+
+    _isWaitingForResponse = true;
+    _broadcast();
+
+    try {
+      final response = await sendRequest().timeout(
+        const Duration(seconds: 30),
+      );
+      final ok = response.statusCode >= 200 && response.statusCode < 300;
+
+      try {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ok
+                ? 'API Call succeeded (${response.statusCode})'
+                : 'API Call failed (${response.statusCode})'),
+            backgroundColor: (ok ? Colors.green : Colors.red).withOpacity(0.9),
+          ),
+        );
+      } catch (_) {}
+
+      _isWaitingForResponse = false;
+      _broadcast();
+      return ok;
+    } on TimeoutException {
+      try {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('API Call timed out after 30s'),
+            backgroundColor: Colors.red.withOpacity(0.9),
+          ),
+        );
+      } catch (_) {}
+      _isWaitingForResponse = false;
+      _broadcast();
+      return false;
+    } catch (e) {
+      try {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('API Call failed: $e'),
+            backgroundColor: Colors.red.withOpacity(0.9),
+          ),
+        );
+      } catch (_) {}
+      _isWaitingForResponse = false;
       _broadcast();
       return false;
     }

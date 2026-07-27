@@ -58,7 +58,8 @@ class GoalService {
       );
       return result;
     } catch (e) {
-      return null;
+      debugPrint('GoalService.sendGoal error: $e');
+      rethrow;
     }
   }
 

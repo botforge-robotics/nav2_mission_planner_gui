@@ -534,6 +534,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           'show': false,
         });
         _poseEstimationMode = false;
+        _showInitialPoseBanner = false;
         _goalMode = true;
         _bookmarksMode = false;
         _showWaypointPanel = false;
@@ -653,8 +654,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   void _handleMarkerPoseReceived(Map<String, dynamic> markerPose) {
     if (_goalMode) {
+      // Place goal + show slide-to-confirm / cancel (do not auto-send)
       setState(() {
-        _showGoalBar = false;
+        _showGoalBar = true;
         _currentGoalPose = markerPose;
       });
 
@@ -664,8 +666,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
         'orientation': markerPose['orientation'],
         'show': true,
       });
-      // Release after drag → send goal immediately
-      _handleGoalSubmission();
     } else if (_poseEstimationMode) {
       PoseEstimationService.publishPoseEstimate(
         context: context,
@@ -852,27 +852,71 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (_currentGoalPose == null) return;
 
     setState(() {
+      _showGoalBar = false;
       _isGoalActive = true;
       _disableLongPress = true;
       _disableToolBar = true;
       _showNavigationFeedback = true;
+      _currentFeedback = null;
     });
-    await _subscribeToPath();
 
-    final result = await _goalService.sendGoal(
-      x: _currentGoalPose!['x'],
-      y: _currentGoalPose!['y'],
-      orientation: _currentGoalPose!['orientation'],
-      frameId: 'map',
-      feedbackHandler: (feedback) {
+    try {
+      await _subscribeToPath();
+
+      final firstFeedback = Completer<void>();
+
+      final resultFuture = _goalService.sendGoal(
+        x: _currentGoalPose!['x'],
+        y: _currentGoalPose!['y'],
+        orientation: _currentGoalPose!['orientation'],
+        frameId: 'map',
+        feedbackHandler: (feedback) {
+          if (!firstFeedback.isCompleted) {
+            firstFeedback.complete();
+          }
+          if (!mounted) return;
+          setState(() {
+            _currentFeedback = feedback;
+            _mapWidget = _buildMapWidget();
+          });
+        },
+      );
+
+      // Fail fast if Nav2 never accepts / never starts (stack unconfigured)
+      await firstFeedback.future.timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          _goalService.cancelCurrentGoal();
+          throw Exception(
+            'Navigation did not start — Nav2 may be inactive. '
+            'Stop and Start Navigation again after setting initial pose.',
+          );
+        },
+      );
+
+      final result = await resultFuture;
+
+      if (!mounted) return;
+
+      if (result == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Goal failed — is navigation running and AMCL localized?',
+            ),
+            backgroundColor: Colors.red.withOpacity(0.9),
+          ),
+        );
         setState(() {
-          _currentFeedback = feedback;
-          _mapWidget = _buildMapWidget();
+          _isGoalActive = false;
+          _disableLongPress = false;
+          _disableToolBar = false;
+          _showNavigationFeedback = false;
+          _showGoalBar = false;
         });
-      },
-    );
+        return;
+      }
 
-    if (result != null) {
       _unsubscribePath();
 
       setState(() {
@@ -904,6 +948,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _disableToolBar = false;
         _showNavigationFeedback = false;
         _showGoalBar = false;
+        _currentGoalPose = null;
         _goalPositionController.add({
           'x': 0.0,
           'y': 0.0,
@@ -914,7 +959,35 @@ class _NavigationScreenState extends State<NavigationScreen> {
         // Rebuild the map widget
         _mapWidget = _buildMapWidget();
       });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Goal error: $e'),
+          backgroundColor: Colors.red.withOpacity(0.9),
+        ),
+      );
+      setState(() {
+        _isGoalActive = false;
+        _disableLongPress = false;
+        _disableToolBar = false;
+        _showNavigationFeedback = false;
+      });
     }
+  }
+
+  void _cancelPendingGoal() {
+    setState(() {
+      _showGoalBar = false;
+      _currentGoalPose = null;
+      _goalPositionController.add({
+        'x': 0.0,
+        'y': 0.0,
+        'orientation': geometry_msgs.Quaternion(x: 0, y: 0, z: 0, w: 1),
+        'show': false,
+      });
+      _mapWidget = _buildMapWidget();
+    });
   }
 
   void _handleNavigationCancel() {
@@ -1046,16 +1119,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       pathStream: _pathController.stream,
           onMarkerPoseReceived: _handleMarkerPoseReceived,
           onMarkerPoseCancelled: () {
-            _goalPositionController.add({
-              'x': 0.0,
-              'y': 0.0,
-              'orientation': geometry_msgs.Quaternion(x: 0, y: 0, z: 0, w: 1),
-              'show': false,
-            });
-            setState(() {
-              _showGoalBar = false;
-              _currentGoalPose = null;
-            });
+            _cancelPendingGoal();
           },
           disableLongPress: _disableLongPress,
       placementMode: placementMode,
@@ -1235,8 +1299,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
               ),
             ),
 
-          // Initial Pose Info Banner
-          if (_showInitialPoseBanner)
+          // Placement hint banner (initial pose / goal / bookmarks)
+          if (_showInitialPoseBanner ||
+              (_goalMode && !_isGoalActive && !_showGoalBar) ||
+              (_bookmarksMode && !_showGoalBar))
             Positioned(
               top: _showMissionInfoBanner ? 80 : 20,
               left: 0,
@@ -1245,7 +1311,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.9),
+                    color: (_poseEstimationMode || _showInitialPoseBanner)
+                        ? Colors.orange.withOpacity(0.9)
+                        : widget.modeColor.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
@@ -1259,15 +1327,25 @@ class _NavigationScreenState extends State<NavigationScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.my_location,
+                        (_poseEstimationMode || _showInitialPoseBanner)
+                            ? Icons.my_location
+                            : Icons.navigation,
                         color: Colors.white,
                         size: 16,
                       ),
                       SizedBox(width: 8),
                       Text(
-                        kIsWeb
-                            ? 'Drag to aim · release to send · slide left to cancel'
-                            : 'Long-press drag to aim · release to send',
+                        _goalMode
+                            ? (kIsWeb
+                                ? 'Set goal — drag to aim · release · then slide to send'
+                                : 'Set goal — long-press drag to aim · release · slide to send')
+                            : (_poseEstimationMode || _showInitialPoseBanner)
+                                ? (kIsWeb
+                                    ? 'Set initial pose — drag to aim, release to set'
+                                    : 'Set initial pose — long-press drag to aim, release to set')
+                                : (kIsWeb
+                                    ? 'Drag to place bookmark · release to save'
+                                    : 'Long-press drag to place bookmark · release to save'),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 14,
@@ -1382,26 +1460,72 @@ class _NavigationScreenState extends State<NavigationScreen> {
             child: VisibilityToolbar(modeColor: widget.modeColor),
           ),
 
-          // Add NavBottomBar to the stack
+          // Slide to confirm / cancel goal
           if (_showGoalBar)
             NavBottomBar(
-              onSlideRight: () => {
+              onSlideRight: () {
                 setState(() {
                   _showGoalBar = false;
-                }),
-                _handleGoalSubmission()
+                });
+                _handleGoalSubmission();
               },
+              onCancel: _cancelPendingGoal,
               promptText: 'Slide to send goal',
               visible: _showGoalBar,
               color: widget.modeColor,
             ),
 
-          // Add Navigation Feedback Widget
-          if (_showNavigationFeedback && _currentFeedback != null)
-            NavigationFeedbackWidget(
-              feedback: _currentFeedback!,
-              onCancel: _handleNavigationCancel,
-            ),
+          // Navigation status bar (show immediately while waiting for feedback)
+          if (_showNavigationFeedback)
+            _currentFeedback != null
+                ? NavigationFeedbackWidget(
+                    feedback: _currentFeedback!,
+                    onCancel: _handleNavigationCancel,
+                  )
+                : Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Container(
+                      width: 450,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.85),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      widget.modeColor),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Text(
+                                'Sending goal…',
+                                style: TextStyle(
+                                    color: Colors.white, fontSize: 14),
+                              ),
+                            ],
+                          ),
+                          TextButton(
+                            onPressed: _handleNavigationCancel,
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red.shade300,
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
           // Add Waypoint Panel
           if (_showWaypointPanel)
