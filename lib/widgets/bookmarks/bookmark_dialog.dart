@@ -3,13 +3,21 @@ import 'package:provider/provider.dart';
 import '../../providers/branding_provider.dart';
 
 class BookmarkDialog extends StatefulWidget {
-  final Function(IconData icon, String name) onDone;
+  final Function(IconData icon, String name, bool isDock) onDone;
   final VoidCallback onCancel;
+  final String? initialName;
+  final IconData? initialIcon;
+  final bool initialIsDock;
+  final bool isEdit;
 
   const BookmarkDialog({
     super.key,
     required this.onDone,
     required this.onCancel,
+    this.initialName,
+    this.initialIcon,
+    this.initialIsDock = false,
+    this.isEdit = false,
   });
 
   @override
@@ -17,8 +25,13 @@ class BookmarkDialog extends StatefulWidget {
 }
 
 class _BookmarkDialogState extends State<BookmarkDialog> {
-  final TextEditingController _nameController = TextEditingController();
-  IconData _selectedIcon = Icons.star;
+  late final TextEditingController _nameController =
+      TextEditingController(text: widget.initialName ?? '');
+  late IconData _selectedIcon = widget.initialIcon ?? Icons.star;
+  late bool _isDock = widget.initialIsDock;
+  // Dedicated icon shown for the charging-dock toggle, distinct from the
+  // general-purpose icon grid below.
+  static const IconData _dockIcon = Icons.ev_station_rounded;
   // List of available icons
   final List<IconData> _availableIcons = [
     Icons.star,
@@ -105,7 +118,7 @@ class _BookmarkDialogState extends State<BookmarkDialog> {
               children: [
                 // Title
                 Text(
-                  'Add Bookmark',
+                  widget.isEdit ? 'Edit Bookmark' : 'Add Bookmark',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -189,6 +202,45 @@ class _BookmarkDialogState extends State<BookmarkDialog> {
                     );
                   },
                 ),
+                const SizedBox(height: 12),
+
+                // Charging dock toggle
+                Consumer<BrandingProvider>(
+                  builder: (context, brandingProvider, child) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[800],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: SwitchListTile(
+                        value: _isDock,
+                        activeColor: brandingProvider.themeColor,
+                        onChanged: (value) {
+                          setState(() {
+                            _isDock = value;
+                            if (value) {
+                              _selectedIcon = _dockIcon;
+                            }
+                          });
+                        },
+                        title: Row(
+                          children: [
+                            Icon(_dockIcon, color: Colors.white, size: 20),
+                            const SizedBox(width: 8),
+                            const Text('Charging dock',
+                                style: TextStyle(color: Colors.white)),
+                          ],
+                        ),
+                        subtitle: Text(
+                          'Position + orientation this robot docks against. '
+                          'Replaces any existing dock on this map.',
+                          style:
+                              TextStyle(color: Colors.grey[400], fontSize: 12),
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 const SizedBox(height: 20),
 
                 // Buttons
@@ -206,7 +258,8 @@ class _BookmarkDialogState extends State<BookmarkDialog> {
                     ElevatedButton(
                       onPressed: () {
                         if (_nameController.text.isNotEmpty) {
-                          widget.onDone(_selectedIcon, _nameController.text);
+                          widget.onDone(
+                              _selectedIcon, _nameController.text, _isDock);
                         } else {
                           // Show a message or handle the empty case
                           ScaffoldMessenger.of(context).showSnackBar(

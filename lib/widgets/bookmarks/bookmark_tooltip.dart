@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nav2_mission_planner/modals/bookmark.dart';
 import 'package:nav2_mission_planner/providers/settings_provider.dart';
+import 'package:nav2_mission_planner/services/docking_service.dart';
 import 'package:provider/provider.dart';
 
 class BookmarkTooltip extends StatelessWidget {
@@ -11,6 +12,13 @@ class BookmarkTooltip extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onCancel;
   final bool isMissionMode;
+  final VoidCallback? onEditDetails;
+  final VoidCallback? onReposition;
+  // Only used when bookmark.isDock — trigger the actual dock/undock action
+  // servers (dock_manager_node), as opposed to onSendGoal which just drives
+  // to this pose with a plain nav goal.
+  final VoidCallback? onDock;
+  final VoidCallback? onUndock;
 
   const BookmarkTooltip({
     super.key,
@@ -21,7 +29,43 @@ class BookmarkTooltip extends StatelessWidget {
     required this.onDelete,
     required this.onCancel,
     this.isMissionMode = false,
+    this.onEditDetails,
+    this.onReposition,
+    this.onDock,
+    this.onUndock,
   });
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'undocked':
+        return 'Undocked';
+      case 'staging':
+        return 'Docking… (staging)';
+      case 'detecting':
+        return 'Docking… (detecting)';
+      case 'docking':
+        return 'Docking… (approaching)';
+      case 'waiting_for_charge':
+        return 'Docking… (confirming charge)';
+      case 'charging':
+        return 'Docked — charging';
+      case 'full':
+        return 'Docked — full charge';
+      case 'undocking':
+        return 'Undocking…';
+      case 'error':
+        return 'Dock error';
+      default:
+        return status;
+    }
+  }
+
+  Color _statusColor(String status) {
+    if (status == 'charging' || status == 'full') return Colors.green;
+    if (status == 'error') return Colors.red;
+    if (status == 'undocked') return Colors.grey[400]!;
+    return Colors.amber;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +111,31 @@ class BookmarkTooltip extends StatelessWidget {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                        if (bookmark.isDock) ...[
+                          const SizedBox(height: 4),
+                          AnimatedBuilder(
+                            animation: DockingService.instance,
+                            builder: (context, _) {
+                              final status = DockingService.instance.status;
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _statusColor(status).withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border:
+                                      Border.all(color: _statusColor(status)),
+                                ),
+                                child: Text(
+                                  'Charging dock — ${_statusLabel(status)}',
+                                  style: TextStyle(
+                                      color: _statusColor(status),
+                                      fontSize: 11),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                         const SizedBox(height: 10),
                         Text(
                           'Position: (${bookmark.positionX.toStringAsFixed(2)}, '
@@ -86,6 +155,80 @@ class BookmarkTooltip extends StatelessWidget {
                       ],
                     ),
                   ),
+
+                  // Edit buttons (details / reposition)
+                  if (onEditDetails != null || onReposition != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: Row(
+                        children: [
+                          if (onEditDetails != null)
+                            Expanded(
+                              child: TextButton.icon(
+                                onPressed: onEditDetails,
+                                icon: const Icon(Icons.edit,
+                                    color: Colors.white70, size: 18),
+                                label: const Text('Edit',
+                                    style: TextStyle(color: Colors.white70)),
+                              ),
+                            ),
+                          if (onReposition != null)
+                            Expanded(
+                              child: TextButton.icon(
+                                onPressed: onReposition,
+                                icon: const Icon(Icons.open_with,
+                                    color: Colors.white70, size: 18),
+                                label: const Text('Move',
+                                    style: TextStyle(color: Colors.white70)),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                  // Dock/Undock — only for the bookmark marked as the dock.
+                  // Distinct from "Send Goal": this calls the actual dock
+                  // action server (staging, detection, seat-nudge, charge
+                  // confirmation), not a plain drive-there nav goal.
+                  if (bookmark.isDock && (onDock != null || onUndock != null))
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                      child: AnimatedBuilder(
+                        animation: DockingService.instance,
+                        builder: (context, _) {
+                          final docking = DockingService.instance;
+                          final busy = docking.isBusy;
+                          final docked = docking.isDocked;
+                          return SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: busy
+                                  ? null
+                                  : (docked ? onUndock : onDock),
+                              icon: busy
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : Icon(docked
+                                      ? Icons.eject
+                                      : Icons.ev_station),
+                              label: Text(busy
+                                  ? 'Working…'
+                                  : (docked ? 'Undock' : 'Dock')),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    docked ? Colors.orange[800] : Colors.green[700],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
 
                   // Action buttons
                   Padding(

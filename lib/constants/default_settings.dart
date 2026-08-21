@@ -4,8 +4,8 @@ import 'package:nav2_mission_planner/modals/bookmark.dart';
 class DefaultSettings {
   // Teleop Settings
   static const String cmdVelTopic = '/cmd_vel_teleop';
-  static const double defaultLinearVelocity = 0.4;
-  static const double defaultAngularVelocity = 1.0;
+  static const double defaultLinearVelocity = 0.15;
+  static const double defaultAngularVelocity = 0.45;
   static const double velocityStep = 0.05;
   static const String defaultTwistType = 'geometry_msgs/msg/Twist';
 

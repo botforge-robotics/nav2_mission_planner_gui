@@ -12,6 +12,10 @@ import 'package:nav2_mission_planner/services/pc_api_service.dart';
 import 'package:nav2_mission_planner/services/tf_service.dart';
 
 class ConnectionProvider extends ChangeNotifier {
+  static const String _lastRobotIpKey = 'lastActiveRobotIp';
+  static const String _lastRobotPortKey = 'lastActiveRobotPort';
+  static const String _lastRobotNameKey = 'lastActiveRobotName';
+
   List<RobotProfile> _robots = [];
   RobotProfile? _activeRobot;
   String _ip = '';
@@ -32,6 +36,21 @@ class ConnectionProvider extends ChangeNotifier {
   bool get heartbeatOnline => _heartbeatOnline;
   List<RobotProfile> get robots => _robots;
   RobotProfile? get activeRobot => _activeRobot;
+
+  // Last robot that was successfully connected to, persisted across page
+  // reloads/app restarts (a Flutter Web refresh drops all in-memory state,
+  // including the live rosbridge websocket, so this is what lets the app
+  // reconnect on its own instead of dumping the user back at a blank
+  // connection screen every time). Cleared on an explicit disconnect.
+  String? _lastRobotIp;
+  String? _lastRobotPort;
+  String? _lastRobotName;
+  bool _autoReconnectAttempted = false;
+
+  String? get lastRobotIp => _lastRobotIp;
+  String? get lastRobotPort => _lastRobotPort;
+  String? get lastRobotName => _lastRobotName;
+  bool get hasLastRobot => _lastRobotIp != null && _lastRobotIp!.isNotEmpty;
   Ros2 get ros2Client {
     final client = _ros2Client;
     if (client == null || !_isConnected || client.status != Status.connected) {
@@ -201,6 +220,8 @@ class ConnectionProvider extends ChangeNotifier {
         await _saveRobots();
       }
 
+      await _saveLastRobot(ip, port, _activeRobot?.name ?? name);
+
       notifyListeners();
       _connectionController.add(ConnectionState.connected);
       return true;
@@ -222,6 +243,9 @@ class ConnectionProvider extends ChangeNotifier {
       _isConnected = false;
       _activeRobot = null;
       _stopHeartbeat();
+      // Explicit disconnect — don't auto-reconnect to this robot on the
+      // next launch/refresh, only on connect()'s own success.
+      await _clearLastRobot();
       // Keep claim so heartbeat can still track robot online status
       TFService.resetAllServices();
       notifyListeners();
@@ -269,8 +293,46 @@ class ConnectionProvider extends ChangeNotifier {
     if (robotsJson != null) {
       _robots = List<RobotProfile>.from(
           json.decode(robotsJson).map((x) => RobotProfile.fromJson(x)));
-      notifyListeners();
     }
+    _lastRobotIp = prefs.getString(_lastRobotIpKey);
+    _lastRobotPort = prefs.getString(_lastRobotPortKey);
+    _lastRobotName = prefs.getString(_lastRobotNameKey);
+    notifyListeners();
+  }
+
+  Future<void> _saveLastRobot(String ip, String port, String name) async {
+    _lastRobotIp = ip;
+    _lastRobotPort = port;
+    _lastRobotName = name;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastRobotIpKey, ip);
+    await prefs.setString(_lastRobotPortKey, port);
+    await prefs.setString(_lastRobotNameKey, name);
+  }
+
+  Future<void> _clearLastRobot() async {
+    _lastRobotIp = null;
+    _lastRobotPort = null;
+    _lastRobotName = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_lastRobotIpKey);
+    await prefs.remove(_lastRobotPortKey);
+    await prefs.remove(_lastRobotNameKey);
+  }
+
+  /// Attempts to reconnect to the last robot that was successfully connected
+  /// (see _saveLastRobot), so a page refresh doesn't force the user back
+  /// through manual robot selection every time. Safe to call once at
+  /// startup; a no-op if already connected/connecting, already attempted
+  /// this app session, or no robot was ever saved. Returns whether it
+  /// (eventually) connected.
+  Future<bool> autoReconnect() async {
+    if (_autoReconnectAttempted || _isConnected || !hasLastRobot) {
+      return _isConnected;
+    }
+    _autoReconnectAttempted = true;
+    return connect(_lastRobotIp!, _lastRobotPort ?? '9090',
+        name: _lastRobotName ?? '');
   }
 
   void markRobotConfigured(String robotId) {

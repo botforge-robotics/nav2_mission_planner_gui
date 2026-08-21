@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nav2_mission_planner/modals/mission.dart';
 import 'package:nav2_mission_planner/services/goal_service.dart';
+import 'package:nav2_mission_planner/services/docking_service.dart';
 // Provider can be added later if ROS2 interaction is integrated
 import '../helpers/conversions.dart';
 import 'package:provider/provider.dart';
@@ -182,6 +183,12 @@ class MissionExecutionService extends ChangeNotifier {
         // Clear active goal client when done
         _activeGoalService = null;
         return result != null;
+
+      case MissionItemType.dock:
+        return await _handleDock(context, item);
+
+      case MissionItemType.undock:
+        return await _handleUndock(context, item);
 
       case MissionItemType.wait:
         final totalSecs = item.waitDuration ?? 0;
@@ -375,6 +382,46 @@ class MissionExecutionService extends ChangeNotifier {
     } catch (e) {
       _isWaitingForResponse = false;
       _broadcast();
+      return false;
+    }
+  }
+
+  /// Docks at the map's stored charging-dock bookmark, via
+  /// navpromini_controller's dock_manager_node (staging/detection/approach/
+  /// seat-nudge all handled robot-side — see DockingService).
+  Future<bool> _handleDock(BuildContext context, MissionItem item) async {
+    final mapName = _mission?.mapName;
+    if (mapName == null) return false;
+
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    final dockBookmark = settings.getDockBookmark(mapName);
+    if (dockBookmark == null) {
+      _error = 'No charging dock bookmark set for this map';
+      return false;
+    }
+
+    DockingService.instance.initialize(context);
+    try {
+      final result = await DockingService.instance.dock(
+        x: dockBookmark.positionX,
+        y: dockBookmark.positionY,
+        theta: dockBookmark.theta,
+      );
+      return result != null;
+    } catch (e) {
+      _error = 'Dock failed: $e';
+      return false;
+    }
+  }
+
+  /// Undocks in place (no travel) via dock_manager_node.
+  Future<bool> _handleUndock(BuildContext context, MissionItem item) async {
+    DockingService.instance.initialize(context);
+    try {
+      final result = await DockingService.instance.undockInPlace();
+      return result != null;
+    } catch (e) {
+      _error = 'Undock failed: $e';
       return false;
     }
   }

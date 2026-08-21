@@ -14,12 +14,98 @@ import '../providers/settings_provider.dart';
 import '../providers/branding_provider.dart';
 import 'package:nav_msgs/msg.dart' as nav_msgs;
 import 'package:nav_msgs/srv.dart' as nav_srvs;
+import 'package:sensor_msgs/msg.dart' as sensor_msgs;
+import '../services/tf_service.dart';
 import 'sensors/robot_position_marker.dart';
 import 'navigation/Arrow_painter.dart';
 import 'Simple_rotation_slider.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+
+/// RViz-style occupancy grid rendering. Row-major cell data -> RGBA8888,
+/// Y-flipped so image pixel (0,0) is the grid's top-left in world space
+/// (matches the rest of this file's map<->canvas pixel conventions).
+///
+/// [isCostmap] picks the color scheme:
+///  - map (false): RViz "map" scheme — free=white, occupied=black, a
+///    grayscale gradient in between, unknown=transparent. No longer tinted
+///    by the app's mode color (that produced the "orange" occupied cells).
+///  - costmap (true): RViz "costmap" scheme — free=transparent (so the
+///    static map shows through), a blue->yellow->red heat gradient for
+///    rising cost, lethal (100)=solid red.
+Uint8List renderOccupancyGridRgba(nav_msgs.OccupancyGrid grid,
+    {required bool isCostmap}) {
+  final int width = grid.info.width;
+  final int height = grid.info.height;
+  final Uint8List pixels = Uint8List(width * height * 4);
+
+  for (int y = height - 1; y >= 0; y--) {
+    for (int x = 0; x < width; x++) {
+      final int index = (height - 1 - y) * width + x;
+      final int pixelIndex = (y * width + x) * 4;
+
+      if (index >= grid.data.length) {
+        // Out of bounds — transparent.
+        pixels[pixelIndex + 3] = 0;
+        continue;
+      }
+
+      final int value = grid.data[index].toInt();
+      int r, g, b, a;
+
+      if (value < 0) {
+        // Unknown.
+        r = g = b = 0;
+        a = 0;
+      } else if (!isCostmap) {
+        // "map" scheme: linear grayscale, 0->white, 100->black.
+        final int intensity = (255 - (value.clamp(0, 100) * 255 / 100))
+            .round()
+            .clamp(0, 255);
+        r = g = b = intensity;
+        a = 255;
+      } else if (value == 0) {
+        // "costmap" scheme, free space — fully transparent.
+        r = g = b = 0;
+        a = 0;
+      } else {
+        // "costmap" scheme, cost 1-100: blue (low) -> yellow -> red (high).
+        final double t = value.clamp(1, 100) / 100.0;
+        if (t < 0.5) {
+          final double u = t / 0.5; // 0..1 across blue->yellow
+          r = (u * 255).round();
+          g = (u * 255).round();
+          b = (255 * (1 - u)).round();
+        } else {
+          final double u = (t - 0.5) / 0.5; // 0..1 across yellow->red
+          r = 255;
+          g = (255 * (1 - u)).round();
+          b = 0;
+        }
+        a = 160; // semi-transparent so it overlays the map cleanly
+      }
+
+      pixels[pixelIndex] = r;
+      pixels[pixelIndex + 1] = g;
+      pixels[pixelIndex + 2] = b;
+      pixels[pixelIndex + 3] = a;
+    }
+  }
+  return pixels;
+}
+
+Future<ui.Image> decodeGridRgba(Uint8List pixels, int width, int height) {
+  final Completer<ui.Image> completer = Completer();
+  ui.decodeImageFromPixels(
+    pixels,
+    width,
+    height,
+    ui.PixelFormat.rgba8888,
+    (ui.Image image) => completer.complete(image),
+  );
+  return completer.future;
+}
 
 class OccupancyGridViewer extends StatefulWidget {
   final bool enabled;
@@ -45,6 +131,18 @@ class OccupancyGridViewer extends StatefulWidget {
   final bool useMapService;
   final String mapServiceName;
   final bool showWaypointPath;
+  // RViz-style overlays. Local costmap is published in odom frame (a
+  // rolling window around the robot) and needs the odom->map TF to
+  // composite correctly, hence tfMapFrame/tfOdomFrame — global costmap is
+  // already in map frame, same as the static map, so it doesn't.
+  final bool showLocalCostmap;
+  final bool showGlobalCostmap;
+  final bool showLaserScan;
+  final String localCostmapTopic;
+  final String globalCostmapTopic;
+  final String laserScanTopic;
+  final String tfMapFrame;
+  final String tfOdomFrame;
 
   const OccupancyGridViewer({
     super.key,
@@ -68,6 +166,14 @@ class OccupancyGridViewer extends StatefulWidget {
     this.previewWaypoints,
     this.useMapService = false,
     this.mapServiceName = '/map_server/map',
+    this.showLocalCostmap = false,
+    this.showGlobalCostmap = false,
+    this.showLaserScan = false,
+    this.localCostmapTopic = '/local_costmap/costmap',
+    this.globalCostmapTopic = '/global_costmap/costmap',
+    this.laserScanTopic = '/scan_filtered',
+    this.tfMapFrame = 'map',
+    this.tfOdomFrame = 'odom',
     this.showWaypointPath = false,
   });
 
@@ -94,6 +200,18 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
   String _statusMessage = 'Waiting for map data...';
   bool _hasError = false;
   double _initialMapFitScale = 1.0;
+
+  // -- costmap / laser overlays --------------------------------------
+  Subscriber<nav_msgs.OccupancyGrid>? _localCostmapSub;
+  Subscriber<nav_msgs.OccupancyGrid>? _globalCostmapSub;
+  Subscriber<sensor_msgs.LaserScan>? _laserScanSub;
+  ui.Image? _localCostmapImage;
+  nav_msgs.MapMetaData? _localCostmapInfo;
+  ui.Image? _globalCostmapImage;
+  nav_msgs.MapMetaData? _globalCostmapInfo;
+  sensor_msgs.LaserScan? _latestScan;
+  DateTime? _lastScanUiUpdate;
+  DateTime? _lastLocalCostmapUiUpdate;
   bool _hasCalculatedInitialScale = false;
 
   // Controller for the interactive viewer
@@ -349,11 +467,126 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         _currentPath = posesJson;
       });
     });
+
+    _updateOverlaySubscriptions();
+  }
+
+  void _updateOverlaySubscriptions() {
+    if (!widget.enabled) return;
+    final connection = Provider.of<ConnectionProvider>(context, listen: false);
+
+    if (widget.showLocalCostmap && _localCostmapSub == null) {
+      _localCostmapSub = Subscriber<nav_msgs.OccupancyGrid>(
+        name: widget.localCostmapTopic,
+        type: nav_msgs.OccupancyGrid().fullType,
+        ros2: connection.ros2Client,
+        callback: _processLocalCostmap,
+        prototype: nav_msgs.OccupancyGrid(),
+      );
+    } else if (!widget.showLocalCostmap && _localCostmapSub != null) {
+      _localCostmapSub?.shutdown();
+      _localCostmapSub = null;
+      setState(() {
+        _localCostmapImage = null;
+        _localCostmapInfo = null;
+      });
+    }
+
+    if (widget.showGlobalCostmap && _globalCostmapSub == null) {
+      _globalCostmapSub = Subscriber<nav_msgs.OccupancyGrid>(
+        name: widget.globalCostmapTopic,
+        type: nav_msgs.OccupancyGrid().fullType,
+        ros2: connection.ros2Client,
+        callback: _processGlobalCostmap,
+        prototype: nav_msgs.OccupancyGrid(),
+      );
+    } else if (!widget.showGlobalCostmap && _globalCostmapSub != null) {
+      _globalCostmapSub?.shutdown();
+      _globalCostmapSub = null;
+      setState(() {
+        _globalCostmapImage = null;
+        _globalCostmapInfo = null;
+      });
+    }
+
+    if (widget.showLaserScan && _laserScanSub == null) {
+      _laserScanSub = Subscriber<sensor_msgs.LaserScan>(
+        name: widget.laserScanTopic,
+        type: sensor_msgs.LaserScan().fullType,
+        ros2: connection.ros2Client,
+        // Lidars publish at 5-40Hz — a full-widget setState() per message
+        // (rebuilding the whole map/bookmarks/waypoints tree, not just
+        // repainting) starved the robot-position/bookmark rendering of
+        // frame time under load, making them look "wrong"/laggy. Throttled
+        // to a max ~8Hz, matching the actual visual update rate this
+        // overlay needs.
+        callback: (msg) {
+          final now = DateTime.now();
+          if (_lastScanUiUpdate != null &&
+              now.difference(_lastScanUiUpdate!) <
+                  const Duration(milliseconds: 120)) {
+            _latestScan = msg; // keep freshest data without forcing a rebuild
+            return;
+          }
+          _lastScanUiUpdate = now;
+          setState(() => _latestScan = msg);
+        },
+        prototype: sensor_msgs.LaserScan(),
+      );
+    } else if (!widget.showLaserScan && _laserScanSub != null) {
+      _laserScanSub?.shutdown();
+      _laserScanSub = null;
+      setState(() => _latestScan = null);
+    }
+  }
+
+  void _processLocalCostmap(nav_msgs.OccupancyGrid message) async {
+    if (message.info.width <= 0 || message.info.height <= 0) return;
+    // Rolling window updates at ~5Hz — throttle the (expensive: full
+    // image re-render + full-widget rebuild) UI update to ~4Hz so it
+    // doesn't compete with robot-position/bookmark rendering.
+    final now = DateTime.now();
+    if (_lastLocalCostmapUiUpdate != null &&
+        now.difference(_lastLocalCostmapUiUpdate!) <
+            const Duration(milliseconds: 250)) {
+      return;
+    }
+    _lastLocalCostmapUiUpdate = now;
+    final pixels = renderOccupancyGridRgba(message, isCostmap: true);
+    final image =
+        await decodeGridRgba(pixels, message.info.width, message.info.height);
+    if (!mounted) return;
+    setState(() {
+      _localCostmapImage = image;
+      _localCostmapInfo = message.info;
+    });
+  }
+
+  void _processGlobalCostmap(nav_msgs.OccupancyGrid message) async {
+    if (message.info.width <= 0 || message.info.height <= 0) return;
+    final pixels = renderOccupancyGridRgba(message, isCostmap: true);
+    final image =
+        await decodeGridRgba(pixels, message.info.width, message.info.height);
+    if (!mounted) return;
+    setState(() {
+      _globalCostmapImage = image;
+      _globalCostmapInfo = message.info;
+    });
+  }
+
+  void _unsubscribeOverlays() {
+    _localCostmapSub?.shutdown();
+    _localCostmapSub = null;
+    _globalCostmapSub?.shutdown();
+    _globalCostmapSub = null;
+    _laserScanSub?.shutdown();
+    _laserScanSub = null;
   }
 
   @override
   void dispose() {
     _unsubscribe();
+    _unsubscribeOverlays();
     _transformationController.dispose();
     _positionSubscription?.cancel();
     _goalSubscription?.cancel();
@@ -365,6 +598,12 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
   @override
   void didUpdateWidget(OccupancyGridViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.showLocalCostmap != widget.showLocalCostmap ||
+        oldWidget.showGlobalCostmap != widget.showGlobalCostmap ||
+        oldWidget.showLaserScan != widget.showLaserScan) {
+      _updateOverlaySubscriptions();
+    }
 
     // Check if waypoints changed (including order changes)
     bool waypointsChanged = false;
@@ -467,96 +706,10 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
     }
   }
 
-  // Create a lighter version of the app mode color
-  Color _getLightModeColor() {
-    final HSLColor hsl = HSLColor.fromColor(widget.appModeColor);
-    return hsl.withLightness((hsl.lightness + 0.4).clamp(0.0, 1.0)).toColor();
-  }
-
-  // Create a darker version of the app mode color
-  Color _getDarkModeColor() {
-    final HSLColor hsl = HSLColor.fromColor(widget.appModeColor);
-    return hsl.withLightness((hsl.lightness - 0.2).clamp(0.0, 1.0)).toColor();
-  }
 
   Future<ui.Image> _createMapImage(nav_msgs.OccupancyGrid message) async {
-    final int width = message.info.width;
-    final int height = message.info.height;
-    final Uint8List pixels = Uint8List(width * height * 4);
-
-    // Get light and dark versions of the mode color
-    final Color lightColor = _getLightModeColor();
-    final Color darkColor = _getDarkModeColor();
-
-    // Extract color components
-    final int lightR = lightColor.red;
-    final int lightG = lightColor.green;
-    final int lightB = lightColor.blue;
-
-    final int darkR = darkColor.red;
-    final int darkG = darkColor.green;
-    final int darkB = darkColor.blue;
-
-    final int appR = widget.appModeColor.red;
-    final int appG = widget.appModeColor.green;
-    final int appB = widget.appModeColor.blue;
-
-    // Flip Y-axis by iterating from bottom to top
-    for (int y = height - 1; y >= 0; y--) {
-      for (int x = 0; x < width; x++) {
-        final int index =
-            (height - 1 - y) * width + x; // Adjusted index calculation
-        final int pixelIndex = (y * width + x) * 4;
-
-        if (index < message.data.length) {
-          final int value = message.data[index].toInt();
-
-          if (value == -1) {
-            // Unknown space - transparent
-            pixels[pixelIndex] = 0;
-            pixels[pixelIndex + 1] = 0;
-            pixels[pixelIndex + 2] = 0;
-            pixels[pixelIndex + 3] = 0;
-          } else if (value == 0) {
-            // Free space – pure white
-            pixels[pixelIndex] = 255;
-            pixels[pixelIndex + 1] = 255;
-            pixels[pixelIndex + 2] = 255;
-            pixels[pixelIndex + 3] = 255; // fully opaque
-          } else if (value == 100) {
-            // Fully occupied - dark version of mode color
-            pixels[pixelIndex] = darkR;
-            pixels[pixelIndex + 1] = darkG;
-            pixels[pixelIndex + 2] = darkB;
-            pixels[pixelIndex + 3] = 255; // Fully opaque
-          } else {
-            // Partially occupied - calculate color between mode color and dark
-            pixels[pixelIndex] = 255;
-            pixels[pixelIndex + 1] = 255;
-            pixels[pixelIndex + 2] = 255;
-            pixels[pixelIndex + 3] = 255; // fully opaque
-          }
-        } else {
-          // Out of bounds - transparent
-          pixels[pixelIndex] = 0;
-          pixels[pixelIndex + 1] = 0;
-          pixels[pixelIndex + 2] = 0;
-          pixels[pixelIndex + 3] = 0;
-        }
-      }
-    }
-
-    final Completer<ui.Image> completer = Completer();
-    ui.decodeImageFromPixels(
-      pixels,
-      width,
-      height,
-      ui.PixelFormat.rgba8888,
-      (ui.Image image) {
-        completer.complete(image);
-      },
-    );
-    return completer.future;
+    final pixels = renderOccupancyGridRgba(message, isCostmap: false);
+    return decodeGridRgba(pixels, message.info.width, message.info.height);
   }
 
   void _processMapMessage(nav_msgs.OccupancyGrid message) async {
@@ -648,11 +801,42 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
         }
       }
 
-      // After updating the image and if not the first load, restore the previous transformation
+      // Restore the previous view — but COMPENSATED for the map having moved
+      // underneath it.
+      //
+      // While SLAM is running, every update can change info.origin and grow
+      // width/height as new area is discovered. Scene coordinates here are
+      // image pixels, so pixel (0,0) means a different world point after the
+      // map grows leftward or downward. Restoring the old matrix verbatim
+      // therefore slides the entire world under the camera — the map appeared
+      // to jump and drift on every update, where RViz stays still because it
+      // draws in world coordinates with a camera independent of map size.
+      //
+      // Fix: shift the view by exactly the amount the world moved in pixel
+      // space, so the world point under a given screen pixel is unchanged.
+      // Zoom is untouched; only translation is corrected.
+      //
+      //   pixel_x(world) = (world.x - originX) / res
+      //   pixel_y(world) = (originY + height*res - world.y) / res   (y flipped)
       if (currentTransform != null && !_isFirstLoad && _mapImage != null) {
+        final Matrix4 restored = Matrix4.copy(currentTransform);
+        // A resolution change re-scales everything, so pixel compensation is
+        // meaningless — leave the view as-is rather than shifting it wrongly.
+        if (previousMapResolution == _mapResolution && _mapResolution > 0) {
+          final double dxPix =
+              (previousMapOriginX - _mapOriginX) / _mapResolution;
+          final double dyPix = (_mapOriginY - previousMapOriginY) /
+                  _mapResolution +
+              (_mapHeight.toDouble() - previousMapHeight);
+          if (dxPix != 0.0 || dyPix != 0.0) {
+            // Post-multiply in scene space: M' = M * T(-d) gives
+            // M' * (p + d) == M * p, i.e. the same world point stays put.
+            restored.translate(-dxPix, -dyPix);
+          }
+        }
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            _transformationController.value = currentTransform;
+            _transformationController.value = restored;
           }
         });
       }
@@ -945,6 +1129,75 @@ class _OccupancyGridViewerState extends State<OccupancyGridViewer> {
                           fit: BoxFit.none,
                           filterQuality: FilterQuality.medium,
                         ),
+
+                    // 1b. Global costmap (already in map frame — no TF needed)
+                    if (widget.showGlobalCostmap &&
+                        _globalCostmapImage != null &&
+                        _globalCostmapInfo != null)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: CostmapImagePainter(
+                              image: _globalCostmapImage!,
+                              costmapInfo: _globalCostmapInfo!,
+                              mapOriginX: _mapOriginX,
+                              mapOriginY: _mapOriginY,
+                              mapResolution: _mapResolution,
+                              mapHeight: _mapHeight,
+                              mapWidth: _mapWidth,
+                              mapOriginTheta: _mapOriginTheta,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // 1c. Local costmap (odom frame — composited via the
+                    // live odom->map TF so it re-aligns as odom drifts).
+                    if (widget.showLocalCostmap &&
+                        _localCostmapImage != null &&
+                        _localCostmapInfo != null)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: CostmapImagePainter(
+                              image: _localCostmapImage!,
+                              costmapInfo: _localCostmapInfo!,
+                              mapOriginX: _mapOriginX,
+                              mapOriginY: _mapOriginY,
+                              mapResolution: _mapResolution,
+                              mapHeight: _mapHeight,
+                              mapWidth: _mapWidth,
+                              mapOriginTheta: _mapOriginTheta,
+                              frameTransform: TFService.instance
+                                  .getFrameTransform(
+                                      widget.tfMapFrame, widget.tfOdomFrame),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    // 1d. Laser scan points
+                    if (widget.showLaserScan && _latestScan != null)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: LaserScanPainter(
+                              scan: _latestScan!,
+                              robotWorldX: _lastWorldRobotX,
+                              robotWorldY: _lastWorldRobotY,
+                              robotWorldTheta:
+                                  quaternionToEuler(_lastWorldRobotQ)[2],
+                              mapOriginX: _mapOriginX,
+                              mapOriginY: _mapOriginY,
+                              mapResolution: _mapResolution,
+                              mapHeight: _mapHeight,
+                              mapWidth: _mapWidth,
+                              mapOriginTheta: _mapOriginTheta,
+                              scale: _currentScale,
+                            ),
+                          ),
+                        ),
+                      ),
 
                     // 2. Path (if active goal or mission execution)
                     if (_mapImage != null &&
@@ -1618,6 +1871,183 @@ class MapPainter extends CustomPainter {
   bool shouldRepaint(covariant MapPainter oldDelegate) {
     return mapImage != oldDelegate.mapImage ||
         resolution != oldDelegate.resolution;
+  }
+}
+
+/// Draws a costmap's pre-rendered image, positioned/rotated onto the same
+/// pixel space the base map image uses. For the global costmap (already in
+/// map frame) [frameTransform] is null; for the local costmap (published in
+/// odom frame) it's the current odom->map transform (translation + yaw) —
+/// re-composited every paint, so it naturally re-aligns as odom drifts or
+/// AMCL corrects it, same as everything else already drawn in map frame
+/// here.
+class CostmapImagePainter extends CustomPainter {
+  final ui.Image image;
+  final nav_msgs.MapMetaData costmapInfo;
+  final double mapOriginX;
+  final double mapOriginY;
+  final double mapResolution;
+  final int mapHeight;
+  final int mapWidth;
+  final double mapOriginTheta;
+  final ({double x, double y, double theta})? frameTransform;
+
+  CostmapImagePainter({
+    required this.image,
+    required this.costmapInfo,
+    required this.mapOriginX,
+    required this.mapOriginY,
+    required this.mapResolution,
+    required this.mapHeight,
+    required this.mapWidth,
+    required this.mapOriginTheta,
+    this.frameTransform,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Costmap origin (bottom-left corner of its grid) in its own frame.
+    double ox = costmapInfo.origin.position.x;
+    double oy = costmapInfo.origin.position.y;
+    double oTheta =
+        extractYawFromOriginQuaternion(costmapInfo.origin.orientation);
+
+    final ft = frameTransform;
+    if (ft != null) {
+      // Rotate+translate the costmap's own-frame origin into map frame.
+      final cosT = math.cos(ft.theta);
+      final sinT = math.sin(ft.theta);
+      final rotatedX = ox * cosT - oy * sinT;
+      final rotatedY = ox * sinT + oy * cosT;
+      ox = ft.x + rotatedX;
+      oy = ft.y + rotatedY;
+      oTheta += ft.theta;
+    }
+
+    // Bottom-left corner's position in the base map's own pixel space
+    // (same convention transformToMapFrame uses everywhere else here).
+    final corner = transformToMapFrame(
+      ox,
+      oy,
+      eulerToQuaternion(0, 0, oTheta),
+      mapOriginX,
+      mapOriginY,
+      mapResolution,
+      mapHeight,
+      mapWidth,
+      mapOriginTheta,
+    );
+
+    final double pixelsPerCostmapCell = costmapInfo.resolution / mapResolution;
+    final double imageWidthPx = image.width * pixelsPerCostmapCell;
+    final double imageHeightPx = image.height * pixelsPerCostmapCell;
+
+    canvas.save();
+    // Move to the bottom-left corner, rotate around it, THEN shift up by
+    // the image's rendered height in the now-rotated frame — the image
+    // itself is Y-flipped (its own top-left = grid's top-left in world
+    // space), so this aligns its top-left with the grid's actual top-left.
+    canvas.translate(corner.x, corner.y);
+    canvas.rotate(corner.theta);
+    canvas.translate(0, -imageHeightPx);
+    final paint = Paint()..filterQuality = FilterQuality.medium;
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      Rect.fromLTWH(0, 0, imageWidthPx, imageHeightPx),
+      paint,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CostmapImagePainter oldDelegate) {
+    return image != oldDelegate.image ||
+        costmapInfo != oldDelegate.costmapInfo ||
+        frameTransform != oldDelegate.frameTransform;
+  }
+}
+
+/// RViz-style laser scan points — small dots at each valid range reading,
+/// projected from the robot's current map-frame pose. Approximates the
+/// laser frame as coincident with base_link (no separate lidar->base_link
+/// offset applied); fine for a roughly-centered lidar, revisit if the scan
+/// visibly doesn't line up with real obstacles on a robot where it isn't.
+class LaserScanPainter extends CustomPainter {
+  final sensor_msgs.LaserScan scan;
+  // Robot pose in raw world/map-frame meters + standard math-convention
+  // yaw (radians) — NOT the widget's _robotX/_robotY/_robotTheta, which
+  // are already transformToMapFrame'd into image-pixel space with a
+  // flipped theta convention; this painter needs to do that conversion
+  // itself, once per scan point, after rotating into the robot's frame.
+  final double robotWorldX;
+  final double robotWorldY;
+  final double robotWorldTheta;
+  final double mapOriginX;
+  final double mapOriginY;
+  final double mapResolution;
+  final int mapHeight;
+  final int mapWidth;
+  final double mapOriginTheta;
+  final double scale;
+
+  LaserScanPainter({
+    required this.scan,
+    required this.robotWorldX,
+    required this.robotWorldY,
+    required this.robotWorldTheta,
+    required this.mapOriginX,
+    required this.mapOriginY,
+    required this.mapResolution,
+    required this.mapHeight,
+    required this.mapWidth,
+    required this.mapOriginTheta,
+    required this.scale,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFFF3B30) // RViz-ish red scan points
+      ..style = PaintingStyle.fill;
+    final double dotRadius = math.max(0.8, 1.2 / scale);
+    final double cosR = math.cos(robotWorldTheta);
+    final double sinR = math.sin(robotWorldTheta);
+
+    final ranges = scan.ranges;
+    for (int i = 0; i < ranges.length; i++) {
+      final double r = ranges[i];
+      if (!r.isFinite || r < scan.range_min || r > scan.range_max) continue;
+
+      final double angle = scan.angle_min + i * scan.angle_increment;
+      // Point in the laser/base_link frame.
+      final double lx = r * math.cos(angle);
+      final double ly = r * math.sin(angle);
+      // Rotate+translate into map frame by the robot's current pose.
+      final double worldX = robotWorldX + lx * cosR - ly * sinR;
+      final double worldY = robotWorldY + lx * sinR + ly * cosR;
+
+      final p = transformToMapFrame(
+        worldX,
+        worldY,
+        eulerToQuaternion(0, 0, 0),
+        mapOriginX,
+        mapOriginY,
+        mapResolution,
+        mapHeight,
+        mapWidth,
+        mapOriginTheta,
+      );
+      canvas.drawCircle(Offset(p.x, p.y), dotRadius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant LaserScanPainter oldDelegate) {
+    return scan != oldDelegate.scan ||
+        robotWorldX != oldDelegate.robotWorldX ||
+        robotWorldY != oldDelegate.robotWorldY ||
+        robotWorldTheta != oldDelegate.robotWorldTheta;
   }
 }
 

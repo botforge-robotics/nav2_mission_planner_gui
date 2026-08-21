@@ -4,10 +4,22 @@ class NavToolbar extends StatefulWidget {
   final Color modeColor;
   final Function(String) onToolSelected;
   final bool disableToolBar;
+
+  /// Which tool is currently armed, owned by the parent screen.
+  ///
+  /// This used to be local State here, which meant the button highlight and
+  /// the screen's placement mode were two separate sources of truth. Any
+  /// rebuild reset this copy to '' while the screen stayed armed — the goal
+  /// button looked inactive but map taps still sent goals — and conversely a
+  /// screen-side reset (e.g. auto-disarming after a pose estimate is sent)
+  /// left the button highlighted with nothing behind it. One owner, no drift.
+  final String selectedTool;
+
   const NavToolbar({
     super.key,
     required this.modeColor,
     required this.onToolSelected,
+    required this.selectedTool,
     this.disableToolBar = false,
   });
 
@@ -16,7 +28,8 @@ class NavToolbar extends StatefulWidget {
 }
 
 class _NavToolbarState extends State<NavToolbar> {
-  String selectedTool = '';
+  String get selectedTool => widget.selectedTool;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -83,10 +96,8 @@ class _NavToolbarState extends State<NavToolbar> {
         child: InkWell(
           onTap: () {
             if (widget.disableToolBar) return;
-            setState(() {
-              selectedTool = selectedTool == tool ? '' : tool;
-            });
-            widget.onToolSelected(selectedTool);
+            // Report the toggle; the parent owns the state and rebuilds us.
+            widget.onToolSelected(selectedTool == tool ? '' : tool);
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),

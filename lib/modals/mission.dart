@@ -68,6 +68,16 @@ enum MissionItemType {
     icon: Icons.navigation,
     color: Colors.blue,
   ),
+  dock(
+    displayName: 'Dock',
+    icon: Icons.ev_station_rounded,
+    color: Colors.deepOrange,
+  ),
+  undock(
+    displayName: 'Undock',
+    icon: Icons.logout_rounded,
+    color: Colors.deepOrange,
+  ),
   wait(
     displayName: 'Wait',
     icon: Icons.timer,
@@ -283,6 +293,12 @@ class MissionItem {
         }
         return 'No position set';
 
+      case MissionItemType.dock:
+        return "Dock at the map's charging station and charge";
+
+      case MissionItemType.undock:
+        return 'Undock from the charging station';
+
       case MissionItemType.wait:
         return 'Wait for specified time';
 
@@ -353,6 +369,12 @@ class MissionItem {
           // For bookmarks, return the bookmark name
           return name ?? 'Position';
         }
+
+      case MissionItemType.dock:
+        return 'Dock';
+
+      case MissionItemType.undock:
+        return 'Undock';
 
       case MissionItemType.wait:
         return '${waitDuration?.toStringAsFixed(1) ?? '0'}s';

@@ -10,9 +10,6 @@ import '../../providers/settings_provider.dart';
 import 'package:builtin_interfaces/msg.dart' as builtin_interfaces;
 import 'package:std_msgs/msg.dart';
 
-/// How long to keep driving after the last stick-position change.
-const Duration _stagnantStopDelay = Duration(seconds: 2);
-
 /// Minimum normalized stick delta that counts as a "change".
 const double _changeEpsilon = 0.04;
 
@@ -35,7 +32,6 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
 
   double _lastNormX = 0.0;
   double _lastNormY = 0.0;
-  Timer? _stagnantTimer;
   Timer? _publishTimer;
   double _cmdLinear = 0.0;
   double _cmdAngular = 0.0;
@@ -123,24 +119,21 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
     _isDriving = true;
     _publishTwist(linear, angular);
 
-    // Keep publishing while the motion window is open (many bases need a stream).
+    // Keep publishing at a fixed rate for as long as the stick is held here —
+    // many bases need a continuous cmd_vel stream, not a one-shot message.
+    // Release is detected via onPanEnd/onPanCancel, not by a timeout, so
+    // holding a steady deflection drives continuously until the user lets go.
     _publishTimer?.cancel();
     _publishTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (!_isDriving) return;
       _publishTwist(_cmdLinear, _cmdAngular);
     });
-
-    // Stop if stick position does not change again.
-    _stagnantTimer?.cancel();
-    _stagnantTimer = Timer(_stagnantStopDelay, _stopDrivingKeepStick);
   }
 
   /// Stop cmd_vel but leave the thumb where it is (finger may still be down).
   void _stopDrivingKeepStick() {
     _publishTimer?.cancel();
     _publishTimer = null;
-    _stagnantTimer?.cancel();
-    _stagnantTimer = null;
     _isDriving = false;
     _cmdLinear = 0.0;
     _cmdAngular = 0.0;
@@ -169,7 +162,8 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
     });
 
     if (!changed && _isDriving) {
-      // Same stick pose — do not extend motion; stagnant timer keeps running.
+      // Same stick pose — nothing to recompute; the publish timer already
+      // keeps re-sending the current command every 100ms while held.
       return;
     }
 
@@ -197,8 +191,6 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
   void _stopMovement() {
     _publishTimer?.cancel();
     _publishTimer = null;
-    _stagnantTimer?.cancel();
-    _stagnantTimer = null;
     _isDriving = false;
     _lastNormX = 0.0;
     _lastNormY = 0.0;
@@ -215,7 +207,6 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
 
   @override
   void dispose() {
-    _stagnantTimer?.cancel();
     _publishTimer?.cancel();
     _settingsProvider?.removeListener(_onSettingsChanged);
     _publisher?.shutdown();
@@ -233,6 +224,7 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
           onPanUpdate: (details) =>
               _updatePosition(details.localPosition, constraints.biggest),
           onPanEnd: (_) => _stopMovement(),
+          onPanCancel: _stopMovement,
           child: Container(
             decoration: BoxDecoration(
               color: Colors.black54,

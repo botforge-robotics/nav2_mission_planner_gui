@@ -12,7 +12,7 @@ class GuideFocusMaskWidget extends StatefulWidget {
   final VoidCallback onDismiss;
   final String guideUrl;
   final String? highlightMessage;
-  final IconData? icon;
+  final FaIconData? icon;
   final Color? iconColor;
   final double iconSize;
   final EdgeInsets iconPadding;
@@ -128,7 +128,7 @@ class _GuideFocusMaskWidgetState extends State<GuideFocusMaskWidget>
                             ),
                           ],
                         ),
-                        child: Icon(
+                        child: FaIcon(
                           widget.icon ?? FontAwesomeIcons.bookOpen,
                           size: widget.iconSize * 0.6,
                           color: themeColor, // Manual icon is now white

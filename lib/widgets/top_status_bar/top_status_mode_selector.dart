@@ -54,7 +54,7 @@ class TopStatusModeSelector extends StatelessWidget {
                 CrossAxisAlignment.center, // Center content horizontally
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              FaIcon(
                 _getModeIcon(currentMode),
                 color: _getTextColor(connectionStatusColor),
                 size: height * 0.4,
@@ -147,7 +147,7 @@ class TopStatusModeSelector extends StatelessWidget {
   }
 
   PopupMenuEntry<AppModes> _buildDropdownItem(
-      BuildContext context, AppModes mode, IconData icon) {
+      BuildContext context, AppModes mode, FaIconData icon) {
     final activeSession =
         Provider.of<LaunchManager>(context, listen: false).activeSession;
 
@@ -176,7 +176,7 @@ class TopStatusModeSelector extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Row(
           children: [
-            Icon(icon,
+            FaIcon(icon,
                 size: 20,
                 color: isDisabled
                     ? Colors.grey
@@ -204,7 +204,7 @@ class TopStatusModeSelector extends StatelessWidget {
     );
   }
 
-  IconData _getModeIcon(AppModes mode) {
+  FaIconData _getModeIcon(AppModes mode) {
     switch (mode) {
       case AppModes.teleop:
         return FontAwesomeIcons.gamepad;

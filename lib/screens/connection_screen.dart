@@ -28,6 +28,7 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
   bool _isLoading = false;
   bool _scanning = false;
   bool _showManualIp = false;
+  bool _reconnecting = false;
   String? _selectedIp;
   String _selectedPort = _defaultPort;
   bool _claimedOnline = false;
@@ -58,6 +59,41 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
       await _refreshClaim();
       await _scanNearby();
     });
+    // A page refresh (Flutter Web) or app relaunch drops the whole runtime,
+    // including the live rosbridge connection — reconnect to whichever
+    // robot was last active instead of forcing the user back through
+    // manual selection every time (see ConnectionProvider.autoReconnect).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutoReconnect());
+  }
+
+  Future<void> _tryAutoReconnect() async {
+    final connectionProvider =
+        Provider.of<ConnectionProvider>(context, listen: false);
+    if (!connectionProvider.hasLastRobot || connectionProvider.isConnected) {
+      return;
+    }
+    setState(() => _reconnecting = true);
+    try {
+      final success = await connectionProvider.autoReconnect();
+      if (!mounted) return;
+      if (success) {
+        connectionProvider.markRobotConfigured(
+          connectionProvider.activeRobot!.id,
+        );
+        await Provider.of<SettingsProvider>(context, listen: false)
+            .applyNavProMiniDefaults();
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+        return;
+      }
+    } catch (_) {
+      // Silent — this is a background attempt, not a user-initiated one.
+      // Falls through to the normal manual connect screen below.
+    }
+    if (mounted) setState(() => _reconnecting = false);
   }
 
   @override
@@ -286,6 +322,26 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
             opacity: 0.25,
             maxRotation: 30.0,
           ),
+          if (_reconnecting)
+            Positioned.fill(
+              child: Container(
+                color: AppTheme.backgroundColor.withValues(alpha: 0.95),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: brand),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Reconnecting to ${Provider.of<ConnectionProvider>(context, listen: false).lastRobotName ?? Provider.of<ConnectionProvider>(context, listen: false).lastRobotIp}…',
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           Column(
             children: [
               if (widget.showTopStatusBar)

@@ -222,7 +222,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
                             _steps[_currentStep].color.withValues(alpha: 0.5),
                       ),
                     ),
-                    child: Icon(
+                    child: FaIcon(
                       _steps[_currentStep].icon,
                       color: _steps[_currentStep].color,
                       size: iconSize,
@@ -1482,7 +1482,7 @@ class _RobotSetupWizardState extends State<RobotSetupWizard>
 class StepConfig {
   final String title;
   final String subtitle;
-  final IconData icon;
+  final FaIconData icon;
   final Color color;
 
   StepConfig({

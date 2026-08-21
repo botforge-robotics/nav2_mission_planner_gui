@@ -53,7 +53,7 @@ class CategoriesList extends StatelessWidget {
 
   Widget _buildCategoryTile(
     BuildContext context, {
-    required IconData icon,
+    required FaIconData icon,
     required String title,
   }) {
     final isSelected = selectedCategory == title;
@@ -76,7 +76,7 @@ class CategoriesList extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
           child: Row(
             children: [
-              Icon(
+              FaIcon(
                 icon,
                 size: 14,
                 color: isSelected ? modeColor : Colors.grey,

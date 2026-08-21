@@ -40,8 +40,8 @@ db.exec(`
 
 const DEFAULT_SETTINGS = {
   cmdVelTopic: '/cmd_vel_teleop',
-  linearVelocity: 0.4,
-  angularVelocity: 1.0,
+  linearVelocity: 0.15,
+  angularVelocity: 0.45,
   twistType: 'geometry_msgs/msg/Twist',
   mapsPath: 'navpromini_mapping/maps',
   mappingLaunchFile: 'navpromini_mission_planner/mapping_launch',

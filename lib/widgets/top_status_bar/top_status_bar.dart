@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:nav2_mission_planner/services/launch_service.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
@@ -10,12 +11,13 @@ import 'top_status_center_title.dart';
 import 'top_status_network_info.dart';
 import 'top_status_connection_button.dart';
 import 'top_status_battery.dart';
+import 'top_status_temperature.dart';
 
 class TopStatusBar extends StatelessWidget {
   final String statusText;
   final Color statusColor;
   final double height;
-  final IconData? icon;
+  final FaIconData? icon;
   final AppModes currentMode;
   final Function(AppModes) onModeChanged;
 
@@ -175,6 +177,22 @@ class TopStatusBar extends StatelessWidget {
                       TopStatusBattery(
                         height: height,
                         accentColor: connectionStatusColor,
+                      ),
+                    // Order: battery % -> battery temp -> CPU temp -> network.
+                    // The two battery readings sit together so they read as
+                    // one group, with CPU temperature immediately after them
+                    // rather than separated by the network block.
+                    if (connection.isConnected)
+                      TopStatusTemperature(
+                        height: height,
+                        accentColor: connectionStatusColor,
+                        kind: TempKind.battery,
+                      ),
+                    if (connection.isConnected)
+                      TopStatusTemperature(
+                        height: height,
+                        accentColor: connectionStatusColor,
+                        kind: TempKind.cpu,
                       ),
                     if (connection.isConnected)
                       TopStatusNetworkInfo(

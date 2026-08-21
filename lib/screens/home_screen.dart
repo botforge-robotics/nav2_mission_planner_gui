@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nav2_mission_planner/widgets/top_status_bar/top_status_bar.dart';
 import '../constants/modes.dart';
 import '../theme/app_theme.dart';
@@ -19,12 +20,38 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const String _lastModeKey = 'lastAppMode';
+
   AppModes _currentMode = AppModes.mapping;
   AppModes? _previousMode;
+  // Persisted mode from a previous session, applied once we're actually
+  // connected (not eagerly — the disconnected-state guard below would
+  // otherwise immediately stomp it back to mapping while reconnecting).
+  AppModes? _pendingRestoreMode;
 
   @override
   void initState() {
     super.initState();
+    _loadPersistedMode();
+  }
+
+  Future<void> _loadPersistedMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_lastModeKey);
+    if (saved == null || !mounted) return;
+    for (final mode in AppModes.values) {
+      if (mode.name == saved &&
+          (mode == AppModes.mapping || mode == AppModes.navigation)) {
+        setState(() => _pendingRestoreMode = mode);
+        break;
+      }
+    }
+  }
+
+  void _persistMode(AppModes mode) {
+    if (mode != AppModes.mapping && mode != AppModes.navigation) return;
+    SharedPreferences.getInstance()
+        .then((prefs) => prefs.setString(_lastModeKey, mode.name));
   }
 
   String _getModeStatusText(bool isConnected) {
@@ -55,7 +82,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildMainContent(
       BuildContext context, ConnectionProvider connectionProvider) {
-    if (!connectionProvider.isConnected &&
+    // Only apply a restored mode once actually connected — applying it
+    // eagerly would just get stomped back to mapping by the guard below
+    // while HomeScreen is still built with isConnected == false during an
+    // in-flight auto-reconnect.
+    if (connectionProvider.isConnected && _pendingRestoreMode != null) {
+      final restore = _pendingRestoreMode!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _currentMode = restore;
+          _previousMode = null;
+          _pendingRestoreMode = null;
+        });
+      });
+    } else if (!connectionProvider.isConnected &&
         _currentMode != AppModes.mapping &&
         _currentMode != AppModes.settings) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -109,6 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ? AppModes.mapping
                             : mode;
                       });
+                      _persistMode(_currentMode);
                     },
                     statusText:
                         _getModeStatusText(connectionProvider.isConnected),

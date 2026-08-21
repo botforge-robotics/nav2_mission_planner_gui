@@ -9,6 +9,9 @@ class Bookmark {
   final double positionZ;
   final double theta;
   bool isGoalActive;
+  // Marks this bookmark as the robot's charging dock pose. At most one
+  // dock bookmark is kept active per map (see SettingsProvider.addBookmark).
+  final bool isDock;
 
   Bookmark({
     required this.id,
@@ -19,6 +22,7 @@ class Bookmark {
     required this.positionZ,
     required this.theta,
     this.isGoalActive = false,
+    this.isDock = false,
   });
 
   // Convert a Bookmark instance to a Map
@@ -32,6 +36,7 @@ class Bookmark {
       'positionZ': positionZ,
       'theta': theta,
       'isGoalActive': isGoalActive,
+      'isDock': isDock,
     };
   }
 
@@ -47,6 +52,30 @@ class Bookmark {
       positionZ: json['positionZ'],
       theta: json['theta'],
       isGoalActive: json['isGoalActive'] ?? false,
+      isDock: json['isDock'] ?? false,
+    );
+  }
+
+  Bookmark copyWith({
+    IconData? icon,
+    String? name,
+    double? positionX,
+    double? positionY,
+    double? positionZ,
+    double? theta,
+    bool? isGoalActive,
+    bool? isDock,
+  }) {
+    return Bookmark(
+      id: id,
+      icon: icon ?? this.icon,
+      name: name ?? this.name,
+      positionX: positionX ?? this.positionX,
+      positionY: positionY ?? this.positionY,
+      positionZ: positionZ ?? this.positionZ,
+      theta: theta ?? this.theta,
+      isGoalActive: isGoalActive ?? this.isGoalActive,
+      isDock: isDock ?? this.isDock,
     );
   }
 
@@ -61,12 +90,14 @@ class Bookmark {
         positionX == other.positionX &&
         positionY == other.positionY &&
         positionZ == other.positionZ &&
-        theta == other.theta;
+        theta == other.theta &&
+        isDock == other.isDock;
   }
 
   @override
   int get hashCode {
-    return Object.hash(id, icon, name, positionX, positionY, positionZ, theta);
+    return Object.hash(
+        id, icon, name, positionX, positionY, positionZ, theta, isDock);
   }
 }
 

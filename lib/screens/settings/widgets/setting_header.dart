@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class SettingHeader extends StatelessWidget {
   final String title;
-  final IconData icon;
+  final FaIconData icon;
   final Size screenSize;
   final Color modeColor;
 
@@ -20,7 +21,7 @@ class SettingHeader extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(
+            FaIcon(
               icon,
               size: 18,
               color: modeColor,

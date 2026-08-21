@@ -3276,6 +3276,10 @@ class WaypointPanelState extends State<WaypointPanel> {
     switch (type) {
       case MissionItemType.goto:
         return 'Navigate to a specific position';
+      case MissionItemType.dock:
+        return "Dock at the map's charging station and charge";
+      case MissionItemType.undock:
+        return 'Undock from the charging station';
       case MissionItemType.wait:
         return 'Pause for a specified duration';
       case MissionItemType.publish:

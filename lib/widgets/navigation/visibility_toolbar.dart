@@ -4,8 +4,26 @@ import '../../providers/settings_provider.dart';
 
 class VisibilityToolbar extends StatelessWidget {
   final Color modeColor;
+  // RViz-style overlay toggles — live view state only (not persisted, same
+  // as RViz's own Display checkboxes), so these are plain callbacks/values
+  // from the parent screen rather than routed through SettingsProvider.
+  final bool? showLocalCostmap;
+  final ValueChanged<bool>? onLocalCostmapToggle;
+  final bool? showGlobalCostmap;
+  final ValueChanged<bool>? onGlobalCostmapToggle;
+  final bool? showLaserScan;
+  final ValueChanged<bool>? onLaserScanToggle;
 
-  const VisibilityToolbar({super.key, required this.modeColor});
+  const VisibilityToolbar({
+    super.key,
+    required this.modeColor,
+    this.showLocalCostmap,
+    this.onLocalCostmapToggle,
+    this.showGlobalCostmap,
+    this.onGlobalCostmapToggle,
+    this.showLaserScan,
+    this.onLaserScanToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +57,20 @@ class VisibilityToolbar extends StatelessWidget {
             isVisible: settingsProvider.bookmarksVisible,
             onToggle: () => settingsProvider.toggleBookmarksVisibility(),
           ),
+          if (onLocalCostmapToggle != null)
+            _buildVisibilityToggle(
+              icon: Icons.layers,
+              isVisible: showLocalCostmap ?? false,
+              onToggle: () =>
+                  onLocalCostmapToggle!(!(showLocalCostmap ?? false)),
+            ),
+          if (onGlobalCostmapToggle != null)
+            _buildVisibilityToggle(
+              icon: Icons.public,
+              isVisible: showGlobalCostmap ?? false,
+              onToggle: () =>
+                  onGlobalCostmapToggle!(!(showGlobalCostmap ?? false)),
+            ),
         ],
       ),
     );

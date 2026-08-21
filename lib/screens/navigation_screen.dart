@@ -34,6 +34,7 @@ import '../modals/mission.dart';
 import '../widgets/waypoint_panel/waypoint_panel.dart';
 import 'package:nav2_mission_planner/services/mission_execution_service.dart';
 import 'package:nav2_mission_planner/services/tf_service.dart';
+import 'package:nav2_mission_planner/services/docking_service.dart';
 
 class NavigationScreen extends StatefulWidget {
   final Color modeColor;
@@ -50,6 +51,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _isNavigationActive = false;
   bool _disableToolBar = false;
   bool _disableLongPress = false;
+  // RViz-style overlay toggles — off by default. First live test showed
+  // enabling them made robot/bookmark positions look wrong and laser points
+  // collapse to one spot; root-caused as rebuild-storm interference (fixed
+  // below with throttling) but leaving off by default until confirmed
+  // clean on hardware.
+  bool _showLocalCostmap = false;
+  bool _showGlobalCostmap = false;
+  bool _showLaserScan = false;
   // Map display variables
   double _scale = 1.0;
   double _previousScale = 1.0;
@@ -73,6 +82,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _poseEstimationMode = false;
   bool _goalMode = false;
   bool _bookmarksMode = false;
+  // Set while repositioning an existing bookmark (via its tooltip's "Move"
+  // button) — the next marker pose updates that bookmark instead of
+  // creating a new one. Reuses bookmarks-mode placement.
+  String? _repositioningBookmarkId;
   final GoalService _goalService = GoalService();
   String _selectedTool = '';
   final _goalPositionController =
@@ -134,6 +147,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     // Initialize only once
     if (!_isInitialized) {
       TFService.instance.initialize(context);
+      DockingService.instance.initialize(context);
       _settingsProvider.addListener(_handleSettingsChange);
       _goalService.initialize(context: context);
       _isInitialized = true;
@@ -239,7 +253,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
       final success =
           await launchManager.startNavigation(context, _selectedMap!);
-      await Future.delayed(const Duration(seconds: 3));
+
+      // Wait until bt_navigator is active (lifecycle can take 10–30s)
+      bool navReady = false;
+      if (success && mounted) {
+        navReady = await _goalService.waitUntilNav2Active(
+          timeout: const Duration(seconds: 50),
+        );
+      }
 
       // Dismiss loading dialog
       if (mounted) Navigator.pop(context);
@@ -262,8 +283,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Navigation started with map: $_selectedMap'),
-              backgroundColor: Colors.green.withOpacity(0.9),
+              content: Text(
+                navReady
+                    ? 'Navigation ready with map: $_selectedMap — set initial pose, then send goal'
+                    : 'Map loaded but Nav2 still inactive — wait a few seconds or Stop/Start Navigation again',
+              ),
+              backgroundColor: (navReady ? Colors.green : Colors.orange)
+                  .withOpacity(0.9),
+              duration: const Duration(seconds: 5),
             ),
           );
         }
@@ -483,6 +510,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _selectedTool = tool;
       _poseEstimationMode = false;
       _goalMode = false;
+      // Was never reset here — toggling the active toolbar button off
+      // (tap-to-deselect) unhighlights the sidebar but left this true
+      // forever, so map taps kept opening "Add Bookmark".
+      _bookmarksMode = false;
       _missionMode = tool == 'mission';
       _showGoalBar = false;
       _showWaypointPanel = tool == 'mission';
@@ -674,17 +705,65 @@ class _NavigationScreenState extends State<NavigationScreen> {
         theta: markerPose['orientation'],
       );
 
-      // Hide initial pose banner after setting initial pose
+      // One placement, one pose — then disarm the tool completely.
+      //
+      // Previously only the banner was hidden: _poseEstimationMode stayed
+      // true and 'localization' stayed selected, so the tool remained armed
+      // and the placement marker stayed on the map after the pose had already
+      // been published. The next tap on the map would silently re-publish
+      // another initial pose, and the left-hand tool still looked active with
+      // nothing left to do.
       setState(() {
         _showInitialPoseBanner = false;
+        _poseEstimationMode = false;
+        _selectedTool = '';
+        _goalPositionController.add({
+          'x': 0.0,
+          'y': 0.0,
+          'orientation': geometry_msgs.Quaternion(x: 0, y: 0, z: 0, w: 1),
+          'show': false,
+        });
+      });
+    } else if (_bookmarksMode && _repositioningBookmarkId != null) {
+      final id = _repositioningBookmarkId!;
+      final theta = extractYawFromOriginQuaternion(markerPose['orientation']);
+      setState(() {
+        _repositioningBookmarkId = null;
+        _bookmarksMode = false;
+        final idx = _localBookmarks.indexWhere((b) => b.id == id);
+        if (idx != -1) {
+          _localBookmarks[idx] = _localBookmarks[idx].copyWith(
+            positionX: markerPose['x'] as double,
+            positionY: markerPose['y'] as double,
+            theta: theta,
+          );
+        }
+        _settingsProvider.updateBookmark(
+          _selectedMap!,
+          id,
+          positionX: markerPose['x'] as double,
+          positionY: markerPose['y'] as double,
+          positionZ: 0.0,
+          theta: theta,
+        );
+        if (idx != -1 && _localBookmarks[idx].isDock) {
+          DockingService.instance.publishDockPose(
+            markerPose['x'] as double,
+            markerPose['y'] as double,
+            theta,
+          );
+        }
       });
     } else if (_bookmarksMode) {
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => BookmarkDialog(
-          onDone: (icon, name) {
+          onDone: (icon, name, isDock) {
             Navigator.pop(context);
+
+            final theta =
+                extractYawFromOriginQuaternion(markerPose['orientation']);
 
             // Create a new bookmark
             final newBookmark = Bookmark(
@@ -694,11 +773,21 @@ class _NavigationScreenState extends State<NavigationScreen> {
               positionX: markerPose['x'],
               positionY: markerPose['y'],
               positionZ: 0.0, // z coordinate
-              theta: extractYawFromOriginQuaternion(markerPose['orientation']),
+              theta: theta,
+              isDock: isDock,
             );
 
             // Add bookmark to the local list
             setState(() {
+              if (isDock) {
+                // Only one dock bookmark per map — mirror provider behavior locally.
+                for (var i = 0; i < _localBookmarks.length; i++) {
+                  if (_localBookmarks[i].isDock) {
+                    _localBookmarks[i] =
+                        _localBookmarks[i].copyWith(isDock: false);
+                  }
+                }
+              }
               _localBookmarks.add(newBookmark);
               // Update the settings provider
               _settingsProvider.addBookmark(
@@ -708,8 +797,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
                 markerPose['x'],
                 markerPose['y'],
                 0.0,
-                extractYawFromOriginQuaternion(markerPose['orientation']),
+                theta,
+                isDock: isDock,
               );
+              if (isDock) {
+                DockingService.instance.publishDockPose(
+                  markerPose['x'] as double,
+                  markerPose['y'] as double,
+                  theta,
+                );
+              }
             });
           },
           onCancel: () {
@@ -828,6 +925,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             positionZ: bookmark.positionZ,
             theta: bookmark.theta,
             isGoalActive: true,
+            isDock: bookmark.isDock,
           );
 
           // Update the bookmarks in settings provider
@@ -848,6 +946,86 @@ class _NavigationScreenState extends State<NavigationScreen> {
     });
   }
 
+  /// Actually docks (staging, detection, seat-nudge, charge confirmation via
+  /// dock_manager_node) — distinct from _handleBookmarkGoal's plain nav goal.
+  void _handleDockBookmark(Bookmark bookmark) async {
+    DockingService.instance.initialize(context);
+    try {
+      final result = await DockingService.instance.dock(
+        x: bookmark.positionX,
+        y: bookmark.positionY,
+        theta: bookmark.theta,
+      );
+      if (!mounted) return;
+      if (result == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dock failed or was cancelled')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Dock failed: $e')));
+    }
+  }
+
+  void _handleUndockBookmark() async {
+    DockingService.instance.initialize(context);
+    try {
+      final result = await DockingService.instance.undockInPlace();
+      if (!mounted) return;
+      if (result == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Undock failed or was cancelled')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Undock failed: $e')));
+    }
+  }
+
+  /// Clear goal marker, unlock UI, refresh bookmarks/map after cancel/fail/success.
+  void _resetGoalUi() {
+    if (_selectedMap != null) {
+      final mapBookmarks = _settingsProvider.bookmarks[_selectedMap!] ?? [];
+      final updatedBookmarks = mapBookmarks.map((bookmark) {
+        return Bookmark(
+          id: bookmark.id,
+          icon: bookmark.icon,
+          name: bookmark.name,
+          positionX: bookmark.positionX,
+          positionY: bookmark.positionY,
+          positionZ: bookmark.positionZ,
+          theta: bookmark.theta,
+          isGoalActive: false,
+          isDock: bookmark.isDock,
+        );
+      }).toList();
+      _settingsProvider.bookmarks[_selectedMap!] = updatedBookmarks;
+    }
+
+    for (var b in _localBookmarks) {
+      b.isGoalActive = false;
+    }
+
+    _isGoalActive = false;
+    _disableLongPress = false;
+    _disableToolBar = false;
+    _showNavigationFeedback = false;
+    _showGoalBar = false;
+    _currentFeedback = null;
+    _currentGoalPose = null;
+    _goalPositionController.add({
+      'x': 0.0,
+      'y': 0.0,
+      'orientation': geometry_msgs.Quaternion(x: 0, y: 0, z: 0, w: 1),
+      'show': false,
+    });
+    _mapWidget = _buildMapWidget();
+  }
+
   void _handleGoalSubmission() async {
     if (_currentGoalPose == null) return;
 
@@ -858,6 +1036,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _disableToolBar = true;
       _showNavigationFeedback = true;
       _currentFeedback = null;
+      _mapWidget = _buildMapWidget();
     });
 
     try {
@@ -898,6 +1077,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
       if (!mounted) return;
 
+      _unsubscribePath();
+
       if (result == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -907,132 +1088,35 @@ class _NavigationScreenState extends State<NavigationScreen> {
             backgroundColor: Colors.red.withOpacity(0.9),
           ),
         );
-        setState(() {
-          _isGoalActive = false;
-          _disableLongPress = false;
-          _disableToolBar = false;
-          _showNavigationFeedback = false;
-          _showGoalBar = false;
-        });
+        setState(() => _resetGoalUi());
         return;
       }
 
-      _unsubscribePath();
-
-      setState(() {
-        // Reset all bookmarks' goal state
-        if (_selectedMap != null) {
-          final mapBookmarks = _settingsProvider.bookmarks[_selectedMap!] ?? [];
-          final updatedBookmarks = mapBookmarks.map((bookmark) {
-            return Bookmark(
-              id: bookmark.id,
-              icon: bookmark.icon,
-              name: bookmark.name,
-              positionX: bookmark.positionX,
-              positionY: bookmark.positionY,
-              positionZ: bookmark.positionZ,
-              theta: bookmark.theta,
-              isGoalActive: false,
-            );
-          }).toList();
-
-          _settingsProvider.bookmarks[_selectedMap!] = updatedBookmarks;
-        }
-
-        for (var b in _localBookmarks) {
-          b.isGoalActive = false;
-        }
-
-        _isGoalActive = false;
-        _disableLongPress = false;
-        _disableToolBar = false;
-        _showNavigationFeedback = false;
-        _showGoalBar = false;
-        _currentGoalPose = null;
-        _goalPositionController.add({
-          'x': 0.0,
-          'y': 0.0,
-          'orientation': geometry_msgs.Quaternion(x: 0, y: 0, z: 0, w: 1),
-          'show': false,
-        });
-
-        // Rebuild the map widget
-        _mapWidget = _buildMapWidget();
-      });
+      setState(() => _resetGoalUi());
     } catch (e) {
       if (!mounted) return;
+      _unsubscribePath();
+      final msg = e.toString();
+      final canceled = msg.toLowerCase().contains('cancel');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Goal error: $e'),
-          backgroundColor: Colors.red.withOpacity(0.9),
+          content: Text(canceled ? 'Goal canceled' : 'Goal error: $e'),
+          backgroundColor:
+              (canceled ? Colors.orange : Colors.red).withOpacity(0.9),
         ),
       );
-      setState(() {
-        _isGoalActive = false;
-        _disableLongPress = false;
-        _disableToolBar = false;
-        _showNavigationFeedback = false;
-      });
+      setState(() => _resetGoalUi());
     }
   }
 
   void _cancelPendingGoal() {
-    setState(() {
-      _showGoalBar = false;
-      _currentGoalPose = null;
-      _goalPositionController.add({
-        'x': 0.0,
-        'y': 0.0,
-        'orientation': geometry_msgs.Quaternion(x: 0, y: 0, z: 0, w: 1),
-        'show': false,
-      });
-      _mapWidget = _buildMapWidget();
-    });
+    setState(() => _resetGoalUi());
   }
 
   void _handleNavigationCancel() {
     _goalService.cancelCurrentGoal();
     _unsubscribePath();
-
-    setState(() {
-      // Reset all bookmarks' goal state
-      if (_selectedMap != null) {
-        final mapBookmarks = _settingsProvider.bookmarks[_selectedMap!] ?? [];
-        final updatedBookmarks = mapBookmarks.map((bookmark) {
-          return Bookmark(
-            id: bookmark.id,
-            icon: bookmark.icon,
-            name: bookmark.name,
-            positionX: bookmark.positionX,
-            positionY: bookmark.positionY,
-            positionZ: bookmark.positionZ,
-            theta: bookmark.theta,
-            isGoalActive: false,
-          );
-        }).toList();
-
-        _settingsProvider.bookmarks[_selectedMap!] = updatedBookmarks;
-      }
-
-      for (var b in _localBookmarks) {
-        b.isGoalActive = false;
-      }
-
-      _isGoalActive = false;
-      _goalPositionController.add({
-        'x': 0.0,
-        'y': 0.0,
-        'orientation': geometry_msgs.Quaternion(x: 0, y: 0, z: 0, w: 1),
-        'show': false,
-      });
-      _disableLongPress = false;
-      _showNavigationFeedback = false;
-      _currentFeedback = null;
-      _disableToolBar = false;
-
-      // Rebuild the map widget
-      _mapWidget = _buildMapWidget();
-    });
+    setState(() => _resetGoalUi());
   }
 
   void _handleWaypointSelected(int index) {
@@ -1117,6 +1201,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
       robotPositionStrem: TFService.instance.robotPositionStream,
       goalPositionStream: _goalPositionController.stream,
       pathStream: _pathController.stream,
+      showLocalCostmap: _showLocalCostmap,
+      showGlobalCostmap: _showGlobalCostmap,
+      showLaserScan: _showLaserScan,
+      localCostmapTopic: '/local_costmap/costmap',
+      globalCostmapTopic: '/global_costmap/costmap',
+      // /scan_filtered (not settings.lidarTopic, the raw /scan) — matches
+      // what nav2's own costmaps/collision_monitor actually see, so this
+      // overlay shows exactly what's driving obstacle avoidance.
+      tfMapFrame: _settingsProvider.mapFrame,
+      tfOdomFrame: _settingsProvider.odomFrame,
           onMarkerPoseReceived: _handleMarkerPoseReceived,
           onMarkerPoseCancelled: () {
             _cancelPendingGoal();
@@ -1144,6 +1238,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
               Navigator.of(context).pop();
               _handleBookmarkGoal(bookmark);
             },
+            onDock: () {
+              Navigator.of(context).pop();
+              _handleDockBookmark(bookmark);
+            },
+            onUndock: () {
+              Navigator.of(context).pop();
+              _handleUndockBookmark();
+            },
             onAddWaypoint: () {
               Navigator.of(context).pop();
               _addBookmarkAsWaypoint(bookmark);
@@ -1164,6 +1266,58 @@ class _NavigationScreenState extends State<NavigationScreen> {
             },
             onCancel: () {
               Navigator.of(context).pop();
+            },
+            onEditDetails: () {
+              Navigator.of(context).pop();
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => BookmarkDialog(
+                  isEdit: true,
+                  initialName: bookmark.name,
+                  initialIcon: bookmark.icon,
+                  initialIsDock: bookmark.isDock,
+                  onDone: (icon, name, isDock) {
+                    Navigator.pop(context);
+                    setState(() {
+                      final idx =
+                          _localBookmarks.indexWhere((b) => b.id == bookmark.id);
+                      if (idx != -1) {
+                        _localBookmarks[idx] = _localBookmarks[idx].copyWith(
+                          icon: icon,
+                          name: name,
+                          isDock: isDock,
+                        );
+                      }
+                      _settingsProvider.updateBookmark(
+                        _selectedMap!,
+                        bookmark.id,
+                        icon: icon,
+                        name: name,
+                        isDock: isDock,
+                      );
+                      if (isDock) {
+                        // Position unchanged here — just (re)confirm it with
+                        // the robot in case this bookmark was newly marked
+                        // as the dock rather than repositioned.
+                        DockingService.instance.publishDockPose(
+                          bookmark.positionX,
+                          bookmark.positionY,
+                          bookmark.theta,
+                        );
+                      }
+                    });
+                  },
+                  onCancel: () => Navigator.pop(context),
+                ),
+              );
+            },
+            onReposition: () {
+              Navigator.of(context).pop();
+              setState(() {
+                _repositioningBookmarkId = bookmark.id;
+                _bookmarksMode = true;
+              });
             },
           ),
         );
@@ -1193,6 +1347,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                         positionZ: bookmark.positionZ,
                         theta: bookmark.theta,
                         isGoalActive: bookmark.isGoalActive,
+                        isDock: bookmark.isDock,
                       ))
                   .toList() ??
               [];
@@ -1392,6 +1547,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                     return NavToolbar(
                         disableToolBar: _disableToolBar || disableDuringMission,
                         modeColor: widget.modeColor,
+                        selectedTool: _selectedTool,
                         onToolSelected: (tool) => {_handleToolSelected(tool)});
                   },
                 )),
@@ -1457,7 +1613,30 @@ class _NavigationScreenState extends State<NavigationScreen> {
           Positioned(
             right: 0,
             top: 80,
-            child: VisibilityToolbar(modeColor: widget.modeColor),
+            child: VisibilityToolbar(
+              modeColor: widget.modeColor,
+              showLocalCostmap: _showLocalCostmap,
+              onLocalCostmapToggle: (v) {
+                setState(() {
+                  _showLocalCostmap = v;
+                  _mapWidget = _buildMapWidget();
+                });
+              },
+              showGlobalCostmap: _showGlobalCostmap,
+              onGlobalCostmapToggle: (v) {
+                setState(() {
+                  _showGlobalCostmap = v;
+                  _mapWidget = _buildMapWidget();
+                });
+              },
+              showLaserScan: _showLaserScan,
+              onLaserScanToggle: (v) {
+                setState(() {
+                  _showLaserScan = v;
+                  _mapWidget = _buildMapWidget();
+                });
+              },
+            ),
           ),
 
           // Slide to confirm / cancel goal
@@ -1950,7 +2129,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                             left: isSelected ? 16 : 16,
                                             right: 16,
                                           ),
-                                          leading: Icon(
+                                          leading: FaIcon(
                                             FontAwesomeIcons.map,
                                             color: isSelected
                                                 ? widget.modeColor
@@ -1993,7 +2172,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                       color: Colors.grey.shade800, // 30% - Secondary color
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
+                    child: FaIcon(
                       FontAwesomeIcons.route,
                       size: 80,
                       color: Colors.white,
@@ -2089,6 +2268,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
           if (remaining != null && remaining > 0) {
             feedbackText = '${remaining.toStringAsFixed(1)}s remaining';
           }
+          break;
+        case MissionItemType.dock:
+        case MissionItemType.undock:
+          feedbackText = DockingService.instance.status.replaceAll('_', ' ');
           break;
         default:
           break;

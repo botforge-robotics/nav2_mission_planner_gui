@@ -615,9 +615,13 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   void addBookmark(IconData icon, String mapName, String name, double x,
-      double y, double z, double theta) {
+      double y, double z, double theta,
+      {bool isDock = false}) {
     if (!_bookmarks.containsKey(mapName)) {
       _bookmarks[mapName] = []; // Create a new list if no mapName exists
+    }
+    if (isDock) {
+      _clearOtherDockBookmarks(mapName, keepId: null);
     }
     _bookmarks[mapName]!.add(
       Bookmark(
@@ -628,6 +632,7 @@ class SettingsProvider extends ChangeNotifier {
         positionY: y,
         positionZ: z,
         theta: theta,
+        isDock: isDock,
       ),
     );
     _saveSettings();
@@ -640,6 +645,62 @@ class SettingsProvider extends ChangeNotifier {
         _bookmarks[mapName]!.removeAt(index);
         _saveSettings();
         notifyListeners();
+      }
+    }
+  }
+
+  /// Edits an existing bookmark's fields in place (position/orientation via
+  /// the same point-and-rotate flow used to place it, or name/icon/isDock).
+  /// No-op if [mapName]/[id] doesn't match anything.
+  void updateBookmark(
+    String mapName,
+    String id, {
+    IconData? icon,
+    String? name,
+    double? positionX,
+    double? positionY,
+    double? positionZ,
+    double? theta,
+    bool? isDock,
+  }) {
+    final list = _bookmarks[mapName];
+    if (list == null) return;
+    final index = list.indexWhere((b) => b.id == id);
+    if (index == -1) return;
+
+    if (isDock == true) {
+      _clearOtherDockBookmarks(mapName, keepId: id);
+    }
+    list[index] = list[index].copyWith(
+      icon: icon,
+      name: name,
+      positionX: positionX,
+      positionY: positionY,
+      positionZ: positionZ,
+      theta: theta,
+      isDock: isDock,
+    );
+    _saveSettings();
+    notifyListeners();
+  }
+
+  /// The active dock bookmark for a map, if one has been placed.
+  Bookmark? getDockBookmark(String mapName) {
+    final list = _bookmarks[mapName];
+    if (list == null) return null;
+    for (final b in list) {
+      if (b.isDock) return b;
+    }
+    return null;
+  }
+
+  // Only one dock bookmark per map — un-set isDock on any others.
+  void _clearOtherDockBookmarks(String mapName, {String? keepId}) {
+    final list = _bookmarks[mapName];
+    if (list == null) return;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].isDock && list[i].id != keepId) {
+        list[i] = list[i].copyWith(isDock: false);
       }
     }
   }

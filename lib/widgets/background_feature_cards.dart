@@ -217,7 +217,7 @@ class _BackgroundFeatureCardsState extends State<BackgroundFeatureCards>
     );
   }
 
-  IconData _getIcon(String iconName) {
+  FaIconData _getIcon(String iconName) {
     switch (iconName) {
       case 'gamepad':
         return FontAwesomeIcons.gamepad;

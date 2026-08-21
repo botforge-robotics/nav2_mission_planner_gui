@@ -10,7 +10,7 @@ class GuideHighlightWidget extends StatefulWidget {
   final String guideUrl;
   final bool showHighlight;
   final String? highlightMessage;
-  final IconData? icon;
+  final FaIconData? icon;
   final Color? iconColor;
   final double size;
   final EdgeInsets padding;
@@ -120,7 +120,7 @@ class _GuideHighlightWidgetState extends State<GuideHighlightWidget>
                       width: 1,
                     ),
                   ),
-                  child: Icon(
+                  child: FaIcon(
                     widget.icon ?? FontAwesomeIcons.circleQuestion,
                     size: widget.size * 0.6,
                     color: Colors.white, // Manual icon is now white

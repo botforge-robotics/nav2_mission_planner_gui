@@ -35,6 +35,32 @@ class TFService {
       _robotPositionController.stream;
   bool get isTfAvailable => _isTfAvailable;
   String? get lastError => _lastError;
+  // Synchronous last-known {'x','y','q'} — robotPositionStream only emits on
+  // significant movement, so callers needing "where is the robot right now"
+  // while it's stationary (e.g. undock-in-place) should read this instead of
+  // awaiting the stream's first event, which may never fire.
+  Map<String, dynamic>? get lastKnownPosition => _lastPosition;
+
+  /// Direct targetFrame -> sourceFrame transform (translation x/y + yaw),
+  /// or null if not yet seen. Used for compositing frame-relative overlays
+  /// (e.g. local_costmap, published in odom frame) onto the map-frame view
+  /// — see occupancy_grid_viewer.dart's costmap layers.
+  ({double x, double y, double theta})? getFrameTransform(
+      String targetFrame, String sourceFrame) {
+    final t = _getDirectTransform(targetFrame, sourceFrame);
+    if (t == null) return null;
+    final translation = t.transform.translation;
+    final yaw = math.atan2(
+      2.0 *
+          (t.transform.rotation.w * t.transform.rotation.z +
+              t.transform.rotation.x * t.transform.rotation.y),
+      1.0 -
+          2.0 *
+              (t.transform.rotation.y * t.transform.rotation.y +
+                  t.transform.rotation.z * t.transform.rotation.z),
+    );
+    return (x: translation.x, y: translation.y, theta: yaw);
+  }
 
   void initialize(BuildContext context) {
     if (_isInitialized) return;

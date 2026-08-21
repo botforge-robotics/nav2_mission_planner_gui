@@ -23,3 +23,7 @@ server/data/
 
 # Logs
 *.log
+
+# Reference material dropped in the tree while working — third-party papers and
+# datasheets, not project source. Keep them local rather than in app history.
+/*.pdf
