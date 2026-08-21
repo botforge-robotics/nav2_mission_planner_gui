@@ -15,7 +15,21 @@ const double _changeEpsilon = 0.04;
 
 class JoystickThumbWidget extends StatefulWidget {
   final Color modeColor;
-  const JoystickThumbWidget({super.key, required this.modeColor});
+
+  /// Reports the twist actually published, whenever it changes.
+  ///
+  /// Fired from the single point where cmd_vel leaves this widget, so a
+  /// readout driven by it shows what the robot was really sent — including
+  /// the zero on release. Deduplicated against the previous value, because
+  /// the publish timer re-sends the same command at 10Hz to keep the base
+  /// alive and a listener does not want ten identical rebuilds a second.
+  final void Function(double linear, double angular)? onCommand;
+
+  const JoystickThumbWidget({
+    super.key,
+    required this.modeColor,
+    this.onCommand,
+  });
 
   @override
   State<JoystickThumbWidget> createState() => _JoystickThumbWidgetState();
@@ -35,6 +49,8 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
   Timer? _publishTimer;
   double _cmdLinear = 0.0;
   double _cmdAngular = 0.0;
+  double? _notifiedLinear;
+  double? _notifiedAngular;
 
   @override
   void didChangeDependencies() {
@@ -88,6 +104,11 @@ class _JoystickThumbWidgetState extends State<JoystickThumbWidget> {
 
   void _publishTwist(double linear, double angular) {
     if (_publisher == null) return;
+    if (linear != _notifiedLinear || angular != _notifiedAngular) {
+      _notifiedLinear = linear;
+      _notifiedAngular = angular;
+      widget.onCommand?.call(linear, angular);
+    }
 
     final twist = Twist(
       linear: Vector3(x: linear, y: 0.0, z: 0.0),

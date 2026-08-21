@@ -57,6 +57,11 @@ class VisibilityToolbar extends StatelessWidget {
             isVisible: settingsProvider.bookmarksVisible,
             onToggle: () => settingsProvider.toggleBookmarksVisibility(),
           ),
+          _buildVisibilityToggle(
+            icon: Icons.speed,
+            isVisible: settingsProvider.telemetryVisible,
+            onToggle: () => settingsProvider.toggleTelemetryVisibility(),
+          ),
           if (onLocalCostmapToggle != null)
             _buildVisibilityToggle(
               icon: Icons.layers,

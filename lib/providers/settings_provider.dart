@@ -50,6 +50,7 @@ class SettingsProvider extends ChangeNotifier {
   // Add these to the class
   bool _cameraVisible = DefaultSettings.defaultCameraVisible;
   bool _joystickVisible = DefaultSettings.defaultJoystickVisible;
+  bool _telemetryVisible = DefaultSettings.defaultTelemetryVisible;
 
   // Add path topic
   String _pathTopic = DefaultSettings.defaultPathTopic;
@@ -93,6 +94,7 @@ class SettingsProvider extends ChangeNotifier {
   String get lidarTopic => _lidarTopic;
   bool get cameraVisible => _cameraVisible;
   bool get joystickVisible => _joystickVisible;
+  bool get telemetryVisible => _telemetryVisible;
   String get pathTopic => _pathTopic;
   Map<String, List<Bookmark>> get bookmarks => _bookmarks;
   int get communicationTimeout => _communicationTimeout;
@@ -138,6 +140,7 @@ class SettingsProvider extends ChangeNotifier {
     _communicationTimeout = DefaultSettings.defaultCommunicationTimeout;
     _cameraVisible = DefaultSettings.defaultCameraVisible;
     _joystickVisible = DefaultSettings.defaultJoystickVisible;
+    _telemetryVisible = DefaultSettings.defaultTelemetryVisible;
     _pathTopic = DefaultSettings.defaultPathTopic;
     _tfTopic = DefaultSettings.defaultTfTopic;
     _mapFrame = DefaultSettings.defaultMapFrame;
@@ -269,6 +272,8 @@ class SettingsProvider extends ChangeNotifier {
         DefaultSettings.defaultCameraVisible;
     _joystickVisible = prefs.getBool('$settingsKey:joystickVisible') ??
         DefaultSettings.defaultJoystickVisible;
+    _telemetryVisible = prefs.getBool('$settingsKey:telemetryVisible') ??
+        DefaultSettings.defaultTelemetryVisible;
 
     // Load path topic
     _pathTopic = prefs.getString('$settingsKey:pathTopic') != null
@@ -345,6 +350,7 @@ class SettingsProvider extends ChangeNotifier {
         '$settingsKey:communicationTimeout', _communicationTimeout);
     await prefs.setBool('$settingsKey:cameraVisible', _cameraVisible);
     await prefs.setBool('$settingsKey:joystickVisible', _joystickVisible);
+    await prefs.setBool('$settingsKey:telemetryVisible', _telemetryVisible);
     await prefs.setString('$settingsKey:pathTopic', _pathTopic);
     await prefs.setString(
         '$settingsKey:bookmarks',
@@ -604,6 +610,11 @@ class SettingsProvider extends ChangeNotifier {
 
   void toggleJoystickVisibility() {
     _joystickVisible = !_joystickVisible;
+    notifyListeners();
+  }
+
+  void toggleTelemetryVisibility() {
+    _telemetryVisible = !_telemetryVisible;
     notifyListeners();
   }
 

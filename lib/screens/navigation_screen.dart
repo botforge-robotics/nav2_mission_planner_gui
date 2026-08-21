@@ -18,6 +18,7 @@ import 'package:nav2_mission_planner/providers/settings_provider.dart';
 import 'package:nav2_mission_planner/services/delete_map_service.dart';
 import 'package:nav2_mission_planner/widgets/navigation/navigation_toolbar.dart';
 import 'package:nav2_mission_planner/widgets/navigation/visibility_toolbar.dart';
+import 'package:nav2_mission_planner/widgets/navigation/robot_telemetry_panel.dart';
 import 'package:nav2_mission_planner/services/pose_estimation_service.dart';
 import 'package:nav_msgs/msg.dart' as nav_msgs;
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
@@ -72,6 +73,20 @@ class _NavigationScreenState extends State<NavigationScreen> {
   double _robotX = 0.0;
   double _robotY = 0.0;
   geometry_msgs.Quaternion _robotQ = geometry_msgs.Quaternion();
+  // Frame the pose above is measured in. Reported rather than assumed: an
+  // odom pose is relative to wherever the robot last started, so it is not
+  // comparable to a stored waypoint, and the readout has to say which it has.
+  String _poseFrame = 'odom';
+  bool _poseReceived = false;
+  // Measured velocity from the odometry message, when the source provides it.
+  // amcl_pose carries no twist, so these stay null on that path.
+  double? _measuredLinear;
+  double? _measuredAngular;
+  // Last teleop command published by the joystick, and whether the stick is
+  // currently deflected.
+  double? _cmdLinear;
+  double? _cmdAngular;
+  bool _teleopActive = false;
   String? _currentOdomTopic;
   String? _currentOdomType;
   late SettingsProvider _settingsProvider;
@@ -475,6 +490,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _robotX = message.pose.pose.position.x;
       _robotY = message.pose.pose.position.y;
       _robotQ = message.pose.pose.orientation;
+      _poseFrame = message.header.frame_id.isNotEmpty
+          ? message.header.frame_id
+          : 'odom';
+      _poseReceived = true;
+      _measuredLinear = message.twist.twist.linear.x;
+      _measuredAngular = message.twist.twist.angular.z;
     });
 
     // Send position update through stream
@@ -490,6 +511,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _robotX = message.pose.pose.position.x;
       _robotY = message.pose.pose.position.y;
       _robotQ = message.pose.pose.orientation;
+      _poseFrame =
+          message.header.frame_id.isNotEmpty ? message.header.frame_id : 'map';
+      _poseReceived = true;
+      // PoseWithCovarianceStamped carries no twist — leave the measured
+      // velocity null so the readout says "not reported" rather than 0.000,
+      // which would look like a stationary robot.
+      _measuredLinear = null;
+      _measuredAngular = null;
     });
     // Send position update through stream
     _robotPositionController.add({
@@ -1566,10 +1595,42 @@ class _NavigationScreenState extends State<NavigationScreen> {
                   color: Colors.black.withValues(alpha: 0.3),
                   shape: BoxShape.circle,
                 ),
-                child: JoystickThumbWidget(modeColor: widget.modeColor),
+                child: JoystickThumbWidget(
+                  modeColor: widget.modeColor,
+                  onCommand: (linear, angular) {
+                    if (!mounted) return;
+                    setState(() {
+                      _cmdLinear = linear;
+                      _cmdAngular = angular;
+                      _teleopActive = linear != 0.0 || angular != 0.0;
+                    });
+                  },
+                ),
               ),
             ),
           ),
+
+          // Pose / velocity readout. Bottom-left is the only corner nothing
+          // else claims: the toolbars are on the right, the joystick and
+          // waypoint panel bottom-right, banners across the top.
+          if (settings.telemetryVisible)
+            Positioned(
+              left: 12,
+              bottom: 12,
+              child: RobotTelemetryPanel(
+                modeColor: widget.modeColor,
+                x: _robotX,
+                y: _robotY,
+                theta: extractYawFromOriginQuaternion(_robotQ),
+                frame: _poseFrame,
+                poseAvailable: _poseReceived,
+                measuredLinear: _measuredLinear,
+                measuredAngular: _measuredAngular,
+                commandedLinear: settings.joystickVisible ? _cmdLinear : null,
+                commandedAngular: settings.joystickVisible ? _cmdAngular : null,
+                teleopActive: _teleopActive,
+              ),
+            ),
 
           // Stop Button
           Positioned(
