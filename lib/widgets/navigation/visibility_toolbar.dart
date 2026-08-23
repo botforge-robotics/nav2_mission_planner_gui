@@ -11,8 +11,6 @@ class VisibilityToolbar extends StatelessWidget {
   final ValueChanged<bool>? onLocalCostmapToggle;
   final bool? showGlobalCostmap;
   final ValueChanged<bool>? onGlobalCostmapToggle;
-  final bool? showLaserScan;
-  final ValueChanged<bool>? onLaserScanToggle;
 
   const VisibilityToolbar({
     super.key,
@@ -21,8 +19,6 @@ class VisibilityToolbar extends StatelessWidget {
     this.onLocalCostmapToggle,
     this.showGlobalCostmap,
     this.onGlobalCostmapToggle,
-    this.showLaserScan,
-    this.onLaserScanToggle,
   });
 
   @override

@@ -41,7 +41,7 @@ class DefaultSettings {
   static const bool defaultJoystickVisible = true;
   // Off by default: it is a diagnostic readout, and the map view is the
   // point of this screen. Anyone who needs exact numbers turns it on.
-  static const bool defaultTelemetryVisible = false;
+  static const bool defaultTelemetryVisible = true;
 
   static const String defaultPathTopic = '/plan';
 

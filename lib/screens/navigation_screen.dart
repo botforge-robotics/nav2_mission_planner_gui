@@ -59,7 +59,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
   // clean on hardware.
   bool _showLocalCostmap = false;
   bool _showGlobalCostmap = false;
-  bool _showLaserScan = false;
   // Map display variables
   double _scale = 1.0;
   double _previousScale = 1.0;
@@ -1090,9 +1089,22 @@ class _NavigationScreenState extends State<NavigationScreen> {
         },
       );
 
-      // Fail fast if Nav2 never accepts / never starts (stack unconfigured)
+      // Fail fast if Nav2 never accepts / never starts (stack unconfigured).
+      //
+      // 40s, not 15s: every goal actually goes through dock_manager_node's
+      // /undock relay (GoalService prefers it whenever advertised, which is
+      // always), and when the robot is docked that relay undocks FIRST,
+      // silently — its own timeout for that phase is 25s
+      // (dock_manager_node.py's _UNDOCK_TIMEOUT_SEC) and it wires no
+      // feedback callback until undocking finishes and the real
+      // navigate_to_pose child goal is sent. A 15s watchdog here fired
+      // during a perfectly normal, still-in-progress undock, cancelling the
+      // goal client-side before real navigation ever started producing
+      // feedback — the robot would go on to reach the goal via the
+      // still-running server-side task while the UI had already declared
+      // failure. 40s clears the 25s undock allowance with margin.
       await firstFeedback.future.timeout(
-        const Duration(seconds: 15),
+        const Duration(seconds: 40),
         onTimeout: () {
           _goalService.cancelCurrentGoal();
           throw Exception(
@@ -1232,7 +1244,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
       pathStream: _pathController.stream,
       showLocalCostmap: _showLocalCostmap,
       showGlobalCostmap: _showGlobalCostmap,
-      showLaserScan: _showLaserScan,
       localCostmapTopic: '/local_costmap/costmap',
       globalCostmapTopic: '/global_costmap/costmap',
       // /scan_filtered (not settings.lidarTopic, the raw /scan) — matches
@@ -1687,13 +1698,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
               onGlobalCostmapToggle: (v) {
                 setState(() {
                   _showGlobalCostmap = v;
-                  _mapWidget = _buildMapWidget();
-                });
-              },
-              showLaserScan: _showLaserScan,
-              onLaserScanToggle: (v) {
-                setState(() {
-                  _showLaserScan = v;
                   _mapWidget = _buildMapWidget();
                 });
               },
