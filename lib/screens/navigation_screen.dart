@@ -69,6 +69,13 @@ class _NavigationScreenState extends State<NavigationScreen> {
   final Set<String> _deletingMaps = {};
 
   Subscriber<dynamic>? _odomSubscriber;
+  // Velocity is always read from /odom directly, independent of whatever
+  // navigationOdomTopic drives position display. Position defaults to
+  // /amcl_pose (accurate map-frame pose, no drift) — but amcl_pose carries
+  // no twist at all, so when position uses it, velocity has nothing to draw
+  // from unless it has its own subscription. Without this, the readout
+  // showed "not reported" permanently once localized, not just before.
+  Subscriber<nav_msgs.Odometry>? _velocitySubscriber;
   double _robotX = 0.0;
   double _robotY = 0.0;
   geometry_msgs.Quaternion _robotQ = geometry_msgs.Quaternion();
@@ -288,6 +295,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           _showInitialPoseBanner = true;
         });
         _subscribeToOdometry();
+        _subscribeToVelocity();
         PoseEstimationService.initializePublisher(context);
         setState(() {
           // Create map widget
@@ -442,6 +450,34 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _odomSubscriber = null;
     _currentOdomTopic = null;
     _currentOdomType = null;
+    _unsubscribeFromVelocity();
+  }
+
+  void _subscribeToVelocity() {
+    if (!_isNavigationActive || _velocitySubscriber != null) return;
+    final connection = Provider.of<ConnectionProvider>(context, listen: false);
+    try {
+      _velocitySubscriber = Subscriber<nav_msgs.Odometry>(
+        name: '/odom',
+        type: nav_msgs.Odometry().fullType,
+        ros2: connection.ros2Client,
+        callback: (message) {
+          if (!mounted) return;
+          setState(() {
+            _measuredLinear = message.twist.twist.linear.x;
+            _measuredAngular = message.twist.twist.angular.z;
+          });
+        },
+        prototype: nav_msgs.Odometry(),
+      );
+    } catch (e) {
+      // Silent error handling, matches _subscribeToOdometry above.
+    }
+  }
+
+  void _unsubscribeFromVelocity() {
+    _velocitySubscriber?.shutdown();
+    _velocitySubscriber = null;
   }
 
   void _subscribeToOdometry() {
@@ -513,11 +549,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _poseFrame =
           message.header.frame_id.isNotEmpty ? message.header.frame_id : 'map';
       _poseReceived = true;
-      // PoseWithCovarianceStamped carries no twist — leave the measured
-      // velocity null so the readout says "not reported" rather than 0.000,
-      // which would look like a stationary robot.
-      _measuredLinear = null;
-      _measuredAngular = null;
+      // PoseWithCovarianceStamped carries no twist — don't touch
+      // _measuredLinear/_measuredAngular here. They're kept up to date by
+      // their own dedicated /odom subscription (_subscribeToVelocity),
+      // independent of whichever topic drives position display.
     });
     // Send position update through stream
     _robotPositionController.add({
