@@ -72,10 +72,11 @@ class RobotTelemetryPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _header(
-            frame.toUpperCase(),
+            'POSITION',
             // Green for map, amber for odom: not decoration. A map pose is
             // comparable to stored waypoints and an odom pose is not, and
-            // that difference is worth noticing at a glance.
+            // that difference is worth noticing at a glance — kept as
+            // color even though the label itself no longer names the frame.
             isMap ? const Color(0xFF4CAF50) : const Color(0xFFFFB74D),
           ),
           const SizedBox(height: 4),
