@@ -1,34 +1,33 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:nav2_mission_planner/modals/bookmark.dart';
 import 'package:nav2_mission_planner/services/goal_service.dart';
 import 'package:nav2_mission_planner/providers/ros2_data_provider.dart';
 import 'package:nav2_mission_planner/widgets/navigation/nav_bottom_bar.dart';
-import 'package:ros2_api/ros2_api.dart';
 import 'package:nav2_mission_planner/providers/connection_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:nav2_mission_planner/providers/branding_provider.dart';
+import 'package:nav2_mission_planner/providers/live_telemetry_provider.dart';
 import 'package:nav2_mission_planner/services/get_map_list_service.dart';
 import 'package:nav2_mission_planner/services/launch_service.dart';
 import 'package:nav2_mission_planner/widgets/occupancy_grid_viewer.dart';
-import 'package:nav2_mission_planner/widgets/sensors/joystick_thumb_widget.dart';
 import 'package:nav2_mission_planner/widgets/sensors/image_viwer.dart';
 import 'package:nav2_mission_planner/providers/settings_provider.dart';
 import 'package:nav2_mission_planner/services/delete_map_service.dart';
 import 'package:nav2_mission_planner/widgets/navigation/navigation_toolbar.dart';
 import 'package:nav2_mission_planner/widgets/navigation/visibility_toolbar.dart';
 import 'package:nav2_mission_planner/widgets/navigation/robot_telemetry_panel.dart';
+import 'package:nav2_mission_planner/widgets/navigation/nav_banners.dart';
+import 'package:nav2_mission_planner/widgets/navigation/joystick_overlay.dart';
+import 'package:nav2_mission_planner/widgets/navigation/dock_undock_fab.dart';
+import 'package:nav2_mission_planner/widgets/navigation/nav_goal_bar_and_feedback.dart';
+import 'package:nav2_mission_planner/widgets/navigation/mission_execution_panel.dart';
+import 'package:nav2_mission_planner/widgets/navigation/map_selection_view.dart';
+import 'package:nav2_mission_planner/widgets/navigation/nav_bookmark_tap_handler.dart';
 import 'package:nav2_mission_planner/services/pose_estimation_service.dart';
-import 'package:nav_msgs/msg.dart' as nav_msgs;
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'dart:async';
 import 'package:nav2_msgs/action.dart';
 import 'package:nav2_mission_planner/helpers/conversions.dart';
 import 'package:nav2_mission_planner/widgets/bookmarks/bookmark_dialog.dart';
-
-import 'package:nav2_mission_planner/widgets/navigation/navigation_feedback_widget.dart';
-import 'package:nav2_mission_planner/widgets/bookmarks/bookmark_tooltip.dart';
 import 'package:uuid/uuid.dart';
 
 import '../modals/mission.dart';
@@ -36,6 +35,10 @@ import '../widgets/waypoint_panel/waypoint_panel.dart';
 import 'package:nav2_mission_planner/services/mission_execution_service.dart';
 import 'package:nav2_mission_planner/services/tf_service.dart';
 import 'package:nav2_mission_planner/services/docking_service.dart';
+import 'package:nav2_mission_planner/services/mission_sync_service.dart';
+import 'package:nav2_mission_planner/services/waypoint_sync_service.dart';
+import 'package:nav2_mission_planner/screens/navigation/navigation_odometry_controller.dart';
+import 'package:nav2_mission_planner/screens/navigation/navigation_path_controller.dart';
 
 class NavigationScreen extends StatefulWidget {
   final Color modeColor;
@@ -68,37 +71,17 @@ class _NavigationScreenState extends State<NavigationScreen> {
   // track which maps are currently being deleted
   final Set<String> _deletingMaps = {};
 
-  Subscriber<dynamic>? _odomSubscriber;
-  // Velocity is always read from /odom directly, independent of whatever
-  // navigationOdomTopic drives position display. Position defaults to
-  // /amcl_pose (accurate map-frame pose, no drift) — but amcl_pose carries
-  // no twist at all, so when position uses it, velocity has nothing to draw
-  // from unless it has its own subscription. Without this, the readout
-  // showed "not reported" permanently once localized, not just before.
-  Subscriber<nav_msgs.Odometry>? _velocitySubscriber;
-  double _robotX = 0.0;
-  double _robotY = 0.0;
-  geometry_msgs.Quaternion _robotQ = geometry_msgs.Quaternion();
-  // Frame the pose above is measured in. Reported rather than assumed: an
-  // odom pose is relative to wherever the robot last started, so it is not
-  // comparable to a stored waypoint, and the readout has to say which it has.
-  String _poseFrame = 'odom';
-  bool _poseReceived = false;
-  // Measured velocity from the odometry message, when the source provides it.
-  // amcl_pose carries no twist, so these stay null on that path.
-  double? _measuredLinear;
-  double? _measuredAngular;
+  // Odometry/velocity subscriptions + pose state — see
+  // NavigationOdometryController's doc comment for why this is a separate
+  // object rather than fields on this State.
+  final _odometryController = NavigationOdometryController();
   // Last teleop command published by the joystick, and whether the stick is
   // currently deflected.
   double? _cmdLinear;
   double? _cmdAngular;
   bool _teleopActive = false;
-  String? _currentOdomTopic;
-  String? _currentOdomType;
   late SettingsProvider _settingsProvider;
 
-  final _robotPositionController =
-      StreamController<Map<String, dynamic>>.broadcast();
   // Add to class properties
   bool _poseEstimationMode = false;
   bool _goalMode = false;
@@ -119,10 +102,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _showNavigationFeedback = false;
   NavigateToPoseFeedback? _currentFeedback;
 
-  // Add new properties for path handling
-  Subscriber<nav_msgs.Path>? _pathSubscriber;
-  final _pathController =
-      StreamController<List<Map<String, dynamic>>>.broadcast();
+  // Path subscription — see NavigationPathController's doc comment.
+  final _pathController = NavigationPathController();
 
   // Add late variables to store provider references
   late ConnectionProvider _connectionProvider;
@@ -136,10 +117,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
   // Add waypoint mode properties
   bool _missionMode = false;
   List<Waypoint> _waypoints = [];
-  List<Waypoint> _previewWaypoints = [];
 
   bool _showWaypointPanel = false;
-  bool _showArrowButton = false;
 
   // Add info banner for mission mode
   bool _showMissionInfoBanner = false;
@@ -154,10 +133,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
   final GlobalKey<WaypointPanelState> _waypointPanelKey =
       GlobalKey<WaypointPanelState>();
 
-  // Add new tracking variables for path subscription
-  String? _currentPathTopic;
-  bool _pathSubscribed = false;
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -169,15 +144,116 @@ class _NavigationScreenState extends State<NavigationScreen> {
     if (!_isInitialized) {
       TFService.instance.initialize(context);
       DockingService.instance.initialize(context);
+      WaypointSyncService.instance.initialize(context);
+      MissionSyncService.instance.initialize(context);
       _settingsProvider.addListener(_handleSettingsChange);
       _goalService.initialize(context: context);
       _isInitialized = true;
+      _restoreIfAlreadyActive();
+      _adoptRobotWaypointsIfLocalEmpty();
+      _adoptRobotMissionsIfLocalEmpty();
     }
+  }
+
+  /// A fresh device (or a robot whose bookmarks were never saved to this
+  /// one) has nothing in SettingsProvider's SharedPreferences — but the
+  /// robot may already hold a real set via waypoint_store_node, pushed
+  /// there by some other client. Adopt it in that case rather than leaving
+  /// the bookmark list empty until someone happens to notice and re-enters
+  /// them by hand.
+  ///
+  /// Deliberately one-shot and one-directional (robot -> here) only when
+  /// local is empty: if this device already has bookmarks, they win — the
+  /// push side (SettingsProvider._syncWaypointsToRobot) already keeps the
+  /// robot's copy current from every local edit, so there's no ongoing
+  /// merge to reconcile, just this one adoption for the empty case.
+  void _adoptRobotWaypointsIfLocalEmpty() {
+    final alreadyHasLocalBookmarks =
+        _settingsProvider.bookmarks.values.any((list) => list.isNotEmpty);
+    if (alreadyHasLocalBookmarks) return;
+
+    void tryAdopt() {
+      final fromRobot = WaypointSyncService.instance.fromRobot;
+      if (fromRobot == null || !mounted) return;
+      final hasAny = fromRobot.values.any((list) => list.isNotEmpty);
+      if (!hasAny) return;
+      _settingsProvider.adoptBookmarks(fromRobot);
+      WaypointSyncService.instance.removeListener(tryAdopt);
+    }
+
+    // /waypoints is transient_local — if the robot already has a saved set,
+    // the callback fires almost immediately on subscribe. If it never
+    // fires, there was nothing to adopt (also correct: nothing to do).
+    WaypointSyncService.instance.addListener(tryAdopt);
+  }
+
+  /// Same one-shot adoption as _adoptRobotWaypointsIfLocalEmpty, for
+  /// missions instead of bookmarks.
+  void _adoptRobotMissionsIfLocalEmpty() {
+    final alreadyHasLocalMissions = _settingsProvider.missions.isNotEmpty;
+    if (alreadyHasLocalMissions) return;
+
+    void tryAdopt() {
+      final fromRobot = MissionSyncService.instance.fromRobot;
+      if (fromRobot == null || !mounted || fromRobot.isEmpty) return;
+      _settingsProvider.adoptMissions(fromRobot);
+      MissionSyncService.instance.removeListener(tryAdopt);
+    }
+
+    MissionSyncService.instance.addListener(tryAdopt);
+  }
+
+  /// Landing on this screen (fresh connect, app reopen/refresh) doesn't mean
+  /// Nav2 isn't already running — a previous session may have started it
+  /// and left it running robot-side, or another client did. Without this,
+  /// _isNavigationActive stays at its default false and the UI shows "Start
+  /// Navigation" over a stack that's actually already up, which just fails
+  /// (or worse, tries to launch a second copy) the moment it's pressed.
+  /// Mirrors _startNavigation's own post-success setup, minus the part that
+  /// launches anything — it's already launched.
+  ///
+  /// Also restores WHICH map, not just that navigation is active — reading
+  /// robot mode without this still leaves _selectedMap at whatever
+  /// _loadMaps() defaults to (alphabetically/listing-order first), which is
+  /// only right by coincidence. See ConnectionProvider.detectActiveMapName.
+  Future<void> _restoreIfAlreadyActive() async {
+    // waitUntilNav2Active, not a single isNav2Active() check — this runs
+    // right at connect, when rosbridge/rosapi/the lifecycle service can
+    // still be settling; a one-shot check racing that looks identical to
+    // "Nav2 really isn't running" and silently gives up with no retry.
+    // Short timeout (not its 45s default, meant for a genuine cold start)
+    // since this is just absorbing that race, not waiting through one.
+    final active = await _goalService.waitUntilNav2Active(
+      timeout: const Duration(seconds: 12),
+      pollInterval: const Duration(seconds: 2),
+    );
+    if (!mounted || !active || _isNavigationActive) return;
+
+    final activeMap = await _connectionProvider.detectActiveMapName();
+    if (!mounted) return;
+    if (activeMap != null) {
+      setState(() {
+        _selectedMap = activeMap;
+        _localBookmarks = _settingsProvider.bookmarks[activeMap] ?? [];
+      });
+    }
+
+    OccupancyGridViewer.clearMapCache();
+    setState(() => _isNavigationActive = true);
+    _subscribeToOdometry();
+    _subscribeToVelocity();
+    PoseEstimationService.initializePublisher(context);
+    setState(() => _mapWidget = _buildMapWidget());
   }
 
   @override
   void initState() {
     super.initState();
+    // Odometry/velocity updates arrive via the controller's own
+    // notifyListeners(); rebuild this screen exactly as the direct
+    // setState() calls inside it used to, before that logic moved into
+    // NavigationOdometryController.
+    _odometryController.addListener(_onOdometryChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.delayed(const Duration(milliseconds: 500));
       if (mounted) {
@@ -186,13 +262,18 @@ class _NavigationScreenState extends State<NavigationScreen> {
     });
   }
 
+  void _onOdometryChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     if (_isInitialized) {
       _settingsProvider.removeListener(_handleSettingsChange);
     }
-    _unsubscribePath();
-    _pathController.close();
+    _odometryController.removeListener(_onOdometryChanged);
+    _pathController.unsubscribe();
+    _pathController.disposeStream();
     super.dispose();
   }
 
@@ -205,7 +286,13 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
     setState(() {
       _mapList = maps;
-      _selectedMap = maps.isNotEmpty ? maps.first : null;
+      // Don't clobber a map _restoreIfAlreadyActive() already set from the
+      // robot's real running map — only default to "first in the list"
+      // when nothing better is already selected, or what's selected turned
+      // out not to actually exist in this list.
+      if (_selectedMap == null || !maps.contains(_selectedMap)) {
+        _selectedMap = maps.isNotEmpty ? maps.first : null;
+      }
       _loadingMaps = false;
     });
   }
@@ -310,8 +397,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
                     ? 'Navigation ready with map: $_selectedMap — set initial pose, then send goal'
                     : 'Map loaded but Nav2 still inactive — wait a few seconds or Stop/Start Navigation again',
               ),
-              backgroundColor: (navReady ? Colors.green : Colors.orange)
-                  .withOpacity(0.9),
+              backgroundColor:
+                  (navReady ? Colors.green : Colors.orange).withOpacity(0.9),
               duration: const Duration(seconds: 5),
             ),
           );
@@ -355,7 +442,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           ),
         ),
       );
-      _unsubscribeFromOdometry();
+      _odometryController.unsubscribeFromOdometry();
       await PoseEstimationService.shutdown();
       for (final entry in launchManager.activeLaunches.entries) {
         await launchManager.stopLaunch(context, entry.key);
@@ -371,18 +458,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
         setState(() {
           _isNavigationActive = false;
           _mapWidget = null;
-          // Reset robot position
-          _robotX = 0.0;
-          _robotY = 0.0;
-          _robotQ = geometry_msgs.Quaternion();
         });
-
-        // Send reset position through stream
-        _robotPositionController.add({
-          'x': 0.0,
-          'y': 0.0,
-          'q': geometry_msgs.Quaternion(),
-        });
+        _odometryController.resetPose();
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -445,121 +522,25 @@ class _NavigationScreenState extends State<NavigationScreen> {
     );
   }
 
-  void _unsubscribeFromOdometry() {
-    _odomSubscriber?.shutdown();
-    _odomSubscriber = null;
-    _currentOdomTopic = null;
-    _currentOdomType = null;
-    _unsubscribeFromVelocity();
-  }
-
+  // Thin delegates to _odometryController, kept as same-named methods so
+  // every existing call site (_restoreIfAlreadyActive, _startNavigation)
+  // reads unchanged. See NavigationOdometryController for the subscription
+  // logic itself.
   void _subscribeToVelocity() {
-    if (!_isNavigationActive || _velocitySubscriber != null) return;
-    final connection = Provider.of<ConnectionProvider>(context, listen: false);
-    try {
-      _velocitySubscriber = Subscriber<nav_msgs.Odometry>(
-        name: '/odom',
-        type: nav_msgs.Odometry().fullType,
-        ros2: connection.ros2Client,
-        callback: (message) {
-          if (!mounted) return;
-          setState(() {
-            _measuredLinear = message.twist.twist.linear.x;
-            _measuredAngular = message.twist.twist.angular.z;
-          });
-        },
-        prototype: nav_msgs.Odometry(),
-      );
-    } catch (e) {
-      // Silent error handling, matches _subscribeToOdometry above.
-    }
-  }
-
-  void _unsubscribeFromVelocity() {
-    _velocitySubscriber?.shutdown();
-    _velocitySubscriber = null;
+    _odometryController.subscribeToVelocity(
+      isNavigationActive: _isNavigationActive,
+      connection: Provider.of<ConnectionProvider>(context, listen: false),
+    );
   }
 
   void _subscribeToOdometry() {
-    if (!_isNavigationActive) return;
-    final connection = Provider.of<ConnectionProvider>(context, listen: false);
     final settings = Provider.of<SettingsProvider>(context, listen: false);
-
-    // Determine which topic and type to use
-    final (String topic, String type) =
-        (settings.navigationOdomTopic, settings.navigationOdomTopicType);
-    if (topic == _currentOdomTopic && type == _currentOdomType) return;
-    _currentOdomTopic = topic;
-    _currentOdomType = type;
-    // Unsubscribe from old topic
-    if (_odomSubscriber != null) {
-      _odomSubscriber?.shutdown();
-      _odomSubscriber = null;
-    }
-    try {
-      // Create subscriber based on message type
-      if (type == 'nav_msgs/msg/Odometry') {
-        _odomSubscriber = Subscriber<nav_msgs.Odometry>(
-          name: topic,
-          type: nav_msgs.Odometry().fullType,
-          ros2: connection.ros2Client,
-          callback: _processNavOdomMessage,
-          prototype: nav_msgs.Odometry(),
-        );
-      } else if (type == 'geometry_msgs/msg/PoseWithCovarianceStamped') {
-        _odomSubscriber = Subscriber<geometry_msgs.PoseWithCovarianceStamped>(
-          name: topic,
-          type: geometry_msgs.PoseWithCovarianceStamped().fullType,
-          ros2: connection.ros2Client,
-          callback: _processPoseMessage,
-          prototype: geometry_msgs.PoseWithCovarianceStamped(),
-        );
-      }
-    } catch (e) {
-      // Silent error handling
-    }
-  }
-
-  void _processNavOdomMessage(nav_msgs.Odometry message) {
-    setState(() {
-      _robotX = message.pose.pose.position.x;
-      _robotY = message.pose.pose.position.y;
-      _robotQ = message.pose.pose.orientation;
-      _poseFrame = message.header.frame_id.isNotEmpty
-          ? message.header.frame_id
-          : 'odom';
-      _poseReceived = true;
-      _measuredLinear = message.twist.twist.linear.x;
-      _measuredAngular = message.twist.twist.angular.z;
-    });
-
-    // Send position update through stream
-    _robotPositionController.add({
-      'x': _robotX,
-      'y': _robotY,
-      'q': _robotQ,
-    });
-  }
-
-  void _processPoseMessage(geometry_msgs.PoseWithCovarianceStamped message) {
-    setState(() {
-      _robotX = message.pose.pose.position.x;
-      _robotY = message.pose.pose.position.y;
-      _robotQ = message.pose.pose.orientation;
-      _poseFrame =
-          message.header.frame_id.isNotEmpty ? message.header.frame_id : 'map';
-      _poseReceived = true;
-      // PoseWithCovarianceStamped carries no twist — don't touch
-      // _measuredLinear/_measuredAngular here. They're kept up to date by
-      // their own dedicated /odom subscription (_subscribeToVelocity),
-      // independent of whichever topic drives position display.
-    });
-    // Send position update through stream
-    _robotPositionController.add({
-      'x': _robotX,
-      'y': _robotY,
-      'q': _robotQ,
-    });
+    _odometryController.subscribeToOdometry(
+      isNavigationActive: _isNavigationActive,
+      connection: Provider.of<ConnectionProvider>(context, listen: false),
+      topic: settings.navigationOdomTopic,
+      type: settings.navigationOdomTopicType,
+    );
   }
 
   void _handleToolSelected(String tool) async {
@@ -581,13 +562,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _showGoalBar = false;
       _showWaypointPanel = tool == 'mission';
 
-      // Clear waypoints and preview when switching away from mission mode
+      // Clear waypoints when switching away from mission mode
       if (!_missionMode) {
         _waypoints.clear();
-        _previewWaypoints.clear();
         _showMissionInfoBanner = false;
-        // Clear any pattern preview from waypoint panel
-        _waypointPanelKey.currentState?.clearPatternPreview();
       }
 
       _goalPositionController.add({
@@ -611,9 +589,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _bookmarksMode = false;
         _showWaypointPanel = false;
         _missionMode = false;
-        // Clear any pattern preview when switching to localization
-        _previewWaypoints.clear();
-        _waypointPanelKey.currentState?.clearPatternPreview();
         if (_isNavigationActive) {
           _mapWidget = _buildMapWidget();
         }
@@ -633,9 +608,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _bookmarksMode = false;
         _showWaypointPanel = false;
         _missionMode = false;
-        // Clear any pattern preview when switching to goal
-        _previewWaypoints.clear();
-        _waypointPanelKey.currentState?.clearPatternPreview();
         if (_isNavigationActive) {
           _mapWidget = _buildMapWidget();
         }
@@ -654,9 +626,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
         _bookmarksMode = true;
         _showWaypointPanel = false;
         _missionMode = false;
-        // Clear any pattern preview when switching to bookmarks
-        _previewWaypoints.clear();
-        _waypointPanelKey.currentState?.clearPatternPreview();
         if (_isNavigationActive) {
           _mapWidget = _buildMapWidget();
         }
@@ -904,62 +873,18 @@ class _NavigationScreenState extends State<NavigationScreen> {
     }
   }
 
+  // Thin delegates to _pathController, kept as same-named methods so every
+  // existing call site reads unchanged. See NavigationPathController for
+  // the subscription logic itself.
   Future<void> _subscribeToPath() async {
-    final ros2 = _connectionProvider.ros2Client;
-
-    // If already subscribed to the desired topic, do nothing
-    if (_pathSubscribed && _currentPathTopic == _settingsProvider.pathTopic) {
-      return;
-    }
-
-    // Otherwise unsubscribe first
-    _unsubscribePath();
-
-    try {
-      final subscriber = Subscriber<nav_msgs.Path>(
-        name: _settingsProvider.pathTopic,
-        type: nav_msgs.Path().fullType,
-        ros2: ros2,
-        callback: _handlePathMessage,
-        prototype: nav_msgs.Path(),
-      );
-      _pathSubscriber = subscriber;
-      _currentPathTopic = _settingsProvider.pathTopic;
-      _pathSubscribed = true;
-    } catch (e) {
-      // Silent error handling
-    }
-  }
-
-  void _handlePathMessage(nav_msgs.Path message) {
-    // Convert PoseStamped list to JSON
-    final List<Map<String, dynamic>> posesJson = message.poses.map((pose) {
-      return {
-        'position': {
-          'x': pose.pose.position.x,
-          'y': pose.pose.position.y,
-          'z': pose.pose.position.z,
-        },
-        'orientation': {
-          'x': pose.pose.orientation.x,
-          'y': pose.pose.orientation.y,
-          'z': pose.pose.orientation.z,
-          'w': pose.pose.orientation.w,
-        },
-      };
-    }).toList();
-
-    _pathController.add(posesJson);
+    await _pathController.subscribe(
+      connection: _connectionProvider,
+      pathTopic: _settingsProvider.pathTopic,
+    );
   }
 
   void _unsubscribePath() {
-    _pathSubscriber?.shutdown();
-    _pathSubscriber = null;
-    _pathSubscribed = false;
-    _currentPathTopic = null;
-
-    // Clear any existing path data so UI immediately removes path overlay
-    _pathController.add([]);
+    _pathController.unsubscribe();
   }
 
   void _handleBookmarkGoal(Bookmark bookmark) {
@@ -1244,20 +1169,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
     });
   }
 
-  void _handlePreviewWaypoints(List<Waypoint> previewWaypoints) {
-    setState(() {
-      _previewWaypoints = previewWaypoints;
-      _mapWidget = _buildMapWidget();
-    });
-  }
-
-  void _handleClearPreview() {
-    setState(() {
-      _previewWaypoints = [];
-      _mapWidget = _buildMapWidget();
-    });
-  }
-
   Widget _buildMapWidget() {
     final placementMode = _poseEstimationMode || _goalMode || _bookmarksMode;
 
@@ -1276,7 +1187,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       },
       robotPositionStrem: TFService.instance.robotPositionStream,
       goalPositionStream: _goalPositionController.stream,
-      pathStream: _pathController.stream,
+      pathStream: _pathController.pathStream,
       showLocalCostmap: _showLocalCostmap,
       showGlobalCostmap: _showGlobalCostmap,
       localCostmapTopic: '/local_costmap/costmap',
@@ -1286,120 +1197,78 @@ class _NavigationScreenState extends State<NavigationScreen> {
       // overlay shows exactly what's driving obstacle avoidance.
       tfMapFrame: _settingsProvider.mapFrame,
       tfOdomFrame: _settingsProvider.odomFrame,
-          onMarkerPoseReceived: _handleMarkerPoseReceived,
-          onMarkerPoseCancelled: () {
-            _cancelPendingGoal();
-          },
-          disableLongPress: _disableLongPress,
+      onMarkerPoseReceived: _handleMarkerPoseReceived,
+      onMarkerPoseCancelled: () {
+        _cancelPendingGoal();
+      },
+      disableLongPress: _disableLongPress,
       placementMode: placementMode,
       bookmarks: _localBookmarks,
       onBookmarkTap: (Bookmark bookmark) {
         final mapBookmarks = _settingsProvider.bookmarks[_selectedMap!] ?? [];
-
         final matchingBookmark = mapBookmarks.firstWhere(
           (b) => b == bookmark,
           orElse: () => bookmark,
         );
 
-        showDialog(
+        showBookmarkTapDialog(
           context: context,
-          barrierColor: Colors.black.withValues(alpha: 0.5),
-          barrierDismissible: true,
-          builder: (context) => BookmarkTooltip(
-            bookmark: bookmark,
-            modeColor: widget.modeColor,
-            isMissionMode: _missionMode,
-            onSendGoal: () {
-              Navigator.of(context).pop();
-              _handleBookmarkGoal(bookmark);
-            },
-            onDock: () {
-              Navigator.of(context).pop();
-              _handleDockBookmark(bookmark);
-            },
-            onUndock: () {
-              Navigator.of(context).pop();
-              _handleUndockBookmark();
-            },
-            onAddWaypoint: () {
-              Navigator.of(context).pop();
-              _addBookmarkAsWaypoint(bookmark);
-            },
-            onDelete: () {
-              Navigator.of(context).pop();
-              // Find the index of the matching bookmark
-              final index = mapBookmarks.indexOf(matchingBookmark);
-
-              if (index != -1) {
-                setState(() {
-                  _localBookmarks.removeWhere((b) => b == bookmark);
-                  _settingsProvider.removeBookmark(_selectedMap!, index);
-                });
-              } else {
-                // Could not find bookmark index for deletion
-              }
-            },
-            onCancel: () {
-              Navigator.of(context).pop();
-            },
-            onEditDetails: () {
-              Navigator.of(context).pop();
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) => BookmarkDialog(
-                  isEdit: true,
-                  initialName: bookmark.name,
-                  initialIcon: bookmark.icon,
-                  initialIsDock: bookmark.isDock,
-                  onDone: (icon, name, isDock) {
-                    Navigator.pop(context);
-                    setState(() {
-                      final idx =
-                          _localBookmarks.indexWhere((b) => b.id == bookmark.id);
-                      if (idx != -1) {
-                        _localBookmarks[idx] = _localBookmarks[idx].copyWith(
-                          icon: icon,
-                          name: name,
-                          isDock: isDock,
-                        );
-                      }
-                      _settingsProvider.updateBookmark(
-                        _selectedMap!,
-                        bookmark.id,
-                        icon: icon,
-                        name: name,
-                        isDock: isDock,
-                      );
-                      if (isDock) {
-                        // Position unchanged here — just (re)confirm it with
-                        // the robot in case this bookmark was newly marked
-                        // as the dock rather than repositioned.
-                        DockingService.instance.publishDockPose(
-                          bookmark.positionX,
-                          bookmark.positionY,
-                          bookmark.theta,
-                        );
-                      }
-                    });
-                  },
-                  onCancel: () => Navigator.pop(context),
-                ),
-              );
-            },
-            onReposition: () {
-              Navigator.of(context).pop();
+          bookmark: bookmark,
+          modeColor: widget.modeColor,
+          missionMode: _missionMode,
+          onSendGoal: () => _handleBookmarkGoal(bookmark),
+          onDock: () => _handleDockBookmark(bookmark),
+          onUndock: _handleUndockBookmark,
+          onAddWaypoint: () => _addBookmarkAsWaypoint(bookmark),
+          onDelete: () {
+            final index = mapBookmarks.indexOf(matchingBookmark);
+            if (index != -1) {
               setState(() {
-                _repositioningBookmarkId = bookmark.id;
-                _bookmarksMode = true;
+                _localBookmarks.removeWhere((b) => b == bookmark);
+                _settingsProvider.removeBookmark(_selectedMap!, index);
               });
-            },
-          ),
+            }
+          },
+          onEditDone: (icon, name, isDock) {
+            setState(() {
+              final idx =
+                  _localBookmarks.indexWhere((b) => b.id == bookmark.id);
+              if (idx != -1) {
+                _localBookmarks[idx] = _localBookmarks[idx].copyWith(
+                  icon: icon,
+                  name: name,
+                  isDock: isDock,
+                );
+              }
+              _settingsProvider.updateBookmark(
+                _selectedMap!,
+                bookmark.id,
+                icon: icon,
+                name: name,
+                isDock: isDock,
+              );
+              if (isDock) {
+                // Position unchanged here — just (re)confirm it with the
+                // robot in case this bookmark was newly marked as the dock
+                // rather than repositioned.
+                DockingService.instance.publishDockPose(
+                  bookmark.positionX,
+                  bookmark.positionY,
+                  bookmark.theta,
+                );
+              }
+            });
+          },
+          onReposition: () {
+            setState(() {
+              _repositioningBookmarkId = bookmark.id;
+              _bookmarksMode = true;
+            });
+          },
         );
       },
       isGoalActive: _isGoalActive,
       waypoints: _waypoints,
-      previewWaypoints: _previewWaypoints,
       showWaypointPath: _missionMode,
       useMapService: true,
       mapServiceName: '/map_server/map',
@@ -1456,12 +1325,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
     });
   }
 
-  void _handleArrowButtonStateChanged(bool showArrow) {
-    setState(() {
-      _showArrowButton = showArrow;
-    });
-  }
-
   void _handleMissionItemsChanged() {
     // Trigger a rebuild to update the slide-to-start mission button
     setState(() {
@@ -1488,104 +1351,18 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
           // Mission Info Banner
           if (_showMissionInfoBanner)
-            Positioned(
-              top: 20,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: widget.modeColor.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.touch_app,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Long press on map to add location',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            MissionInfoBanner(modeColor: widget.modeColor),
 
           // Placement hint banner (initial pose / goal / bookmarks)
           if (_showInitialPoseBanner ||
               (_goalMode && !_isGoalActive && !_showGoalBar) ||
               (_bookmarksMode && !_showGoalBar))
-            Positioned(
-              top: _showMissionInfoBanner ? 80 : 20,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: (_poseEstimationMode || _showInitialPoseBanner)
-                        ? Colors.orange.withOpacity(0.9)
-                        : widget.modeColor.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        (_poseEstimationMode || _showInitialPoseBanner)
-                            ? Icons.my_location
-                            : Icons.navigation,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        _goalMode
-                            ? (kIsWeb
-                                ? 'Set goal — drag to aim · release · then slide to send'
-                                : 'Set goal — long-press drag to aim · release · slide to send')
-                            : (_poseEstimationMode || _showInitialPoseBanner)
-                                ? (kIsWeb
-                                    ? 'Set initial pose — drag to aim, release to set'
-                                    : 'Set initial pose — long-press drag to aim, release to set')
-                                : (kIsWeb
-                                    ? 'Drag to place bookmark · release to save'
-                                    : 'Long-press drag to place bookmark · release to save'),
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            PlacementHintBanner(
+              modeColor: widget.modeColor,
+              missionInfoBannerShowing: _showMissionInfoBanner,
+              showInitialPoseBanner: _showInitialPoseBanner,
+              goalMode: _goalMode,
+              poseEstimationMode: _poseEstimationMode,
             ),
 
           // Subscribe to path topic during mission execution
@@ -1601,7 +1378,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                 _subscribeToPath();
               } else {
                 // Otherwise, make sure we are not wasting traffic
-                if (_pathSubscribed) {
+                if (_pathController.isSubscribed) {
                   _unsubscribePath();
                 }
               }
@@ -1629,31 +1406,22 @@ class _NavigationScreenState extends State<NavigationScreen> {
           ),
 
           // Joystick Control
-          Visibility(
+          JoystickOverlay(
             visible: settings.joystickVisible,
-            child: Positioned(
-              bottom: 30,
-              right: 40,
-              child: Container(
-                width: 150,
-                height: 150,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  shape: BoxShape.circle,
-                ),
-                child: JoystickThumbWidget(
-                  modeColor: widget.modeColor,
-                  onCommand: (linear, angular) {
-                    if (!mounted) return;
-                    setState(() {
-                      _cmdLinear = linear;
-                      _cmdAngular = angular;
-                      _teleopActive = linear != 0.0 || angular != 0.0;
-                    });
-                  },
-                ),
-              ),
-            ),
+            modeColor: widget.modeColor,
+            onCommand: (linear, angular) {
+              if (!mounted) return;
+              setState(() {
+                _cmdLinear = linear;
+                _cmdAngular = angular;
+                _teleopActive = linear != 0.0 || angular != 0.0;
+              });
+              // Shared with screens that don't own a joystick (Dashboard,
+              // Robot Status) so they can read "is teleop active" from one
+              // place — see LiveTelemetryProvider.
+              Provider.of<LiveTelemetryProvider>(context, listen: false)
+                  .reportTeleopCommand(linear, angular);
+            },
           ),
 
           // Pose / velocity readout. Bottom-left is the only corner nothing
@@ -1665,13 +1433,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
               bottom: 12,
               child: RobotTelemetryPanel(
                 modeColor: widget.modeColor,
-                x: _robotX,
-                y: _robotY,
-                theta: extractYawFromOriginQuaternion(_robotQ),
-                frame: _poseFrame,
-                poseAvailable: _poseReceived,
-                measuredLinear: _measuredLinear,
-                measuredAngular: _measuredAngular,
+                x: _odometryController.robotX,
+                y: _odometryController.robotY,
+                theta:
+                    extractYawFromOriginQuaternion(_odometryController.robotQ),
+                frame: _odometryController.poseFrame,
+                poseAvailable: _odometryController.poseReceived,
+                measuredLinear: _odometryController.measuredLinear,
+                measuredAngular: _odometryController.measuredAngular,
                 commandedLinear: settings.joystickVisible ? _cmdLinear : null,
                 commandedAngular: settings.joystickVisible ? _cmdAngular : null,
                 teleopActive: _teleopActive,
@@ -1689,6 +1458,25 @@ class _NavigationScreenState extends State<NavigationScreen> {
               child: const Icon(Icons.stop, color: Colors.white),
             ),
           ),
+
+          // Dock / Undock — always reachable here rather than only via the
+          // dock bookmark's map tooltip. Reflects DockingService's own
+          // state, which mirrors dock_manager_node's /dock_status — that
+          // topic is the actual source of truth (robot-side, survives an
+          // app restart or a different client entirely), this button is
+          // just a reactive view onto it, same as the bookmark tooltip's
+          // own Dock/Undock button.
+          if (_selectedMap != null)
+            Positioned(
+              top: 16,
+              right: 114,
+              child: DockUndockFab(
+                dockBookmark: _settingsProvider.getDockBookmark(_selectedMap!),
+                onDock: () => _handleDockBookmark(
+                    _settingsProvider.getDockBookmark(_selectedMap!)!),
+                onUndock: _handleUndockBookmark,
+              ),
+            ),
 
           // Camera / image view — hidden for now (keep code)
           // if (settings.cameraEnabled && settings.cameraVisible)
@@ -1739,72 +1527,21 @@ class _NavigationScreenState extends State<NavigationScreen> {
             ),
           ),
 
-          // Slide to confirm / cancel goal
-          if (_showGoalBar)
-            NavBottomBar(
-              onSlideRight: () {
-                setState(() {
-                  _showGoalBar = false;
-                });
-                _handleGoalSubmission();
-              },
-              onCancel: _cancelPendingGoal,
-              promptText: 'Slide to send goal',
-              visible: _showGoalBar,
-              color: widget.modeColor,
-            ),
-
-          // Navigation status bar (show immediately while waiting for feedback)
-          if (_showNavigationFeedback)
-            _currentFeedback != null
-                ? NavigationFeedbackWidget(
-                    feedback: _currentFeedback!,
-                    onCancel: _handleNavigationCancel,
-                  )
-                : Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Container(
-                      width: 450,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.85),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      widget.modeColor),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              const Text(
-                                'Sending goal…',
-                                style: TextStyle(
-                                    color: Colors.white, fontSize: 14),
-                              ),
-                            ],
-                          ),
-                          TextButton(
-                            onPressed: _handleNavigationCancel,
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.red.shade300,
-                            ),
-                            child: const Text('Cancel'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+          // Slide to confirm/cancel goal + navigation status/feedback overlay
+          NavGoalBarAndFeedback(
+            showGoalBar: _showGoalBar,
+            onGoalSlideRight: () {
+              setState(() {
+                _showGoalBar = false;
+              });
+              _handleGoalSubmission();
+            },
+            onCancelPendingGoal: _cancelPendingGoal,
+            showNavigationFeedback: _showNavigationFeedback,
+            currentFeedback: _currentFeedback,
+            onNavigationCancel: _handleNavigationCancel,
+            modeColor: widget.modeColor,
+          ),
 
           // Add Waypoint Panel
           if (_showWaypointPanel)
@@ -1826,15 +1563,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
                     onWaypointReordered: _handleWaypointReordered,
                     onWaypointsLoaded: _handleWaypointsLoaded,
                     currentMap: _selectedMap,
-                    robotPosition: Position(x: _robotX, y: _robotY, theta: 0),
-                    onPreviewWaypoints: _handlePreviewWaypoints,
-                    onClearPreview: _handleClearPreview,
+                    robotPosition: Position(
+                        x: _odometryController.robotX,
+                        y: _odometryController.robotY,
+                        theta: 0),
                     onShowMissionBanner: () {
                       setState(() {
                         _showMissionInfoBanner = true;
                       });
                     },
-                    onArrowButtonStateChanged: _handleArrowButtonStateChanged,
                     onMissionItemsChanged: _handleMissionItemsChanged,
                   ),
                 ),
@@ -1842,156 +1579,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             ),
 
           // Mission execution side panel (full-height)
-          Consumer<MissionExecutionService>(
-            builder: (context, missionService, _) {
-              if (!missionService.isRunning ||
-                  missionService.currentMission == null) {
-                return const SizedBox.shrink();
-              }
-
-              return Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0, // extend to bottom edge
-                child: Container(
-                  width: 300,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[900],
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 10,
-                        offset: const Offset(-2, 0),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[800],
-                          border: Border(
-                            bottom:
-                                BorderSide(color: Colors.grey[700]!, width: 1),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: widget.modeColor.withOpacity(0.2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.play_arrow,
-                                  color: widget.modeColor, size: 16),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Mission In Progress',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  Text(
-                                    missionService.currentMission!.missionName,
-                                    style: TextStyle(
-                                      color: Colors.grey[400],
-                                      fontSize: 13,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.red[400]!.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: GestureDetector(
-                                onTap: () => missionService.cancel(),
-                                child: const Icon(Icons.stop,
-                                    color: Colors.red, size: 20),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Mission items scroll list fills remaining space
-                      Expanded(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 8, horizontal: 16),
-                          child: Column(
-                            children: [
-                              for (int i = 0;
-                                  i <
-                                      missionService
-                                          .currentMission!.items.length;
-                                  i++)
-                                _buildMissionExecutionItem(
-                                  missionService.currentMission!.items[i],
-                                  i,
-                                  missionService.currentIndex,
-                                  missionService,
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-
-          // Arrow button to reopen waypoint panel patterns
-          if (_showArrowButton && _missionMode)
-            Positioned(
-              bottom: 20,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: GestureDetector(
-                  onTap: () {
-                    _waypointPanelKey.currentState?.reopenPatternDialog();
-                  },
-                  child: Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: widget.modeColor,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.keyboard_arrow_up,
-                      color: Colors.white,
-                      size: 30,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          MissionExecutionPanel(modeColor: widget.modeColor),
 
           // Slide-to-start mission button (only shown when mission is available and not running)
           Consumer<MissionExecutionService>(
@@ -2030,500 +1618,27 @@ class _NavigationScreenState extends State<NavigationScreen> {
     }
 
     // Map selection screen
-    return Container(
-      color: Colors.black87, // 60% - Primary background
-      child: Row(
-        children: [
-          // Left side - Map List
-          Container(
-            width: 300,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade900, // 30% - Secondary color
-              border: Border(
-                  right: BorderSide(color: Colors.grey.shade800, width: 1)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade800, // 30% - Secondary color
-                    border: Border(
-                        bottom:
-                            BorderSide(color: Colors.grey.shade700, width: 1)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Available Maps',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.refresh,
-                            color: widget.modeColor), // 10% - Accent for action
-                        onPressed: () {
-                          setState(() => _loadingMaps = true);
-                          _loadMaps();
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Loading indicator or list
-                Expanded(
-                  child: _loadingMaps
-                      ? Center(
-                          child: CircularProgressIndicator(
-                              color: widget.modeColor), // 10% - Accent
-                        )
-                      : _mapList.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No maps available',
-                                style: TextStyle(color: Colors.grey.shade500),
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: _mapList.length,
-                              itemBuilder: (context, index) {
-                                final map = _mapList[index];
-                                final isSelected = map == _selectedMap;
-
-                                return Dismissible(
-                                  key: Key(map),
-                                  direction: DismissDirection.endToStart,
-                                  confirmDismiss: (_) async {
-                                    // Get the number of bookmarks for this map
-                                    final bookmarksCount = _settingsProvider
-                                            .bookmarks[map]?.length ??
-                                        0;
-
-                                    return await showDialog<bool>(
-                                          context: context,
-                                          builder: (context) => AlertDialog(
-                                            title: Text('Delete Map'),
-                                            content: RichText(
-                                              text: TextSpan(
-                                                style: TextStyle(
-                                                    color: Colors.white70),
-                                                children: [
-                                                  TextSpan(
-                                                    text:
-                                                        'Are you sure you want to delete "$map"',
-                                                  ),
-                                                  if (bookmarksCount > 0) ...[
-                                                    TextSpan(
-                                                      text:
-                                                          ' and its $bookmarksCount associated bookmarks',
-                                                      style: TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.bold),
-                                                    ),
-                                                  ],
-                                                  TextSpan(
-                                                    text: '?',
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                style: TextButton.styleFrom(
-                                                  foregroundColor: Colors.white,
-                                                ),
-                                                onPressed: () => Navigator.pop(
-                                                    context, false),
-                                                child: Text('Cancel'),
-                                              ),
-                                              TextButton(
-                                                style: TextButton.styleFrom(
-                                                  foregroundColor: Colors.red,
-                                                ),
-                                                onPressed: () => Navigator.pop(
-                                                    context, true),
-                                                child: Text('Delete'),
-                                              ),
-                                            ],
-                                          ),
-                                        ) ??
-                                        false;
-                                  },
-                                  onDismissed: (_) {
-                                    final removedIndex = index;
-                                    setState(() {
-                                      _mapList.removeAt(removedIndex);
-                                      if (_selectedMap == map) {
-                                        _selectedMap = _mapList.isNotEmpty
-                                            ? _mapList.first
-                                            : null;
-                                      }
-                                    });
-                                    _deleteMap(map, removedIndex);
-                                  },
-                                  background: Container(
-                                    color: Colors.transparent,
-                                  ),
-                                  secondaryBackground: Container(
-                                    alignment: Alignment.centerRight,
-                                    padding: EdgeInsets.only(right: 20),
-                                    color: Colors.red.shade800,
-                                    child: Icon(
-                                      Icons.delete_forever,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  child: Container(
-                                    margin:
-                                        const EdgeInsets.symmetric(vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? Colors.grey.shade800
-                                          : Colors.grey.shade900,
-                                      borderRadius: BorderRadius.circular(8),
-                                      boxShadow: isSelected
-                                          ? [
-                                              BoxShadow(
-                                                color: Colors.black
-                                                    .withValues(alpha: 0.3),
-                                                blurRadius: 3,
-                                                offset: Offset(0, 2),
-                                              )
-                                            ]
-                                          : null,
-                                      border: Border.all(
-                                        color: isSelected
-                                            ? widget.modeColor
-                                            : Colors.transparent,
-                                        width: isSelected ? 1 : 0,
-                                      ),
-                                    ),
-                                    child: Stack(
-                                      children: [
-                                        if (isSelected)
-                                          Positioned(
-                                            left: 0,
-                                            top: 0,
-                                            bottom: 0,
-                                            width: 4,
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                color: widget.modeColor,
-                                                borderRadius: BorderRadius.only(
-                                                  topLeft: Radius.circular(8),
-                                                  bottomLeft:
-                                                      Radius.circular(8),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ListTile(
-                                          contentPadding: EdgeInsets.only(
-                                            left: isSelected ? 16 : 16,
-                                            right: 16,
-                                          ),
-                                          leading: FaIcon(
-                                            FontAwesomeIcons.map,
-                                            color: isSelected
-                                                ? widget.modeColor
-                                                : Colors.grey.shade600,
-                                            size: 20,
-                                          ),
-                                          title: Text(
-                                            map,
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: isSelected
-                                                  ? FontWeight.bold
-                                                  : FontWeight.normal,
-                                            ),
-                                          ),
-                                          onTap: () => setState(
-                                              () => _selectedMap = map),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                ),
-              ],
-            ),
-          ),
-
-          // Right side - Controls
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Icon and title
-                  Container(
-                    padding: const EdgeInsets.all(25),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade800, // 30% - Secondary color
-                      shape: BoxShape.circle,
-                    ),
-                    child: FaIcon(
-                      FontAwesomeIcons.route,
-                      size: 80,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Navigation Mode',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-
-                  // Selected map display
-                  Text(
-                    _selectedMap != null
-                        ? 'Selected: $_selectedMap'
-                        : 'No map selected',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-
-                  // Start button - Primary action
-                  ElevatedButton(
-                    onPressed: _mapList.isEmpty || _selectedMap == null
-                        ? null
-                        : _startNavigation,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: widget
-                          .modeColor, // 10% - Primary accent for main action
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 30, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      elevation: 4,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.play_arrow,
-                          color: Colors.white,
-                          size: 30,
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Start Navigation',
-                          style: TextStyle(
-                            fontSize: 20,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Helper method to build mission execution item
-  Widget _buildMissionExecutionItem(MissionItem item, int index,
-      int currentIndex, MissionExecutionService missionService) {
-    final bool isActive = index == currentIndex;
-    final bool isCompleted = index < currentIndex;
-
-    // Get item-specific feedback for active items
-    String? feedbackText;
-    if (isActive) {
-      switch (item.type) {
-        case MissionItemType.goto:
-          final distance = missionService.distanceRemaining;
-          if (distance != null && distance > 0) {
-            feedbackText = '${distance.toStringAsFixed(1)}m remaining';
+    return MapSelectionView(
+      mapList: _mapList,
+      selectedMap: _selectedMap,
+      loadingMaps: _loadingMaps,
+      bookmarksCountForMap: (map) =>
+          _settingsProvider.bookmarks[map]?.length ?? 0,
+      onRefresh: () {
+        setState(() => _loadingMaps = true);
+        _loadMaps();
+      },
+      onSelectMap: (map) => setState(() => _selectedMap = map),
+      onDeleteConfirmed: (map, index) {
+        setState(() {
+          _mapList.removeAt(index);
+          if (_selectedMap == map) {
+            _selectedMap = _mapList.isNotEmpty ? _mapList.first : null;
           }
-          break;
-        case MissionItemType.wait:
-          final remaining = missionService.waitTimeRemaining;
-          if (remaining != null && remaining > 0) {
-            feedbackText = '${remaining.toStringAsFixed(1)}s remaining';
-          }
-          break;
-        case MissionItemType.dock:
-        case MissionItemType.undock:
-          feedbackText = DockingService.instance.status.replaceAll('_', ' ');
-          break;
-        default:
-          break;
-      }
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: isActive ? Colors.grey[800] : Colors.grey[850],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isActive ? item.type.color : Colors.grey[700]!,
-          width: isActive ? 1.5 : 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          // Status indicator
-          Container(
-            width: 4,
-            height: 60,
-            decoration: BoxDecoration(
-              color: isCompleted
-                  ? Colors.green
-                  : (isActive ? item.type.color : Colors.grey[600]),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(12),
-                bottomLeft: Radius.circular(12),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  // Item icon with status
-                  Stack(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: isCompleted
-                              ? Colors.green.withOpacity(0.2)
-                              : item.type.color.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Center(
-                          child: Icon(
-                            isCompleted ? Icons.check : item.type.icon,
-                            color: isCompleted ? Colors.green : item.type.color,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                      if (isActive)
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: Container(
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              color: Provider.of<BrandingProvider>(context,
-                                      listen: false)
-                                  .themeColor,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.grey[800]!,
-                                width: 2,
-                              ),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.play_arrow,
-                                color: Colors.white,
-                                size: 10,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  SizedBox(width: 12),
-
-                  // Item details
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              '${index + 1}. ',
-                              style: TextStyle(
-                                color: Colors.grey[500],
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              item.type.displayName,
-                              style: TextStyle(
-                                color: isCompleted
-                                    ? Colors.green
-                                    : item.type.color,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          item.displayTitle,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight:
-                                isActive ? FontWeight.w600 : FontWeight.normal,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (isActive && feedbackText != null)
-                          Container(
-                            margin: EdgeInsets.only(top: 4),
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: item.type.color.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              feedbackText,
-                              style: TextStyle(
-                                color: item.type.color,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+        });
+        _deleteMap(map, index);
+      },
+      onStartNavigation: _startNavigation,
     );
   }
 }

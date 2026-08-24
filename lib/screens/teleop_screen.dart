@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/live_telemetry_provider.dart';
 import '../widgets/sensors/image_viwer.dart';
 import '../widgets/sensors/joystick_thumb_widget.dart';
 import '../widgets/camera_snap_button.dart';
@@ -86,7 +87,16 @@ class TeleopScreen extends StatelessWidget {
                   color: Colors.black.withOpacity(0.3),
                   shape: BoxShape.circle,
                 ),
-                child: JoystickThumbWidget(modeColor: modeColor),
+                child: JoystickThumbWidget(
+                  modeColor: modeColor,
+                  // Shared with screens that don't own a joystick
+                  // (Dashboard, Robot Status) so they can read "is teleop
+                  // active" from one place — see LiveTelemetryProvider.
+                  onCommand: (linear, angular) {
+                    Provider.of<LiveTelemetryProvider>(context, listen: false)
+                        .reportTeleopCommand(linear, angular);
+                  },
+                ),
               ),
             ),
 

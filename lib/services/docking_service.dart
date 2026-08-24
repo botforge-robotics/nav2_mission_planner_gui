@@ -5,7 +5,6 @@ import 'package:std_msgs/msg.dart' as std_msgs;
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import '../helpers/conversions.dart';
 import '../providers/connection_provider.dart';
-import 'tf_service.dart';
 
 /// Thin client for navpromini_controller's dock_manager_node — the robot-side
 /// contract point every client (this app, a future web API) should use for
@@ -47,6 +46,51 @@ class DockingService extends ChangeNotifier {
         'waiting_for_charge',
         'undocking',
       }.contains(_status);
+
+  /// dock_manager_node reports this when the dock/undock action itself
+  /// failed (as opposed to simply not-yet-docked) — a real fault signal,
+  /// distinct from the "no diagnostics topic exists" gap noted elsewhere in
+  /// the app. `bookmark_tooltip.dart` already special-cased this string;
+  /// centralized here so every consumer (Dashboard, Dock screen, the alert
+  /// log) agrees on what counts as a dock fault instead of falling through
+  /// to "Undocked" like the pre-redesign screens did.
+  bool get isFault => _status == 'error';
+
+  /// Human-readable status label shared by every screen that shows dock
+  /// state, so "error" reads as "Dock error" everywhere rather than each
+  /// screen re-deriving (and some falling through to "Undocked").
+  String get statusLabel {
+    switch (_status) {
+      case 'undocked':
+        return 'Undocked';
+      case 'staging':
+        return 'Docking… (staging)';
+      case 'detecting':
+        return 'Docking… (detecting)';
+      case 'docking':
+        return 'Docking… (approaching)';
+      case 'waiting_for_charge':
+        return 'Docking… (confirming charge)';
+      case 'charging':
+        return 'Docked — charging';
+      case 'full':
+        return 'Docked — full charge';
+      case 'undocking':
+        return 'Undocking…';
+      case 'error':
+        return 'Dock error';
+      default:
+        return _status;
+    }
+  }
+
+  /// Status color shared the same way as [statusLabel].
+  Color statusColor(BuildContext context) {
+    if (isDocked) return Colors.green;
+    if (isFault) return Colors.red;
+    if (_status == 'undocked') return Theme.of(context).colorScheme.outline;
+    return Colors.amber;
+  }
 
   void initialize(BuildContext context) {
     final ros2 =
@@ -102,8 +146,7 @@ class DockingService extends ChangeNotifier {
       header: std_msgs.Header(frame_id: frameId),
       pose: geometry_msgs.Pose(
         position: geometry_msgs.Point(x: x, y: y, z: 0.0),
-        orientation:
-            geometry_msgs.Quaternion(x: q.x, y: q.y, z: q.z, w: q.w),
+        orientation: geometry_msgs.Quaternion(x: q.x, y: q.y, z: q.z, w: q.w),
       ),
     ));
   }
@@ -138,7 +181,8 @@ class DockingService extends ChangeNotifier {
   }) async {
     final client = _dockClient;
     if (client == null) {
-      throw StateError('DockingService not initialized — call initialize(context) first');
+      throw StateError(
+          'DockingService not initialized — call initialize(context) first');
     }
     final goalArgs = {
       'use_dock_id': false,
@@ -148,7 +192,8 @@ class DockingService extends ChangeNotifier {
       'max_staging_time': 1000.0,
       'navigate_to_staging_pose': true,
     };
-    return client.send(goalArgs: goalArgs, timeout: timeout, onFeedback: onFeedback);
+    return client.send(
+        goalArgs: goalArgs, timeout: timeout, onFeedback: onFeedback);
   }
 
   /// The entry point for sending ANY nav goal on this robot: undocks first
@@ -163,28 +208,51 @@ class DockingService extends ChangeNotifier {
   }) async {
     final client = _undockClient;
     if (client == null) {
-      throw StateError('DockingService not initialized — call initialize(context) first');
+      throw StateError(
+          'DockingService not initialized — call initialize(context) first');
     }
     final goalArgs = {'pose': _poseStampedArgs(x, y, theta, frameId)};
-    return client.send(goalArgs: goalArgs, timeout: timeout, onFeedback: onFeedback);
+    return client.send(
+        goalArgs: goalArgs, timeout: timeout, onFeedback: onFeedback);
   }
 
-  /// Undocks without traveling elsewhere — targets the robot's own
-  /// last-known pose. Used by the "Undock" mission item.
+  /// Undocks without traveling elsewhere. Used by the "Undock" mission item
+  /// and the Undock button.
+  ///
+  /// Was sending the robot's own last-known pose (captured while still
+  /// docked, so effectively the dock's own position/orientation) through
+  /// undock()'s normal pose-building — that always produces a full, valid
+  /// PoseStamped, and dock_manager_node.py's _has_nav_goal() can't tell
+  /// "go here" apart from "there's nowhere real to go", since ANY unit
+  /// quaternion satisfies its magnitude check regardless of the angle. The
+  /// robot dutifully undocked and then navigated right back onto the dock
+  /// it had just left — a straight-out drive followed by a 180deg turn back
+  /// in. dock_manager_node.py's own check is `if not
+  /// goal.pose.header.frame_id: return False` (short-circuits before even
+  /// looking at orientation) — so the actual "no destination" sentinel is
+  /// an EMPTY frame_id, sent directly here rather than through
+  /// undock()/_poseStampedArgs(), which always fills one in.
   Future<Map<String, dynamic>?> undockInPlace({
     Duration timeout = const Duration(minutes: 1),
   }) async {
-    final pos = TFService.instance.lastKnownPosition;
-    if (pos == null) {
-      throw StateError('Robot pose unknown — cannot undock in place');
+    final client = _undockClient;
+    if (client == null) {
+      throw StateError(
+          'DockingService not initialized — call initialize(context) first');
     }
-    final euler = quaternionToEuler(pos['q']);
-    return undock(
-      x: pos['x'] as double,
-      y: pos['y'] as double,
-      theta: euler[2],
-      timeout: timeout,
-    );
+    final goalArgs = {
+      'pose': {
+        'header': {
+          'frame_id': '',
+          'stamp': {'sec': 0, 'nanosec': 0},
+        },
+        'pose': {
+          'position': {'x': 0.0, 'y': 0.0, 'z': 0.0},
+          'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 0.0},
+        },
+      },
+    };
+    return client.send(goalArgs: goalArgs, timeout: timeout);
   }
 
   void cancelCurrent() {

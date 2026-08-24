@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../theme/app_spacing.dart';
 
 class VelocityControl extends StatelessWidget {
   final double value;
@@ -23,53 +24,27 @@ class VelocityControl extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        ElevatedButton(
-          onPressed: onDecrement,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: modeColor.withOpacity(0.2),
-            foregroundColor: modeColor,
-            shape: const CircleBorder(),
-            padding: EdgeInsets.all(screenSize.height * 0.008),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            elevation: 0,
-          ),
-          child: Icon(
-            Icons.remove,
-            color: modeColor,
-            size: 22,
-          ),
-        ),
-        SizedBox(width: screenSize.width * 0.01),
+        _StepButton(icon: Icons.remove, color: modeColor, onTap: onDecrement),
+        const SizedBox(width: AppSpacing.sm),
         SizedBox(
-          width: screenSize.width * 0.1,
+          width: 84,
           child: TextFormField(
             textAlign: TextAlign.center,
             controller: TextEditingController(
               text: value.toStringAsFixed(2),
             ),
-            style: TextStyle(
-              fontSize: 12,
+            style: const TextStyle(
+              fontSize: 13,
               fontWeight: FontWeight.bold,
             ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-              filled: true,
-              fillColor: Colors.grey.shade800,
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.transparent),
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.transparent),
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: AppSpacing.md,
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                 borderSide: BorderSide(color: modeColor),
-              ),
-              contentPadding: EdgeInsets.symmetric(
-                vertical: screenSize.height * 0.015,
               ),
             ),
             onChanged: (value) {
@@ -78,25 +53,37 @@ class VelocityControl extends StatelessWidget {
             },
           ),
         ),
-        SizedBox(width: screenSize.width * 0.01),
-        ElevatedButton(
-          onPressed: onIncrement,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: modeColor.withOpacity(0.2),
-            foregroundColor: modeColor,
-            shape: const CircleBorder(),
-            padding: EdgeInsets.all(screenSize.height * 0.008),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            elevation: 0,
-          ),
-          child: Icon(
-            Icons.add,
-            color: modeColor,
-            size: 22,
-          ),
-        ),
+        const SizedBox(width: AppSpacing.sm),
+        _StepButton(icon: Icons.add, color: modeColor, onTap: onIncrement),
       ],
+    );
+  }
+}
+
+class _StepButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _StepButton({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: 0.12),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: Icon(icon, color: color, size: 20),
+        ),
+      ),
     );
   }
 }

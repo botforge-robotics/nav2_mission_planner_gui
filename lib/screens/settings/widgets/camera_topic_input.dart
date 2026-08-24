@@ -100,23 +100,23 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final onSurfaceVariant = theme.colorScheme.onSurfaceVariant;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Expanded(
-              child: _buildTopicDropdown(),
+              child: _buildTopicDropdown(context),
             ),
             SizedBox(width: 10),
             Column(
               children: [
                 Text(
                   'Enable Camera',
-                  style: TextStyle(
-                    fontSize: widget.screenSize.height * 0.018,
-                    color: Colors.grey.shade400,
-                  ),
+                  style: theme.textTheme.labelSmall
+                      ?.copyWith(color: onSurfaceVariant),
                 ),
                 // Intercept toggle to request storage permission when enabling camera
                 Switch(
@@ -132,9 +132,8 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
         ),
         Text(
           'Type: sensor_msgs/msg/CompressedImage',
-          style: TextStyle(
-            fontSize: 10,
-            color: Colors.grey.shade400,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: onSurfaceVariant,
             fontStyle: FontStyle.italic,
           ),
         ),
@@ -143,23 +142,22 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               _errorMessage!,
-              style: TextStyle(
-                color: Colors.red,
-                fontSize: 10,
-              ),
+              style:
+                  theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.error),
             ),
           ),
       ],
     );
   }
 
-  Widget _buildTopicDropdown() {
+  Widget _buildTopicDropdown(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey[900],
+        color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: widget.modeColor.withOpacity(0.5),
+          color: widget.modeColor.withValues(alpha: 0.5),
           width: 1,
         ),
       ),
@@ -167,7 +165,7 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
         children: [
           Expanded(
             child: Theme(
-              data: Theme.of(context).copyWith(
+              data: theme.copyWith(
                 inputDecorationTheme: InputDecorationTheme(
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
@@ -187,10 +185,8 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
                           enabled: false,
                           child: Text(
                             'No topics found',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
+                            style: theme.textTheme.labelSmall
+                                ?.copyWith(color: theme.colorScheme.outline),
                           ),
                         )
                       else
@@ -198,10 +194,7 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
                               value: topic,
                               child: Text(
                                 topic,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                ),
+                                style: theme.textTheme.labelSmall,
                               ),
                             )),
                     ],
@@ -217,12 +210,10 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
                     ),
                     hint: Text(
                       _isLoading ? 'Loading topics...' : 'Select topic',
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 12,
-                      ),
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                     ),
-                    dropdownColor: Colors.grey[850],
+                    dropdownColor: theme.colorScheme.surfaceContainerHigh,
                     menuMaxHeight: 150,
                   ),
                 ),
@@ -232,7 +223,7 @@ class _CameraTopicInputState extends State<CameraTopicInput> {
           Container(
             height: 42,
             width: 1,
-            color: widget.modeColor.withOpacity(0.3),
+            color: widget.modeColor.withValues(alpha: 0.3),
           ),
           Material(
             color: Colors.transparent,

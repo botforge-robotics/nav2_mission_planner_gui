@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/branding_provider.dart';
+import '../../theme/app_spacing.dart';
 
 class AboutSettings extends StatelessWidget {
   final Size screenSize;
@@ -11,6 +12,7 @@ class AboutSettings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Consumer<BrandingProvider>(
       builder: (context, branding, child) {
         return Center(
@@ -20,10 +22,10 @@ class AboutSettings extends StatelessWidget {
               children: [
                 // Dynamic Logo
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
-                    color: branding.themeColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
+                    color: modeColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
                   ),
                   child: branding.createLogoWidget(
                     width: screenSize.width * 0.22,
@@ -31,30 +33,28 @@ class AboutSettings extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 15),
+                const SizedBox(height: AppSpacing.lg),
                 // Dynamic Tagline
                 Text(
                   branding.tagLine,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade400,
-                  ),
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 15),
+                const SizedBox(height: AppSpacing.lg),
                 // Contact details
                 Column(
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.email,
-                            size: 16, color: Colors.white70),
-                        const SizedBox(width: 6),
+                        Icon(Icons.email,
+                            size: 16,
+                            color: theme.colorScheme.onSurfaceVariant),
+                        const SizedBox(width: AppSpacing.xs),
                         Text(
                           branding.supportEmail,
-                          style: const TextStyle(
-                              fontSize: 15, color: Colors.white70),
+                          style: theme.textTheme.bodyLarge,
                         ),
                       ],
                     ),
@@ -63,15 +63,16 @@ class AboutSettings extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.language,
-                              size: 16, color: Colors.white70),
-                          const SizedBox(width: 6),
+                          Icon(Icons.language,
+                              size: 16,
+                              color: theme.colorScheme.onSurfaceVariant),
+                          const SizedBox(width: AppSpacing.xs),
                           Text(
                             branding.website,
-                            style: TextStyle(
-                                fontSize: 15,
-                                color: branding.themeColor,
-                                decoration: TextDecoration.underline),
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: modeColor,
+                              decoration: TextDecoration.underline,
+                            ),
                           ),
                         ],
                       ),
@@ -79,11 +80,12 @@ class AboutSettings extends StatelessWidget {
                   ],
                 ),
 
-                const SizedBox(height: 30),
+                const SizedBox(height: AppSpacing.xxl),
                 // Dynamic Footer Credits
                 Text(
                   branding.footerCredits,
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                 ),
               ],
             ),

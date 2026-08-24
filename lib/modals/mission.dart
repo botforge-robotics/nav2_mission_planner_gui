@@ -107,6 +107,11 @@ enum MissionItemType {
     displayName: 'API Call',
     icon: Icons.http,
     color: Colors.purple,
+  ),
+  loop(
+    displayName: 'Loop',
+    icon: Icons.repeat,
+    color: Colors.indigo,
   );
 
   final String displayName;
@@ -172,6 +177,11 @@ class MissionItem {
   String? apiBody;
   bool? apiWaitForResponse;
 
+  // LOOP parameters — jumps execution back to the start of the mission.
+  // loopForever takes precedence over loopCount when both are set.
+  int? loopCount;
+  bool? loopForever;
+
   // Warning flag for structure changes
   bool hasStructureWarning = false;
 
@@ -200,6 +210,8 @@ class MissionItem {
     this.apiHeaders,
     this.apiBody,
     this.apiWaitForResponse,
+    this.loopCount,
+    this.loopForever,
     this.hasStructureWarning = false,
   });
 
@@ -229,6 +241,8 @@ class MissionItem {
       'apiHeaders': apiHeaders,
       'apiBody': apiBody,
       'apiWaitForResponse': apiWaitForResponse,
+      'loopCount': loopCount,
+      'loopForever': loopForever,
       'hasStructureWarning': hasStructureWarning,
     };
   }
@@ -270,6 +284,8 @@ class MissionItem {
       apiHeaders: headers,
       apiBody: json['apiBody'],
       apiWaitForResponse: json['apiWaitForResponse'],
+      loopCount: json['loopCount'],
+      loopForever: json['loopForever'],
       hasStructureWarning: json['hasStructureWarning'] ?? false,
     );
   }
@@ -352,6 +368,13 @@ class MissionItem {
               details.isNotEmpty ? ' • Wait for response' : 'Wait for response';
         }
         return details.isEmpty ? 'No URL set' : details;
+
+      case MissionItemType.loop:
+        if (loopForever == true) {
+          return 'Repeat the mission forever';
+        }
+        final count = loopCount ?? 1;
+        return 'Repeat the mission $count time${count == 1 ? '' : 's'}';
     }
   }
 
@@ -407,6 +430,9 @@ class MissionItem {
           return '$method $url';
         }
         return 'API Call';
+
+      case MissionItemType.loop:
+        return loopForever == true ? 'Loop forever' : 'Loop x${loopCount ?? 1}';
     }
   }
 }

@@ -51,20 +51,21 @@ class _CommunicationTimeoutInputState extends State<CommunicationTimeoutInput> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Row(
       children: [
         Expanded(
           child: TextFormField(
             controller: _controller,
             keyboardType: const TextInputType.numberWithOptions(decimal: false),
-            style: const TextStyle(fontSize: 12, color: Colors.white),
+            style: theme.textTheme.bodySmall,
             decoration: InputDecoration(
               filled: true,
-              fillColor: Colors.grey.shade900,
+              fillColor: theme.colorScheme.surfaceContainerHighest,
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide:
-                    BorderSide(color: widget.modeColor.withOpacity(0.3)),
+                    BorderSide(color: widget.modeColor.withValues(alpha: 0.3)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -75,7 +76,8 @@ class _CommunicationTimeoutInputState extends State<CommunicationTimeoutInput> {
                 horizontal: 12,
               ),
               hintText: 'Enter seconds',
-              hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+              hintStyle: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
             onFieldSubmitted: _onSubmitted,
             onChanged: (value) {
@@ -90,7 +92,8 @@ class _CommunicationTimeoutInputState extends State<CommunicationTimeoutInput> {
         SizedBox(width: widget.screenSize.width * 0.015),
         Text(
           'seconds',
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
       ],
     );

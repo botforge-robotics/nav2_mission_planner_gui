@@ -8,14 +8,18 @@ import 'package:nav2_mission_planner/providers/branding_provider.dart';
 import 'package:nav2_mission_planner/services/message_parser.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:async';
-import 'dart:convert';
-import 'dart:math' as math;
 import '../duration_selector.dart';
 // Removed header_toggle import - no longer using collapsible functionality
 import 'publish_form.dart';
 import 'service_form.dart';
 import 'action_form.dart';
-import 'section_card.dart';
+import 'api_call_form.dart';
+import 'mission_item_dialogs.dart';
+import 'add_mission_item_sheet.dart';
+import 'goto_options_sheet.dart';
+import 'mission_item_list.dart';
+import 'save_mission_sheet.dart';
+import 'mission_selector.dart';
 import 'package:nav2_mission_planner/services/mission_execution_service.dart';
 
 class WaypointPanel extends StatefulWidget {
@@ -28,9 +32,6 @@ class WaypointPanel extends StatefulWidget {
   final String? currentMap;
   final VoidCallback? onShowMissionBanner;
   final Position? robotPosition;
-  final Function(List<Waypoint>)? onPreviewWaypoints;
-  final VoidCallback? onClearPreview;
-  final Function(bool)? onArrowButtonStateChanged;
   final VoidCallback? onMissionItemsChanged;
 
   const WaypointPanel({
@@ -44,9 +45,6 @@ class WaypointPanel extends StatefulWidget {
     this.currentMap,
     this.onShowMissionBanner,
     this.robotPosition,
-    this.onPreviewWaypoints,
-    this.onClearPreview,
-    this.onArrowButtonStateChanged,
     this.onMissionItemsChanged,
   });
 
@@ -64,25 +62,6 @@ class WaypointPanelState extends State<WaypointPanel> {
   bool _hasUnsavedChanges = false;
   List<MissionItem> _originalItems = [];
   List<MissionItem> _missionItems = [];
-
-  // Bottom sheet state management
-  bool _isBottomSheetOpen = false;
-  bool _showArrowButton = false;
-  bool _isPreviewMode = false; // Track if we're in preview mode
-
-  // Form state storage for each pattern type
-  Map<String, dynamic> _circlePatternState = {};
-  Map<String, dynamic> _zigzagPatternState = {};
-  Map<String, dynamic> _spiralPatternState = {};
-
-  // Getter to expose arrow button state
-  bool get shouldShowArrowButton => _showArrowButton;
-
-  // Pattern generator state
-  List<Waypoint> _previewWaypoints = [];
-  bool _isShowingPreview = false;
-  Map<String, dynamic> _currentPatternParams = {};
-  String _currentPatternType = '';
 
   // Add scroll controller for auto-scroll functionality
   final ScrollController _scrollController = ScrollController();
@@ -359,16 +338,6 @@ class WaypointPanelState extends State<WaypointPanel> {
 
   // Removed _togglePanel method - panel is now always expanded
 
-  int _missionIndexToWaypointIndex(int missionIdx) {
-    int wpIdx = 0;
-    for (int i = 0; i < missionIdx; i++) {
-      if (_missionItems[i].type == MissionItemType.goto) {
-        wpIdx++;
-      }
-    }
-    return wpIdx;
-  }
-
   void _handleReorder(int oldIndex, int newIndex) {
     if (oldIndex < newIndex) {
       newIndex -= 1;
@@ -384,6 +353,50 @@ class WaypointPanelState extends State<WaypointPanel> {
       final orderedWaypoints = _getWaypointsInMissionOrder();
       widget.onWaypointsLoaded(List<Waypoint>.from(orderedWaypoints));
     });
+  }
+
+  // Dispatches a mission-item card tap to the right per-type editor sheet.
+  // Extracted out of the ReorderableListView's inline onTap when the list
+  // itself moved into MissionItemList.
+  void _handleMissionItemTap(int index) {
+    switch (_missionItems[index].type) {
+      case MissionItemType.wait:
+        _showDurationPicker(context, index);
+        break;
+      case MissionItemType.publish:
+        _showPublishItemDialog(context, index);
+        break;
+      case MissionItemType.callService:
+        _showServiceItemDialog(context, index);
+        break;
+      case MissionItemType.callAction:
+        _showActionItemDialog(context, index);
+        break;
+      case MissionItemType.apiCall:
+        _showApiCallItemDialog(context, index);
+        break;
+      case MissionItemType.loop:
+        _showLoopItemDialog(context, index);
+        break;
+      default:
+        break;
+    }
+  }
+
+  // Extracted out of the Dismissible's inline onDismissed for the same
+  // reason as above — goto items also need their corresponding parent
+  // waypoint removed.
+  void _handleMissionItemDeleteConfirmed(int index) {
+    final item = _missionItems[index];
+    if (item.type == MissionItemType.goto) {
+      // For GOTO items, find the corresponding waypoint index and delete it from parent
+      final waypointIndex =
+          widget.waypoints.indexWhere((waypoint) => waypoint.id == item.id);
+      if (waypointIndex != -1) {
+        widget.onWaypointDeleted(waypointIndex);
+      }
+    }
+    _deleteMissionItem(index);
   }
 
   void _startAutoScroll(double velocity) {
@@ -534,443 +547,112 @@ class WaypointPanelState extends State<WaypointPanel> {
   }
 
   void _showSaveMissionDialog() {
+    showSaveMissionSheet(
+      context,
+      nameController: _missionNameController,
+      descController: _missionDescController,
+      missionNameError: _missionNameError,
+      currentMap: widget.currentMap,
+      modeColor: widget.modeColor,
+      isUpdate: _selectedMission != null,
+      onCancel: () => Navigator.pop(context),
+      onSave: _handleSaveMission,
+    );
+  }
+
+  void _handleSaveMission() {
     final settingsProvider =
         Provider.of<SettingsProvider>(context, listen: false);
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
+    if (widget.currentMap == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No map selected for mission'),
+          backgroundColor: Colors.red.withOpacity(0.9),
         ),
-        child: Container(
-          width: 400,
-          decoration: BoxDecoration(
-            color: Colors.grey[900],
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
-          ),
-          padding: EdgeInsets.all(24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.max,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Handle bar
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[600],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 20),
+      );
+      return;
+    }
 
-                // Title
-                Text(
-                  _selectedMission == null
-                      ? 'Save New Mission'
-                      : 'Update Mission',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 24),
+    // Validate mission name
+    if (_missionNameController.text.trim().isEmpty ||
+        _missionNameController.text.trim().length < 4) {
+      setState(() {
+        _missionNameError = 'Mission name must be at least 4 characters long';
+      });
+      return;
+    } else {
+      setState(() {
+        _missionNameError = null; // Clear error if valid
+      });
+    }
 
-                // Mission Name Field
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Mission Name',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    TextField(
-                      controller: _missionNameController,
-                      style: TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Enter mission name',
-                        hintStyle: TextStyle(color: Colors.grey[500]),
-                        filled: true,
-                        fillColor: Colors.grey[800],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              BorderSide(color: widget.modeColor, width: 2),
-                        ),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      ),
-                    ),
-                    if (_missionNameError != null) // Show error message
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(
-                          _missionNameError!,
-                          style: TextStyle(color: Colors.red, fontSize: 12),
-                        ),
-                      ),
-                  ],
-                ),
-                SizedBox(height: 20),
+    final mission = Mission(
+      missionName: _missionNameController.text.trim(),
+      missionDescription: _missionDescController.text.trim(),
+      mapName: widget.currentMap!,
+      items: List.from(_missionItems),
+    );
+    settingsProvider.saveMission(mission);
 
-                // Description Field
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Description',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    TextField(
-                      controller: _missionDescController,
-                      style: TextStyle(color: Colors.white),
-                      maxLines: 2, // Decrease height by limiting lines
-                      decoration: InputDecoration(
-                        hintText: 'Enter mission description (optional)',
-                        hintStyle: TextStyle(color: Colors.grey[500]),
-                        filled: true,
-                        fillColor: Colors.grey[800],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              BorderSide(color: widget.modeColor, width: 2),
-                        ),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      ),
-                    ),
-                  ],
-                ),
+    // Force mission path repaint by notifying the parent with current ordering
+    final orderedWaypoints = _getWaypointsInMissionOrder();
+    if (orderedWaypoints.isNotEmpty) {
+      widget.onWaypointsLoaded(List<Waypoint>.from(orderedWaypoints));
+    }
 
-                // Map Info
-                if (widget.currentMap != null) ...[
-                  SizedBox(height: 20),
-                  Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: widget.modeColor.withOpacity(0.1),
-                      border:
-                          Border.all(color: widget.modeColor.withOpacity(0.3)),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.map_outlined,
-                          color: widget.modeColor,
-                          size: 20,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'Map: ${widget.currentMap}',
-                          style: TextStyle(
-                            color: widget.modeColor,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+    Navigator.pop(context);
 
-                SizedBox(height: 24),
-
-                // Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(color: Colors.grey[600]!),
-                          ),
-                        ),
-                        child: Text(
-                          'Cancel',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          if (widget.currentMap == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('No map selected for mission'),
-                                backgroundColor: Colors.red.withOpacity(0.9),
-                              ),
-                            );
-                            return;
-                          }
-
-                          // Validate mission name
-                          if (_missionNameController.text.trim().isEmpty ||
-                              _missionNameController.text.trim().length < 4) {
-                            setState(() {
-                              _missionNameError =
-                                  'Mission name must be at least 4 characters long';
-                            });
-                            return;
-                          } else {
-                            setState(() {
-                              _missionNameError = null; // Clear error if valid
-                            });
-                          }
-
-                          final mission = Mission(
-                            missionName: _missionNameController.text.trim(),
-                            missionDescription:
-                                _missionDescController.text.trim(),
-                            mapName: widget.currentMap!,
-                            items: List.from(_missionItems),
-                          );
-                          settingsProvider.saveMission(mission);
-
-                          // Force mission path repaint by notifying the parent with current ordering
-                          final orderedWaypoints =
-                              _getWaypointsInMissionOrder();
-                          if (orderedWaypoints.isNotEmpty) {
-                            widget.onWaypointsLoaded(
-                                List<Waypoint>.from(orderedWaypoints));
-                          }
-
-                          Navigator.pop(context);
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                children: [
-                                  Icon(Icons.check_circle, color: Colors.white),
-                                  SizedBox(width: 8),
-                                  Text(
-                                      'Mission "${mission.missionName}" saved successfully'),
-                                ],
-                              ),
-                              backgroundColor: Colors.green.withOpacity(0.9),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: widget.modeColor,
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 2,
-                        ),
-                        child: Text(
-                          'Save Mission',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 16),
-              ],
-            ),
-          ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Mission "${mission.missionName}" saved successfully'),
+          ],
         ),
+        backgroundColor: Colors.green.withOpacity(0.9),
       ),
     );
   }
 
   void _showAddItemDialog() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
-          maxWidth: 500,
-        ),
-        child: Container(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.max,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle bar
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[600],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
+    showAddMissionItemSheet(context, onTypeSelected: _handleAddItemType);
+  }
 
-              Text(
-                'Add Mission Item',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 16),
+  Future<void> _handleAddItemType(MissionItemType type) async {
+    if (type == MissionItemType.goto) {
+      // Special handling for GOTO
+      _showGotoOptionsDialog();
+      return;
+    }
+    // Delay until the sheet is closed before opening the config sheet
+    await Future.delayed(const Duration(milliseconds: 50));
+    if (!mounted) return;
 
-              // Scrollable item type buttons
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: MissionItemType.values
-                        .where((t) => t != MissionItemType.captureImage)
-                        .map((type) => Container(
-                              margin: EdgeInsets.only(bottom: 8),
-                              child: InkWell(
-                                onTap: () async {
-                                  // Close the selector sheet first
-                                  Navigator.pop(context);
+    final newIndex = _addMissionItem(type);
 
-                                  if (type == MissionItemType.goto) {
-                                    // Special handling for GOTO
-                                    _showGotoOptionsDialog();
-                                  } else {
-                                    // Delay until the sheet is closed before opening the config sheet
-                                    await Future.delayed(
-                                        const Duration(milliseconds: 50));
-
-                                    final newIndex = _addMissionItem(type);
-
-                                    // Open the appropriate configuration sheet immediately
-                                    switch (type) {
-                                      case MissionItemType.publish:
-                                        _showPublishItemDialog(
-                                            context, newIndex);
-                                        break;
-                                      case MissionItemType.callService:
-                                        _showServiceItemDialog(
-                                            context, newIndex);
-                                        break;
-                                      case MissionItemType.callAction:
-                                        _showActionItemDialog(
-                                            context, newIndex);
-                                        break;
-                                      case MissionItemType.apiCall:
-                                        _showApiCallItemDialog(
-                                            context, newIndex);
-                                        break;
-                                      default:
-                                        break;
-                                    }
-                                  }
-                                },
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: type.color.withOpacity(0.1),
-                                    border: Border.all(
-                                        color: type.color.withOpacity(0.3)),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 4,
-                                        height: 32,
-                                        decoration: BoxDecoration(
-                                          color: type.color,
-                                          borderRadius:
-                                              BorderRadius.circular(2),
-                                        ),
-                                      ),
-                                      SizedBox(width: 12),
-                                      Icon(type.icon,
-                                          color: type.color, size: 20),
-                                      SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              type.displayName,
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            Text(
-                                              _getTypeDescription(type),
-                                              style: TextStyle(
-                                                color: Colors.grey[400],
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Icon(Icons.arrow_forward_ios,
-                                          color: Colors.grey[500], size: 14),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ))
-                        .toList(),
-                  ),
-                ),
-              ),
-
-              SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-    );
+    // Open the appropriate configuration sheet immediately
+    switch (type) {
+      case MissionItemType.publish:
+        _showPublishItemDialog(context, newIndex);
+        break;
+      case MissionItemType.callService:
+        _showServiceItemDialog(context, newIndex);
+        break;
+      case MissionItemType.callAction:
+        _showActionItemDialog(context, newIndex);
+        break;
+      case MissionItemType.apiCall:
+        _showApiCallItemDialog(context, newIndex);
+        break;
+      case MissionItemType.loop:
+        _showLoopItemDialog(context, newIndex);
+        break;
+      default:
+        break;
+    }
   }
 
   void _showGotoOptionsDialog() {
@@ -980,240 +662,15 @@ class WaypointPanelState extends State<WaypointPanel> {
         ? settingsProvider.bookmarks[widget.currentMap!] ?? []
         : <dynamic>[];
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
-          maxWidth: 500,
-        ),
-        child: Container(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.max,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle bar
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[600],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
-
-              Text(
-                'Add GOTO Waypoint',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 16),
-
-              // Scrollable content area
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // Select from Map option
-                      InkWell(
-                        onTap: () {
-                          Navigator.pop(context);
-                          // Show mission banner when selecting from map
-                          widget.onShowMissionBanner?.call();
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: widget.modeColor.withOpacity(0.1),
-                            border: Border.all(
-                                color: widget.modeColor.withOpacity(0.3)),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.touch_app,
-                                  color: widget.modeColor, size: 24),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Select from Map',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Long press on map to select position',
-                                      style: TextStyle(
-                                        color: Colors.grey[400],
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.arrow_forward_ios,
-                                  color: Colors.grey[500], size: 16),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Pattern Generator option
-                      SizedBox(height: 16),
-                      InkWell(
-                        onTap: () {
-                          Navigator.pop(context);
-                          _showPatternGeneratorDialog();
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: widget.modeColor.withOpacity(0.1),
-                            border: Border.all(
-                                color: widget.modeColor.withOpacity(0.3)),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.auto_awesome,
-                                  color: widget.modeColor, size: 24),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Pattern Generator',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Create spiral, circle, or zigzag patterns',
-                                      style: TextStyle(
-                                        color: Colors.grey[400],
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.arrow_forward_ios,
-                                  color: Colors.grey[500], size: 16),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      if (bookmarks.isNotEmpty) ...[
-                        SizedBox(height: 16),
-                        Text('Or select from bookmarks:',
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            )),
-                        SizedBox(height: 12),
-
-                        // Bookmarks list
-                        Column(
-                          children: bookmarks.map<Widget>((bookmark) {
-                            return Container(
-                              margin: EdgeInsets.only(bottom: 8),
-                              child: InkWell(
-                                onTap: () {
-                                  Navigator.pop(context);
-                                  _addBookmarkAsWaypoint(bookmark);
-                                },
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[800],
-                                    border:
-                                        Border.all(color: Colors.grey[700]!),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 40,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color:
-                                              widget.modeColor.withOpacity(0.2),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                        child: Icon(
-                                          bookmark.icon,
-                                          color: widget.modeColor,
-                                          size: 20,
-                                        ),
-                                      ),
-                                      SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              bookmark.name,
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            Text(
-                                              'X: ${bookmark.positionX.toStringAsFixed(2)}, Y: ${bookmark.positionY.toStringAsFixed(2)}',
-                                              style: TextStyle(
-                                                color: Colors.grey[400],
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Icon(Icons.add_circle_outline,
-                                          color: widget.modeColor, size: 20),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    showGotoOptionsSheet(
+      context,
+      modeColor: widget.modeColor,
+      bookmarks: bookmarks,
+      onSelectFromMap: () {
+        // Show mission banner when selecting from map
+        widget.onShowMissionBanner?.call();
+      },
+      onBookmarkSelected: _addBookmarkAsWaypoint,
     );
   }
 
@@ -1236,470 +693,61 @@ class WaypointPanelState extends State<WaypointPanel> {
     widget.onWaypointsLoaded(updatedWaypoints);
   }
 
-  // Pattern Generator Methods
+  /// Adds a new [MissionItem] and returns the index at which it was inserted.
+  int _addMissionItem(MissionItemType type) {
+    // Count existing items of this specific type to give incremental names
+    final typeCount =
+        _missionItems.where((item) => item.type == type).length + 1;
 
-  void reopenPatternDialog() {
-    setState(() {
-      _showArrowButton = false;
-      _isPreviewMode = false; // Reset preview mode
-    });
-    widget.onArrowButtonStateChanged?.call(false);
-
-    // Determine which pattern dialog to reopen based on saved state
-    if (_circlePatternState.isNotEmpty) {
-      _showCirclePatternDialog();
-    } else if (_zigzagPatternState.isNotEmpty) {
-      _showZigzagPatternDialog();
-    } else if (_spiralPatternState.isNotEmpty) {
-      _showSpiralPatternDialog();
-    } else {
-      _showPatternGeneratorDialog();
-    }
-  }
-
-  void _showPatternGeneratorDialog() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
-          maxWidth: 500,
-        ),
-        child: Container(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.max,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle bar
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[600],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
-
-              Text(
-                'Pattern Generator',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 16),
-
-              // Scrollable content area
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // Spiral Pattern option
-                      InkWell(
-                        onTap: () {
-                          Navigator.pop(context);
-                          _showSpiralPatternDialog();
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
-                            border:
-                                Border.all(color: Colors.blue.withOpacity(0.3)),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.loop, color: Colors.blue, size: 24),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Spiral Pattern',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Create waypoints in a spiral pattern',
-                                      style: TextStyle(
-                                        color: Colors.grey[400],
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.arrow_forward_ios,
-                                  color: Colors.grey[500], size: 16),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(height: 16),
-
-                      // Circle Pattern option
-                      InkWell(
-                        onTap: () {
-                          Navigator.pop(context);
-                          _showCirclePatternDialog();
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.purple.withOpacity(0.1),
-                            border: Border.all(
-                                color: Colors.purple.withOpacity(0.3)),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.circle_outlined,
-                                  color: Colors.purple, size: 24),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Circle Pattern',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Create waypoints in a circular pattern',
-                                      style: TextStyle(
-                                        color: Colors.grey[400],
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.arrow_forward_ios,
-                                  color: Colors.grey[500], size: 16),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(height: 16),
-
-                      // Zigzag Pattern option
-                      InkWell(
-                        onTap: () {
-                          Navigator.pop(context);
-                          _showZigzagPatternDialog();
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.withOpacity(0.1),
-                            border: Border.all(
-                                color: Colors.amber.withOpacity(0.3)),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.timeline,
-                                  color: Colors.amber, size: 24),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Zigzag Pattern',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Create waypoints in a zigzag pattern',
-                                      style: TextStyle(
-                                        color: Colors.grey[400],
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.arrow_forward_ios,
-                                  color: Colors.grey[500], size: 16),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final newItem = MissionItem(
+      id: Uuid().v4(),
+      type: type,
+      name: '${type.displayName} $typeCount',
+      waitDuration: type == MissionItemType.wait ? 5.0 : null,
+      publishTopic: type == MissionItemType.publish ? '/example_topic' : null,
+      serviceName:
+          type == MissionItemType.callService ? '/example_service' : null,
+      actionName: type == MissionItemType.callAction ? '/example_action' : null,
+      waitForServiceResponse: type == MissionItemType.callService ? true : null,
+      waitForActionResult: type == MissionItemType.callAction ? true : null,
+      publishMessage: type == MissionItemType.publish ? {} : null,
+      publishMsgType: type == MissionItemType.publish ? '' : null,
+      apiUrl: type == MissionItemType.apiCall ? 'https://' : null,
+      apiMethod: type == MissionItemType.apiCall ? 'POST' : null,
+      apiBody: type == MissionItemType.apiCall ? '{}' : null,
+      apiWaitForResponse: type == MissionItemType.apiCall ? true : null,
+      loopCount: type == MissionItemType.loop ? 1 : null,
+      loopForever: type == MissionItemType.loop ? false : null,
     );
-  }
 
-  // Preview and pattern management methods
-  void _showPatternPreview(List<Waypoint> waypoints) {
+    final int insertIndex =
+        _missionItems.length; // index where the item will be inserted
+
     setState(() {
-      _previewWaypoints = waypoints;
-      _isShowingPreview = true;
+      _missionItems.add(newItem);
+      _trackChanges();
     });
 
-    // Pass preview waypoints to NavigationScreen for display
-    widget.onPreviewWaypoints?.call(_previewWaypoints);
+    // Notify parent that mission items have changed
+    widget.onMissionItemsChanged?.call();
+
+    return insertIndex;
   }
 
-  void clearPatternPreview() {
+  void _deleteMissionItem(int index) {
     setState(() {
-      _previewWaypoints = [];
-      _isShowingPreview = false;
+      _missionItems.removeAt(index);
+      _trackChanges();
     });
 
-    // Notify NavigationScreen to clear preview
-    widget.onClearPreview?.call();
+    // Notify parent that mission items have changed
+    widget.onMissionItemsChanged?.call();
   }
 
-  // Check if there are mission items available for execution
   bool hasMissionItems() {
     return _missionItems.isNotEmpty;
   }
 
-  void _confirmPatternWaypoints() {
-    // Add preview waypoints to permanent waypoints
-    final updatedWaypoints = List<Waypoint>.from(widget.waypoints)
-      ..addAll(_previewWaypoints);
-
-    // Update parent's waypoint list
-    widget.onWaypointsLoaded(updatedWaypoints);
-
-    // Clear preview
-    clearPatternPreview();
-  }
-
-  // Pattern generation methods
-  List<Waypoint> generateSpiralPattern({
-    required Position center,
-    required double maxRadius,
-    required int loops,
-    required bool clockwise,
-    required double waypointSpacing,
-  }) {
-    List<Waypoint> waypoints = [];
-
-    // Calculate total arc length of spiral for equal spacing
-    double totalArcLength = 0;
-    double maxAngle = loops * 2 * math.pi;
-
-    // Calculate arc length using numerical integration
-    int integrationSteps = 1000;
-    double angleStep = maxAngle / integrationSteps;
-
-    for (int i = 1; i <= integrationSteps; i++) {
-      double angle = i * angleStep;
-      double radius = (maxRadius / loops) * angle / (2 * math.pi);
-      if (radius > maxRadius) break;
-
-      // Arc length formula: ds = sqrt(r^2 + (dr/dθ)^2) * dθ
-      double dr_dtheta = maxRadius / (loops * 2 * math.pi);
-      double ds =
-          math.sqrt(radius * radius + dr_dtheta * dr_dtheta) * angleStep;
-      totalArcLength += ds;
-    }
-
-    // Calculate number of waypoints based on desired spacing
-    int numWaypoints = (totalArcLength / waypointSpacing).round();
-    if (numWaypoints < 2) numWaypoints = 2;
-
-    // Generate waypoints with equal arc length spacing
-    double currentArcLength = 0;
-    double targetArcLength = 0;
-    int waypointIndex = 0;
-
-    for (int i = 1;
-        i <= integrationSteps && waypointIndex < numWaypoints;
-        i++) {
-      double angle = i * angleStep;
-      double radius = (maxRadius / loops) * angle / (2 * math.pi);
-      if (radius > maxRadius) break;
-
-      // Calculate arc length increment
-      double dr_dtheta = maxRadius / (loops * 2 * math.pi);
-      double ds =
-          math.sqrt(radius * radius + dr_dtheta * dr_dtheta) * angleStep;
-      currentArcLength += ds;
-
-      // Check if we've reached the target arc length for next waypoint
-      if (currentArcLength >= targetArcLength) {
-        // Calculate position
-        double x = center.x +
-            radius * (clockwise ? math.cos(angle) : math.cos(-angle));
-        double y = center.y +
-            radius * (clockwise ? math.sin(angle) : math.sin(-angle));
-
-        // Calculate orientation (tangent to spiral)
-        double theta = clockwise ? angle + math.pi / 2 : -angle + math.pi / 2;
-
-        // Create waypoint
-        waypoints.add(Waypoint(
-          id: Uuid().v4(),
-          events: [],
-          position: Position(x: x, y: y, theta: theta),
-          name: 'Spiral_${waypoints.length + 1}',
-        ));
-
-        waypointIndex++;
-        targetArcLength = waypointIndex * waypointSpacing;
-      }
-    }
-
-    return waypoints;
-  }
-
-  List<Waypoint> generateCirclePattern({
-    required Position center,
-    required double radius,
-    required int numPoints,
-    required bool clockwise,
-  }) {
-    List<Waypoint> waypoints = [];
-
-    // Generate circle points (including the closing point)
-    for (int i = 0; i <= numPoints; i++) {
-      double angle = 2 * math.pi * i / numPoints;
-      if (!clockwise) angle = -angle;
-
-      // Calculate position
-      double x = center.x + radius * math.cos(angle);
-      double y = center.y + radius * math.sin(angle);
-
-      // Calculate orientation (towards next waypoint)
-      double nextAngle = 2 * math.pi * (i + 1) / numPoints;
-      if (!clockwise) nextAngle = -nextAngle;
-      double theta = math.atan2(
-        math.sin(nextAngle) - math.sin(angle),
-        math.cos(nextAngle) - math.cos(angle),
-      );
-
-      // Create waypoint
-      waypoints.add(Waypoint(
-        id: Uuid().v4(),
-        events: [],
-        position: Position(x: x, y: y, theta: theta),
-        name: 'Circle_${i + 1}',
-      ));
-    }
-
-    return waypoints;
-  }
-
-  List<Waypoint> generateZigzagPattern({
-    required Position start,
-    required double length,
-    required double width,
-    required double zigSpacing,
-    required double waypointSpacing,
-  }) {
-    List<Waypoint> waypoints = [];
-
-    // Calculate number of zigs based on length and spacing
-    int numZigs = (length / zigSpacing).floor();
-    if (numZigs < 1) numZigs = 1;
-
-    // Calculate number of points per zig
-    int pointsPerZig = (width / waypointSpacing).ceil();
-    if (pointsPerZig < 2) pointsPerZig = 2;
-
-    // Generate zigzag points
-    for (int i = 0; i < numZigs; i++) {
-      double x = start.x + i * zigSpacing;
-
-      // Create points for this zig
-      for (int j = 0; j < pointsPerZig; j++) {
-        double y;
-        if (i % 2 == 0) {
-          // Even zigs go up
-          y = start.y + j * (width / (pointsPerZig - 1));
-        } else {
-          // Odd zigs go down
-          y = start.y + width - j * (width / (pointsPerZig - 1));
-        }
-
-        // Calculate orientation (towards next waypoint)
-        double theta = 0.0;
-
-        // Determine next waypoint position
-        double nextX = x;
-        double nextY = y;
-
-        if (j < pointsPerZig - 1) {
-          // Not at the end of current zig, next waypoint is in same zig
-          if (i % 2 == 0) {
-            // Even zigs go up
-            nextY = start.y + (j + 1) * (width / (pointsPerZig - 1));
-          } else {
-            // Odd zigs go down
-            nextY = start.y + width - (j + 1) * (width / (pointsPerZig - 1));
-          }
-        } else if (i < numZigs - 1) {
-          // At end of current zig, next waypoint is start of next zig
-          nextX = start.x + (i + 1) * zigSpacing;
-          if ((i + 1) % 2 == 0) {
-            // Next zig goes up
-            nextY = start.y;
-          } else {
-            // Next zig goes down
-            nextY = start.y + width;
-          }
-        } else {
-          // Last waypoint, keep current orientation
-          theta = i % 2 == 0 ? math.pi / 2 : -math.pi / 2;
-        }
-
-        // Calculate direction to next waypoint
-        if (theta == 0.0) {
-          theta = math.atan2(nextY - y, nextX - x);
-        }
-
-        // Create waypoint
-        waypoints.add(Waypoint(
-          id: Uuid().v4(),
-          events: [],
-          position: Position(x: x, y: y, theta: theta),
-          name: 'Zigzag_${waypoints.length + 1}',
-        ));
-      }
-    }
-
-    return waypoints;
-  }
-
-  // Add Clear All icon button to mission items list
   Widget _buildClearAllButton() {
     if (_missionItems.isEmpty) return SizedBox.shrink();
 
@@ -1709,7 +757,8 @@ class WaypointPanelState extends State<WaypointPanel> {
         onPressed: _showClearAllConfirmation,
         icon: Icon(
           Icons.clear_all,
-          color: Provider.of<BrandingProvider>(context, listen: false).themeColor,
+          color:
+              Provider.of<BrandingProvider>(context, listen: false).themeColor,
           size: 24,
         ),
         tooltip: 'Clear All Mission Items',
@@ -1754,8 +803,6 @@ class WaypointPanelState extends State<WaypointPanel> {
                 });
                 // Clear all waypoints from map
                 widget.onWaypointsLoaded([]);
-                // Clear any preview
-                clearPatternPreview();
                 // Notify parent that mission items have changed
                 widget.onMissionItemsChanged?.call();
               },
@@ -1768,1580 +815,6 @@ class WaypointPanelState extends State<WaypointPanel> {
         ),
       ),
     );
-  }
-
-  void _showCirclePatternDialog() {
-    // Load saved state or use defaults
-    double radius = _circlePatternState['radius'] ?? 5.0;
-    int numPoints = _circlePatternState['numPoints'] ?? 8;
-    bool clockwise = _circlePatternState['clockwise'] ?? true;
-
-    // Get saved position or robot position as center or use default
-    Position center = _circlePatternState['center'] ??
-        widget.robotPosition ??
-        Position(x: 0, y: 0, theta: 0);
-
-    // Get branding color
-    final brandingProvider =
-        Provider.of<BrandingProvider>(context, listen: false);
-    final brandColor = brandingProvider.themeColor;
-
-    final DraggableScrollableController _sheetController =
-        DraggableScrollableController();
-
-    setState(() {
-      _isBottomSheetOpen = true;
-      _showArrowButton = false;
-      _isPreviewMode = false;
-    });
-    widget.onArrowButtonStateChanged?.call(false);
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.9,
-            maxWidth: 500,
-          ),
-          child: DraggableScrollableSheet(
-            controller: _sheetController,
-            initialChildSize: 0.9, // Start fully expanded
-            minChildSize: 0.0, // Allow complete closure
-            maxChildSize: 0.9, // Maximum expanded size
-            expand: false,
-            snap: true,
-            snapSizes: [0.0, 0.5, 0.9], // Allow complete closure
-            shouldCloseOnMinExtent: true, // Allow closing completely
-            builder: (context, scrollController) => Container(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 10,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  // Handle bar
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[600],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-
-                  // Scrollable content area (including heading)
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Circle Pattern',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'Center Position',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  initialValue: center.x.toStringAsFixed(2),
-                                  keyboardType: TextInputType.number,
-                                  decoration: InputDecoration(
-                                    labelText: 'X',
-                                    labelStyle:
-                                        TextStyle(color: Colors.grey[400]),
-                                    filled: true,
-                                    fillColor: Colors.grey[800],
-                                    border: OutlineInputBorder(
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[600]!),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[600]!),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderSide: BorderSide(color: brandColor),
-                                    ),
-                                  ),
-                                  style: TextStyle(color: Colors.white),
-                                  onChanged: (value) {
-                                    if (value.isNotEmpty) {
-                                      center = Position(
-                                        x: double.tryParse(value) ?? center.x,
-                                        y: center.y,
-                                        theta: center.theta,
-                                      );
-                                    }
-                                  },
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: TextFormField(
-                                  initialValue: center.y.toStringAsFixed(2),
-                                  keyboardType: TextInputType.number,
-                                  decoration: InputDecoration(
-                                    labelText: 'Y',
-                                    labelStyle:
-                                        TextStyle(color: Colors.grey[400]),
-                                    filled: true,
-                                    fillColor: Colors.grey[800],
-                                    border: OutlineInputBorder(
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[600]!),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[600]!),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderSide: BorderSide(color: brandColor),
-                                    ),
-                                  ),
-                                  style: TextStyle(color: Colors.white),
-                                  onChanged: (value) {
-                                    if (value.isNotEmpty) {
-                                      center = Position(
-                                        x: center.x,
-                                        y: double.tryParse(value) ?? center.y,
-                                        theta: center.theta,
-                                      );
-                                    }
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 16),
-
-                          Text(
-                            'Radius (meters)',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextFormField(
-                            initialValue: radius.toString(),
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelStyle: TextStyle(color: Colors.grey[400]),
-                              filled: true,
-                              fillColor: Colors.grey[800],
-                              border: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: brandColor),
-                              ),
-                            ),
-                            style: TextStyle(color: Colors.white),
-                            onChanged: (value) {
-                              if (value.isNotEmpty) {
-                                setState(() {
-                                  radius = double.tryParse(value) ?? radius;
-                                });
-                              }
-                            },
-                          ),
-                          SizedBox(height: 16),
-
-                          Text(
-                            'Number of Points',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextFormField(
-                            initialValue: numPoints.toString(),
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelStyle: TextStyle(color: Colors.grey[400]),
-                              filled: true,
-                              fillColor: Colors.grey[800],
-                              border: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: brandColor),
-                              ),
-                            ),
-                            style: TextStyle(color: Colors.white),
-                            onChanged: (value) {
-                              if (value.isNotEmpty) {
-                                setState(() {
-                                  numPoints = int.tryParse(value) ?? numPoints;
-                                });
-                              }
-                            },
-                          ),
-                          SizedBox(height: 16),
-
-                          Text(
-                            'Direction',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: RadioListTile<bool>(
-                                  title: Text('Clockwise',
-                                      style: TextStyle(color: Colors.white)),
-                                  value: true,
-                                  groupValue: clockwise,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      clockwise = value!;
-                                    });
-                                  },
-                                  activeColor: brandColor,
-                                ),
-                              ),
-                              Expanded(
-                                child: RadioListTile<bool>(
-                                  title: Text('Counter-Clockwise',
-                                      style: TextStyle(color: Colors.white)),
-                                  value: false,
-                                  groupValue: clockwise,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      clockwise = value!;
-                                    });
-                                  },
-                                  activeColor: brandColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 24),
-
-                          // Action buttons
-                          Container(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Column(
-                              children: [
-                                // Preview button (full width)
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {
-                                      // Save form state
-                                      _circlePatternState = {
-                                        'radius': radius,
-                                        'numPoints': numPoints,
-                                        'clockwise': clockwise,
-                                        'center': center,
-                                      };
-
-                                      // Generate preview
-                                      final waypoints = generateCirclePattern(
-                                        center: center,
-                                        radius: radius,
-                                        numPoints: numPoints,
-                                        clockwise: clockwise,
-                                      );
-
-                                      // Show preview
-                                      _showPatternPreview(waypoints);
-
-                                      // Enable complete closure and show arrow button
-                                      setState(() {
-                                        _isPreviewMode = true;
-                                        _showArrowButton = true;
-                                      });
-                                      widget.onArrowButtonStateChanged
-                                          ?.call(true);
-
-                                      // Completely close the sheet
-                                      _sheetController.animateTo(
-                                        0.0, // Completely close the sheet
-                                        duration: Duration(milliseconds: 300),
-                                        curve: Curves.easeOut,
-                                      );
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: brandColor,
-                                      foregroundColor: Colors.white,
-                                      padding:
-                                          EdgeInsets.symmetric(vertical: 16),
-                                      elevation: 4,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    icon: Icon(Icons.visibility, size: 20),
-                                    label: Text(
-                                      'Preview Pattern',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 12),
-                                // Confirm and Cancel buttons (side by side)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: () {
-                                          // Generate and confirm waypoints
-                                          final waypoints =
-                                              generateCirclePattern(
-                                            center: center,
-                                            radius: radius,
-                                            numPoints: numPoints,
-                                            clockwise: clockwise,
-                                          );
-
-                                          // Add to permanent waypoints
-                                          final updatedWaypoints =
-                                              List<Waypoint>.from(
-                                                  widget.waypoints)
-                                                ..addAll(waypoints);
-
-                                          // Update parent's waypoint list
-                                          widget.onWaypointsLoaded(
-                                              updatedWaypoints);
-
-                                          // Clear any existing preview
-                                          clearPatternPreview();
-
-                                          // Close dialog
-                                          Navigator.pop(context);
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.green[600],
-                                          foregroundColor: Colors.white,
-                                          padding: EdgeInsets.symmetric(
-                                              vertical: 14),
-                                          elevation: 3,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                        ),
-                                        icon: Icon(Icons.check, size: 18),
-                                        label: Text(
-                                          'Confirm',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(width: 12),
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: () {
-                                          // Clear preview and close
-                                          clearPatternPreview();
-                                          Navigator.pop(context);
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.red[600],
-                                          foregroundColor: Colors.white,
-                                          padding: EdgeInsets.symmetric(
-                                              vertical: 14),
-                                          elevation: 3,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                        ),
-                                        icon: Icon(Icons.close, size: 18),
-                                        label: Text(
-                                          'Cancel',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    ).then((_) {
-      // Bottom sheet was closed
-      setState(() {
-        _isBottomSheetOpen = false;
-        // Only show arrow button if we were in preview mode
-        if (_isPreviewMode) {
-          _showArrowButton = true;
-          widget.onArrowButtonStateChanged?.call(true);
-        } else {
-          _showArrowButton = false;
-          widget.onArrowButtonStateChanged?.call(false);
-          // Clear saved state and preview when closing without preview
-          _circlePatternState.clear();
-          clearPatternPreview();
-        }
-      });
-    });
-  }
-
-  void _showZigzagPatternDialog() {
-    // Load saved state or use defaults
-    double length = _zigzagPatternState['length'] ?? 10.0;
-    double width = _zigzagPatternState['width'] ?? 5.0;
-    double zigSpacing = _zigzagPatternState['zigSpacing'] ?? 2.0;
-    double waypointSpacing = _zigzagPatternState['waypointSpacing'] ?? 0.5;
-
-    // Get saved position or robot position as start or use default
-    Position start = _zigzagPatternState['start'] ??
-        widget.robotPosition ??
-        Position(x: 0, y: 0, theta: 0);
-
-    // Get branding color
-    final brandingProvider =
-        Provider.of<BrandingProvider>(context, listen: false);
-    final brandColor = brandingProvider.themeColor;
-
-    final DraggableScrollableController _sheetController =
-        DraggableScrollableController();
-
-    setState(() {
-      _isBottomSheetOpen = true;
-      _showArrowButton = false;
-      _isPreviewMode = false;
-    });
-    widget.onArrowButtonStateChanged?.call(false);
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.9,
-            maxWidth: 500,
-          ),
-          child: DraggableScrollableSheet(
-            controller: _sheetController,
-            initialChildSize: 0.9, // Start fully expanded
-            minChildSize: 0.0, // Allow complete closure
-            maxChildSize: 0.9, // Maximum expanded size
-            expand: false,
-            snap: true,
-            snapSizes: [0.0, 0.5, 0.9], // Allow complete closure
-            shouldCloseOnMinExtent: true, // Allow closing completely
-            builder: (context, scrollController) => Container(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 10,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  // Handle bar
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[600],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-
-                  // Scrollable content area (including heading)
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Zigzag Pattern',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'Start Position',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  initialValue: start.x.toStringAsFixed(2),
-                                  keyboardType: TextInputType.number,
-                                  decoration: InputDecoration(
-                                    labelText: 'X',
-                                    labelStyle:
-                                        TextStyle(color: Colors.grey[400]),
-                                    filled: true,
-                                    fillColor: Colors.grey[800],
-                                    border: OutlineInputBorder(
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[600]!),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[600]!),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderSide: BorderSide(color: brandColor),
-                                    ),
-                                  ),
-                                  style: TextStyle(color: Colors.white),
-                                  onChanged: (value) {
-                                    if (value.isNotEmpty) {
-                                      start = Position(
-                                        x: double.tryParse(value) ?? start.x,
-                                        y: start.y,
-                                        theta: start.theta,
-                                      );
-                                    }
-                                  },
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: TextFormField(
-                                  initialValue: start.y.toStringAsFixed(2),
-                                  keyboardType: TextInputType.number,
-                                  decoration: InputDecoration(
-                                    labelText: 'Y',
-                                    labelStyle:
-                                        TextStyle(color: Colors.grey[400]),
-                                    filled: true,
-                                    fillColor: Colors.grey[800],
-                                    border: OutlineInputBorder(
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[600]!),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[600]!),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderSide: BorderSide(color: brandColor),
-                                    ),
-                                  ),
-                                  style: TextStyle(color: Colors.white),
-                                  onChanged: (value) {
-                                    if (value.isNotEmpty) {
-                                      start = Position(
-                                        x: start.x,
-                                        y: double.tryParse(value) ?? start.y,
-                                        theta: start.theta,
-                                      );
-                                    }
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 16),
-
-                          Text(
-                            'X-axis Length (meters)',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextFormField(
-                            initialValue: length.toString(),
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelStyle: TextStyle(color: Colors.grey[400]),
-                              filled: true,
-                              fillColor: Colors.grey[800],
-                              border: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: brandColor),
-                              ),
-                            ),
-                            style: TextStyle(color: Colors.white),
-                            onChanged: (value) {
-                              if (value.isNotEmpty) {
-                                setState(() {
-                                  length = double.tryParse(value) ?? length;
-                                });
-                              }
-                            },
-                          ),
-                          SizedBox(height: 16),
-
-                          Text(
-                            'Y-axis Length (meters)',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextFormField(
-                            initialValue: width.toString(),
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelStyle: TextStyle(color: Colors.grey[400]),
-                              filled: true,
-                              fillColor: Colors.grey[800],
-                              border: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: brandColor),
-                              ),
-                            ),
-                            style: TextStyle(color: Colors.white),
-                            onChanged: (value) {
-                              if (value.isNotEmpty) {
-                                setState(() {
-                                  width = double.tryParse(value) ?? width;
-                                });
-                              }
-                            },
-                          ),
-                          SizedBox(height: 16),
-
-                          Text(
-                            'Zig Spacing (meters)',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextFormField(
-                            initialValue: zigSpacing.toString(),
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelStyle: TextStyle(color: Colors.grey[400]),
-                              filled: true,
-                              fillColor: Colors.grey[800],
-                              border: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: brandColor),
-                              ),
-                            ),
-                            style: TextStyle(color: Colors.white),
-                            onChanged: (value) {
-                              if (value.isNotEmpty) {
-                                setState(() {
-                                  zigSpacing =
-                                      double.tryParse(value) ?? zigSpacing;
-                                });
-                              }
-                            },
-                          ),
-                          SizedBox(height: 16),
-
-                          Text(
-                            'Waypoint Spacing (meters)',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextFormField(
-                            initialValue: waypointSpacing.toString(),
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelStyle: TextStyle(color: Colors.grey[400]),
-                              filled: true,
-                              fillColor: Colors.grey[800],
-                              border: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: brandColor),
-                              ),
-                            ),
-                            style: TextStyle(color: Colors.white),
-                            onChanged: (value) {
-                              if (value.isNotEmpty) {
-                                setState(() {
-                                  waypointSpacing =
-                                      double.tryParse(value) ?? waypointSpacing;
-                                });
-                              }
-                            },
-                          ),
-                          SizedBox(height: 24),
-
-                          // Action buttons
-                          Container(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Column(
-                              children: [
-                                // Preview button (full width)
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {
-                                      // Save form state
-                                      _zigzagPatternState = {
-                                        'length': length,
-                                        'width': width,
-                                        'zigSpacing': zigSpacing,
-                                        'waypointSpacing': waypointSpacing,
-                                        'start': start,
-                                      };
-
-                                      // Generate preview
-                                      final waypoints = generateZigzagPattern(
-                                        start: start,
-                                        length: length,
-                                        width: width,
-                                        zigSpacing: zigSpacing,
-                                        waypointSpacing: waypointSpacing,
-                                      );
-
-                                      // Show preview
-                                      _showPatternPreview(waypoints);
-
-                                      // Enable complete closure and show arrow button
-                                      setState(() {
-                                        _isPreviewMode = true;
-                                        _showArrowButton = true;
-                                      });
-                                      widget.onArrowButtonStateChanged
-                                          ?.call(true);
-
-                                      // Completely close the sheet
-                                      _sheetController.animateTo(
-                                        0.0, // Completely close the sheet
-                                        duration: Duration(milliseconds: 300),
-                                        curve: Curves.easeOut,
-                                      );
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: brandColor,
-                                      foregroundColor: Colors.white,
-                                      padding:
-                                          EdgeInsets.symmetric(vertical: 16),
-                                      elevation: 4,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    icon: Icon(Icons.visibility, size: 20),
-                                    label: Text(
-                                      'Preview Pattern',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 12),
-                                // Confirm and Cancel buttons (side by side)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: () {
-                                          // Generate and confirm waypoints
-                                          final waypoints =
-                                              generateZigzagPattern(
-                                            start: start,
-                                            length: length,
-                                            width: width,
-                                            zigSpacing: zigSpacing,
-                                            waypointSpacing: waypointSpacing,
-                                          );
-
-                                          // Add to permanent waypoints
-                                          final updatedWaypoints =
-                                              List<Waypoint>.from(
-                                                  widget.waypoints)
-                                                ..addAll(waypoints);
-
-                                          // Update parent's waypoint list
-                                          widget.onWaypointsLoaded(
-                                              updatedWaypoints);
-
-                                          // Clear any existing preview
-                                          clearPatternPreview();
-
-                                          // Close dialog
-                                          Navigator.pop(context);
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.green[600],
-                                          foregroundColor: Colors.white,
-                                          padding: EdgeInsets.symmetric(
-                                              vertical: 14),
-                                          elevation: 3,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                        ),
-                                        icon: Icon(Icons.check, size: 18),
-                                        label: Text(
-                                          'Confirm',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(width: 12),
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: () {
-                                          // Clear preview and close
-                                          clearPatternPreview();
-                                          Navigator.pop(context);
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.red[600],
-                                          foregroundColor: Colors.white,
-                                          padding: EdgeInsets.symmetric(
-                                              vertical: 14),
-                                          elevation: 3,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                        ),
-                                        icon: Icon(Icons.close, size: 18),
-                                        label: Text(
-                                          'Cancel',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    ).then((_) {
-      // Bottom sheet was closed
-      setState(() {
-        _isBottomSheetOpen = false;
-        // Only show arrow button if we were in preview mode
-        if (_isPreviewMode) {
-          _showArrowButton = true;
-          widget.onArrowButtonStateChanged?.call(true);
-        } else {
-          _showArrowButton = false;
-          widget.onArrowButtonStateChanged?.call(false);
-          // Clear saved state and preview when closing without preview
-          _zigzagPatternState.clear();
-          clearPatternPreview();
-        }
-      });
-    });
-  }
-
-  void _showSpiralPatternDialog() {
-    // Load saved state or use defaults
-    double maxRadius = _spiralPatternState['maxRadius'] ?? 5.0;
-    int loops = _spiralPatternState['loops'] ?? 3;
-    bool clockwise = _spiralPatternState['clockwise'] ?? true;
-    double waypointSpacing = _spiralPatternState['waypointSpacing'] ?? 0.5;
-
-    // Get saved position or robot position as center or use default
-    Position center = _spiralPatternState['center'] ??
-        widget.robotPosition ??
-        Position(x: 0, y: 0, theta: 0);
-
-    // Get branding color
-    final brandingProvider =
-        Provider.of<BrandingProvider>(context, listen: false);
-    final brandColor = brandingProvider.themeColor;
-
-    final DraggableScrollableController _sheetController =
-        DraggableScrollableController();
-
-    setState(() {
-      _isBottomSheetOpen = true;
-      _showArrowButton = false;
-      _isPreviewMode = false;
-    });
-    widget.onArrowButtonStateChanged?.call(false);
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.9,
-            maxWidth: 500,
-          ),
-          child: DraggableScrollableSheet(
-            controller: _sheetController,
-            initialChildSize: 0.9, // Start fully expanded
-            minChildSize: 0.0, // Allow complete closure
-            maxChildSize: 0.9, // Maximum expanded size
-            expand: false,
-            snap: true,
-            snapSizes: [0.0, 0.5, 0.9], // Allow complete closure
-            shouldCloseOnMinExtent: true, // Allow closing completely
-            builder: (context, scrollController) => Container(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 10,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  // Handle bar
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[600],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-
-                  // Scrollable content area (including heading)
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Spiral Pattern',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'Center Position',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  initialValue: center.x.toStringAsFixed(2),
-                                  keyboardType: TextInputType.number,
-                                  decoration: InputDecoration(
-                                    labelText: 'X',
-                                    labelStyle:
-                                        TextStyle(color: Colors.grey[400]),
-                                    filled: true,
-                                    fillColor: Colors.grey[800],
-                                    border: OutlineInputBorder(
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[600]!),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[600]!),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderSide: BorderSide(color: brandColor),
-                                    ),
-                                  ),
-                                  style: TextStyle(color: Colors.white),
-                                  onChanged: (value) {
-                                    if (value.isNotEmpty) {
-                                      center = Position(
-                                        x: double.tryParse(value) ?? center.x,
-                                        y: center.y,
-                                        theta: center.theta,
-                                      );
-                                    }
-                                  },
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: TextFormField(
-                                  initialValue: center.y.toStringAsFixed(2),
-                                  keyboardType: TextInputType.number,
-                                  decoration: InputDecoration(
-                                    labelText: 'Y',
-                                    labelStyle:
-                                        TextStyle(color: Colors.grey[400]),
-                                    filled: true,
-                                    fillColor: Colors.grey[800],
-                                    border: OutlineInputBorder(
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[600]!),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderSide:
-                                          BorderSide(color: Colors.grey[600]!),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderSide: BorderSide(color: brandColor),
-                                    ),
-                                  ),
-                                  style: TextStyle(color: Colors.white),
-                                  onChanged: (value) {
-                                    if (value.isNotEmpty) {
-                                      center = Position(
-                                        x: center.x,
-                                        y: double.tryParse(value) ?? center.y,
-                                        theta: center.theta,
-                                      );
-                                    }
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 16),
-
-                          Text(
-                            'Maximum Radius (meters)',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextFormField(
-                            initialValue: maxRadius.toString(),
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelStyle: TextStyle(color: Colors.grey[400]),
-                              filled: true,
-                              fillColor: Colors.grey[800],
-                              border: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: brandColor),
-                              ),
-                            ),
-                            style: TextStyle(color: Colors.white),
-                            onChanged: (value) {
-                              if (value.isNotEmpty) {
-                                setState(() {
-                                  maxRadius =
-                                      double.tryParse(value) ?? maxRadius;
-                                });
-                              }
-                            },
-                          ),
-                          SizedBox(height: 16),
-
-                          Text(
-                            'Number of Loops',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextFormField(
-                            initialValue: loops.toString(),
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelStyle: TextStyle(color: Colors.grey[400]),
-                              filled: true,
-                              fillColor: Colors.grey[800],
-                              border: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: brandColor),
-                              ),
-                            ),
-                            style: TextStyle(color: Colors.white),
-                            onChanged: (value) {
-                              if (value.isNotEmpty) {
-                                setState(() {
-                                  loops = int.tryParse(value) ?? loops;
-                                });
-                              }
-                            },
-                          ),
-                          SizedBox(height: 16),
-
-                          Text(
-                            'Waypoint Spacing (meters)',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextFormField(
-                            initialValue: waypointSpacing.toString(),
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelStyle: TextStyle(color: Colors.grey[400]),
-                              filled: true,
-                              fillColor: Colors.grey[800],
-                              border: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderSide:
-                                    BorderSide(color: Colors.grey[600]!),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderSide: BorderSide(color: brandColor),
-                              ),
-                            ),
-                            style: TextStyle(color: Colors.white),
-                            onChanged: (value) {
-                              if (value.isNotEmpty) {
-                                setState(() {
-                                  waypointSpacing =
-                                      double.tryParse(value) ?? waypointSpacing;
-                                });
-                              }
-                            },
-                          ),
-                          SizedBox(height: 16),
-
-                          Text(
-                            'Direction',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: RadioListTile<bool>(
-                                  title: Text('Clockwise',
-                                      style: TextStyle(color: Colors.white)),
-                                  value: true,
-                                  groupValue: clockwise,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      clockwise = value!;
-                                    });
-                                  },
-                                  activeColor: brandColor,
-                                ),
-                              ),
-                              Expanded(
-                                child: RadioListTile<bool>(
-                                  title: Text('Counter-Clockwise',
-                                      style: TextStyle(color: Colors.white)),
-                                  value: false,
-                                  groupValue: clockwise,
-                                  onChanged: (value) {
-                                    setState(() {
-                                      clockwise = value!;
-                                    });
-                                  },
-                                  activeColor: brandColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 24),
-
-                          // Action buttons
-                          Container(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Column(
-                              children: [
-                                // Preview button (full width)
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {
-                                      // Save form state
-                                      _spiralPatternState = {
-                                        'maxRadius': maxRadius,
-                                        'loops': loops,
-                                        'clockwise': clockwise,
-                                        'waypointSpacing': waypointSpacing,
-                                        'center': center,
-                                      };
-
-                                      // Generate preview
-                                      final waypoints = generateSpiralPattern(
-                                        center: center,
-                                        maxRadius: maxRadius,
-                                        loops: loops,
-                                        clockwise: clockwise,
-                                        waypointSpacing: waypointSpacing,
-                                      );
-
-                                      // Show preview
-                                      _showPatternPreview(waypoints);
-
-                                      // Enable complete closure and show arrow button
-                                      setState(() {
-                                        _isPreviewMode = true;
-                                        _showArrowButton = true;
-                                      });
-                                      widget.onArrowButtonStateChanged
-                                          ?.call(true);
-
-                                      // Completely close the sheet
-                                      _sheetController.animateTo(
-                                        0.0, // Completely close the sheet
-                                        duration: Duration(milliseconds: 300),
-                                        curve: Curves.easeOut,
-                                      );
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: brandColor,
-                                      foregroundColor: Colors.white,
-                                      padding:
-                                          EdgeInsets.symmetric(vertical: 16),
-                                      elevation: 4,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    icon: Icon(Icons.visibility, size: 20),
-                                    label: Text(
-                                      'Preview Pattern',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: 12),
-                                // Confirm and Cancel buttons (side by side)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: () {
-                                          // Generate and confirm waypoints
-                                          final waypoints =
-                                              generateSpiralPattern(
-                                            center: center,
-                                            maxRadius: maxRadius,
-                                            loops: loops,
-                                            clockwise: clockwise,
-                                            waypointSpacing: waypointSpacing,
-                                          );
-
-                                          // Add to permanent waypoints
-                                          final updatedWaypoints =
-                                              List<Waypoint>.from(
-                                                  widget.waypoints)
-                                                ..addAll(waypoints);
-
-                                          // Update parent's waypoint list
-                                          widget.onWaypointsLoaded(
-                                              updatedWaypoints);
-
-                                          // Clear any existing preview
-                                          clearPatternPreview();
-
-                                          // Close dialog
-                                          Navigator.pop(context);
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.green[600],
-                                          foregroundColor: Colors.white,
-                                          padding: EdgeInsets.symmetric(
-                                              vertical: 14),
-                                          elevation: 3,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                        ),
-                                        icon: Icon(Icons.check, size: 18),
-                                        label: Text(
-                                          'Confirm',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(width: 12),
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: () {
-                                          // Clear preview and close
-                                          clearPatternPreview();
-                                          Navigator.pop(context);
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.red[600],
-                                          foregroundColor: Colors.white,
-                                          padding: EdgeInsets.symmetric(
-                                              vertical: 14),
-                                          elevation: 3,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                        ),
-                                        icon: Icon(Icons.close, size: 18),
-                                        label: Text(
-                                          'Cancel',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    ).then((_) {
-      // Bottom sheet was closed
-      setState(() {
-        _isBottomSheetOpen = false;
-        // Only show arrow button if we were in preview mode
-        if (_isPreviewMode) {
-          _showArrowButton = true;
-          widget.onArrowButtonStateChanged?.call(true);
-        } else {
-          _showArrowButton = false;
-          widget.onArrowButtonStateChanged?.call(false);
-          // Clear saved state and preview when closing without preview
-          _spiralPatternState.clear();
-          clearPatternPreview();
-        }
-      });
-    });
-  }
-
-  String _getTypeDescription(MissionItemType type) {
-    switch (type) {
-      case MissionItemType.goto:
-        return 'Navigate to a specific position';
-      case MissionItemType.dock:
-        return "Dock at the map's charging station and charge";
-      case MissionItemType.undock:
-        return 'Undock from the charging station';
-      case MissionItemType.wait:
-        return 'Pause for a specified duration';
-      case MissionItemType.publish:
-        return 'Publish data to a ROS topic';
-      case MissionItemType.callService:
-        return 'Call a ROS service';
-      case MissionItemType.callAction:
-        return 'Send a goal to a ROS action';
-      case MissionItemType.captureImage:
-        return 'Capture an image';
-      case MissionItemType.apiCall:
-        return 'Make an HTTP API request';
-    }
-  }
-
-  /// Adds a new [MissionItem] and returns the index at which it was inserted.
-  int _addMissionItem(MissionItemType type) {
-    // Count existing items of this specific type to give incremental names
-    final typeCount =
-        _missionItems.where((item) => item.type == type).length + 1;
-
-    final newItem = MissionItem(
-      id: Uuid().v4(),
-      type: type,
-      name: '${type.displayName} $typeCount',
-      waitDuration: type == MissionItemType.wait ? 5.0 : null,
-      publishTopic: type == MissionItemType.publish ? '/example_topic' : null,
-      serviceName:
-          type == MissionItemType.callService ? '/example_service' : null,
-      actionName: type == MissionItemType.callAction ? '/example_action' : null,
-      waitForServiceResponse: type == MissionItemType.callService ? true : null,
-      waitForActionResult: type == MissionItemType.callAction ? true : null,
-      publishMessage: type == MissionItemType.publish ? {} : null,
-      publishMsgType: type == MissionItemType.publish ? '' : null,
-      apiUrl: type == MissionItemType.apiCall ? 'https://' : null,
-      apiMethod: type == MissionItemType.apiCall ? 'POST' : null,
-      apiBody: type == MissionItemType.apiCall ? '{}' : null,
-      apiWaitForResponse: type == MissionItemType.apiCall ? true : null,
-    );
-
-    final int insertIndex =
-        _missionItems.length; // index where the item will be inserted
-
-    setState(() {
-      _missionItems.add(newItem);
-      _trackChanges();
-    });
-
-    // Notify parent that mission items have changed
-    widget.onMissionItemsChanged?.call();
-
-    return insertIndex;
-  }
-
-  void _deleteMissionItem(int index) {
-    setState(() {
-      _missionItems.removeAt(index);
-      _trackChanges();
-    });
-
-    // Notify parent that mission items have changed
-    widget.onMissionItemsChanged?.call();
   }
 
   @override
@@ -3389,841 +862,36 @@ class WaypointPanelState extends State<WaypointPanel> {
                           ),
                         ),
                         SizedBox(height: 8),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey[800],
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: widget.modeColor.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 8),
-                                  child: DropdownButtonFormField<String>(
-                                    value: _selectedMission,
-                                    hint: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.add_circle_outline,
-                                          color: widget.modeColor,
-                                          size: 18,
-                                        ),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Select Mission',
-                                          style: TextStyle(
-                                              color: Colors.grey[400]),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                    isExpanded: true,
-                                    dropdownColor: Colors.grey[850],
-                                    icon: Container(
-                                      decoration: BoxDecoration(
-                                        color:
-                                            widget.modeColor.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Icon(
-                                        Icons.keyboard_arrow_down,
-                                        color: widget.modeColor,
-                                        size: 20,
-                                      ),
-                                    ),
-                                    decoration: InputDecoration(
-                                      contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 4),
-                                      border: InputBorder.none,
-                                      isDense: true,
-                                    ),
-                                    menuMaxHeight: 400,
-                                    borderRadius: BorderRadius.circular(16),
-                                    items: [
-                                      DropdownMenuItem(
-                                        value: null,
-                                        child: Container(
-                                          constraints: BoxConstraints(
-                                            maxHeight: 50,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Container(
-                                                padding: EdgeInsets.symmetric(
-                                                    horizontal: 6, vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: widget.modeColor
-                                                      .withOpacity(0.15),
-                                                  borderRadius:
-                                                      BorderRadius.circular(6),
-                                                ),
-                                                child: Icon(
-                                                  Icons.add_circle_outline,
-                                                  color: widget.modeColor,
-                                                  size: 16,
-                                                ),
-                                              ),
-                                              SizedBox(width: 12),
-                                              Flexible(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Text(
-                                                      'New Mission',
-                                                      style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        fontSize: 13,
-                                                        height: 1.0,
-                                                      ),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      maxLines: 1,
-                                                    ),
-                                                    SizedBox(height: 1),
-                                                    Text(
-                                                      'Create from current waypoints',
-                                                      style: TextStyle(
-                                                        color: Colors.grey[400],
-                                                        fontSize: 10,
-                                                        height: 0.9,
-                                                      ),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      maxLines: 1,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      ...settingsProvider.missions.entries
-                                          .where((entry) =>
-                                              entry.value.mapName ==
-                                              widget.currentMap)
-                                          .map((entry) {
-                                        final missionName =
-                                            entry.value.missionName;
-                                        final waypoints =
-                                            entry.value.waypoints.length;
-
-                                        return DropdownMenuItem(
-                                          value: missionName,
-                                          child: Container(
-                                            padding: EdgeInsets.symmetric(
-                                                vertical: 0),
-                                            constraints: BoxConstraints(
-                                              maxHeight: 38,
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.max,
-                                              children: [
-                                                Container(
-                                                  padding: EdgeInsets.all(6),
-                                                  decoration: BoxDecoration(
-                                                    color: Provider.of<
-                                                                BrandingProvider>(
-                                                            context,
-                                                            listen: false)
-                                                        .themeColor
-                                                        .withOpacity(0.2),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            6),
-                                                  ),
-                                                  child: Icon(
-                                                    Icons.route,
-                                                    color: Provider.of<
-                                                                BrandingProvider>(
-                                                            context,
-                                                            listen: false)
-                                                        .themeColor,
-                                                    size: 16,
-                                                  ),
-                                                ),
-                                                SizedBox(width: 12),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      Text(
-                                                        missionName,
-                                                        style: TextStyle(
-                                                          color: Colors.white,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          fontSize: 13,
-                                                          height: 1.0,
-                                                        ),
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        maxLines: 1,
-                                                      ),
-                                                      SizedBox(height: 1),
-                                                      Text(
-                                                        '$waypoints waypoints',
-                                                        style: TextStyle(
-                                                          color:
-                                                              Colors.grey[400],
-                                                          fontSize: 10,
-                                                          height: 0.9,
-                                                        ),
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        maxLines: 1,
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      }),
-                                    ],
-                                    onChanged: (value) async {
-                                      if (_hasUnsavedChanges &&
-                                          _selectedMission != null) {
-                                        final result = await showDialog<String>(
-                                          context: context,
-                                          builder: (context) => AlertDialog(
-                                            backgroundColor: Colors.grey[900],
-                                            title: Text(
-                                              'Unsaved Changes',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            content: Text(
-                                              'You have unsaved changes to this mission. Do you want to save them?',
-                                              style: TextStyle(
-                                                color: Colors.white70,
-                                              ),
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () => Navigator.pop(
-                                                    context, 'discard'),
-                                                child: Text(
-                                                  'Discard',
-                                                  style: TextStyle(
-                                                    color: Colors.red[400],
-                                                  ),
-                                                ),
-                                              ),
-                                              TextButton(
-                                                onPressed: () => Navigator.pop(
-                                                    context, 'save'),
-                                                child: Text(
-                                                  'Save',
-                                                  style: TextStyle(
-                                                    color: widget.modeColor,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-
-                                        if (result == 'save') {
-                                          // Save the current mission first
-                                          if (widget.currentMap != null &&
-                                              _missionNameController.text
-                                                  .trim()
-                                                  .isNotEmpty) {
-                                            final mission = Mission(
-                                              missionName:
-                                                  _missionNameController.text
-                                                      .trim(),
-                                              missionDescription:
-                                                  _missionDescController.text
-                                                      .trim(),
-                                              mapName: widget.currentMap!,
-                                              items: List.from(_missionItems),
-                                            );
-                                            final settingsProvider =
-                                                Provider.of<SettingsProvider>(
-                                                    context,
-                                                    listen: false);
-                                            settingsProvider
-                                                .saveMission(mission);
-
-                                            // Force mission path repaint by notifying the parent with current ordering
-                                            final orderedWaypoints =
-                                                _getWaypointsInMissionOrder();
-                                            if (orderedWaypoints.isNotEmpty) {
-                                              widget.onWaypointsLoaded(
-                                                  List<Waypoint>.from(
-                                                      orderedWaypoints));
-                                            }
-                                          }
-
-                                          // Now proceed with the new selection
-                                          _proceedWithMissionChange(value);
-                                          return;
-                                        } else if (result == 'discard') {
-                                          // Discard changes and proceed with new selection
-                                          _proceedWithMissionChange(value);
-                                          return;
-                                        } else {
-                                          return; // Dialog was dismissed, don't change mission
-                                        }
-                                      }
-
-                                      // No unsaved changes, proceed normally
-                                      _proceedWithMissionChange(value);
-                                    },
-                                  ),
-                                ),
-                              ),
-                              // Extended dropdown button with actions
-                              PopupMenuButton<String>(
-                                icon: Container(
-                                  padding: EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: widget.modeColor.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.more_horiz,
-                                    color: widget.modeColor,
-                                  ),
-                                ),
-                                offset: Offset(0, 10),
-                                color: Colors.grey[850],
-                                elevation: 8,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  side: BorderSide(
-                                    color: widget.modeColor.withOpacity(0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                                itemBuilder: (context) => [
-                                  if (_missionItems.isNotEmpty)
-                                    PopupMenuItem(
-                                      value: 'save',
-                                      height: 56,
-                                      child: Container(
-                                        padding:
-                                            EdgeInsets.symmetric(vertical: 8),
-                                        decoration: BoxDecoration(
-                                          border: Border(
-                                            bottom: _selectedMission != null
-                                                ? BorderSide(
-                                                    color: Colors.grey[700]!,
-                                                    width: 0.5)
-                                                : BorderSide.none,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              padding: EdgeInsets.all(8),
-                                              decoration: BoxDecoration(
-                                                color: widget.modeColor
-                                                    .withOpacity(0.15),
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
-                                              child: Icon(
-                                                Icons.save_outlined,
-                                                color: widget.modeColor,
-                                                size: 22,
-                                              ),
-                                            ),
-                                            SizedBox(width: 12),
-                                            Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  'Save Mission',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  'Save current waypoints and settings',
-                                                  style: TextStyle(
-                                                    color: Colors.grey[400],
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  if (_selectedMission != null)
-                                    PopupMenuItem(
-                                      value: 'delete',
-                                      height: 56,
-                                      child: Container(
-                                        padding:
-                                            EdgeInsets.symmetric(vertical: 8),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              padding: EdgeInsets.all(8),
-                                              decoration: BoxDecoration(
-                                                color: Colors.red[400]!
-                                                    .withOpacity(0.15),
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
-                                              child: Icon(
-                                                Icons.delete_outline,
-                                                color: Colors.red[400],
-                                                size: 22,
-                                              ),
-                                            ),
-                                            SizedBox(width: 12),
-                                            Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  'Delete Mission',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  'Remove this mission permanently',
-                                                  style: TextStyle(
-                                                    color: Colors.grey[400],
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                                onSelected: (value) {
-                                  if (value == 'delete') {
-                                    _confirmDeleteMission();
-                                  } else if (value == 'save') {
-                                    _showSaveMissionDialog();
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
+                        MissionSelector(
+                          selectedMission: _selectedMission,
+                          modeColor: widget.modeColor,
+                          missions: settingsProvider.missions.entries.where(
+                              (entry) =>
+                                  entry.value.mapName == widget.currentMap),
+                          hasMissionItems: _missionItems.isNotEmpty,
+                          onMissionChangeRequested:
+                              _handleMissionChangeRequested,
+                          onSaveSelected: _showSaveMissionDialog,
+                          onDeleteSelected: _confirmDeleteMission,
                         ),
                         // Clear All button
                         _buildClearAllButton(),
 
                         // Mission Items List
-                        _missionItems.isEmpty
-                            ? Container(
-                                height: 200, // Fixed height for empty state
-                                child: Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.list_alt,
-                                        size: 48,
-                                        color: Colors.grey[600],
-                                      ),
-                                      SizedBox(height: 12),
-                                      Text(
-                                        'No mission items yet',
-                                        style: TextStyle(
-                                          color: Colors.grey[400],
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      SizedBox(height: 8),
-                                      Text(
-                                        'Add items to build your mission',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: Colors.grey[500],
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            : ReorderableListView(
-                                scrollController: _scrollController,
-                                shrinkWrap: true,
-                                physics: ClampingScrollPhysics(),
-                                onReorder: _handleReorder,
-                                buildDefaultDragHandles: false,
-                                onReorderStart: (index) {
-                                  setState(() {
-                                    _isDragging = true;
-                                  });
-                                  _startDragPositionTracking();
-                                },
-                                onReorderEnd: (index) {
-                                  _stopAutoScroll();
-                                },
-                                children: [
-                                  for (int index = 0;
-                                      index < _missionItems.length;
-                                      index++)
-                                    Dismissible(
-                                      key: Key(_missionItems[index].id!),
-                                      direction: DismissDirection.endToStart,
-                                      background: Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.red[600],
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                        ),
-                                        alignment: Alignment.centerRight,
-                                        padding: EdgeInsets.only(right: 20),
-                                        child: Icon(
-                                          Icons.delete,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      confirmDismiss: (direction) async {
-                                        return await showDialog<bool>(
-                                              context: context,
-                                              builder: (context) => AlertDialog(
-                                                backgroundColor:
-                                                    Colors.grey[900],
-                                                title: Text(
-                                                  'Confirm Deletion',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                                content: Text(
-                                                  'Are you sure you want to delete this mission item?',
-                                                  style: TextStyle(
-                                                    color: Colors.white70,
-                                                  ),
-                                                ),
-                                                actions: [
-                                                  TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                            context, false),
-                                                    child: Text(
-                                                      'Cancel',
-                                                      style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                            context, true),
-                                                    child: Text(
-                                                      'Delete',
-                                                      style: TextStyle(
-                                                        color: Colors.red[400],
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ) ??
-                                            false;
-                                      },
-                                      onDismissed: (direction) {
-                                        final item = _missionItems[index];
-                                        if (item.type == MissionItemType.goto) {
-                                          // For GOTO items, find the corresponding waypoint index and delete it from parent
-                                          final waypointIndex = widget.waypoints
-                                              .indexWhere((waypoint) =>
-                                                  waypoint.id == item.id);
-                                          if (waypointIndex != -1) {
-                                            widget.onWaypointDeleted(
-                                                waypointIndex);
-                                          }
-                                        }
-                                        _deleteMissionItem(index);
-                                      },
-                                      child: Container(
-                                        margin:
-                                            const EdgeInsets.only(bottom: 8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey[800],
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                          border: Border.all(
-                                              color: Colors.grey[700]!),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            // Type color bar
-                                            Container(
-                                              width: 4,
-                                              height: 60,
-                                              decoration: BoxDecoration(
-                                                color: _missionItems[index]
-                                                    .type
-                                                    .color,
-                                                borderRadius: BorderRadius.only(
-                                                  topLeft: Radius.circular(16),
-                                                  bottomLeft:
-                                                      Radius.circular(16),
-                                                ),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              child: Padding(
-                                                padding: EdgeInsets.only(
-                                                    left: 0,
-                                                    right: 8,
-                                                    top: 8,
-                                                    bottom: 8),
-                                                child: GestureDetector(
-                                                  onTap: () {
-                                                    switch (_missionItems[index]
-                                                        .type) {
-                                                      case MissionItemType.wait:
-                                                        _showDurationPicker(
-                                                            context, index);
-                                                        break;
-                                                      case MissionItemType
-                                                            .publish:
-                                                        _showPublishItemDialog(
-                                                            context, index);
-                                                        break;
-                                                      case MissionItemType
-                                                            .callService:
-                                                        _showServiceItemDialog(
-                                                            context, index);
-                                                        break;
-                                                      case MissionItemType
-                                                            .callAction:
-                                                        _showActionItemDialog(
-                                                            context, index);
-                                                        break;
-                                                      case MissionItemType
-                                                            .apiCall:
-                                                        _showApiCallItemDialog(
-                                                            context, index);
-                                                        break;
-                                                      default:
-                                                        break;
-                                                    }
-                                                  },
-                                                  child: Container(
-                                                    height: 60,
-                                                    child: Row(
-                                                      children: [
-                                                        SizedBox(width: 8),
-                                                        // Icon with warning badge
-                                                        Stack(
-                                                          children: [
-                                                            Container(
-                                                              width: 40,
-                                                              height: 40,
-                                                              decoration:
-                                                                  BoxDecoration(
-                                                                color: _missionItems[
-                                                                        index]
-                                                                    .type
-                                                                    .color
-                                                                    .withOpacity(
-                                                                        0.2),
-                                                                borderRadius:
-                                                                    BorderRadius
-                                                                        .circular(
-                                                                            10),
-                                                              ),
-                                                              child: Center(
-                                                                child: Icon(
-                                                                  _missionItems[
-                                                                          index]
-                                                                      .type
-                                                                      .icon,
-                                                                  color: _missionItems[
-                                                                          index]
-                                                                      .type
-                                                                      .color,
-                                                                  size: 20,
-                                                                ),
-                                                              ),
-                                                            ),
-                                                            // Warning badge for structure changes
-                                                            if (_missionItems[
-                                                                    index]
-                                                                .hasStructureWarning)
-                                                              Positioned(
-                                                                right: 0,
-                                                                bottom: 0,
-                                                                child:
-                                                                    Container(
-                                                                  width: 16,
-                                                                  height: 16,
-                                                                  decoration:
-                                                                      BoxDecoration(
-                                                                    color: Colors
-                                                                        .amber,
-                                                                    shape: BoxShape
-                                                                        .circle,
-                                                                    border:
-                                                                        Border
-                                                                            .all(
-                                                                      color: Colors
-                                                                              .grey[
-                                                                          800]!,
-                                                                      width:
-                                                                          1.5,
-                                                                    ),
-                                                                  ),
-                                                                  child: Center(
-                                                                    child: Icon(
-                                                                      Icons
-                                                                          .warning,
-                                                                      color: Colors
-                                                                              .grey[
-                                                                          900],
-                                                                      size: 10,
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                          ],
-                                                        ),
-                                                        SizedBox(width: 12),
-                                                        // Text content
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .start,
-                                                            mainAxisAlignment:
-                                                                MainAxisAlignment
-                                                                    .center,
-                                                            children: [
-                                                              Row(
-                                                                children: [
-                                                                  // Item type with color
-                                                                  Text(
-                                                                    _missionItems[
-                                                                            index]
-                                                                        .type
-                                                                        .displayName,
-                                                                    style:
-                                                                        TextStyle(
-                                                                      color: _missionItems[
-                                                                              index]
-                                                                          .type
-                                                                          .color,
-                                                                      fontSize:
-                                                                          12,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .bold,
-                                                                    ),
-                                                                  ),
-                                                                  SizedBox(
-                                                                      width: 8),
-                                                                  Expanded(
-                                                                    child: Text(
-                                                                      _missionItems[
-                                                                              index]
-                                                                          .displayTitle,
-                                                                      style:
-                                                                          TextStyle(
-                                                                        color: Colors
-                                                                            .white,
-                                                                        fontSize:
-                                                                            14,
-                                                                        fontWeight:
-                                                                            FontWeight.w600,
-                                                                      ),
-                                                                      overflow:
-                                                                          TextOverflow
-                                                                              .ellipsis,
-                                                                    ),
-                                                                  ),
-                                                                  // Warning icon for structure changes
-                                                                  if (_missionItems[
-                                                                          index]
-                                                                      .hasStructureWarning)
-                                                                    Tooltip(
-                                                                      message:
-                                                                          'Message structure has changed since last save',
-                                                                      child:
-                                                                          Icon(
-                                                                        Icons
-                                                                            .warning_amber,
-                                                                        color: Colors
-                                                                            .amber,
-                                                                        size:
-                                                                            16,
-                                                                      ),
-                                                                    ),
-                                                                ],
-                                                              ),
-                                                              SizedBox(
-                                                                  height: 2),
-                                                              Text(
-                                                                _missionItems[
-                                                                        index]
-                                                                    .subtitle,
-                                                                style:
-                                                                    TextStyle(
-                                                                  color: Colors
-                                                                          .grey[
-                                                                      400],
-                                                                  fontSize: 12,
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                        // Drag handle
-                                                        ReorderableDragStartListener(
-                                                          index: index,
-                                                          child: Icon(
-                                                            Icons.drag_handle,
-                                                            color: Colors
-                                                                .grey[500],
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
+                        MissionItemList(
+                          items: _missionItems,
+                          scrollController: _scrollController,
+                          onReorder: _handleReorder,
+                          onReorderStart: () {
+                            setState(() {
+                              _isDragging = true;
+                            });
+                            _startDragPositionTracking();
+                          },
+                          onReorderEnd: _stopAutoScroll,
+                          onItemTap: _handleMissionItemTap,
+                          onDeleteConfirmed: _handleMissionItemDeleteConfirmed,
+                        ),
                         SizedBox(height: 20),
 
                         // Loading Indicator
@@ -4302,6 +970,88 @@ class WaypointPanelState extends State<WaypointPanel> {
         ),
       ],
     );
+  }
+
+  // The mission-selector dropdown's onChanged, extracted out of that inline
+  // closure when the dropdown itself moved into MissionSelector. Owns the
+  // full unsaved-changes-confirm -> conditional-save -> proceed decision
+  // tree, unchanged from the original.
+  void _handleMissionChangeRequested(String? value) async {
+    if (_hasUnsavedChanges && _selectedMission != null) {
+      final result = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: Text(
+            'Unsaved Changes',
+            style: TextStyle(
+              color: Colors.white,
+            ),
+          ),
+          content: Text(
+            'You have unsaved changes to this mission. Do you want to save them?',
+            style: TextStyle(
+              color: Colors.white70,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'discard'),
+              child: Text(
+                'Discard',
+                style: TextStyle(
+                  color: Colors.red[400],
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'save'),
+              child: Text(
+                'Save',
+                style: TextStyle(
+                  color: widget.modeColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (result == 'save') {
+        // Save the current mission first
+        if (widget.currentMap != null &&
+            _missionNameController.text.trim().isNotEmpty) {
+          final mission = Mission(
+            missionName: _missionNameController.text.trim(),
+            missionDescription: _missionDescController.text.trim(),
+            mapName: widget.currentMap!,
+            items: List.from(_missionItems),
+          );
+          final settingsProvider =
+              Provider.of<SettingsProvider>(context, listen: false);
+          settingsProvider.saveMission(mission);
+
+          // Force mission path repaint by notifying the parent with current ordering
+          final orderedWaypoints = _getWaypointsInMissionOrder();
+          if (orderedWaypoints.isNotEmpty) {
+            widget.onWaypointsLoaded(List<Waypoint>.from(orderedWaypoints));
+          }
+        }
+
+        // Now proceed with the new selection
+        _proceedWithMissionChange(value);
+        return;
+      } else if (result == 'discard') {
+        // Discard changes and proceed with new selection
+        _proceedWithMissionChange(value);
+        return;
+      } else {
+        return; // Dialog was dismissed, don't change mission
+      }
+    }
+
+    // No unsaved changes, proceed normally
+    _proceedWithMissionChange(value);
   }
 
   void _proceedWithMissionChange(String? value) async {
@@ -4480,17 +1230,112 @@ class WaypointPanelState extends State<WaypointPanel> {
     }
   }
 
+  /// Configures a LOOP item: repeat the whole mission a set number of times,
+  /// or forever. Placing this as the last item is the normal use, but the
+  /// engine only ever jumps back to index 0 — it doesn't care where the
+  /// item sits.
+  void _showLoopItemDialog(BuildContext context, int index) async {
+    bool forever = _missionItems[index].loopForever ?? false;
+    int count = (_missionItems[index].loopCount ?? 1).clamp(1, 999);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: Text('Configure Loop', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'When execution reaches this item, the mission restarts from '
+                'the beginning.',
+                style: TextStyle(color: Colors.grey[400], fontSize: 13),
+              ),
+              SizedBox(height: 16),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                activeColor: widget.modeColor,
+                title: Text('Repeat forever',
+                    style: TextStyle(color: Colors.white)),
+                value: forever,
+                onChanged: (v) => setStateDialog(() => forever = v),
+              ),
+              if (!forever) ...[
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text('Repeat count',
+                        style: TextStyle(color: Colors.white, fontSize: 14)),
+                    Spacer(),
+                    IconButton(
+                      icon: Icon(Icons.remove_circle_outline,
+                          color: widget.modeColor),
+                      onPressed: count > 1
+                          ? () => setStateDialog(() => count--)
+                          : null,
+                    ),
+                    SizedBox(
+                      width: 40,
+                      child: Text(
+                        '$count',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.add_circle_outline,
+                          color: widget.modeColor),
+                      onPressed: count < 999
+                          ? () => setStateDialog(() => count++)
+                          : null,
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('OK', style: TextStyle(color: widget.modeColor)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        _missionItems[index].loopForever = forever;
+        _missionItems[index].loopCount = count;
+        _trackChanges();
+      });
+    }
+  }
+
   void _showPublishItemDialog(BuildContext context, int index) {
     final item = _missionItems[index];
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _buildExpandableItemDialog(
-        'Configure Publish',
-        Icons.publish,
-        MissionItemType.publish.color,
-        (setStateDialog) => _buildPublishForm(item, index, setStateDialog),
+      builder: (context) => buildExpandableItemDialog(
+        title: 'Configure Publish',
+        icon: Icons.publish,
+        color: MissionItemType.publish.color,
+        formBuilder: (setStateDialog) =>
+            _buildPublishForm(item, index, setStateDialog),
+        provider: _ros2DataProvider,
       ),
     );
   }
@@ -4501,11 +1346,13 @@ class WaypointPanelState extends State<WaypointPanel> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _buildExpandableItemDialog(
-        'Configure Service',
-        Icons.settings,
-        MissionItemType.callService.color,
-        (setStateDialog) => _buildServiceForm(item, index, setStateDialog),
+      builder: (context) => buildExpandableItemDialog(
+        title: 'Configure Service',
+        icon: Icons.settings,
+        color: MissionItemType.callService.color,
+        formBuilder: (setStateDialog) =>
+            _buildServiceForm(item, index, setStateDialog),
+        provider: _ros2DataProvider,
       ),
     );
   }
@@ -4516,11 +1363,13 @@ class WaypointPanelState extends State<WaypointPanel> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _buildExpandableItemDialog(
-        'Configure Action',
-        Icons.play_arrow,
-        MissionItemType.callAction.color,
-        (setStateDialog) => _buildActionForm(item, index, setStateDialog),
+      builder: (context) => buildExpandableItemDialog(
+        title: 'Configure Action',
+        icon: Icons.play_arrow,
+        color: MissionItemType.callAction.color,
+        formBuilder: (setStateDialog) =>
+            _buildActionForm(item, index, setStateDialog),
+        provider: _ros2DataProvider,
       ),
     );
   }
@@ -4531,198 +1380,15 @@ class WaypointPanelState extends State<WaypointPanel> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _buildExpandableItemDialog(
-        'Configure API Call',
-        Icons.http,
-        MissionItemType.apiCall.color,
-        (setStateDialog) => _buildApiCallForm(item, index, setStateDialog),
+      builder: (context) => buildExpandableItemDialog(
+        title: 'Configure API Call',
+        icon: Icons.http,
+        color: MissionItemType.apiCall.color,
+        formBuilder: (setStateDialog) =>
+            _buildApiCallForm(item, index, setStateDialog),
+        provider: _ros2DataProvider,
       ),
     );
-  }
-
-  Widget _buildExpandableItemDialog(String title, IconData icon, Color color,
-      Widget Function(StateSetter) formBuilder) {
-    return StatefulBuilder(
-      builder: (context, setStateDialog) {
-        return Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: Container(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.85,
-              maxWidth: 700,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.grey[850],
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: Offset(0, -4),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                Column(
-                  mainAxisSize: MainAxisSize.max,
-                  children: [
-                    // Handle bar
-                    Container(
-                      margin: EdgeInsets.only(top: 12),
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[500],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    // Header with gradient background
-                    Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: Colors.grey[700]!,
-                            width: 1,
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: color.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: color.withOpacity(0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: Icon(icon, color: color, size: 24),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  title,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  'Configure your mission item settings',
-                                  style: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.grey[800],
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: IconButton(
-                              onPressed: () => Navigator.pop(context),
-                              icon: Icon(Icons.close, color: Colors.grey[400]),
-                              tooltip: 'Close',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Form content with better background
-                    Expanded(
-                      child: Container(
-                        color: Colors.grey[900],
-                        child: SingleChildScrollView(
-                          padding: EdgeInsets.all(24),
-                          child: formBuilder(setStateDialog),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                // Enhanced loading overlay
-                if (_ros2DataProvider?.isLoading ?? false)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(24),
-                        topRight: Radius.circular(24),
-                      ),
-                    ),
-                    child: Center(
-                      child: Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                        margin: EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[800],
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
-                              blurRadius: 10,
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(color),
-                              strokeWidth: 3,
-                            ),
-                            SizedBox(height: 12),
-                            Text(
-                              _getLoadingMessage(),
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  String _getLoadingMessage() {
-    if (_ros2DataProvider?.isLoadingTopics ?? false) return 'Loading topics...';
-    if (_ros2DataProvider?.isLoadingServices ?? false) {
-      return 'Loading services...';
-    }
-    if (_ros2DataProvider?.isLoadingActions ?? false) {
-      return 'Loading action servers...';
-    }
-    if (_ros2DataProvider?.isLoadingMessageStructure ?? false) {
-      return 'Loading message structure...';
-    }
-    return 'Loading...';
   }
 
   Widget _buildPublishForm(
@@ -4776,7 +1442,7 @@ class WaypointPanelState extends State<WaypointPanel> {
 
   Widget _buildApiCallForm(
       MissionItem item, int index, StateSetter setStateDialog) {
-    return _ApiCallFormContent(
+    return ApiCallForm(
       item: item,
       modeColor: MissionItemType.apiCall.color,
       onChanged: () {
@@ -4830,262 +1496,5 @@ class WaypointPanelState extends State<WaypointPanel> {
         Provider.of<MissionExecutionService>(context, listen: false);
 
     // Mission execution state changed - panel remains visible
-  }
-}
-
-/// Stateful API Call form so TextEditingControllers survive dialog rebuilds.
-class _ApiCallFormContent extends StatefulWidget {
-  final MissionItem item;
-  final Color modeColor;
-  final VoidCallback onChanged;
-
-  const _ApiCallFormContent({
-    required this.item,
-    required this.modeColor,
-    required this.onChanged,
-  });
-
-  @override
-  State<_ApiCallFormContent> createState() => _ApiCallFormContentState();
-}
-
-class _ApiCallFormContentState extends State<_ApiCallFormContent> {
-  static const _methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-
-  late final TextEditingController _urlController;
-  late final TextEditingController _headersController;
-  late final TextEditingController _bodyController;
-
-  @override
-  void initState() {
-    super.initState();
-    _urlController = TextEditingController(text: widget.item.apiUrl ?? '');
-    _headersController = TextEditingController(
-      text: _formatApiHeadersForEdit(widget.item.apiHeaders),
-    );
-    _bodyController = TextEditingController(text: widget.item.apiBody ?? '');
-  }
-
-  @override
-  void dispose() {
-    _urlController.dispose();
-    _headersController.dispose();
-    _bodyController.dispose();
-    super.dispose();
-  }
-
-  String _formatApiHeadersForEdit(Map<String, String>? headers) {
-    if (headers == null || headers.isEmpty) return '';
-    return headers.entries.map((e) => '${e.key}: ${e.value}').join('\n');
-  }
-
-  Map<String, String>? _parseApiHeaders(String raw) {
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) return null;
-
-    if (trimmed.startsWith('{')) {
-      try {
-        final decoded = jsonDecode(trimmed);
-        if (decoded is Map) {
-          return decoded.map(
-            (key, value) => MapEntry(key.toString(), value.toString()),
-          );
-        }
-      } catch (_) {
-        // Fall through to key:value parsing
-      }
-    }
-
-    final result = <String, String>{};
-    for (final line in trimmed.split('\n')) {
-      final lineTrimmed = line.trim();
-      if (lineTrimmed.isEmpty) continue;
-      final colonIndex = lineTrimmed.indexOf(':');
-      if (colonIndex <= 0) continue;
-      final key = lineTrimmed.substring(0, colonIndex).trim();
-      final value = lineTrimmed.substring(colonIndex + 1).trim();
-      if (key.isNotEmpty) {
-        result[key] = value;
-      }
-    }
-    return result.isEmpty ? null : result;
-  }
-
-  InputDecoration _fieldDecoration({required String hint, String? label}) {
-    return InputDecoration(
-      hintText: hint,
-      labelText: label,
-      labelStyle: TextStyle(color: Colors.grey[400]),
-      hintStyle: TextStyle(color: Colors.grey[600]),
-      filled: true,
-      fillColor: Colors.grey[850],
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey[600]!),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey[600]!),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: widget.modeColor, width: 1.5),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final item = widget.item;
-    final modeColor = widget.modeColor;
-    final selectedMethod =
-        _methods.contains((item.apiMethod ?? 'POST').toUpperCase())
-            ? (item.apiMethod ?? 'POST').toUpperCase()
-            : 'POST';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionCard(
-          title: 'Request',
-          icon: Icons.http,
-          color: modeColor,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 120,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey[850],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: modeColor.withOpacity(0.5)),
-                  ),
-                  child: DropdownButtonFormField<String>(
-                    value: selectedMethod,
-                    dropdownColor: Colors.grey[800],
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold),
-                    items: _methods
-                        .map((m) => DropdownMenuItem(
-                              value: m,
-                              child: Text(m),
-                            ))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val == null) return;
-                      setState(() {
-                        item.apiMethod = val;
-                      });
-                      widget.onChanged();
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  controller: _urlController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _fieldDecoration(
-                    hint: 'https://api.example.com/endpoint',
-                    label: 'URL',
-                  ),
-                  onChanged: (val) {
-                    item.apiUrl = val;
-                    widget.onChanged();
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        SectionCard(
-          title: 'Headers',
-          icon: Icons.list_alt,
-          color: modeColor,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'One header per line as key: value, or a JSON object',
-                style: TextStyle(color: Colors.grey[400], fontSize: 12),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _headersController,
-                style: const TextStyle(
-                    color: Colors.white, fontFamily: 'monospace', fontSize: 13),
-                maxLines: 4,
-                decoration: _fieldDecoration(
-                  hint:
-                      'Authorization: Bearer token\nContent-Type: application/json',
-                ),
-                onChanged: (val) {
-                  item.apiHeaders = _parseApiHeaders(val);
-                  widget.onChanged();
-                },
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        SectionCard(
-          title: 'Body',
-          icon: Icons.data_object,
-          color: modeColor,
-          child: TextFormField(
-            controller: _bodyController,
-            style: const TextStyle(
-                color: Colors.white, fontFamily: 'monospace', fontSize: 13),
-            maxLines: 8,
-            decoration: _fieldDecoration(
-              hint: '{\n  "key": "value"\n}',
-              label: 'JSON Body',
-            ),
-            onChanged: (val) {
-              item.apiBody = val;
-              widget.onChanged();
-            },
-          ),
-        ),
-        const SizedBox(height: 24),
-        SectionCard(
-          title: 'Response Options',
-          icon: Icons.timer,
-          color: modeColor,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Wait for Response',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Switch(
-                value: item.apiWaitForResponse ?? true,
-                onChanged: (v) {
-                  setState(() {
-                    item.apiWaitForResponse = v;
-                  });
-                  widget.onChanged();
-                },
-                activeColor: modeColor,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 }

@@ -4,6 +4,8 @@ import 'package:nav2_mission_planner/modals/mission.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../constants/default_settings.dart';
+import '../services/mission_sync_service.dart';
+import '../services/waypoint_sync_service.dart';
 import 'dart:convert';
 
 class SettingsProvider extends ChangeNotifier {
@@ -647,6 +649,7 @@ class SettingsProvider extends ChangeNotifier {
       ),
     );
     _saveSettings();
+    _syncWaypointsToRobot();
     notifyListeners();
   }
 
@@ -655,8 +658,24 @@ class SettingsProvider extends ChangeNotifier {
       if (index >= 0 && index < _bookmarks[mapName]!.length) {
         _bookmarks[mapName]!.removeAt(index);
         _saveSettings();
+        _syncWaypointsToRobot();
         notifyListeners();
       }
+    }
+  }
+
+  /// Mirrors the full bookmark set to the robot (see WaypointSyncService) —
+  /// called after every local mutation so the robot-side copy never drifts
+  /// from what this device just saved. A no-op before the service has been
+  /// initialized (no connection yet) or if the publish itself fails; local
+  /// SharedPreferences persistence above already succeeded regardless, so a
+  /// sync miss here just means the robot's copy is stale until the next
+  /// bookmark change, not a lost edit.
+  void _syncWaypointsToRobot() {
+    try {
+      WaypointSyncService.instance.pushAll(_bookmarks);
+    } catch (e) {
+      debugPrint('SettingsProvider: waypoint sync failed: $e');
     }
   }
 
@@ -691,6 +710,27 @@ class SettingsProvider extends ChangeNotifier {
       theta: theta,
       isDock: isDock,
     );
+    _saveSettings();
+    _syncWaypointsToRobot();
+    notifyListeners();
+  }
+
+  /// Replaces the local bookmark set wholesale with one just received FROM
+  /// the robot (WaypointSyncService) — the one-shot "adopt on a fresh
+  /// device" path, not a per-edit mutation. Persists locally like any other
+  /// change, but deliberately does NOT call _syncWaypointsToRobot(): this
+  /// data came from the robot in the first place, so publishing it back
+  /// would be a pointless round-trip, not a real update.
+  void adoptBookmarks(Map<String, List<Bookmark>> bookmarksByMap) {
+    _bookmarks = bookmarksByMap;
+    _saveSettings();
+    notifyListeners();
+  }
+
+  /// Same one-shot adoption as adoptBookmarks above, for missions received
+  /// from the robot (MissionSyncService) instead of pushed there.
+  void adoptMissions(Map<String, Mission> missionsByKey) {
+    _missions = missionsByKey;
     _saveSettings();
     notifyListeners();
   }
@@ -741,6 +781,7 @@ class SettingsProvider extends ChangeNotifier {
 
     _missions[uniqueKey] = mission;
     _saveSettings();
+    _syncMissionsToRobot();
     notifyListeners();
   }
 
@@ -755,7 +796,18 @@ class SettingsProvider extends ChangeNotifier {
     if (keyToRemove != null) {
       _missions.remove(keyToRemove);
       _saveSettings();
+      _syncMissionsToRobot();
       notifyListeners();
+    }
+  }
+
+  /// Mirrors the full mission set to the robot (see MissionSyncService) —
+  /// same reasoning as _syncWaypointsToRobot above.
+  void _syncMissionsToRobot() {
+    try {
+      MissionSyncService.instance.pushAll(_missions);
+    } catch (e) {
+      debugPrint('SettingsProvider: mission sync failed: $e');
     }
   }
 

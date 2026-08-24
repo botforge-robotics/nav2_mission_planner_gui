@@ -70,11 +70,25 @@ class MissionExecutionService extends ChangeNotifier {
   bool get isWaitingForResponse => _isWaitingForResponse;
   bool get isWaitingForResult => _isWaitingForResult;
 
+  /// Clears a stale failure so a dismissed "mission failed" banner doesn't
+  /// reappear until the next real failure. Doesn't touch `_isRunning`/
+  /// `_currentIndex` — this is purely acknowledging the error message.
+  void clearError() {
+    if (_error == null) return;
+    _error = null;
+    _broadcast();
+  }
+
   // Keep reference to active goal client so we can cancel cleanly
   GoalService? _activeGoalService;
 
   // Keep track of active periodic publishers to cancel when needed
   final List<Timer> _activePublishTimers = [];
+
+  // Remaining jump-backs for each LOOP item still to be honoured this run,
+  // keyed by MissionItem.id. Populated lazily the first time each loop item
+  // is reached so a fresh count starts every startMission() call.
+  final Map<String, int> _loopJumpsRemaining = {};
 
   /// Starts executing [mission].  If another mission is already running it will
   /// be ignored.
@@ -86,6 +100,7 @@ class MissionExecutionService extends ChangeNotifier {
     _isRunning = true;
     _isPaused = false;
     _error = null;
+    _loopJumpsRemaining.clear();
     _resetExecutionState();
     _broadcast();
 
@@ -98,6 +113,20 @@ class MissionExecutionService extends ChangeNotifier {
         }
 
         final item = mission.items[_currentIndex];
+
+        // LOOP is a control-flow item, not an action — handle it here so it
+        // can jump _currentIndex back to the start instead of just falling
+        // through to the plain increment below.
+        if (item.type == MissionItemType.loop) {
+          if (_shouldLoopAgain(item)) {
+            _currentIndex = 0;
+          } else {
+            _currentIndex++;
+          }
+          _broadcast();
+          continue;
+        }
+
         final success = await _executeMissionItem(context, item);
         if (!success) {
           _error = 'Failed to execute item ${_currentIndex + 1}';
@@ -222,6 +251,13 @@ class MissionExecutionService extends ChangeNotifier {
 
       case MissionItemType.apiCall:
         return await _handleApiCall(context, item);
+
+      case MissionItemType.loop:
+        // Handled directly in startMission()'s loop before this method is
+        // ever called — a LOOP item mutates _currentIndex itself, which a
+        // plain action item cannot do. Reached only if that dispatch is
+        // ever bypassed; treat as a no-op rather than fail the mission.
+        return true;
     }
   }
 
@@ -682,6 +718,29 @@ class MissionExecutionService extends ChangeNotifier {
     return _mission != null &&
         _currentIndex < _mission!.items.length &&
         identical(_mission!.items[_currentIndex], item);
+  }
+
+  /// Whether a LOOP item should jump execution back to the start of the
+  /// mission this time, or let it fall through to whatever comes after it.
+  ///
+  /// loopCount is the total number of times the mission body should run
+  /// (matching what the user types in the UI, e.g. "3" = 3 full runs), so
+  /// this only needs loopCount-1 jumps-back — the first run already
+  /// happened by the time execution reaches the item. Falls back to a
+  /// single run (no jump) if neither loopForever nor a usable loopCount is
+  /// set, rather than looping forever by accident.
+  bool _shouldLoopAgain(MissionItem item) {
+    if (item.loopForever == true) return true;
+
+    final jumpsNeeded = (item.loopCount ?? 1) - 1;
+    if (jumpsNeeded <= 0) return false;
+
+    final key = item.id ?? identityHashCode(item).toString();
+    final remaining = _loopJumpsRemaining.putIfAbsent(key, () => jumpsNeeded);
+    if (remaining <= 0) return false;
+
+    _loopJumpsRemaining[key] = remaining - 1;
+    return true;
   }
 
   void _broadcast() {

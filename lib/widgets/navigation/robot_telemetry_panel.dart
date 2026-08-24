@@ -85,7 +85,7 @@ class RobotTelemetryPanel extends StatelessWidget {
           else ...[
             _row('X', _metres(x)),
             _row('Y', _metres(y)),
-            _row('θ', _degrees(theta)),
+            _row('θ', _radians(theta)),
           ],
           const SizedBox(height: 8),
           _divider(),
@@ -107,8 +107,7 @@ class RobotTelemetryPanel extends StatelessWidget {
               teleopActive ? modeColor : Colors.white38,
             ),
             const SizedBox(height: 4),
-            _row('v', _speed(commandedLinear!, 'm/s'),
-                dimmed: !teleopActive),
+            _row('v', _speed(commandedLinear!, 'm/s'), dimmed: !teleopActive),
             _row('ω', _speed(commandedAngular!, 'rad/s'),
                 dimmed: !teleopActive),
           ],
@@ -128,15 +127,14 @@ class RobotTelemetryPanel extends StatelessWidget {
   static String _speed(double v, String unit) =>
       '${v.toStringAsFixed(3)} $unit';
 
-  static String _degrees(double rad) {
-    var deg = rad * 180.0 / math.pi;
-    // Normalize to (-180, 180]. Raw yaw can arrive as 359.4 or -0.6 for the
-    // same heading depending on the source, and one of those reads as "nearly
-    // a full turn away" when it is half a degree.
-    deg = (deg + 180.0) % 360.0;
-    if (deg < 0) deg += 360.0;
-    deg -= 180.0;
-    return '${deg.toStringAsFixed(1)}°';
+  static String _radians(double rad) {
+    // Normalize to (-pi, pi]. Raw yaw can arrive as 6.27 or -0.013 for the
+    // same heading depending on the source, and one of those reads as
+    // "nearly a full turn away" when it is a fraction of a radian.
+    var r = (rad + math.pi) % (2 * math.pi);
+    if (r < 0) r += 2 * math.pi;
+    r -= math.pi;
+    return '${r.toStringAsFixed(3)} rad';
   }
 
   // -- pieces --------------------------------------------------------------

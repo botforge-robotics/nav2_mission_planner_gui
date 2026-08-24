@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../theme/app_spacing.dart';
 
 class SettingCard extends StatelessWidget {
   final String title;
@@ -18,13 +19,19 @@ class SettingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      padding: EdgeInsets.all(screenSize.width * 0.02),
-      margin: EdgeInsets.only(bottom: screenSize.height * 0.01),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.grey.shade900,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: modeColor.withOpacity(0.3), width: 2),
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        border: Border(
+          left: BorderSide(color: modeColor, width: 3),
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+          right: BorderSide(color: theme.colorScheme.outlineVariant),
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -32,20 +39,15 @@ class SettingCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: modeColor,
-            ),
+            style: theme.textTheme.titleMedium,
           ),
+          const SizedBox(height: 2),
           Text(
             description,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
-          SizedBox(height: 5),
+          const SizedBox(height: AppSpacing.sm),
           content,
         ],
       ),

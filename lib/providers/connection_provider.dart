@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ros2_api/ros2_api.dart';
+import 'package:rosapi_msgs/srv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:nav2_mission_planner/modals/robotProfile.dart';
@@ -345,6 +346,92 @@ class ConnectionProvider extends ChangeNotifier {
   }
 
   bool get activeRobotNeedsSetup => _activeRobot?.isConfigured == false;
+
+  /// Ground truth for "what is the robot actually doing right now", read
+  /// straight off the ROS graph — not from anything this app (or any other
+  /// client) remembers locally. Returns 'navigation', 'mapping', or null
+  /// (idle/unknown).
+  ///
+  /// Same signal navpromini_sdk's mode.py reconcile_mode() uses: `/amcl`
+  /// only exists while navigation_launch.launch.py is up, `/slam_toolbox`
+  /// only while mapping is — true regardless of which client (this app, the
+  /// SDK, a bare `ros2 launch`) started it. This is deliberately a plain
+  /// rosapi call, not a dependency on the SDK server, so the app keeps
+  /// working with just rosbridge.
+  ///
+  /// Callers should treat a null/failed result as "don't know" and fall
+  /// back to whatever they'd otherwise do (e.g. a locally-remembered
+  /// screen) — this is a best-effort reconciliation, not a required gate.
+  Future<String?> detectRobotMode(
+      {Duration timeout = const Duration(seconds: 4)}) async {
+    if (!_isConnected || _ros2Client == null) return null;
+    try {
+      final client = ServiceClient<Nodes, NodesRequest, NodesResponse>(
+        ros2: _ros2Client!,
+        name: '/rosapi/nodes',
+        type: Nodes().fullType,
+        serviceType: Nodes(),
+        timeout: timeout.inSeconds.toDouble(),
+      );
+      final response = await client.call(NodesRequest()).timeout(timeout);
+      final names = response.nodes;
+      bool has(String node) => names.contains(node) || names.contains('/$node');
+      if (has('amcl')) return 'navigation';
+      if (has('slam_toolbox')) return 'mapping';
+      return null;
+    } catch (e) {
+      debugPrint('ConnectionProvider.detectRobotMode: $e');
+      return null;
+    }
+  }
+
+  /// Which map navigation_launch.launch.py actually loaded — read straight
+  /// off /map_server's own `yaml_filename` parameter, not guessed. Detecting
+  /// that navigation mode is active (detectRobotMode above) without this is
+  /// only half the picture: landing on the navigation screen but defaulting
+  /// to "whichever map sorts first" is still wrong if that isn't the map
+  /// actually running.
+  ///
+  /// rosapi's get_param wants "<node_name>:<param_name>" (colon-joined, see
+  /// rosapi_node's _get_node_and_param_name) and returns the value
+  /// JSON-encoded (rosapi's params.get_param does `json.dumps(value)`) —
+  /// for a string param that means a quoted string, hence the jsonDecode
+  /// below rather than using response.value directly.
+  ///
+  /// Returns just the map's base name (e.g. "office"), matching what
+  /// MapListService/the map picker use elsewhere — not the full yaml path
+  /// map_server itself stores.
+  Future<String?> detectActiveMapName(
+      {Duration timeout = const Duration(seconds: 4)}) async {
+    if (!_isConnected || _ros2Client == null) return null;
+    try {
+      final client = ServiceClient<GetParam, GetParamRequest, GetParamResponse>(
+        ros2: _ros2Client!,
+        name: '/rosapi/get_param',
+        type: GetParam().fullType,
+        serviceType: GetParam(),
+        timeout: timeout.inSeconds.toDouble(),
+      );
+      final response = await client
+          .call(GetParamRequest(name: '/map_server:yaml_filename'))
+          .timeout(timeout);
+      if (!response.successful || response.value.isEmpty) return null;
+
+      String path;
+      try {
+        path = jsonDecode(response.value) as String;
+      } catch (_) {
+        path = response.value; // fall back to the raw value if not JSON
+      }
+      final fileName = path.split('/').last;
+      return fileName.endsWith('.yaml')
+          ? fileName.substring(0, fileName.length - 5)
+          : fileName;
+    } catch (e) {
+      debugPrint('ConnectionProvider.detectActiveMapName: $e');
+      return null;
+    }
+  }
 }
 
 enum ConnectionState { connecting, connected, disconnecting, disconnected }

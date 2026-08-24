@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ros2_api/ros2_api.dart';
-import 'package:sensor_msgs/msg.dart' as sensor_msgs;
-import '../../providers/connection_provider.dart';
+import 'package:nav2_mission_planner/providers/connection_provider.dart';
+import 'package:nav2_mission_planner/providers/live_telemetry_provider.dart';
 
-/// Battery % from `/battery/state` (sensor_msgs/BatteryState.percentage).
-class TopStatusBattery extends StatefulWidget {
+/// Battery % from `/battery/state` (sensor_msgs/BatteryState.percentage),
+/// sourced from the shared [LiveTelemetryProvider] rather than opening its
+/// own subscription (that subscription used to be duplicated here and in
+/// [TopStatusTemperature] — both now read the same one).
+class TopStatusBattery extends StatelessWidget {
   final double height;
   final Color accentColor;
 
@@ -14,63 +16,6 @@ class TopStatusBattery extends StatefulWidget {
     required this.height,
     required this.accentColor,
   });
-
-  @override
-  State<TopStatusBattery> createState() => _TopStatusBatteryState();
-}
-
-class _TopStatusBatteryState extends State<TopStatusBattery> {
-  Subscriber<sensor_msgs.BatteryState>? _sub;
-  double? _percent; // 0–100
-  bool _subscribed = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final conn = Provider.of<ConnectionProvider>(context);
-    if (conn.isConnected && !_subscribed) {
-      _subscribe(conn);
-    } else if (!conn.isConnected && _subscribed) {
-      _unsubscribe();
-    }
-  }
-
-  void _subscribe(ConnectionProvider conn) {
-    try {
-      _sub?.shutdown();
-      _sub = Subscriber<sensor_msgs.BatteryState>(
-        name: '/battery/state',
-        type: sensor_msgs.BatteryState().fullType,
-        ros2: conn.ros2Client,
-        prototype: sensor_msgs.BatteryState(),
-        callback: (msg) {
-          // ROS BatteryState.percentage is usually 0.0–1.0; some stacks use 0–100.
-          var p = msg.percentage;
-          if (p.isNaN || p < 0) return;
-          if (p <= 1.0) p *= 100.0;
-          if (p > 100.0) p = 100.0;
-          if (!mounted) return;
-          setState(() => _percent = p);
-        },
-      );
-      _subscribed = true;
-    } catch (_) {
-      _subscribed = false;
-    }
-  }
-
-  void _unsubscribe() {
-    _sub?.shutdown();
-    _sub = null;
-    _subscribed = false;
-    if (mounted) setState(() => _percent = null);
-  }
-
-  @override
-  void dispose() {
-    _sub?.shutdown();
-    super.dispose();
-  }
 
   Color _batteryColor(double p) {
     if (p <= 15) return Colors.redAccent;
@@ -87,15 +32,17 @@ class _TopStatusBatteryState extends State<TopStatusBattery> {
 
   @override
   Widget build(BuildContext context) {
-    final conn = Provider.of<ConnectionProvider>(context);
-    if (!conn.isConnected) return const SizedBox.shrink();
+    final isConnected =
+        context.select<ConnectionProvider, bool>((conn) => conn.isConnected);
+    if (!isConnected) return const SizedBox.shrink();
 
-    final p = _percent;
+    final p =
+        context.select<LiveTelemetryProvider, double?>((t) => t.batteryPercent);
     final color = p == null ? Colors.white54 : _batteryColor(p);
     final label = p == null ? '—' : '${p.round()}%';
 
     return Container(
-      height: widget.height * 0.7,
+      height: height * 0.7,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       margin: const EdgeInsets.only(right: 4),
       child: Row(

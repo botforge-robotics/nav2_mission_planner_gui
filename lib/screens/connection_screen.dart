@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../providers/connection_provider.dart';
 import '../providers/branding_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/top_status_bar/top_status_bar.dart';
-import '../widgets/background_feature_cards.dart';
-import '../constants/modes.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_spacing.dart';
 import '../services/tf_service.dart';
 import '../services/pc_api_service.dart';
 import 'home_screen.dart';
@@ -223,22 +222,18 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        content: Center(
-          child: Column(
+      builder: (dialogContext) => Theme(
+        data: AppTheme.lightTheme,
+        child: AlertDialog(
+          content: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               CircularProgressIndicator(
                 color: Provider.of<BrandingProvider>(context, listen: false)
                     .themeColor,
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Connecting to $ip…',
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
+              const SizedBox(width: AppSpacing.lg),
+              Flexible(child: Text('Connecting to $ip…')),
             ],
           ),
         ),
@@ -303,8 +298,6 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final brand =
-        Provider.of<BrandingProvider>(context, listen: false).themeColor;
     final list = _robots.values.toList()
       ..sort((a, b) {
         // claimed / online first
@@ -313,376 +306,368 @@ class _ConnectionScreenState extends State<ConnectionScreen> {
         return a.ip.compareTo(b.ip);
       });
 
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      body: Stack(
-        children: [
-          const BackgroundFeatureCards(
-            cardCount: 12,
-            opacity: 0.25,
-            maxRotation: 30.0,
-          ),
-          if (_reconnecting)
-            Positioned.fill(
-              child: Container(
-                color: AppTheme.backgroundColor.withValues(alpha: 0.95),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(color: brand),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Reconnecting to ${Provider.of<ConnectionProvider>(context, listen: false).lastRobotName ?? Provider.of<ConnectionProvider>(context, listen: false).lastRobotIp}…',
-                        style:
-                            const TextStyle(color: Colors.white, fontSize: 16),
+    // Locally opted into the redesigned light theme rather than flipping
+    // main.dart's global theme — most other screens still render against
+    // AppTheme.darkTheme and haven't been restyled yet (see plan §1: ship
+    // light+dark side by side, flip the app-wide switch only once enough
+    // screens are migrated).
+    return Theme(
+      data: AppTheme.lightTheme,
+      child: Builder(builder: (context) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+
+        return Scaffold(
+          backgroundColor: AppColors.lightBackground,
+          body: Stack(
+            children: [
+              if (_reconnecting)
+                Positioned.fill(
+                  child: Container(
+                    color: AppColors.lightBackground.withValues(alpha: 0.96),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: colorScheme.primary),
+                          const SizedBox(height: AppSpacing.lg),
+                          Text(
+                            'Reconnecting to ${Provider.of<ConnectionProvider>(context, listen: false).lastRobotName ?? Provider.of<ConnectionProvider>(context, listen: false).lastRobotIp}…',
+                            style: theme.textTheme.bodyLarge,
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-          Column(
-            children: [
-              if (widget.showTopStatusBar)
-                TopStatusBar(
-                  currentMode: AppModes.mapping,
-                  onModeChanged: (_) {},
-                  statusText: 'Connect to Robot',
-                  statusColor: Colors.red,
-                  height: AppTheme.statusBarHeight,
-                  icon: FontAwesomeIcons.robot,
-                ),
-              Expanded(
-                child: SafeArea(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 20,
-                      ),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 440),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Text(
-                              'Connect to Robot',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Choose a robot, then connect (port $_defaultPort)',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.white.withValues(alpha: 0.65),
-                              ),
-                            ),
-                            const SizedBox(height: 22),
-
-                            // Robot list (single select)
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.08),
-                                ),
-                              ),
-                              child: Column(
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                        14, 12, 8, 8),
-                                    child: Row(
-                                      children: [
-                                        const Text(
-                                          'Robots',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        TextButton.icon(
-                                          onPressed:
-                                              (_scanning || _isLoading)
-                                                  ? null
-                                                  : _scanNearby,
-                                          icon: _scanning
-                                              ? SizedBox(
-                                                  width: 14,
-                                                  height: 14,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                    color: brand,
-                                                  ),
-                                                )
-                                              : Icon(Icons.radar,
-                                                  size: 16, color: brand),
-                                          label: Text(
-                                            _scanning ? 'Scanning…' : 'Scan',
-                                            style: TextStyle(color: brand),
-                                          ),
-                                        ),
-                                      ],
+              Column(
+                children: [
+                  if (widget.showTopStatusBar)
+                    const TopStatusBar(
+                      height: AppTheme.statusBarHeight,
+                    ),
+                  Expanded(
+                    child: SafeArea(
+                      child: Center(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xl,
+                            vertical: AppSpacing.xl,
+                          ),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 440),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Center(
+                                  child: Container(
+                                    padding:
+                                        const EdgeInsets.all(AppSpacing.md),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primaryContainer,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.smart_toy_outlined,
+                                      size: 28,
+                                      color: colorScheme.onPrimaryContainer,
                                     ),
                                   ),
-                                  if (list.isEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.fromLTRB(
-                                          16, 8, 16, 20),
-                                      child: Text(
-                                        _scanning
-                                            ? 'Looking for robots on the LAN…'
-                                            : 'No robots found — scan or enter an IP',
-                                        style: TextStyle(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.5),
-                                          fontSize: 13,
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                                Text(
+                                  'Connect to Robot',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.headlineSmall,
+                                ),
+                                const SizedBox(height: AppSpacing.xs),
+                                Text(
+                                  'Choose a robot, then connect (port $_defaultPort)',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.xl),
+
+                                // Robot list (single select)
+                                Card(
+                                  margin: EdgeInsets.zero,
+                                  clipBehavior: Clip.antiAlias,
+                                  child: Column(
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                            AppSpacing.md,
+                                            AppSpacing.sm,
+                                            AppSpacing.sm,
+                                            AppSpacing.sm),
+                                        child: Row(
+                                          children: [
+                                            Text(
+                                              'Robots',
+                                              style: theme.textTheme.titleSmall,
+                                            ),
+                                            const Spacer(),
+                                            TextButton.icon(
+                                              onPressed:
+                                                  (_scanning || _isLoading)
+                                                      ? null
+                                                      : _scanNearby,
+                                              icon: _scanning
+                                                  ? SizedBox(
+                                                      width: 14,
+                                                      height: 14,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color:
+                                                            colorScheme.primary,
+                                                      ),
+                                                    )
+                                                  : Icon(Icons.radar, size: 16),
+                                              label: Text(_scanning
+                                                  ? 'Scanning…'
+                                                  : 'Scan'),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    )
-                                  else
-                                    ...list.map((r) {
-                                      final selected = _selectedIp == r.ip;
-                                      return InkWell(
-                                        onTap: _isLoading
-                                            ? null
-                                            : () => _select(r.ip, r.port),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 12,
+                                      if (list.isEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                              AppSpacing.lg,
+                                              AppSpacing.sm,
+                                              AppSpacing.lg,
+                                              AppSpacing.xl),
+                                          child: Text(
+                                            _scanning
+                                                ? 'Looking for robots on the LAN…'
+                                                : 'No robots found — scan or enter an IP',
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                    color: colorScheme
+                                                        .onSurfaceVariant),
                                           ),
-                                          decoration: BoxDecoration(
-                                            color: selected
-                                                ? brand.withValues(alpha: 0.15)
-                                                : Colors.transparent,
-                                            border: Border(
-                                              top: BorderSide(
-                                                color: Colors.white
-                                                    .withValues(alpha: 0.06),
+                                        )
+                                      else
+                                        ...list.map((r) {
+                                          final selected = _selectedIp == r.ip;
+                                          return InkWell(
+                                            onTap: _isLoading
+                                                ? null
+                                                : () => _select(r.ip, r.port),
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: AppSpacing.md,
+                                                vertical: AppSpacing.md,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: selected
+                                                    ? colorScheme.primary
+                                                        .withValues(alpha: 0.08)
+                                                    : Colors.transparent,
+                                                border: Border(
+                                                  top: BorderSide(
+                                                    color:
+                                                        AppColors.lightOutline,
+                                                  ),
+                                                ),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    selected
+                                                        ? Icons
+                                                            .radio_button_checked
+                                                        : Icons
+                                                            .radio_button_off,
+                                                    color: selected
+                                                        ? colorScheme.primary
+                                                        : colorScheme
+                                                            .onSurfaceVariant,
+                                                    size: 20,
+                                                  ),
+                                                  const SizedBox(
+                                                      width: AppSpacing.md),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                          r.ip,
+                                                          style: theme.textTheme
+                                                              .bodyLarge
+                                                              ?.copyWith(
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          ':${r.port} · ${r.source}',
+                                                          style: theme.textTheme
+                                                              .bodySmall
+                                                              ?.copyWith(
+                                                            color: colorScheme
+                                                                .onSurfaceVariant,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  if (r.online ||
+                                                      (_claim?['ip'] == r.ip &&
+                                                          _claimedOnline))
+                                                    Container(
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                        horizontal:
+                                                            AppSpacing.sm,
+                                                        vertical: 3,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors
+                                                            .green.shade50,
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                                AppSpacing
+                                                                    .radiusMd),
+                                                      ),
+                                                      child: Text(
+                                                        'online',
+                                                        style: TextStyle(
+                                                          color: Colors
+                                                              .green.shade700,
+                                                          fontSize: 11,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
                                               ),
                                             ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                selected
-                                                    ? Icons.radio_button_checked
-                                                    : Icons
-                                                        .radio_button_off,
-                                                color: selected
-                                                    ? brand
-                                                    : Colors.white38,
-                                                size: 20,
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      r.ip,
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                      ),
-                                                    ),
-                                                    Text(
-                                                      ':${r.port} · ${r.source}',
-                                                      style: TextStyle(
-                                                        color: Colors.white
-                                                            .withValues(
-                                                                alpha: 0.45),
-                                                        fontSize: 12,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              if (r.online ||
-                                                  (_claim?['ip'] == r.ip &&
-                                                      _claimedOnline))
-                                                Container(
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 3,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.green
-                                                        .withValues(
-                                                            alpha: 0.2),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            10),
-                                                  ),
-                                                  child: const Text(
-                                                    'online',
-                                                    style: TextStyle(
-                                                      color:
-                                                          Colors.greenAccent,
-                                                      fontSize: 11,
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    }),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            // ONE primary connect
-                            SizedBox(
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed: (_isLoading ||
-                                        (_selectedIp == null ||
-                                            _selectedIp!.trim().isEmpty))
-                                    ? null
-                                    : _connect,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: brand,
-                                  foregroundColor: Colors.black,
-                                  disabledBackgroundColor:
-                                      brand.withValues(alpha: 0.35),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                          );
+                                        }),
+                                    ],
                                   ),
                                 ),
-                                child: Text(
-                                  _isLoading
-                                      ? 'Connecting…'
-                                      : (_selectedIp != null &&
-                                              _selectedIp!.isNotEmpty
-                                          ? 'Connect to $_selectedIp'
-                                          : 'Select a robot'),
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
 
-                            const SizedBox(height: 10),
+                                const SizedBox(height: AppSpacing.lg),
 
-                            // Secondary actions — no extra Connect
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                TextButton.icon(
-                                  onPressed: _selectedIp == null
-                                      ? null
-                                      : _copyLink,
-                                  icon: const Icon(Icons.copy, size: 16),
-                                  label: const Text('Copy link'),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.white70,
-                                  ),
-                                ),
-                                if (_claim != null) ...[
-                                  const Text('·',
-                                      style: TextStyle(color: Colors.white24)),
-                                  TextButton(
-                                    onPressed: _releaseClaim,
+                                // ONE primary connect
+                                SizedBox(
+                                  height: 52,
+                                  child: FilledButton(
+                                    onPressed: (_isLoading ||
+                                            (_selectedIp == null ||
+                                                _selectedIp!.trim().isEmpty))
+                                        ? null
+                                        : _connect,
                                     child: Text(
-                                      'Release claim',
-                                      style: TextStyle(
-                                          color: Colors.red.shade300),
+                                      _isLoading
+                                          ? 'Connecting…'
+                                          : (_selectedIp != null &&
+                                                  _selectedIp!.isNotEmpty
+                                              ? 'Connect to $_selectedIp'
+                                              : 'Select a robot'),
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(height: AppSpacing.sm),
+
+                                // Secondary actions — no extra Connect
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    TextButton.icon(
+                                      onPressed: _selectedIp == null
+                                          ? null
+                                          : _copyLink,
+                                      icon: const Icon(Icons.copy, size: 16),
+                                      label: const Text('Copy link'),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor:
+                                            colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                    if (_claim != null) ...[
+                                      Text('·',
+                                          style: TextStyle(
+                                              color:
+                                                  colorScheme.outlineVariant)),
+                                      TextButton(
+                                        onPressed: _releaseClaim,
+                                        child: Text(
+                                          'Release claim',
+                                          style: TextStyle(
+                                              color: Colors.red.shade400),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+
+                                const SizedBox(height: AppSpacing.xs),
+                                TextButton(
+                                  onPressed: () => setState(
+                                      () => _showManualIp = !_showManualIp),
+                                  child: Text(
+                                    _showManualIp
+                                        ? 'Hide manual IP'
+                                        : 'Enter IP manually',
+                                    style: TextStyle(
+                                      color: colorScheme.onSurfaceVariant,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+
+                                if (_showManualIp) ...[
+                                  const SizedBox(height: AppSpacing.sm),
+                                  TextField(
+                                    controller: ipController,
+                                    focusNode: _ipFocus,
+                                    keyboardType: TextInputType.url,
+                                    textInputAction: TextInputAction.go,
+                                    onChanged: (v) {
+                                      final t = v.trim();
+                                      if (t.isNotEmpty) {
+                                        setState(() {
+                                          _selectedIp = t;
+                                          _selectedPort = _defaultPort;
+                                        });
+                                      }
+                                    },
+                                    onSubmitted: (_) => _connect(),
+                                    decoration: const InputDecoration(
+                                      labelText: 'IP address',
+                                      hintText: '192.168.0.129',
+                                      prefixIcon: Icon(Icons.router),
                                     ),
                                   ),
                                 ],
                               ],
                             ),
-
-                            const SizedBox(height: 8),
-                            TextButton(
-                              onPressed: () => setState(
-                                  () => _showManualIp = !_showManualIp),
-                              child: Text(
-                                _showManualIp
-                                    ? 'Hide manual IP'
-                                    : 'Enter IP manually',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.55),
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-
-                            if (_showManualIp) ...[
-                              const SizedBox(height: 8),
-                              TextField(
-                                controller: ipController,
-                                focusNode: _ipFocus,
-                                style: const TextStyle(color: Colors.white),
-                                keyboardType: TextInputType.url,
-                                textInputAction: TextInputAction.go,
-                                onChanged: (v) {
-                                  final t = v.trim();
-                                  if (t.isNotEmpty) {
-                                    setState(() {
-                                      _selectedIp = t;
-                                      _selectedPort = _defaultPort;
-                                    });
-                                  }
-                                },
-                                onSubmitted: (_) => _connect(),
-                                decoration: InputDecoration(
-                                  labelText: 'IP address',
-                                  hintText: '192.168.0.129',
-                                  labelStyle:
-                                      TextStyle(color: Colors.grey.shade400),
-                                  filled: true,
-                                  fillColor:
-                                      Colors.white.withValues(alpha: 0.06),
-                                  prefixIcon: const Icon(Icons.router,
-                                      color: Colors.white54),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.1),
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(color: brand),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
+        );
+      }),
     );
   }
 }

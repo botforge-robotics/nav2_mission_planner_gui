@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../../constants/modes.dart';
+import '../../theme/app_spacing.dart';
 
 class CategoriesList extends StatelessWidget {
   final String selectedCategory;
@@ -14,33 +14,29 @@ class CategoriesList extends StatelessWidget {
     required this.screenSize,
   });
 
-  Color _getModeColor(BuildContext context, String category) {
-    switch (category) {
-      case 'Teleop':
-        return ModeColors.getModeColorMap(context)[AppModes.teleop]!;
-      case 'Robot':
-      case 'About':
-        return ModeColors.getModeColorMap(context)[AppModes.settings]!;
-      default:
-        return ModeColors.getModeColorMap(context)[AppModes.settings]!;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        // Hide Robot settings for now (keep code in settings_content.dart)
-        // _buildCategoryTile(
-        //   context,
-        //   icon: FontAwesomeIcons.robot,
-        //   title: 'Robot',
-        // ),
+        // Read-only locked-config summary — safe to show for the locked
+        // NavProMini deployment (see _RobotDefaults in settings_content.dart:
+        // it displays fixed topics/frames, nothing editable). Was hidden
+        // pending this redesign; re-enabled here.
+        _buildCategoryTile(
+          context,
+          icon: FontAwesomeIcons.robot,
+          title: 'Robot',
+        ),
         _buildCategoryTile(
           context,
           icon: FontAwesomeIcons.gamepad,
           title: 'Teleop',
+        ),
+        _buildCategoryTile(
+          context,
+          icon: FontAwesomeIcons.camera,
+          title: 'Sensor',
         ),
         _buildCategoryTile(
           context,
@@ -56,40 +52,42 @@ class CategoriesList extends StatelessWidget {
     required FaIconData icon,
     required String title,
   }) {
+    final theme = Theme.of(context);
     final isSelected = selectedCategory == title;
-    final modeColor = _getModeColor(context, title);
+    final color = theme.colorScheme.primary;
 
     return Container(
-      margin: EdgeInsets.symmetric(
-        horizontal: screenSize.width * 0.01,
-        vertical: screenSize.height * 0.01,
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: isSelected ? modeColor.withOpacity(0.2) : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        color: isSelected ? color.withValues(alpha: 0.12) : Colors.transparent,
       ),
       child: InkWell(
         onTap: () => onCategorySelected(title),
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
         child: Container(
-          height: 55,
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+          height: 48,
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.sm),
           child: Row(
             children: [
               FaIcon(
                 icon,
                 size: 14,
-                color: isSelected ? modeColor : Colors.grey,
+                color: isSelected ? color : theme.colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isSelected ? modeColor : Colors.grey,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color:
+                        isSelected ? color : theme.colorScheme.onSurfaceVariant,
                     fontWeight:
-                        isSelected ? FontWeight.bold : FontWeight.normal,
+                        isSelected ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ),

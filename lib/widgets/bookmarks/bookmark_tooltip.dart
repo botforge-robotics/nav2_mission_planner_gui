@@ -35,37 +35,11 @@ class BookmarkTooltip extends StatelessWidget {
     this.onUndock,
   });
 
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'undocked':
-        return 'Undocked';
-      case 'staging':
-        return 'Docking… (staging)';
-      case 'detecting':
-        return 'Docking… (detecting)';
-      case 'docking':
-        return 'Docking… (approaching)';
-      case 'waiting_for_charge':
-        return 'Docking… (confirming charge)';
-      case 'charging':
-        return 'Docked — charging';
-      case 'full':
-        return 'Docked — full charge';
-      case 'undocking':
-        return 'Undocking…';
-      case 'error':
-        return 'Dock error';
-      default:
-        return status;
-    }
-  }
-
-  Color _statusColor(String status) {
-    if (status == 'charging' || status == 'full') return Colors.green;
-    if (status == 'error') return Colors.red;
-    if (status == 'undocked') return Colors.grey[400]!;
-    return Colors.amber;
-  }
+  // Label/color now live on DockingService itself (statusLabel/statusColor)
+  // so every screen agrees on what each /dock_status string means — this
+  // was the only place that mapping lived before, which is how the
+  // Dashboard/Dock screens ended up falling through to "Undocked" for the
+  // 'error' status instead of surfacing it.
 
   @override
   Widget build(BuildContext context) {
@@ -116,21 +90,19 @@ class BookmarkTooltip extends StatelessWidget {
                           AnimatedBuilder(
                             animation: DockingService.instance,
                             builder: (context, _) {
-                              final status = DockingService.instance.status;
+                              final docking = DockingService.instance;
+                              final color = docking.statusColor(context);
                               return Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: _statusColor(status).withOpacity(0.15),
+                                  color: color.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(12),
-                                  border:
-                                      Border.all(color: _statusColor(status)),
+                                  border: Border.all(color: color),
                                 ),
                                 child: Text(
-                                  'Charging dock — ${_statusLabel(status)}',
-                                  style: TextStyle(
-                                      color: _statusColor(status),
-                                      fontSize: 11),
+                                  'Charging dock — ${docking.statusLabel}',
+                                  style: TextStyle(color: color, fontSize: 11),
                                 ),
                               );
                             },

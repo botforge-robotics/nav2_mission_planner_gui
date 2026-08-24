@@ -10,7 +10,8 @@ import 'services/mission_execution_service.dart';
 import 'services/device_service.dart';
 import 'services/secure_storage_service.dart';
 import 'providers/branding_provider.dart';
-import 'screens/connection_screen.dart';
+import 'providers/live_telemetry_provider.dart';
+import 'screens/onboarding/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,6 +72,14 @@ void main() async {
           },
         ),
         ChangeNotifierProvider(create: (_) => MissionExecutionService()),
+        ChangeNotifierProxyProvider<ConnectionProvider, LiveTelemetryProvider>(
+          create: (_) => LiveTelemetryProvider(),
+          update: (context, connectionProvider, previous) {
+            final telemetry = previous ?? LiveTelemetryProvider();
+            telemetry.updateConnection(connectionProvider);
+            return telemetry;
+          },
+        ),
         // ROS2DataProvider already exposes topics/services/actions; thin wrappers removed.
       ],
       child: const Nav2MissionPlanner(),
@@ -88,7 +97,7 @@ class Nav2MissionPlanner extends StatelessWidget {
       theme: AppTheme.darkTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
-      home: const ConnectionScreen(),
+      home: const OnboardingGate(),
       debugShowCheckedModeBanner: false,
     );
   }

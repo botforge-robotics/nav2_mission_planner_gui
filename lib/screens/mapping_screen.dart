@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:nav2_mission_planner/providers/settings_provider.dart';
 import 'package:nav2_mission_planner/widgets/save_map_dialog.dart';
 import 'package:provider/provider.dart';
+import '../providers/connection_provider.dart';
+import '../providers/live_telemetry_provider.dart';
 import '../services/launch_service.dart';
 import '../widgets/sensors/joystick_thumb_widget.dart';
 import '../widgets/occupancy_grid_viewer.dart';
@@ -32,12 +34,89 @@ class _MappingScreenState extends State<MappingScreen> {
   void initState() {
     super.initState();
     TFService.instance.initialize(context);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _restoreIfAlreadyActive());
   }
 
   @override
   void dispose() {
     _mapWidget = null;
     super.dispose();
+  }
+
+  /// Landing on this screen (fresh connect, app reopen/refresh) doesn't mean
+  /// slam_toolbox isn't already running — a previous session may have
+  /// started mapping and left it running robot-side, or another client did.
+  /// Without this, _isMappingActive stays at its default false and the UI
+  /// shows "Start Mapping" over a stack that's actually already up.
+  ///
+  /// Same ground-truth check HomeScreen uses to decide which screen to land
+  /// on (ConnectionProvider.detectRobotMode() — /slam_toolbox node
+  /// presence), called again here since this screen's own "started" UI is
+  /// separate state from which screen is showing.
+  Future<void> _restoreIfAlreadyActive() async {
+    final connectionProvider =
+        Provider.of<ConnectionProvider>(context, listen: false);
+
+    // Retry rather than a single check — this runs right at connect, when
+    // rosbridge/rosapi can still be settling, and a race there looks
+    // identical to "mapping really isn't running" with no second chance.
+    const maxAttempts = 4;
+    const retryDelay = Duration(seconds: 2);
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (!mounted || _isMappingActive) return;
+      final detected = await connectionProvider.detectRobotMode();
+      if (!mounted || _isMappingActive) return;
+      if (detected == 'mapping') {
+        setState(() {
+          _isMappingStarted = true;
+          _isMappingActive = true;
+          _mapWidget = _buildMapWidget();
+        });
+        return;
+      }
+      if (detected == 'navigation') return; // definitively not mapping
+      if (attempt < maxAttempts) {
+        await Future.delayed(retryDelay);
+      }
+    }
+  }
+
+  Widget _buildMapWidget() {
+    return GestureDetector(
+      onScaleStart: (details) {
+        _previousScale = _scale;
+      },
+      onScaleUpdate: (details) {
+        setState(() {
+          _scale = (_previousScale * details.scale).clamp(0.5, 5.0);
+          if (details.pointerCount == 1) {
+            final delta = details.focalPoint - details.localFocalPoint;
+            _offset = delta;
+          }
+        });
+      },
+      onScaleEnd: (_) {
+        _previousScale = _scale;
+      },
+      child: Transform.translate(
+        offset: _offset,
+        child: OccupancyGridViewer(
+          key: const ValueKey('mapping_viewer'),
+          topic: '/map',
+          enabled: true,
+          scale: _scale,
+          appModeColor: widget.modeColor,
+          showMarkers: false,
+          robotPositionStrem: TFService.instance.robotPositionStream,
+          onScaleChanged: (newScale) {
+            setState(() {
+              _scale = newScale;
+            });
+          },
+        ),
+      ),
+    );
   }
 
   // Robot position is now handled by TFService
@@ -104,44 +183,7 @@ class _MappingScreenState extends State<MappingScreen> {
                           setState(() {
                             _isMappingStarted = true;
                             _isMappingActive = true;
-                            // Create the widget now that mapping is started
-                            _mapWidget = GestureDetector(
-                              onScaleStart: (details) {
-                                _previousScale = _scale;
-                              },
-                              onScaleUpdate: (details) {
-                                setState(() {
-                                  _scale = (_previousScale * details.scale)
-                                      .clamp(0.5, 5.0);
-                                  if (details.pointerCount == 1) {
-                                    final delta = details.focalPoint -
-                                        details.localFocalPoint;
-                                    _offset = delta;
-                                  }
-                                });
-                              },
-                              onScaleEnd: (_) {
-                                _previousScale = _scale;
-                              },
-                              child: Transform.translate(
-                                offset: _offset,
-                                child: OccupancyGridViewer(
-                                  key: const ValueKey('mapping_viewer'),
-                                  topic: '/map',
-                                  enabled: true,
-                                  scale: _scale,
-                                  appModeColor: widget.modeColor,
-                                  showMarkers: false,
-                                  robotPositionStrem:
-                                      TFService.instance.robotPositionStream,
-                                  onScaleChanged: (newScale) {
-                                    setState(() {
-                                      _scale = newScale;
-                                    });
-                                  },
-                                ),
-                              ),
-                            );
+                            _mapWidget = _buildMapWidget();
                           });
                         }
                       },
@@ -193,7 +235,16 @@ class _MappingScreenState extends State<MappingScreen> {
                   color: Colors.black.withOpacity(0.3),
                   shape: BoxShape.circle,
                 ),
-                child: JoystickThumbWidget(modeColor: widget.modeColor),
+                child: JoystickThumbWidget(
+                  modeColor: widget.modeColor,
+                  // Shared with screens that don't own a joystick
+                  // (Dashboard, Robot Status) so they can read "is teleop
+                  // active" from one place — see LiveTelemetryProvider.
+                  onCommand: (linear, angular) {
+                    Provider.of<LiveTelemetryProvider>(context, listen: false)
+                        .reportTeleopCommand(linear, angular);
+                  },
+                ),
               ),
             ),
 
