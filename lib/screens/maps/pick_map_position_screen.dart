@@ -5,9 +5,9 @@ import '../../providers/connection_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/map/occupancy_grid_view.dart';
 
-/// A full-screen "tap and drag on the map to set a position and heading"
-/// picker, returning `(x, y, theta)` via `Navigator.pop` — or null if
-/// cancelled. Reused by Mission Editor's "Add Position" step (the
+/// A full-screen "tap the map to set a position, drag the handle to set
+/// its heading" picker, returning `(x, y, theta)` via `Navigator.pop` — or
+/// null if cancelled. Reused by Mission Editor's "Add Position" step (the
 /// reference mockup's own option) rather than duplicating Map View's own
 /// pose-picking UI a second time.
 class PickMapPositionScreen extends StatefulWidget {
@@ -55,8 +55,8 @@ class _PickMapPositionScreenState extends State<PickMapPositionScreen> {
                         children: [
                           Text(
                             _draft != null
-                                ? 'Drag to fine-tune the heading, then confirm.'
-                                : "Tap and drag on the map to set the step's position and heading.",
+                                ? 'Drag the handle to set the heading, then confirm.'
+                                : "Tap the map to set the step's position.",
                             textAlign: TextAlign.center,
                             style:
                                 const TextStyle(color: AppColors.textSecondary),

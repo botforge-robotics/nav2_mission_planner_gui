@@ -131,7 +131,15 @@ Future<void> showDockActionSheet({
             : s['operation'] == 'docked'
                 ? 'Docked.'
                 : 'Undocked.',
-        timeout: const Duration(seconds: 60),
+        // Must not be shorter than the SDK's own patience for the
+        // operation — handlers/docking.py: await_dock_result's default
+        // timeout=600.0, await_undock_result's timeout=180.0. A real dock
+        // attempt commonly runs several search/approach/back-off cycles
+        // well past a minute before either succeeding or genuinely giving
+        // up (confirmed live) — the old 60s here gave up (silently, per
+        // watchAndReportOutcome's own doc) and dropped the busy state
+        // while dock_manager was still actively working.
+        timeout: Duration(seconds: choice == 'dock' ? 620 : 200),
       );
     },
   );

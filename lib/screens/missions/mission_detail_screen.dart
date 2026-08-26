@@ -384,6 +384,7 @@ class _RouteMapCard extends StatelessWidget {
               ros2: ros2,
               interactive: false,
               locations: pins,
+              fitWholeMap: true,
             ),
           ),
         ),

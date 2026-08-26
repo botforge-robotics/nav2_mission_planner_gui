@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:nav_msgs/msg.dart' as nav_msgs;
 import 'package:ros2_api/ros2_api.dart';
+import 'package:tf2_msgs/msg.dart' as tf2_msgs;
 
 import '../../theme/app_theme.dart';
 import '../design/fade_in.dart';
@@ -36,6 +37,31 @@ Offset _pixelToWorld(nav_msgs.OccupancyGrid baseGrid, Offset px) {
   return Offset(x, y);
 }
 
+double _yawOf(geometry_msgs.Quaternion q) =>
+    atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
+
+/// A rigid 2D transform (rotation + translation, no scale) — used here for
+/// the live `map` -> `odom` transform (see [OccupancyGridView]'s class doc
+/// on why the local costmap specifically needs it).
+typedef _RigidTransform2D = ({double x, double y, double theta});
+
+/// The marker's dot+cone size, before [OccupancyGridView]'s zoom
+/// counter-scale — [_drawRobotMarker]'s own default, so the live robot and
+/// the draft marker shown while picking a pose/location are guaranteed the
+/// same size instead of two numbers that happen to match today. Also used
+/// by the picking State to anchor the heading handle to the draft marker's
+/// own cone tip (see [_OccupancyGridViewState]'s posePicking branch), so
+/// that stays in lock-step with whatever size is drawn too.
+///
+/// Previously the draft marker used its own, smaller pair (7/20 vs the live
+/// marker's 9/26) — on a screen that opens straight into picking mode with
+/// no prior zoom (Add Position, and Map View's own pose-picking before the
+/// operator has zoomed at all), the counter-scale hasn't shrunk anything
+/// yet, so the marker draws at this raw size directly — and 9/26 read as
+/// oversized against the map at that point. Unified on the smaller pair.
+const _draftDotRadius = 7.0;
+const _draftConeRadius = 20.0;
+
 /// Live occupancy-grid renderer, shared by the Dashboard's small preview and
 /// the full Map View screen — same rendering, different size/interactivity.
 ///
@@ -50,6 +76,19 @@ Offset _pixelToWorld(nav_msgs.OccupancyGrid baseGrid, Offset px) {
 /// to share the base map's footprint — the local costmap in particular is a
 /// small window around the robot, not the whole map.
 ///
+/// The two costmaps also don't share a *frame*: the global costmap is
+/// published in `map`, same as the base grid, but Nav2's local costmap is
+/// deliberately published in `odom` (standard practice — it keeps local
+/// planning smooth across AMCL's discrete pose corrections instead of
+/// jumping with them). Nav2's rolling-window costmap never rotates its own
+/// cells, so the local costmap's `info.origin` carries no rotation of its
+/// own — but `odom` and `map` themselves can differ by a rotation (AMCL
+/// corrects heading drift, not just position), which was previously just
+/// dropped: the local costmap was drawn as if `odom` and `map` were always
+/// identical, which is only ever exactly true the instant they happen to
+/// agree. Subscribing to `/tf` and tracking the live `map`->`odom` edge
+/// (see `_onTf`/`_mapOdomTransform`) fixes this — see `_drawCostmapLayer`.
+///
 /// Draws several other real, live overlays when asked: the robot's own pose
 /// (`/amcl_pose`), its saved dock pose (`/dock_pose`, TRANSIENT_LOCAL — same
 /// ROS-native subscription pattern as `/map`, not routed through the SDK),
@@ -63,15 +102,32 @@ Offset _pixelToWorld(nav_msgs.OccupancyGrid baseGrid, Offset px) {
 /// `show*` flag, so a "Layers" panel can hide/show each independently
 /// without tearing down subscriptions.
 ///
-/// [posePicking] swaps the normal pan/zoom InteractiveViewer out for a
-/// static, fit-to-screen view with its own tap+drag recognizer — a
-/// deliberate choice over trying to disable InteractiveViewer's own
-/// recognizer in place: Flutter still runs that recognizer even with
-/// panEnabled/scaleEnabled false (its own doc comment says so), so nesting
-/// a second pan recognizer inside it risks a gesture-arena conflict. A
-/// clean swap avoids that risk entirely, at the cost of losing whatever
-/// pan/zoom the user had — reasonable for "pick a point", which wants the
-/// whole map visible anyway.
+/// [posePicking] keeps the normal pan/zoom InteractiveViewer live — a
+/// picker that can't be zoomed or panned to line a pin up precisely isn't
+/// usable on anything but a small map. What it can't do is reuse
+/// InteractiveViewer's own single tap+drag gesture for placing a pose:
+/// nesting a second pan recognizer inside InteractiveViewer risks a
+/// gesture-arena conflict (Flutter still runs InteractiveViewer's own
+/// recognizer even with panEnabled/scaleEnabled false — its own doc
+/// comment says so). So picking is split into two gestures instead of one:
+/// a plain tap places the draft position (coexists with InteractiveViewer
+/// the same way the non-picking branch's location/dock tap already does —
+/// see [_handleMapTap]), then a small dedicated heading handle appears at
+/// that position; dragging *it* sets the heading. The handle is a
+/// `HitTestBehavior.opaque` hit target positioned as a *sibling* of
+/// InteractiveViewer (via `CompositedTransformTarget`/`Follower` — see
+/// [_handleLink] — tracking the marker through Center + InteractiveViewer's
+/// transform, without itself being nested inside either), which blocks
+/// hit-testing to whatever's behind it within its own small bounds — so a
+/// drag starting on the handle never reaches InteractiveViewer's pan
+/// recognizer at all, and there's no arena race to resolve. A widget
+/// nested *inside* InteractiveViewer's own transformed child wouldn't get
+/// that protection — ancestor gesture recognizers still see every pointer
+/// that lands within their bounds regardless of what a descendant claims,
+/// hit-test opacity only prunes *siblings* — which is why the handle lives
+/// outside it despite needing to visually track something inside it.
+/// Everywhere else on the map, hits fall through to InteractiveViewer
+/// exactly as normal.
 ///
 /// When not [interactive] (the Dashboard's live preview, Maps List's
 /// thumbnail), the zoom level always fits the map's width to the
@@ -102,11 +158,21 @@ class OccupancyGridView extends StatefulWidget {
     this.onDockTap,
     this.showLocalizationBadge = true,
     this.dockPoseOverride,
+    this.fitWholeMap = false,
   });
 
   final Ros2 ros2;
   final bool interactive;
   final bool showRobot;
+
+  /// Thumbnail mode ([interactive] false) only. Default behaviour fits the
+  /// map's width and, if it's still taller than the container, crops and
+  /// pans vertically to keep the robot centred (the Dashboard mini-map:
+  /// "where is the robot right now"). Set true to fit the WHOLE map inside
+  /// the container instead — never crops, letterboxes on whichever axis has
+  /// slack — for previews where every pin/waypoint needs to stay visible
+  /// regardless of where the robot happens to be (a mission's route).
+  final bool fitWholeMap;
 
   /// Subscribe to and draw the robot's saved dock pose.
   final bool showDock;
@@ -138,10 +204,11 @@ class OccupancyGridView extends StatefulWidget {
   /// interaction mode rather than layering on top of InteractiveViewer.
   final bool posePicking;
 
-  /// Called continuously while picking (on each drag update) and once more
-  /// on release, with the map-frame pose implied by the current drag. Never
-  /// called with a stale value — the parent always has the latest draft to
-  /// submit when the operator confirms.
+  /// Called once when a position is tapped (heading defaults to 0), and
+  /// again on every update while the heading handle is being dragged, with
+  /// the map-frame pose implied so far. Never called with a stale value —
+  /// the parent always has the latest draft to submit when the operator
+  /// confirms.
   final void Function(double x, double y, double theta)? onDraftPose;
 
   /// Called with a saved location's own map (same shape as [locations]'
@@ -187,6 +254,15 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   Subscriber<nav_msgs.Path>? _pathSub;
   Subscriber<nav_msgs.OccupancyGrid>? _globalCostmapSub;
   Subscriber<nav_msgs.OccupancyGrid>? _localCostmapSub;
+  Subscriber<tf2_msgs.TFMessage>? _tfSub;
+
+  /// The live `map` -> `odom` transform, tracked only while the local
+  /// costmap is shown (it's the only thing here that needs it — see the
+  /// class doc). Null until the first `/tf` message carrying that specific
+  /// edge arrives (e.g. before AMCL has published one at all), in which
+  /// case the local costmap falls back to the old odom==map assumption
+  /// rather than not drawing at all.
+  _RigidTransform2D? _mapOdomTransform;
 
   nav_msgs.OccupancyGrid? _grid;
   ui.Image? _image;
@@ -218,6 +294,30 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   Offset? _draftPixel;
   double _draftYaw = 0;
 
+  /// Marks the actual painted map image (the `CustomPaint` built by
+  /// `contentFor`) so [_globalToContent] can convert a raw pointer position
+  /// into content-pixel space via its real `RenderBox`, rather than
+  /// re-deriving the transform from [_controller.value] by hand — that
+  /// hand-rolled version ignored the `Center` this content is wrapped in
+  /// (needed so a map smaller than the viewport starts centred, not pinned
+  /// to the top-left), silently placing every picked position off by
+  /// however far `Center` had shifted the image — confirmed live: on a map
+  /// smaller than the viewport, enough to land the picked position outside
+  /// the map entirely. Going through the real `RenderBox` is correct
+  /// regardless of `Center`, `InteractiveViewer`'s transform, or anything
+  /// else in between, since it reflects however the tree actually laid out
+  /// and painted, not a re-derivation of it. Reused by both [posePicking]
+  /// and the plain [interactive] branch's own [_handleMapTap].
+  final _contentBoxKey = GlobalKey();
+
+  /// Anchors the heading handle (see [posePicking]'s picking branch) to the
+  /// draft marker's actual painted position via Flutter's compositing layer
+  /// (`CompositedTransformTarget`/`Follower`) instead of computing that
+  /// position by hand — the same class of bug [_contentBoxKey] fixes for
+  /// taps applied to *where the handle itself ends up drawn*: get it from
+  /// Flutter's own transform pipeline, don't re-derive it.
+  final _handleLink = LayerLink();
+
   TransformationController? _ownedController;
   TransformationController get _controller =>
       widget.transformationController ??
@@ -232,6 +332,10 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     // map under InteractiveViewer's zoom, quickly overwhelming the view at
     // high zoom instead of staying a legible, constant-size "you are here".
     _controller.addListener(_onViewTransformChanged);
+    _subscribeAll();
+  }
+
+  void _subscribeMap() {
     _mapSub = Subscriber<nav_msgs.OccupancyGrid>(
       name: '/map',
       type: nav_msgs.OccupancyGrid().fullType,
@@ -242,11 +346,33 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       qos: const {'durability': 'transient_local'},
       callback: _onGrid,
     );
+  }
+
+  void _subscribeAll() {
+    _subscribeMap();
     if (widget.showRobot) _subscribeRobot();
     if (widget.showDock) _subscribeDock();
     if (widget.showPath) _subscribePath();
     if (widget.showGlobalCostmap) _subscribeGlobalCostmap();
     if (widget.showLocalCostmap) _subscribeLocalCostmap();
+  }
+
+  void _unsubscribeAll() {
+    _mapSub?.unsubscribe();
+    _mapSub = null;
+    _poseSub?.unsubscribe();
+    _poseSub = null;
+    _dockSub?.unsubscribe();
+    _dockSub = null;
+    _pathSub?.unsubscribe();
+    _pathSub = null;
+    _globalCostmapSub?.unsubscribe();
+    _globalCostmapSub = null;
+    _localCostmapSub?.unsubscribe();
+    _localCostmapSub = null;
+    _tfSub?.unsubscribe();
+    _tfSub = null;
+    _mapOdomTransform = null;
   }
 
   // Each show* flag can flip after this widget is already mounted — a
@@ -310,11 +436,64 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       prototype: nav_msgs.OccupancyGrid(),
       callback: (grid) => _onCostmap(grid, isGlobal: false),
     );
+    // See the class doc: the local costmap is in `odom`, not `map` — this
+    // is what lets _drawCostmapLayer place it correctly instead of
+    // assuming the two frames are always identical.
+    _tfSub = Subscriber<tf2_msgs.TFMessage>(
+      name: '/tf',
+      type: tf2_msgs.TFMessage().fullType,
+      ros2: widget.ros2,
+      prototype: tf2_msgs.TFMessage(),
+      callback: _onTf,
+    );
+  }
+
+  void _onTf(tf2_msgs.TFMessage msg) {
+    for (final t in msg.transforms) {
+      if (t.header.frame_id == 'map' && t.child_frame_id == 'odom') {
+        final tr = t.transform;
+        if (mounted) {
+          setState(() => _mapOdomTransform = (
+                x: tr.translation.x,
+                y: tr.translation.y,
+                theta: _yawOf(tr.rotation),
+              ));
+        }
+        return; // /tf carries many other edges (odom->base_link at a much
+        // higher rate in particular) — nothing else here is relevant.
+      }
+    }
   }
 
   @override
   void didUpdateWidget(covariant OccupancyGridView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.ros2 != oldWidget.ros2) {
+      // ConnectionProvider.reconnect() (the app's "Retry" affordance) closes
+      // the old Ros2 and swaps in a brand new instance — but this State
+      // object survives that rebuild, and every Subscriber above was bound
+      // to the *old* one at initState() time. Left alone, they're
+      // permanently dead: the map/robot/dock/path/costmaps here would never
+      // update again, even though the new connection is live and every
+      // other (freshly-mounted) screen using it works fine. Tear down and
+      // resubscribe fresh, and drop cached data from the old connection so
+      // a stale frame doesn't linger on screen while the new one is still
+      // catching up.
+      _unsubscribeAll();
+      setState(() {
+        _grid = null;
+        _image = null;
+        _pose = null;
+        _dockPose = null;
+        _path = null;
+        _globalCostmap = null;
+        _localCostmap = null;
+      });
+      _subscribeAll();
+      return; // the show*-flag diffing below is redundant with the fresh
+      // subscribeAll() above, and would just be reasoning about
+      // subscriptions that no longer exist.
+    }
     if (widget.showRobot != oldWidget.showRobot) {
       if (widget.showRobot) {
         _subscribeRobot();
@@ -358,6 +537,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         _localCostmapSub?.unsubscribe();
         _localCostmapSub = null;
         _localCostmap = null;
+        _tfSub?.unsubscribe();
+        _tfSub = null;
+        _mapOdomTransform = null;
       }
     }
   }
@@ -472,21 +654,53 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     });
   }
 
-  void _onPanStart(DragStartDetails d) {
+  /// Converts a raw global pointer position into the base map's own
+  /// content-pixel space — the space [_draftPixel], [_pixelToWorld], and
+  /// the painted image itself all already share — via [_contentBoxKey]'s
+  /// real `RenderBox`. See that field's doc for why this replaced hand
+  /// rolled matrix math against [_controller.value].
+  Offset? _globalToContent(Offset globalPosition) {
+    final box = _contentBoxKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached) return null;
+    return box.globalToLocal(globalPosition);
+  }
+
+  /// Places (or re-places) the draft pose — a plain tap, so it coexists
+  /// with InteractiveViewer's own pan/zoom recognizer instead of competing
+  /// with it (see the class doc on [posePicking]). Heading starts at 0 and
+  /// is set afterwards by dragging the heading handle, via
+  /// [_updateDraftYaw].
+  void _placeDraft(Offset globalPosition) {
+    final content = _globalToContent(globalPosition);
+    if (content == null) return;
     setState(() {
-      _draftPixel = d.localPosition;
+      _draftPixel = content;
       _draftYaw = 0;
     });
     _reportDraft();
   }
 
-  void _onPanUpdate(DragUpdateDetails d) {
+  /// Drags the heading handle around the draft marker to set its heading.
+  /// Both the marker's position ([_draftPixel]) and the drag pointer's
+  /// current position are converted into the same content-pixel space (via
+  /// [_globalToContent]) and compared directly there — no need to know
+  /// where the handle itself is currently drawn on screen at all, which is
+  /// otherwise a surprisingly loaded question once `CompositedTransform*`
+  /// (see [_handleLink]) is what's actually placing it. Ignored within a
+  /// small dead zone right at the marker so a barely-moved touch doesn't
+  /// snap the heading to whatever arbitrary angle a few stray pixels
+  /// imply — sized in content pixels scaled by the current zoom so the
+  /// dead zone reads as a constant ~6 screen px regardless of zoom level,
+  /// same intent as [_OccupancyGridPainter.markerScale].
+  void _updateDraftYaw(Offset globalPosition) {
     final origin = _draftPixel;
-    if (origin == null) return;
-    final delta = d.localPosition - origin;
-    if (delta.distance > 4) {
-      setState(() => _draftYaw = atan2(-delta.dy, delta.dx));
-    }
+    final content = _globalToContent(globalPosition);
+    if (origin == null || content == null) return;
+    final v = content - origin;
+    final viewScale = _controller.value.getMaxScaleOnAxis();
+    final deadZone = 6.0 / (viewScale > 0 ? viewScale : 1.0);
+    if (v.distance < deadZone) return;
+    setState(() => _draftYaw = atan2(-v.dy, v.dx));
     _reportDraft();
   }
 
@@ -547,22 +761,20 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     );
   }
 
-  /// Hit-tests a tap (in the InteractiveViewer's own viewport coordinates)
-  /// against every saved location's pin, plus the dock pin. Converts
-  /// through the *inverse* of the current view transform to get back to
-  /// the image's own pixel space — the same space [_worldToPixel]
-  /// positions pins in — so the comparison is correct at any zoom level,
-  /// then checks world-space distance against a tolerance sized in real
-  /// meters (not pixels), so the tap target's effective on-screen size
-  /// shrinks/grows sensibly with zoom the same way the pin itself visually
-  /// does. The dock wins ties — it's a single, deliberately-placed pin, so
-  /// a tap equidistant from it and a location pin is more likely aimed at
-  /// the dock.
-  void _handleMapTap(Offset viewportPoint) {
+  /// Hit-tests a tap against every saved location's pin, plus the dock pin.
+  /// Converts the raw global tap position into content-pixel space via
+  /// [_globalToContent] — the same space [_worldToPixel] positions pins in
+  /// — so the comparison is correct at any zoom level, then checks
+  /// world-space distance against a tolerance sized in real meters (not
+  /// pixels), so the tap target's effective on-screen size shrinks/grows
+  /// sensibly with zoom the same way the pin itself visually does. The
+  /// dock wins ties — it's a single, deliberately-placed pin, so a tap
+  /// equidistant from it and a location pin is more likely aimed at the
+  /// dock.
+  void _handleMapTap(Offset globalPosition) {
     final grid = _grid;
-    if (grid == null) return;
-    final inverse = Matrix4.inverted(_controller.value);
-    final contentPoint = MatrixUtils.transformPoint(inverse, viewportPoint);
+    final contentPoint = _globalToContent(globalPosition);
+    if (grid == null || contentPoint == null) return;
     final tapWorld = _pixelToWorld(grid, contentPoint);
     const toleranceMeters = 0.6;
 
@@ -608,6 +820,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     _pathSub?.unsubscribe();
     _globalCostmapSub?.unsubscribe();
     _localCostmapSub?.unsubscribe();
+    _tfSub?.unsubscribe();
     _controller.removeListener(_onViewTransformChanged);
     _ownedController?.dispose();
     super.dispose();
@@ -630,8 +843,12 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     // Builds the painted map for a given marker counter-scale — a function
     // rather than a single built-once widget, because the right
     // counter-scale differs per branch below and, for the thumbnail branch,
-    // isn't known until its LayoutBuilder resolves the viewport size.
-    Widget contentFor(double markerScale) => CustomPaint(
+    // isn't known until its LayoutBuilder resolves the viewport size. Takes
+    // an optional key so [_contentBoxKey] can mark the actual CustomPaint
+    // (its own local space *is* content-pixel space) — see that field's
+    // doc.
+    Widget contentFor(double markerScale, {Key? key}) => CustomPaint(
+          key: key,
           size: Size(image.width.toDouble(), image.height.toDouble()),
           painter: _OccupancyGridPainter(
             image: image,
@@ -646,6 +863,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
             localCostmap: (widget.showLocalCostmap && showOverlays)
                 ? _localCostmap
                 : null,
+            mapOdomTransform: _mapOdomTransform,
             locations: showOverlays ? widget.locations : const [],
             draftPixel: widget.posePicking ? _draftPixel : null,
             draftYaw: _draftYaw,
@@ -654,27 +872,131 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         );
 
     if (widget.posePicking) {
-      // FittedBox alone, inside a Stack's loose (unbounded-leaning)
-      // constraints, sizes itself to its child's natural size rather than
-      // filling the viewport — SizedBox.expand forces it to actually fill
-      // the space this map view has, the same as the InteractiveViewer
-      // branch below already does implicitly.
+      // Counter-scaled against the live zoom the same way the interactive
+      // branch below does, so the marker stays a constant, legible size
+      // instead of growing with the map as the operator zooms in to place
+      // it precisely.
+      final viewScale = _controller.value.getMaxScaleOnAxis();
+      final markerScale = 1 / (viewScale <= 0 ? 1.0 : viewScale);
+
+      // Where the heading handle's anchor point sits, in *content*-pixel
+      // space (not screen space — see [_handleLink]'s doc: positioning it
+      // is Flutter's job via CompositedTransformTarget/Follower, not ours).
+      // Anchored right at the draft marker's own cone tip — _draftConeRadius
+      // is exactly how far out the painter draws it — plus a couple of
+      // screen px of breathing room, so the handle reads as the marker's
+      // own nose rather than an unrelated control floating nearby.
+      // markerScale keeps that distance a constant on-screen size
+      // regardless of zoom, the same reasoning as the painter's own
+      // markerScale keeps drawn marker sizes constant.
+      final draft = _draftPixel;
+      const handleScreenDistance = _draftConeRadius + 2;
+      final handleContentPos = draft == null
+          ? null
+          : draft +
+              Offset(
+                handleScreenDistance * markerScale * cos(_draftYaw),
+                -handleScreenDistance * markerScale * sin(_draftYaw),
+              );
+
       return SizedBox.expand(
-        child: FittedBox(
-          fit: BoxFit.contain,
-          child: GestureDetector(
-            onPanStart: _onPanStart,
-            onPanUpdate: _onPanUpdate,
-            child: contentFor(1.0),
-          ),
+        child: Stack(
+          children: [
+            // Wraps (rather than nests inside) InteractiveViewer so the tap
+            // recognizer doesn't compete with its own pan/zoom recognizer —
+            // see the class doc on [posePicking].
+            GestureDetector(
+              onTapUp: (details) => _placeDraft(details.globalPosition),
+              child: InteractiveViewer(
+                transformationController: _controller,
+                minScale: 0.2,
+                maxScale: 8,
+                boundaryMargin: const EdgeInsets.all(200),
+                child: Center(
+                  // A second, inner Stack — not InteractiveViewer's own
+                  // child directly — so the CompositedTransformTarget below
+                  // can sit *inside* the transformed content (tracking the
+                  // marker through Center + InteractiveViewer's transform
+                  // automatically) while still being a completely inert,
+                  // non-hit-testing marker (no gesture recognizer of its
+                  // own, so unlike the handle itself, nesting it in here
+                  // doesn't risk the arena conflict the class doc warns
+                  // about).
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      contentFor(markerScale, key: _contentBoxKey),
+                      if (handleContentPos != null)
+                        Positioned(
+                          left: handleContentPos.dx,
+                          top: handleContentPos.dy,
+                          child: CompositedTransformTarget(
+                            link: _handleLink,
+                            child: const SizedBox.shrink(),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (handleContentPos != null)
+              CompositedTransformFollower(
+                link: _handleLink,
+                targetAnchor: Alignment.center,
+                followerAnchor: Alignment.center,
+                showWhenUnlinked: false,
+                child: GestureDetector(
+                  // Opaque so this small hit target blocks InteractiveViewer
+                  // underneath it — a drag starting here never reaches its
+                  // pan recognizer, so there's no gesture-arena race. Safe
+                  // to rely on here specifically because this widget is a
+                  // sibling of (not nested inside) InteractiveViewer — see
+                  // the class doc on [posePicking].
+                  behavior: HitTestBehavior.opaque,
+                  onPanStart: (d) => _updateDraftYaw(d.globalPosition),
+                  onPanUpdate: (d) => _updateDraftYaw(d.globalPosition),
+                  // A generous 44px hit area for touch accuracy, but the
+                  // *visible* grab dot is small and undecorated (no icon)
+                  // — sitting right at the marker's own cone tip (see
+                  // handleContentPos above), it should read as part of the
+                  // marker's nose, not as a separate button bolted on
+                  // nearby. Same white-bordered-dot language _drawPin uses
+                  // for every other marker in this file.
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    color: Colors.transparent,
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.accent,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 3,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       );
     }
 
     // Fades in once, the moment the first grid decodes — the map "arrives"
-    // rather than snapping in over the skeleton.
-    Widget revealedFor(double markerScale) =>
-        FadeSlideIn(offset: 0, child: contentFor(markerScale));
+    // rather than snapping in over the skeleton. Threads a key through to
+    // contentFor for the same reason posePicking's branch passes one —
+    // [_handleMapTap] below needs it.
+    Widget revealedFor(double markerScale, {Key? key}) =>
+        FadeSlideIn(offset: 0, child: contentFor(markerScale, key: key));
 
     if (widget.interactive) {
       // The InteractiveViewer branch has a live, user-driven zoom worth
@@ -687,7 +1009,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         minScale: 0.2,
         maxScale: 8,
         boundaryMargin: const EdgeInsets.all(200),
-        child: Center(child: revealedFor(markerScale)),
+        child: Center(child: revealedFor(markerScale, key: _contentBoxKey)),
       );
       if (widget.onLocationTap == null && widget.onDockTap == null) {
         return _withLocalizationBadge(viewer);
@@ -697,7 +1019,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       // own pan/zoom recognizer — the same "wrap, don't nest" reasoning the
       // class doc gives for why posePicking swaps the whole tree instead.
       return _withLocalizationBadge(GestureDetector(
-        onTapUp: (details) => _handleMapTap(details.localPosition),
+        onTapUp: (details) => _handleMapTap(details.globalPosition),
         child: viewer,
       ));
     }
@@ -713,6 +1035,11 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     // space. Falls back to vertically centering the whole map when it's not
     // localized yet (nothing to center on) or when the map is short enough
     // to fit without any cropping at all.
+    //
+    // fitWholeMap (a mission's route preview, _RouteMapCard) skips all of
+    // that: it fits both axes and never crops, because the thing that has
+    // to stay visible there is every pin along the route, not the robot —
+    // which may not even be near any of them.
     return _withLocalizationBadge(LayoutBuilder(
       builder: (context, constraints) {
         final viewport = constraints.biggest;
@@ -722,7 +1049,15 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
               clipBehavior: Clip.hardEdge,
               child: revealedFor(1.0));
         }
-        final scale = viewport.width / grid.info.width;
+        final scaleW = viewport.width / grid.info.width;
+        // fitWholeMap additionally caps scale to the height ratio, so a
+        // portrait-shaped map never exceeds the viewport's height either —
+        // the whole map fits with no cropping, letterboxed on whichever
+        // axis has slack, instead of fitting width and cropping/panning
+        // vertically to the robot.
+        final scale = widget.fitWholeMap
+            ? min(scaleW, viewport.height / grid.info.height)
+            : scaleW;
         // Counter-scales the marker against this thumbnail's own fit-width
         // factor — without it, a map with many pixels per meter (a
         // fine-resolution map, scaled down a lot to fit a small preview)
@@ -731,10 +1066,13 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         // interactive view uses at 1x zoom, regardless of the map's
         // resolution or the preview's own size.
         final markerScale = 1 / (scale <= 0 ? 1.0 : scale);
+        final mapWidthScaled = grid.info.width * scale;
         final mapHeightScaled = grid.info.height * scale;
+        final offsetX =
+            widget.fitWholeMap ? (viewport.width - mapWidthScaled) / 2 : 0.0;
         double offsetY;
         final pose = _pose;
-        if (mapHeightScaled <= viewport.height) {
+        if (widget.fitWholeMap || mapHeightScaled <= viewport.height) {
           offsetY = (viewport.height - mapHeightScaled) / 2;
         } else if (widget.showRobot && pose != null) {
           final robotPixel = _worldToPixel(
@@ -761,7 +1099,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
             alignment: Alignment.topLeft,
             child: Transform(
               transform: Matrix4.identity()
-                ..translateByDouble(0, offsetY, 0, 1)
+                ..translateByDouble(offsetX, offsetY, 0, 1)
                 ..scaleByDouble(scale, scale, scale, 1.0),
               child: revealedFor(markerScale),
             ),
@@ -792,6 +1130,7 @@ class _OccupancyGridPainter extends CustomPainter {
     required this.path,
     required this.globalCostmap,
     required this.localCostmap,
+    required this.mapOdomTransform,
     required this.locations,
     required this.draftPixel,
     required this.draftYaw,
@@ -805,6 +1144,14 @@ class _OccupancyGridPainter extends CustomPainter {
   final nav_msgs.Path? path;
   final _CostmapLayer? globalCostmap;
   final _CostmapLayer? localCostmap;
+
+  /// The live `map` -> `odom` transform, needed to place [localCostmap]
+  /// correctly since it's published in `odom` rather than `map` — see
+  /// [OccupancyGridView]'s class doc. Null (odom==map assumed) until the
+  /// first `/tf` message carrying that edge arrives. Irrelevant to
+  /// [globalCostmap], which is already in `map`.
+  final _RigidTransform2D? mapOdomTransform;
+
   final List<Map<String, dynamic>> locations;
   final Offset? draftPixel;
   final double draftYaw;
@@ -824,9 +1171,12 @@ class _OccupancyGridPainter extends CustomPainter {
     final global = globalCostmap;
     if (global != null) _drawCostmapLayer(canvas, global);
     final local = localCostmap;
-    if (local != null) _drawCostmapLayer(canvas, local);
+    if (local != null) {
+      _drawCostmapLayer(canvas, local, frameTransform: mapOdomTransform);
+    }
 
     _drawPath(canvas);
+    _drawWaypointRoute(canvas);
 
     for (final loc in locations) {
       if (loc['x'] is! num || loc['y'] is! num) continue;
@@ -852,21 +1202,28 @@ class _OccupancyGridPainter extends CustomPainter {
     if (p != null) {
       final center =
           _worldToPixel(grid, p.pose.pose.position.x, p.pose.pose.position.y);
-      final q = p.pose.pose.orientation;
-      final yaw =
-          atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
+      final yaw = _yawOf(p.pose.pose.orientation);
       _drawRobotMarker(canvas, center, yaw, AppColors.primary,
           sizeScale: markerScale);
     }
 
     final draft = draftPixel;
     if (draft != null) {
+      // Same dot+cone size as the live robot marker above (both default to
+      // _draftDotRadius/_draftConeRadius) — only the color tells them apart.
       _drawRobotMarker(canvas, draft, draftYaw, AppColors.accent,
-          dotRadius: 7, coneRadius: 20, sizeScale: markerScale);
+          sizeScale: markerScale);
     }
   }
 
-  void _drawCostmapLayer(Canvas canvas, _CostmapLayer layer) {
+  /// [frameTransform] is the rigid transform from this layer's own
+  /// publishing frame into `map` — null when the layer is already in
+  /// `map` (the global costmap, always) or, for the local costmap, until
+  /// the first live `/tf` reading arrives (see [OccupancyGridView]'s class
+  /// doc), in which case its frame is optimistically treated as `map`
+  /// outright rather than not drawing it at all.
+  void _drawCostmapLayer(Canvas canvas, _CostmapLayer layer,
+      {_RigidTransform2D? frameTransform}) {
     final costGrid = layer.grid;
     final res = costGrid.info.resolution;
     if (res <= 0) return;
@@ -874,19 +1231,49 @@ class _OccupancyGridPainter extends CustomPainter {
     final oy = costGrid.info.origin.position.y;
     final w = costGrid.info.width * res;
     final h = costGrid.info.height * res;
+
+    // A point in the layer's own frame -> the base map's pixel space,
+    // composing through frameTransform first when the layer isn't already
+    // in `map` (a plain rotate-then-translate — frameTransform carries no
+    // scale, matching a rigid TF edge).
+    Offset toPixel(double x, double y) {
+      final t = frameTransform;
+      if (t == null) return _worldToPixel(grid, x, y);
+      final c = cos(t.theta), s = sin(t.theta);
+      return _worldToPixel(grid, t.x + c * x - s * y, t.y + s * x + c * y);
+    }
+
     // The costmap's own footprint, in the base map's pixel space — not
     // assumed to match the base map's own bounds (the local costmap is a
-    // window around the robot, sized/positioned independently).
-    final topLeft = _worldToPixel(grid, ox, oy + h);
-    final bottomRight = _worldToPixel(grid, ox + w, oy);
-    final dest = Rect.fromPoints(topLeft, bottomRight);
+    // window around the robot, sized/positioned independently). Three
+    // corners (not just opposite corners of an axis-aligned box, as when
+    // there's no rotation to account for) fully determine the affine
+    // mapping from the image's own pixel space into the canvas below,
+    // including whatever rotation frameTransform carries.
+    final imgW = layer.image.width.toDouble();
+    final imgH = layer.image.height.toDouble();
+    final topLeft = toPixel(ox, oy + h); // image (0, 0)
+    final topRight = toPixel(ox + w, oy + h); // image (imgW, 0)
+    final bottomLeft = toPixel(ox, oy); // image (0, imgH)
+    final u = (topRight - topLeft) / imgW;
+    final v = (bottomLeft - topLeft) / imgH;
+
+    canvas.save();
+    canvas.transform((Matrix4.identity()
+          ..setEntry(0, 0, u.dx)
+          ..setEntry(1, 0, u.dy)
+          ..setEntry(0, 1, v.dx)
+          ..setEntry(1, 1, v.dy)
+          ..setEntry(0, 3, topLeft.dx)
+          ..setEntry(1, 3, topLeft.dy))
+        .storage);
     canvas.drawImageRect(
       layer.image,
-      Rect.fromLTWH(
-          0, 0, layer.image.width.toDouble(), layer.image.height.toDouble()),
-      dest,
+      Rect.fromLTWH(0, 0, imgW, imgH),
+      Rect.fromLTWH(0, 0, imgW, imgH),
       Paint()..filterQuality = FilterQuality.low,
     );
+    canvas.restore();
   }
 
   void _drawPath(Canvas canvas) {
@@ -910,6 +1297,47 @@ class _OccupancyGridPainter extends CustomPainter {
     );
   }
 
+  /// A straight-line, dashed connector between [locations] in list order —
+  /// a mission's own planned route (the order its steps visit them in), not
+  /// the live `/plan` [_drawPath] draws (nav2's actual planned trajectory
+  /// between two poses, curved around obstacles). Dashed and in the pins'
+  /// own color specifically so it reads as "the sequence these are visited
+  /// in", not mistaken for a real drivable path the robot will follow.
+  void _drawWaypointRoute(Canvas canvas) {
+    final points = <Offset>[];
+    for (final loc in locations) {
+      if (loc['x'] is! num || loc['y'] is! num) continue;
+      points.add(_worldToPixel(
+          grid, (loc['x'] as num).toDouble(), (loc['y'] as num).toDouble()));
+    }
+    if (points.length < 2) return;
+    final paint = Paint()
+      ..color = AppColors.primary.withValues(alpha: 0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    const dashLen = 6.0;
+    const gapLen = 5.0;
+    for (var i = 0; i < points.length - 1; i++) {
+      final start = points[i];
+      final end = points[i + 1];
+      final segment = end - start;
+      final length = segment.distance;
+      if (length < 1e-6) continue;
+      final direction = segment / length;
+      var travelled = 0.0;
+      while (travelled < length) {
+        final dashEnd = min(travelled + dashLen, length);
+        canvas.drawLine(
+          start + direction * travelled,
+          start + direction * dashEnd,
+          paint,
+        );
+        travelled = dashEnd + gapLen;
+      }
+    }
+  }
+
   /// A dot-plus-direction-cone marker — the same visual language a phone's
   /// "you are here, facing this way" map marker uses, which reads at a
   /// glance far more clearly than a thin line ever did. A white halo under
@@ -920,8 +1348,8 @@ class _OccupancyGridPainter extends CustomPainter {
     Offset center,
     double yaw,
     Color color, {
-    double dotRadius = 9,
-    double coneRadius = 26,
+    double dotRadius = _draftDotRadius,
+    double coneRadius = _draftConeRadius,
     double sizeScale = 1.0,
   }) {
     dotRadius *= sizeScale;
@@ -1046,6 +1474,7 @@ class _OccupancyGridPainter extends CustomPainter {
       oldDelegate.path != path ||
       oldDelegate.globalCostmap != globalCostmap ||
       oldDelegate.localCostmap != localCostmap ||
+      oldDelegate.mapOdomTransform != mapOdomTransform ||
       oldDelegate.locations != locations ||
       oldDelegate.draftPixel != draftPixel ||
       oldDelegate.draftYaw != draftYaw ||

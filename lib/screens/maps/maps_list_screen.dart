@@ -224,8 +224,18 @@ class _BodyState extends State<_Body> {
     try {
       await SdkApiService(ip).activateMap(name);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Switched to "$name".')));
+      // activateMap (handlers/mode.py's switch_mode) returns as soon as
+      // launch_manager confirms navigation_launch *started* — map_server
+      // itself hasn't configured/activated and republished `/map` yet at
+      // that point, which routinely takes a few more seconds (confirmed
+      // live). Saying so up front instead of a flat past-tense "Switched"
+      // is what actually matches what's on screen a moment later — any
+      // live map view still genuinely has the old map/no map until
+      // map_server catches up, there's nothing this snackbar's wording
+      // can shortcut.
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Switching to "$name"… it\'ll finish loading in a few seconds.')));
       widget.onRetry();
     } on SdkApiException catch (e) {
       if (!mounted) return;

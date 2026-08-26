@@ -127,7 +127,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
         // Awaited now, not fire-and-forget — _docking stays true (blocking
         // the rest of the controls, see _DockBusyOverlay) for the whole
         // operation, not just until the goal is accepted.
-        return _watchDockOutcome(api);
+        return _watchDockOutcome(api, timeout: const Duration(seconds: 620));
       },
     );
     if (mounted) setState(() => _docking = false);
@@ -159,7 +159,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
             content: Text(attemptNumber == 1
                 ? 'Undocking…'
                 : 'Undocking… (attempt $attemptNumber)')));
-        return _watchDockOutcome(api);
+        return _watchDockOutcome(api, timeout: const Duration(seconds: 200));
       },
     );
     if (mounted) setState(() => _undocking = false);
@@ -175,7 +175,20 @@ class _TeleopScreenState extends State<TeleopScreen> {
   bool get _dockBusy => _docking || _undocking;
   String get _dockBusyLabel => _docking ? 'Docking…' : 'Undocking…';
 
-  Future<ActionOutcome> _watchDockOutcome(SdkApiService api) =>
+  /// [timeout] must not be shorter than the SDK's own patience for the
+  /// operation it's watching — otherwise this gives up (silently, per
+  /// watchAndReportOutcome's own doc) and _docking/_undocking flips back to
+  /// false — unblocking the joystick and dropping the busy overlay — while
+  /// dock_manager is still genuinely working: a real dock attempt commonly
+  /// runs several search/approach/back-off cycles well past a minute
+  /// before either succeeding or genuinely giving up (confirmed live). The
+  /// SDK's own ceiling (handlers/docking.py: await_dock_result's default
+  /// timeout=600.0, await_undock_result's timeout=180.0) is what actually
+  /// governs how long the robot will keep trying — this only ever needs to
+  /// wait a little longer than that, never shorter, so it's never the one
+  /// that gives up first.
+  Future<ActionOutcome> _watchDockOutcome(SdkApiService api,
+          {required Duration timeout}) =>
       watchAndReportOutcome(
         context: context,
         fetchStatus: api.dockStatus,
@@ -188,7 +201,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
             : s['operation'] == 'docked'
                 ? 'Docked.'
                 : 'Undocked.',
-        timeout: const Duration(seconds: 60),
+        timeout: timeout,
       );
 
   Future<void> _goTo(Map<String, dynamic> location) async {

@@ -234,7 +234,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
             leading:
                 const Icon(Icons.touch_app_rounded, color: AppColors.primary),
             title: const Text('Select on Map'),
-            subtitle: const Text('Tap and drag to set position and heading'),
+            subtitle:
+                const Text('Tap to set position, drag the handle for heading'),
             onTap: () => Navigator.of(sheetContext).pop('map'),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -443,7 +444,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                         });
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                             content: Text(
-                                'Tap and drag on the map to set the position and heading.')));
+                                'Tap the map to set the position, then drag the handle to set the heading.')));
                       },
                     ),
                   ),
@@ -637,10 +638,10 @@ class _PosePickingBar extends StatelessWidget {
           children: [
             Text(
               hasDraft
-                  ? 'Drag to fine-tune the heading, then confirm.'
+                  ? 'Drag the handle to set the heading, then confirm.'
                   : forLocation
-                      ? "Tap and drag on the map to set the location's position and heading."
-                      : 'Tap and drag on the map to set the robot\'s position and heading.',
+                      ? "Tap the map to set the location's position."
+                      : "Tap the map to set the robot's position.",
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.textSecondary),
             ),

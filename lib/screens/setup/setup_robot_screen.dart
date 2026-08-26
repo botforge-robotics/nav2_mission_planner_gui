@@ -9,11 +9,13 @@ import 'setup_complete_screen.dart';
 import 'setup_scaffold.dart';
 
 /// Opens the actual rosbridge WebSocket via ros2_api's Ros2 client (through
-/// probeRosbridge — the same helper Splash uses for its silent reconnect
-/// check) — the same vendored connection layer the rest of the app will
-/// use, not a separate one built just for setup. The connection is closed
-/// again once confirmed; a full app owning a persistent connection is the
-/// job of the future ConnectionProvider rebuild, not this flow.
+/// probeRosbridge) — the same vendored connection layer the rest of the
+/// app will use, not a separate one built just for setup. The connection is
+/// closed again once confirmed; a full app owning a persistent connection
+/// is the job of ConnectionProvider, which owns it from here on — Splash no
+/// longer pre-probes with this same helper itself (see its own doc: that
+/// was misreading a saved robot that's simply unreachable *right now* as
+/// never having been set up at all).
 class SetupRobotScreen extends StatefulWidget {
   const SetupRobotScreen({super.key});
 
