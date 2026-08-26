@@ -1,104 +1,55 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'providers/settings_provider.dart';
+
+import 'providers/connection_provider.dart';
+import 'providers/robot_telemetry_provider.dart';
+import 'providers/setup_flow_controller.dart';
+import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
-import 'providers/connection_provider.dart' hide ConnectionState;
-import 'providers/ros2_data_provider.dart';
-import 'services/launch_service.dart';
-import 'services/mission_execution_service.dart';
-import 'services/device_service.dart';
-import 'services/secure_storage_service.dart';
-import 'providers/branding_provider.dart';
-import 'providers/live_telemetry_provider.dart';
-import 'screens/onboarding/onboarding_screen.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  FocusManager.instance.primaryFocus?.unfocus();
-
-  // Initialize device service
-  await DeviceService.initialize();
-  await SecureStorageService.initialize();
-  debugPrint('✅ Services initialized in main()');
-
-  // Enable modern edge-to-edge for Android 15+ while allowing system bars
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-
-  // Keep UX locked to landscape (left or right) on handsets/tablets
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
-
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => BrandingProvider()),
-        ChangeNotifierProvider(create: (_) => ConnectionProvider()),
-        ChangeNotifierProvider(create: (_) => LaunchManager()),
-        ChangeNotifierProxyProvider<ConnectionProvider, SettingsProvider>(
-          create: (context) => SettingsProvider('default'),
-          update: (context, connectionProvider, previous) {
-            // Update settings provider when active robot changes
-            final robotId =
-                connectionProvider.activeRobot?.settingsId ?? 'default';
-
-            // Return the existing provider immediately to avoid null errors
-            if (previous == null) {
-              return SettingsProvider(robotId);
-            }
-
-            // Schedule the update to happen after this build cycle
-            if (previous.robotId != robotId) {
-              Future.microtask(() async {
-                await previous.updateRobotId(robotId);
-              });
-            }
-
-            return previous;
-          },
-        ),
-        ChangeNotifierProxyProvider2<ConnectionProvider, SettingsProvider,
-            ROS2DataProvider>(
-          create: (context) => ROS2DataProvider(
-            Provider.of<ConnectionProvider>(context, listen: false),
-            Provider.of<SettingsProvider>(context, listen: false),
-          ),
-          update: (context, connectionProvider, settingsProvider, previous) {
-            // Recreate provider if dependencies changed
-            return previous ??
-                ROS2DataProvider(connectionProvider, settingsProvider);
-          },
-        ),
-        ChangeNotifierProvider(create: (_) => MissionExecutionService()),
-        ChangeNotifierProxyProvider<ConnectionProvider, LiveTelemetryProvider>(
-          create: (_) => LiveTelemetryProvider(),
-          update: (context, connectionProvider, previous) {
-            final telemetry = previous ?? LiveTelemetryProvider();
-            telemetry.updateConnection(connectionProvider);
-            return telemetry;
-          },
-        ),
-        // ROS2DataProvider already exposes topics/services/actions; thin wrappers removed.
-      ],
-      child: const Nav2MissionPlanner(),
-    ),
-  );
+void main() {
+  runApp(const NavProMiniApp());
 }
 
-class Nav2MissionPlanner extends StatelessWidget {
-  const Nav2MissionPlanner({super.key});
+class NavProMiniApp extends StatelessWidget {
+  const NavProMiniApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Nav2 Mission Planner',
-      theme: AppTheme.darkTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.dark,
-      home: const OnboardingGate(),
-      debugShowCheckedModeBanner: false,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => SetupFlowController()),
+        // Lazy (Provider's default): not constructed — no connection
+        // opened — until something actually reads it, so the setup flow
+        // never pays for a connection it doesn't use. First real reader is
+        // DashboardScreen.
+        ChangeNotifierProvider(create: (_) => ConnectionProvider()),
+      ],
+      child: MaterialApp(
+        title: 'NavPro Mini',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light,
+        home: const SplashScreen(),
+        // Wraps the Navigator itself (via `child`), not just AppShell's own
+        // returned subtree — RobotTelemetryProvider used to be provided
+        // inside AppShell.build(), which only covers AppShell's own
+        // IndexedStack tabs. Any screen reached via Navigator.push (Map
+        // View, Create Map, ...) is a *sibling* OverlayEntry to AppShell's
+        // route, not a descendant of it, so it could never see a provider
+        // scoped that way — a real "Provider<RobotTelemetryProvider> not
+        // found" crash the moment such a screen tried to read it. Building
+        // it here instead, above the Navigator, makes it visible to every
+        // route, pushed or not.
+        builder: (context, child) {
+          final connection = context.watch<ConnectionProvider>();
+          if (!connection.isConnected) return child!;
+          return ChangeNotifierProvider<RobotTelemetryProvider>(
+            key: ValueKey(connection.ros2),
+            create: (_) => RobotTelemetryProvider(connection.ros2!),
+            child: child!,
+          );
+        },
+      ),
     );
   }
 }

@@ -25,8 +25,8 @@ dependencies:
     path: ./lib/plugins/tf2_msgs
   sensor_msgs:
     path: ./lib/plugins/sensor_msgs
-  nav2_mission_planner_interfaces:
-    path: ./lib/plugins/nav2_mission_planner_interfaces
+  navpromini_launch_manager_interfaces:
+    path: ./lib/plugins/navpromini_launch_manager_interfaces
   flutter_mjpeg: ^2.0.4
   ros2_msg_utils:
     path: ./lib/plugins/ros2_msg_utils
@@ -52,6 +52,28 @@ dependencies:
   http: ^0.13.6
   path_provider: ^2.1.2
   url_launcher: ^6.2.5
+
+  # Initial setup flow: current Wi-Fi/IP (to derive the LAN scan subnet and
+  # detect landing on the robot's 10.42.0.x AP subnet after a hotspot join),
+  # and joining the robot's setup hotspot by SSID+password. wifi_iot's own
+  # network scan is Android-only and considered discontinued upstream in
+  # favor of a separate `wifi_scan` package — not pulled in for this pass;
+  # manual SSID entry (pre-filled with a hint) is the universal path, since
+  # iOS cannot list nearby networks at all regardless of package.
+  network_info_plus: ^6.0.1
+  wifi_iot: ^0.3.19+2
+  # Auto-detects nearby NavPro-Setup-* hotspots for a select-from-list AP
+  # setup UX (Android only for real results — iOS returns a stub per
+  # Apple's restriction on listing nearby networks; see WifiJoinService).
+  wifi_scan: ^0.4.1+2
+  # Setup: Complete's confetti burst. Pure-Dart CustomPainter animation, no
+  # native platform code — safe to use despite being an older release, since
+  # there's no Android/iOS SDK surface for it to fall behind on.
+  confetti: ^0.8.0
+  # Direct client for navpromini_sdk's /api/v1/events WS stream (Alerts &
+  # Fault Log). Already a transitive dep via ros2_api; declared explicitly
+  # since app code imports it directly.
+  web_socket_channel: ^3.0.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -61,3 +83,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+    - assets/icon/

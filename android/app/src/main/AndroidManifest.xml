@@ -48,6 +48,23 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <!-- Required for getWifiIP()/getWifiName() (network_info_plus) and Wi-Fi
+         scanning (wifi_scan) on Android < 13 — an OS-level requirement tied
+         to WiFi info historically being usable to infer location, not
+         actually used that way here (see NEARBY_WIFI_DEVICES below for the
+         13+ path that doesn't need this). Without these declared, a runtime
+         permission request can never succeed, and getWifiIP() silently
+         returns null — the discovery scan finding "no robot" even when one
+         is reachable was this exact gap. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Android 13+: lets wifi_scan ask for this instead of location
+         permission. neverForLocation is accurate — scan results here are
+         only ever matched by SSID prefix or used to derive a /24 subnet,
+         never turned into a physical location. -->
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
+                    android:usesPermissionFlags="neverForLocation"
+                    tools:targetApi="33" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <!-- For older Android versions: -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"

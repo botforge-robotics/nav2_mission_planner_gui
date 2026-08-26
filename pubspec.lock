@@ -101,6 +101,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.19.1"
+  confetti:
+    dependency: "direct main"
+    description:
+      name: confetti
+      sha256: "79376a99648efbc3f23582f5784ced0fe239922bd1a0fb41f582051eba750751"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.8.0"
   crypto:
     dependency: transitive
     description:
@@ -109,6 +117,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.6"
+  dbus:
+    dependency: transitive
+    description:
+      name: dbus
+      sha256: d0c98dcd4f5169878b6cf8f6e0a52403a9dff371a3e2f019697accbf6f44a270
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.12"
   device_info_plus:
     dependency: "direct main"
     description:
@@ -392,13 +408,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.19.0"
-  nav2_mission_planner_interfaces:
-    dependency: "direct main"
-    description:
-      path: "lib/plugins/nav2_mission_planner_interfaces"
-      relative: true
-    source: path
-    version: "0.1.0"
   nav2_msgs:
     dependency: "direct main"
     description:
@@ -413,6 +422,13 @@ packages:
       relative: true
     source: path
     version: "0.1.0"
+  navpromini_launch_manager_interfaces:
+    dependency: "direct main"
+    description:
+      path: "lib/plugins/navpromini_launch_manager_interfaces"
+      relative: true
+    source: path
+    version: "0.1.0"
   nested:
     dependency: transitive
     description:
@@ -421,6 +437,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
+  network_info_plus:
+    dependency: "direct main"
+    description:
+      name: network_info_plus
+      sha256: f926b2ba86aa0086a0dfbb9e5072089bc213d854135c1712f1d29fc89ba3c877
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.1.4"
+  network_info_plus_platform_interface:
+    dependency: transitive
+    description:
+      name: network_info_plus_platform_interface
+      sha256: "7e7496a8a9d8136859b8881affc613c4a21304afeb6c324bcefc4bd0aff6b94b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.2"
+  nm:
+    dependency: transitive
+    description:
+      name: nm
+      sha256: "2c9aae4127bdc8993206464fcc063611e0e36e72018696cd9631023a31b24254"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.0"
   package_info_plus:
     dependency: "direct main"
     description:
@@ -875,13 +915,29 @@ packages:
     source: hosted
     version: "1.0.1"
   web_socket_channel:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: web_socket_channel
       sha256: d645757fb0f4773d602444000a8131ff5d48c9e47adfe9772652dd1a4f2d45c8
       url: "https://pub.dev"
     source: hosted
     version: "3.0.3"
+  wifi_iot:
+    dependency: "direct main"
+    description:
+      name: wifi_iot
+      sha256: "0861aed0c0afd6031b4337811d31cdd181c594a8a2c73e94826ea21d2cb4707b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.19+2"
+  wifi_scan:
+    dependency: "direct main"
+    description:
+      name: wifi_scan
+      sha256: "78896ea3db8838769053accd47cab02a62ead6480557e235295320603f84c9c7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.4.1+2"
   win32:
     dependency: transitive
     description:

@@ -1,0 +1,19 @@
+name: navpromini_launch_manager_interfaces
+version: 0.1.0
+description: ROS2 message definitions for navpromini_launch_manager_interfaces
+publish_to: none
+environment:
+  sdk: ">=2.12.0 <3.0.0"
+dependencies:
+  ros2_msg_utils:
+    path: ../ros2_msg_utils
+  geometry_msgs:
+    path: ../geometry_msgs
+  std_msgs:
+    path: ../std_msgs
+  actionlib_msgs:
+    path: ../actionlib_msgs
+  unique_identifier_msgs:
+    path: ../unique_identifier_msgs
+  builtin_interfaces:
+    path: ../builtin_interfaces

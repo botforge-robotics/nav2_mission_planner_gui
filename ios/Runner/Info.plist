@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Required for getWifiIP()/getWifiName() (network_info_plus) — iOS
+	     gates current-network info behind location permission just like
+	     Android does pre-13. Without this key the app crashes outright the
+	     moment it requests the permission, rather than failing gracefully. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Used to find NavPro Mini robots on your current Wi-Fi network.</string>
 </dict>
 </plist>
