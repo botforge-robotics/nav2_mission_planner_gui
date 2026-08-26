@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 
 import '../services/provisioning_service.dart';
 import '../services/robot_discovery_service.dart';
@@ -125,10 +126,23 @@ class SetupFlowController extends ChangeNotifier {
   }) async* {
     provisioningStatus = null;
     notifyListeners();
+    // Best-effort: the phone/tablet's own IANA zone, so the robot's clock
+    // reads correctly for wherever it's actually being set up — without
+    // this, schedules fire by whatever timezone the robot's OS image
+    // shipped with, not the site it's deployed at. Never blocks setup: if
+    // the platform call fails for any reason, submit proceeds without a
+    // timezone, same as leaving that field blank in the portal's own form.
+    String? timezone;
+    try {
+      timezone = await FlutterTimezone.getLocalTimezone();
+    } catch (_) {
+      timezone = null;
+    }
     await provisioning.submit(
       wifiSsid: wifiSsid,
       wifiPassword: wifiPassword,
       robotName: robotName,
+      timezone: timezone,
     );
     await for (final status in provisioning.watchStatus()) {
       provisioningStatus = status;

@@ -50,12 +50,17 @@ class ProvisioningService {
 
   final String portalBase;
 
-  /// Submits the site Wi-Fi credentials + robot name — same three fields
-  /// provision_portal.py's do_POST /save handler reads via parse_qs.
+  /// Submits the site Wi-Fi credentials + robot name (+ optional time
+  /// zone) — the same fields provision_portal.py's do_POST /save handler
+  /// reads via parse_qs. [timezone] is an IANA zone (e.g. "Asia/Kolkata");
+  /// omitted or empty just leaves the robot's system timezone as-is,
+  /// matching what submitting the portal's own HTML form with that field
+  /// blank does.
   Future<void> submit({
     required String wifiSsid,
     required String wifiPassword,
     required String robotName,
+    String? timezone,
   }) async {
     await http.post(
       Uri.parse('$portalBase/save'),
@@ -64,6 +69,7 @@ class ProvisioningService {
         'wifi_ssid': wifiSsid,
         'wifi_password': wifiPassword,
         'robot_name': robotName,
+        if (timezone != null && timezone.isNotEmpty) 'timezone': timezone,
       },
     );
   }

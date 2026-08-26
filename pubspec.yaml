@@ -44,6 +44,11 @@ dependencies:
   uuid: ^4.5.1
   duration_picker: ^1.2.0
   flutter_launcher_icons: ^0.14.4
+  # Reads the phone/tablet's own IANA timezone (e.g. "Asia/Kolkata") to
+  # pre-fill Setup's timezone field — there's no pure-Dart/Flutter-SDK way
+  # to get this (DateTime.timeZoneName is an abbreviation like "IST", not
+  # usable with the robot's own `timedatectl set-timezone`).
+  flutter_timezone: ^3.0.1
 
   # Device and system info (used for device information display)
   device_info_plus: ^11.5.0
