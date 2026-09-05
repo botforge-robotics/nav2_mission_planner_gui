@@ -19,6 +19,9 @@ class DrivePad extends StatefulWidget {
     required this.onVelocity,
     required this.onStop,
     this.onDragActiveChanged,
+    this.maxLinear = defaultMaxLinear,
+    this.maxAngular = defaultMaxAngular,
+    this.rotateAngular = defaultRotateAngular,
   });
 
   /// Called immediately on press/drag, then repeatedly (every 150ms —
@@ -31,39 +34,25 @@ class DrivePad extends StatefulWidget {
   final VoidCallback onStop;
 
   /// Fires true the instant a finger touches down on the joystick OR a
-  /// rotate button, false when it lifts — a screen that embeds this inside
-  /// a scrollable (Teleop's own ListView) uses it to disable that
-  /// scrollable's physics for the duration, so the touch can't also be
-  /// interpreted as a page scroll gesture.
-  ///
-  /// Fired from a raw `Listener.onPointerDown`, not `onPanStart`/
-  /// `onTapDown` — pointer routing happens *before* the gesture arena
-  /// resolves, so this reliably wins the race against the ListView's own
-  /// scroll recognizer. Firing it from onPanStart (a resolved-gesture
-  /// callback) was too late: by the time it ran, a touch whose first
-  /// movement read as more vertical than horizontal could already have
-  /// been claimed by the scrollable, which is exactly what "joystick
-  /// crosses with page scroll on drag up/down" was — and a rotate button
-  /// held with even a slight tremor could lose a `TapGestureRecognizer` to
-  /// the same scroll recognizer and get `onTapCancel`'d mid-hold, which
-  /// read as "the button doesn't work" for a hold that's cut short instead
-  /// of an outright dead button.
+  /// rotate button, false when it lifts.
   final ValueChanged<bool>? onDragActiveChanged;
 
-  static const maxLinear = 0.35;
-  static const maxAngular = 1.2;
+  /// Maximum forward/backward speed on full joystick deflection (m/s).
+  final double maxLinear;
 
-  /// The dedicated rotate buttons' own rate. Equal to [maxAngular], not
-  /// faster than it — the SDK's own /motion/velocity endpoint hard-rejects
-  /// (400 out_of_range) any angular magnitude above its MAX_ANGULAR, which
-  /// is this same 1.2. This used to be 2.0 on the theory that the buttons
-  /// should spin faster than the joystick's own full deflection; every
-  /// press was silently bounced by the server as a result — a real, live
-  /// bug (confirmed via the SDK's own request log: repeated 400s on
-  /// /motion/velocity from the app), not a gesture/hit-testing issue. There
-  /// is no legitimate way to exceed the server's ceiling, so this is now
-  /// exactly that ceiling rather than a value that can never be sent.
-  static const rotateAngular = maxAngular;
+  /// Maximum turning speed on full joystick deflection (rad/s).
+  final double maxAngular;
+
+  /// Turning speed for dedicated rotate-in-place buttons (rad/s).
+  final double rotateAngular;
+
+  /// Reduced default speeds for smooth, controlled indoor teleoperation:
+  /// - Linear: 0.22 m/s (down from 0.35 m/s)
+  /// - Angular (joystick): 0.50 rad/s (~28.6 deg/s, down from 1.2 rad/s)
+  /// - In-place rotation buttons: 0.40 rad/s (~22.9 deg/s, down from 1.2 rad/s)
+  static const defaultMaxLinear = 0.22;
+  static const defaultMaxAngular = 0.50;
+  static const defaultRotateAngular = 0.40;
 
   @override
   State<DrivePad> createState() => _DrivePadState();
@@ -102,8 +91,8 @@ class _DrivePadState extends State<DrivePad> {
   }
 
   void _sendStick() {
-    final linear = (-_stick.dy) * DrivePad.maxLinear;
-    final angular = (-_stick.dx) * DrivePad.maxAngular;
+    final linear = (-_stick.dy) * widget.maxLinear;
+    final angular = (-_stick.dx) * widget.maxAngular;
     widget.onVelocity(linear, angular);
   }
 
@@ -129,8 +118,8 @@ class _DrivePadState extends State<DrivePad> {
     widget.onVelocity(
         0.0,
         dir == _RotateDir.left
-            ? DrivePad.rotateAngular
-            : -DrivePad.rotateAngular);
+            ? widget.rotateAngular
+            : -widget.rotateAngular);
   }
 
   void _endRotate() {

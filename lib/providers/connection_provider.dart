@@ -33,11 +33,15 @@ class ConnectionProvider extends ChangeNotifier {
   bool get isConnected => status == Status.connected;
 
   Future<void> _connect() async {
+    error = null;
+    status = Status.connecting;
+    notifyListeners();
+
     final saved = await _store.load();
     robot = saved;
-    notifyListeners();
     if (saved == null) {
       error = 'No robot configured.';
+      status = Status.none;
       notifyListeners();
       return;
     }

@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/connection_provider.dart';
+import '../../providers/robot_telemetry_provider.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_motion.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../../utils/localize_at_dock.dart';
 import '../../utils/mission_step_summary.dart';
+import '../../widgets/app_shell/app_shell.dart';
 import '../../widgets/design/fade_in.dart';
 import '../../widgets/design/status_pulse.dart';
 import '../../widgets/map/occupancy_grid_view.dart';
@@ -94,6 +96,10 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
   bool get _isThisMission => _status?['mission_id'] == _id;
   String get _state =>
       _isThisMission ? (_status?['state'] as String? ?? 'idle') : 'idle';
+  String? get _pauseReason =>
+      _isThisMission ? (_status?['pause_reason'] as String?) : null;
+  bool get isLowBatteryPaused =>
+      _state == 'paused' && _pauseReason == 'low_battery';
 
   Future<void> _act(Future<void> Function(SdkApiService, String) action) async {
     final api = _api;
@@ -142,20 +148,323 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
     }
   }
 
+  void _goBack() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(_changed);
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const AppShell()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final steps = (widget.mission['steps'] as List? ?? const [])
         .cast<Map<String, dynamic>>();
     final stepIndex =
         _isThisMission ? (_status?['step_index'] as int? ?? -1) : -1;
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
+    final ros2 = context.watch<ConnectionProvider>().ros2;
+    final telemetry = context.watch<RobotTelemetryProvider>();
+
+    if (isDesktop) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, __) {
+          if (!didPop) _goBack();
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              tooltip: 'Back to Missions',
+              onPressed: _goBack,
+            ),
+            title: Text(widget.mission['name'] as String? ?? _id),
+            actions: [
+              if (!running && !paused) ...[
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: _edit,
+                  tooltip: 'Edit mission',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  onPressed: _delete,
+                  tooltip: 'Delete mission',
+                ),
+              ],
+            ],
+          ),
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Left Pane: Large Live Interactive Map & Route
+                  Expanded(
+                    flex: 6,
+                    child: Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: ros2 == null
+                                ? const Center(child: Text('Not connected.'))
+                                : OccupancyGridView(
+                                    ros2: ros2,
+                                    interactive: true,
+                                    initialPose: telemetry.rawPose,
+                                    initialPath: telemetry.currentPath,
+                                    locations: _routePins(steps),
+                                    showWaypointRoute: true,
+                                    fitWholeMap: false,
+                                    showRobot: true,
+                                    showDock: true,
+                                    showPath: true,
+                                  ),
+                          ),
+                          Positioned(
+                            left: AppSpacing.md,
+                            top: AppSpacing.md,
+                            child: Card(
+                              color: AppColors.surface.withValues(alpha: 0.9),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.md,
+                                    vertical: AppSpacing.xs),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.route_rounded,
+                                        size: 16, color: AppColors.primary),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Text(
+                                      'Route Preview (${_routePins(steps).length} points)',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xl),
+
+                  // Right Pane: Mission Status, Controls & Steps Pipeline
+                  Expanded(
+                    flex: 5,
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Header
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        widget.mission['name'] as String? ??
+                                            _id,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${steps.length} steps · ${widget.mission['loop_forever'] == true ? 'repeats forever' : 'repeats ${(widget.mission['loop_count'] ?? 1)}x'}',
+                                        style: const TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Chip(
+                                  avatar: _state == 'running'
+                                      ? StatusPulseDot(
+                                          color: _stateColor(_state),
+                                          live: true,
+                                          size: 8)
+                                      : (isLowBatteryPaused
+                                          ? const Icon(Icons.bolt_rounded,
+                                              size: 14,
+                                              color: AppColors.warning)
+                                          : null),
+                                  label: Text(
+                                      isLowBatteryPaused
+                                          ? 'PAUSED (CHARGING)'
+                                          : _state.toUpperCase(),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12)),
+                                  backgroundColor: _stateColor(_state)
+                                      .withValues(alpha: 0.12),
+                                  labelStyle:
+                                      TextStyle(color: _stateColor(_state)),
+                                  side: BorderSide.none,
+                                ),
+                              ],
+                            ),
+                            if (isLowBatteryPaused) ...[
+                              const SizedBox(height: AppSpacing.md),
+                              _LowBatteryChargingNotice(
+                                batteryPercent: telemetry.batteryPercentage,
+                              ),
+                            ],
+                            const SizedBox(height: AppSpacing.md),
+
+                            // Controls Bar
+                            _Controls(
+                              state: _state,
+                              pauseReason: _pauseReason,
+                              busy: _busy,
+                              onStart: () => _act(
+                                  (api, id) => api.startMission(id)),
+                              onPause: () => _act(
+                                  (api, id) => api.pauseMission(id)),
+                              onResume: () => _act(
+                                  (api, id) => api.resumeMission(id)),
+                              onCancel: () => _act(
+                                  (api, id) => api.cancelMission(id)),
+                            ),
+                            if (_actionError != null) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              Text(_actionError!,
+                                  style: const TextStyle(
+                                      color: AppColors.danger)),
+                            ],
+                            const SizedBox(height: AppSpacing.md),
+                            const Divider(),
+                            const SizedBox(height: AppSpacing.xs),
+
+                            // Steps Pipeline Header
+                            Text(
+                              'Execution Sequence (${steps.length} steps)',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+
+                            // Steps Pipeline List
+                            Expanded(
+                              child: ListView.separated(
+                                itemCount: steps.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: AppSpacing.xs),
+                                itemBuilder: (context, i) {
+                                  final isCurrent = running && i == stepIndex;
+                                  final isDone = _isThisMission &&
+                                      ((stepIndex > i && (running || paused)) ||
+                                          _state == 'completed');
+                                  return Card(
+                                    elevation: isCurrent ? 2 : 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      side: BorderSide(
+                                        color: isCurrent
+                                            ? AppColors.primary
+                                            : AppColors.border,
+                                        width: isCurrent ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    color: isCurrent
+                                        ? AppColors.primary
+                                            .withValues(alpha: 0.08)
+                                        : AppColors.surfaceSunken,
+                                    child: ListTile(
+                                      dense: true,
+                                      leading: CircleAvatar(
+                                        radius: 13,
+                                        backgroundColor: isDone
+                                            ? AppColors.stateIdle
+                                            : isCurrent
+                                                ? AppColors.primary
+                                                : AppColors.border,
+                                        child: isDone
+                                            ? const Icon(Icons.check_rounded,
+                                                size: 14, color: Colors.white)
+                                            : Text('${i + 1}',
+                                                style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: isCurrent
+                                                        ? AppColors.textOnPrimary
+                                                        : AppColors
+                                                            .textSecondary)),
+                                      ),
+                                      title: Text(
+                                          missionStepSummary(steps[i]),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13)),
+                                      subtitle: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(missionStepIcon(steps[i]),
+                                              size: 13,
+                                              color: AppColors.textSecondary),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                              steps[i]['type'] as String? ??
+                                                  '',
+                                              style: const TextStyle(
+                                                  color: AppColors
+                                                      .textSecondary,
+                                                  fontSize: 11)),
+                                        ],
+                                      ),
+                                      trailing: isCurrent
+                                          ? const Icon(
+                                              Icons.navigation_rounded,
+                                              color: AppColors.primary,
+                                              size: 18)
+                                          : null,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, __) {
-        if (!didPop) Navigator.of(context).pop(_changed);
+        if (!didPop) _goBack();
       },
       child: Scaffold(
         appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            tooltip: 'Back to Missions',
+            onPressed: _goBack,
+          ),
           title: Text(widget.mission['name'] as String? ?? _id),
           actions: [
             if (!running && !paused) ...[
@@ -181,7 +490,7 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _RouteMapCard(pins: _routePins(steps)),
-                  if (_isThisMission)
+                  if (_isThisMission) ...[
                     FadeSlideIn(
                       child: Card(
                         color: _stateColor(_state).withValues(alpha: 0.08),
@@ -194,6 +503,10 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                                     color: _stateColor(_state),
                                     live: true,
                                     size: 8),
+                                const SizedBox(width: AppSpacing.sm),
+                              ] else if (isLowBatteryPaused) ...[
+                                const Icon(Icons.bolt_rounded,
+                                    color: AppColors.warning),
                                 const SizedBox(width: AppSpacing.sm),
                               ] else
                                 Icon(Icons.flag_rounded,
@@ -216,6 +529,13 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                         ),
                       ),
                     ),
+                    if (isLowBatteryPaused) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      _LowBatteryChargingNotice(
+                        batteryPercent: telemetry.batteryPercentage,
+                      ),
+                    ],
+                  ],
                   if (_actionError != null) ...[
                     const SizedBox(height: AppSpacing.sm),
                     Text(_actionError!,
@@ -233,8 +553,8 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                       itemBuilder: (context, i) {
                         final isCurrent = running && i == stepIndex;
                         final isDone = _isThisMission &&
-                            stepIndex > i &&
-                            (running || paused);
+                            ((stepIndex > i && (running || paused)) ||
+                                _state == 'completed');
                         return Card(
                           color: isCurrent
                               ? AppColors.primary.withValues(alpha: 0.06)
@@ -282,6 +602,7 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                   const SizedBox(height: AppSpacing.md),
                   _Controls(
                     state: _state,
+                    pauseReason: _pauseReason,
                     busy: _busy,
                     onStart: () => _act((api, id) => api.startMission(id)),
                     onPause: () => _act((api, id) => api.pauseMission(id)),
@@ -299,7 +620,17 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
 
   String _statusLine() {
     final msg = _status?['message'] as String?;
+    if (_state == 'completed') {
+      return 'Mission Completed · All steps finished successfully';
+    }
     var base = _state[0].toUpperCase() + _state.substring(1);
+    if (_state == 'paused') {
+      if (_pauseReason == 'low_battery') {
+        base = 'Paused for Recharge (Auto-resumes at 95%)';
+      } else if (_pauseReason == 'user') {
+        base = 'Paused by operator';
+      }
+    }
     final loopTotal = _status?['loop_total'];
     final loopIndex = (_status?['loop_index'] as num?)?.toInt();
     if (_isThisMission && loopIndex != null && (running || paused)) {
@@ -372,6 +703,7 @@ class _RouteMapCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ros2 = context.watch<ConnectionProvider>().ros2;
+    final telemetry = context.watch<RobotTelemetryProvider>();
     if (ros2 == null || pins.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -383,7 +715,10 @@ class _RouteMapCard extends StatelessWidget {
             child: OccupancyGridView(
               ros2: ros2,
               interactive: false,
+              initialPose: telemetry.rawPose,
+              initialPath: telemetry.currentPath,
               locations: pins,
+              showWaypointRoute: true,
               fitWholeMap: true,
             ),
           ),
@@ -396,6 +731,7 @@ class _RouteMapCard extends StatelessWidget {
 class _Controls extends StatelessWidget {
   const _Controls({
     required this.state,
+    this.pauseReason,
     required this.busy,
     required this.onStart,
     required this.onPause,
@@ -404,6 +740,7 @@ class _Controls extends StatelessWidget {
   });
 
   final String state;
+  final String? pauseReason;
   final bool busy;
   final VoidCallback onStart;
   final VoidCallback onPause;
@@ -436,23 +773,41 @@ class _Controls extends StatelessWidget {
       );
     }
     if (state == 'paused') {
-      return Row(
+      final isCharging = pauseReason == 'low_battery';
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: busy ? null : onResume,
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('Resume'),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: busy ? null : onResume,
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: Text(isCharging ? 'Resume Early' : 'Resume'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: busy ? null : onCancel,
+                  icon: const Icon(Icons.stop_rounded),
+                  label: Text(isCharging ? 'Cancel (Stay Docked)' : 'Cancel'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: busy ? null : onCancel,
-              icon: const Icon(Icons.stop_rounded),
-              label: const Text('Cancel'),
+          if (isCharging) ...[
+            const SizedBox(height: AppSpacing.xs),
+            const Text(
+              'Robot auto-resumes once charged to 95%',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: AppColors.textTertiary,
+                fontStyle: FontStyle.italic,
+              ),
             ),
-          ),
+          ],
         ],
       );
     }
@@ -460,6 +815,74 @@ class _Controls extends StatelessWidget {
       onPressed: busy ? null : onStart,
       icon: const Icon(Icons.play_arrow_rounded),
       label: const Text('Start Mission'),
+    );
+  }
+}
+
+class _LowBatteryChargingNotice extends StatelessWidget {
+  const _LowBatteryChargingNotice({this.batteryPercent});
+
+  final double? batteryPercent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        border: Border.all(
+          color: AppColors.warning.withValues(alpha: 0.4),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.battery_charging_full_rounded,
+              color: AppColors.warning, size: 24),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Auto-Recharge in Progress',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: AppColors.warning,
+                      ),
+                    ),
+                    if (batteryPercent != null) ...[
+                      const SizedBox(width: AppSpacing.sm),
+                      Text(
+                        '(${batteryPercent!.round()}%)',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 3),
+                const Text(
+                  'Battery dropped ≤ 5%. Robot docked to recharge and will automatically undock and resume when battery reaches 95%.\n• Tap "Resume Early" to undock immediately.\n• Tap "Cancel" to stop mission (robot stays docked).',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

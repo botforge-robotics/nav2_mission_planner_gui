@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:nav_msgs/msg.dart' as nav_msgs;
 import 'package:ros2_api/ros2_api.dart';
+import 'package:sensor_msgs/msg.dart' as sensor_msgs;
 import 'package:tf2_msgs/msg.dart' as tf2_msgs;
 
 import '../../theme/app_theme.dart';
@@ -150,6 +151,7 @@ class OccupancyGridView extends StatefulWidget {
     this.showGlobalCostmap = false,
     this.showLocalCostmap = false,
     this.locations = const [],
+    this.showWaypointRoute = false,
     this.showOverlays = true,
     this.transformationController,
     this.posePicking = false,
@@ -159,6 +161,16 @@ class OccupancyGridView extends StatefulWidget {
     this.showLocalizationBadge = true,
     this.dockPoseOverride,
     this.fitWholeMap = false,
+    this.initialPose,
+    this.initialPath,
+    this.showLaserScan = false,
+    this.laserScanTopic = '/scan_filtered',
+    this.draftPoseOverride,
+    this.dockEditorMode = false,
+    this.dockEditorDockPoint,
+    this.dockEditorStandoffPoint,
+    this.dockEditorActiveIndex = 0,
+    this.onDockEditorTap,
   });
 
   final Ros2 ros2;
@@ -189,6 +201,17 @@ class OccupancyGridView extends StatefulWidget {
   /// Saved locations to draw as pins — each a map with `name`, `x`, `y`
   /// (the same shape SdkApiService.listWaypoints() returns).
   final List<Map<String, dynamic>> locations;
+
+  /// Also connect [locations] with the dashed "visited in this order" line
+  /// (see [_OccupancyGridPainter._drawWaypointRoute]). Off by default:
+  /// [locations] is used both for a mission's own ordered route (where the
+  /// dashes are meaningful — ask mission_detail_screen's route card, the
+  /// one caller that sets this true) and for the general "Saved Locations"
+  /// map layer (teleop/map screens), whose storage order is arbitrary and
+  /// was previously getting the same dashed connector by accident — every
+  /// pin joined to every other regardless of any mission, including after
+  /// a plain single-pose goal that never involved a mission at all.
+  final bool showWaypointRoute;
 
   /// Whether the optional overlays are currently visible — a "Layers" panel
   /// flips this rather than re-subscribing. Each overlay still needs its
@@ -242,6 +265,16 @@ class OccupancyGridView extends StatefulWidget {
   /// passed in by the caller" treatment [locations] already gets. Ignored
   /// once the topic itself delivers a message — that's always fresher.
   final ({double x, double y, double theta})? dockPoseOverride;
+  final geometry_msgs.PoseWithCovarianceStamped? initialPose;
+  final nav_msgs.Path? initialPath;
+  final bool showLaserScan;
+  final String laserScanTopic;
+  final ({double x, double y, double theta})? draftPoseOverride;
+  final bool dockEditorMode;
+  final ({double x, double y})? dockEditorDockPoint;
+  final ({double x, double y})? dockEditorStandoffPoint;
+  final int dockEditorActiveIndex;
+  final void Function(double x, double y)? onDockEditorTap;
 
   @override
   State<OccupancyGridView> createState() => _OccupancyGridViewState();
@@ -255,6 +288,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   Subscriber<nav_msgs.OccupancyGrid>? _globalCostmapSub;
   Subscriber<nav_msgs.OccupancyGrid>? _localCostmapSub;
   Subscriber<tf2_msgs.TFMessage>? _tfSub;
+  Subscriber<sensor_msgs.LaserScan>? _scanSub;
+  sensor_msgs.LaserScan? _scan;
 
   /// The live `map` -> `odom` transform, tracked only while the local
   /// costmap is shown (it's the only thing here that needs it — see the
@@ -326,6 +361,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   @override
   void initState() {
     super.initState();
+    _pose = widget.initialPose;
+    _path = widget.initialPath;
     // Listened to so the robot marker can counter-scale against the current
     // zoom (see _onViewTransformChanged) — a marker drawn at a fixed size in
     // the image's own pixel space would otherwise grow right along with the
@@ -355,9 +392,14 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     if (widget.showPath) _subscribePath();
     if (widget.showGlobalCostmap) _subscribeGlobalCostmap();
     if (widget.showLocalCostmap) _subscribeLocalCostmap();
+    if (widget.showLaserScan) _subscribeScan();
+    _subscribeTf();
   }
 
   void _unsubscribeAll() {
+    _building = false;
+    _buildingGlobalCostmap = false;
+    _buildingLocalCostmap = false;
     _mapSub?.unsubscribe();
     _mapSub = null;
     _poseSub?.unsubscribe();
@@ -370,6 +412,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     _globalCostmapSub = null;
     _localCostmapSub?.unsubscribe();
     _localCostmapSub = null;
+    _scanSub?.unsubscribe();
+    _scanSub = null;
+    _scan = null;
     _tfSub?.unsubscribe();
     _tfSub = null;
     _mapOdomTransform = null;
@@ -387,6 +432,10 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       type: geometry_msgs.PoseWithCovarianceStamped().fullType,
       ros2: widget.ros2,
       prototype: geometry_msgs.PoseWithCovarianceStamped(),
+      // AMCL publishes /amcl_pose with TRANSIENT_LOCAL durability — without
+      // matching durability, a reconnecting or stationary subscriber never
+      // receives the latched pose until the robot physically moves.
+      qos: const {'durability': 'transient_local'},
       callback: (msg) {
         if (mounted) setState(() => _pose = msg);
       },
@@ -436,9 +485,26 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       prototype: nav_msgs.OccupancyGrid(),
       callback: (grid) => _onCostmap(grid, isGlobal: false),
     );
+  }
+
+  void _subscribeScan() {
+    _scanSub?.unsubscribe();
+    _scanSub = Subscriber<sensor_msgs.LaserScan>(
+      name: widget.laserScanTopic,
+      type: sensor_msgs.LaserScan().fullType,
+      ros2: widget.ros2,
+      prototype: sensor_msgs.LaserScan(),
+      callback: (msg) {
+        if (mounted) setState(() => _scan = msg);
+      },
+    );
+  }
+
+  void _subscribeTf() {
     // See the class doc: the local costmap is in `odom`, not `map` — this
     // is what lets _drawCostmapLayer place it correctly instead of
     // assuming the two frames are always identical.
+    _tfSub?.unsubscribe();
     _tfSub = Subscriber<tf2_msgs.TFMessage>(
       name: '/tf',
       type: tf2_msgs.TFMessage().fullType,
@@ -494,6 +560,14 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       // subscribeAll() above, and would just be reasoning about
       // subscriptions that no longer exist.
     }
+    if (widget.initialPose != null &&
+        (_pose == null || widget.initialPose != oldWidget.initialPose)) {
+      _pose = widget.initialPose;
+    }
+    if (widget.initialPath != null &&
+        (_path == null || widget.initialPath != oldWidget.initialPath)) {
+      _path = widget.initialPath;
+    }
     if (widget.showRobot != oldWidget.showRobot) {
       if (widget.showRobot) {
         _subscribeRobot();
@@ -542,49 +616,58 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         _mapOdomTransform = null;
       }
     }
+    if (widget.showLaserScan != oldWidget.showLaserScan ||
+        widget.laserScanTopic != oldWidget.laserScanTopic) {
+      if (widget.showLaserScan) {
+        _subscribeScan();
+      } else {
+        _scanSub?.unsubscribe();
+        _scanSub = null;
+        _scan = null;
+      }
+    }
   }
 
   Future<void> _onGrid(nav_msgs.OccupancyGrid grid) async {
     if (_building) return; // drop an overlapping rebuild rather than queue it
     _building = true;
-    final width = grid.info.width;
-    final height = grid.info.height;
-    if (width <= 0 || height <= 0) {
-      _building = false;
-      return;
-    }
+    try {
+      final width = grid.info.width;
+      final height = grid.info.height;
+      if (width <= 0 || height <= 0) return;
 
-    final pixels = Uint8List(width * height * 4);
-    for (var row = 0; row < height; row++) {
-      // Grid row 0 is the world-bottom row (increasing row = increasing map
-      // Y); image row 0 is conventionally the top. Flip here so the
-      // rendered map isn't upside down relative to the world frame.
-      final destRow = height - 1 - row;
-      for (var col = 0; col < width; col++) {
-        final value = grid.data[row * width + col];
-        final gray =
-            value < 0 ? 200 : (255 * (1 - value / 100)).round().clamp(0, 255);
-        final i = (destRow * width + col) * 4;
-        pixels[i] = gray;
-        pixels[i + 1] = gray;
-        pixels[i + 2] = gray;
-        pixels[i + 3] = 255;
+      final pixels = Uint8List(width * height * 4);
+      for (var row = 0; row < height; row++) {
+        // Grid row 0 is the world-bottom row (increasing row = increasing map
+        // Y); image row 0 is conventionally the top. Flip here so the
+        // rendered map isn't upside down relative to the world frame.
+        final destRow = height - 1 - row;
+        for (var col = 0; col < width; col++) {
+          final value = grid.data[row * width + col];
+          final gray =
+              value < 0 ? 200 : (255 * (1 - value / 100)).round().clamp(0, 255);
+          final i = (destRow * width + col) * 4;
+          pixels[i] = gray;
+          pixels[i + 1] = gray;
+          pixels[i + 2] = gray;
+          pixels[i + 3] = 255;
+        }
       }
-    }
 
-    final completer = Completer<ui.Image>();
-    ui.decodeImageFromPixels(
-        pixels, width, height, ui.PixelFormat.rgba8888, completer.complete);
-    final image = await completer.future;
-    if (!mounted) {
+      final completer = Completer<ui.Image>();
+      ui.decodeImageFromPixels(
+          pixels, width, height, ui.PixelFormat.rgba8888, completer.complete);
+      final image = await completer.future;
+      if (!mounted) return;
+      setState(() {
+        _grid = grid;
+        _image = image;
+      });
+    } catch (e) {
+      debugPrint('Error decoding map grid: $e');
+    } finally {
       _building = false;
-      return;
     }
-    setState(() {
-      _grid = grid;
-      _image = image;
-      _building = false;
-    });
   }
 
   /// Costmap cells become a translucent color ramp (transparent at cost 0,
@@ -600,58 +683,52 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     } else {
       _buildingLocalCostmap = true;
     }
-    final width = grid.info.width;
-    final height = grid.info.height;
-    if (width <= 0 || height <= 0) {
-      if (isGlobal) {
-        _buildingGlobalCostmap = false;
-      } else {
-        _buildingLocalCostmap = false;
-      }
-      return;
-    }
+    try {
+      final width = grid.info.width;
+      final height = grid.info.height;
+      if (width <= 0 || height <= 0) return;
 
-    final color = isGlobal ? AppColors.costmapGlobal : AppColors.costmapLocal;
-    final colorR = (color.r * 255).round().clamp(0, 255);
-    final colorG = (color.g * 255).round().clamp(0, 255);
-    final colorB = (color.b * 255).round().clamp(0, 255);
-    final pixels = Uint8List(width * height * 4);
-    for (var row = 0; row < height; row++) {
-      final destRow = height - 1 - row;
-      for (var col = 0; col < width; col++) {
-        final value = grid.data[row * width + col];
-        final i = (destRow * width + col) * 4;
-        if (value < 0) continue; // leave fully transparent (alpha already 0)
-        final t = (value / 100).clamp(0.0, 1.0);
-        pixels[i] = colorR;
-        pixels[i + 1] = colorG;
-        pixels[i + 2] = colorB;
-        pixels[i + 3] = (t * 160).round().clamp(0, 255);
+      final color = isGlobal ? AppColors.costmapGlobal : AppColors.costmapLocal;
+      final colorR = (color.r * 255).round().clamp(0, 255);
+      final colorG = (color.g * 255).round().clamp(0, 255);
+      final colorB = (color.b * 255).round().clamp(0, 255);
+      final pixels = Uint8List(width * height * 4);
+      for (var row = 0; row < height; row++) {
+        final destRow = height - 1 - row;
+        for (var col = 0; col < width; col++) {
+          final value = grid.data[row * width + col];
+          final i = (destRow * width + col) * 4;
+          if (value < 0) continue; // leave fully transparent (alpha already 0)
+          final t = (value / 100).clamp(0.0, 1.0);
+          pixels[i] = colorR;
+          pixels[i + 1] = colorG;
+          pixels[i + 2] = colorB;
+          pixels[i + 3] = (t * 160).round().clamp(0, 255);
+        }
       }
-    }
 
-    final completer = Completer<ui.Image>();
-    ui.decodeImageFromPixels(
-        pixels, width, height, ui.PixelFormat.rgba8888, completer.complete);
-    final image = await completer.future;
-    if (!mounted) {
+      final completer = Completer<ui.Image>();
+      ui.decodeImageFromPixels(
+          pixels, width, height, ui.PixelFormat.rgba8888, completer.complete);
+      final image = await completer.future;
+      if (!mounted) return;
+      setState(() {
+        final layer = _CostmapLayer(grid: grid, image: image);
+        if (isGlobal) {
+          _globalCostmap = layer;
+        } else {
+          _localCostmap = layer;
+        }
+      });
+    } catch (e) {
+      debugPrint('Error decoding costmap: $e');
+    } finally {
       if (isGlobal) {
         _buildingGlobalCostmap = false;
       } else {
         _buildingLocalCostmap = false;
       }
-      return;
     }
-    setState(() {
-      final layer = _CostmapLayer(grid: grid, image: image);
-      if (isGlobal) {
-        _globalCostmap = layer;
-        _buildingGlobalCostmap = false;
-      } else {
-        _localCostmap = layer;
-        _buildingLocalCostmap = false;
-      }
-    });
   }
 
   /// Converts a raw global pointer position into the base map's own
@@ -776,6 +853,10 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     final contentPoint = _globalToContent(globalPosition);
     if (grid == null || contentPoint == null) return;
     final tapWorld = _pixelToWorld(grid, contentPoint);
+    if (widget.dockEditorMode) {
+      widget.onDockEditorTap?.call(tapWorld.dx, tapWorld.dy);
+      return;
+    }
     const toleranceMeters = 0.6;
 
     double? dockDist;
@@ -840,6 +921,13 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
 
     final showOverlays = widget.showOverlays;
 
+    Offset? effectiveDraftPixel = _draftPixel;
+    double effectiveDraftYaw = _draftYaw;
+    if (widget.draftPoseOverride != null) {
+      effectiveDraftPixel = _worldToPixel(grid, widget.draftPoseOverride!.x, widget.draftPoseOverride!.y);
+      effectiveDraftYaw = widget.draftPoseOverride!.theta;
+    }
+
     // Builds the painted map for a given marker counter-scale — a function
     // rather than a single built-once widget, because the right
     // counter-scale differs per branch below and, for the thumbnail branch,
@@ -853,10 +941,12 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           painter: _OccupancyGridPainter(
             image: image,
             grid: grid,
-            pose: widget.showRobot ? _pose : null,
+            pose: widget.showRobot ? (_pose ?? widget.initialPose) : null,
             dockPose:
-                (widget.showDock && showOverlays) ? _resolvedDockPose : null,
-            path: (widget.showPath && showOverlays) ? _path : null,
+                (widget.showDock && showOverlays && !widget.dockEditorMode) ? _resolvedDockPose : null,
+            path: (widget.showPath && showOverlays)
+                ? (_path ?? widget.initialPath)
+                : null,
             globalCostmap: (widget.showGlobalCostmap && showOverlays)
                 ? _globalCostmap
                 : null,
@@ -865,9 +955,15 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
                 : null,
             mapOdomTransform: _mapOdomTransform,
             locations: showOverlays ? widget.locations : const [],
-            draftPixel: widget.posePicking ? _draftPixel : null,
-            draftYaw: _draftYaw,
+            showWaypointRoute: widget.showWaypointRoute,
+            draftPixel: widget.posePicking ? effectiveDraftPixel : null,
+            draftYaw: effectiveDraftYaw,
             markerScale: markerScale,
+            scan: (widget.showLaserScan && showOverlays) ? _scan : null,
+            dockEditorMode: widget.dockEditorMode,
+            dockEditorDockPoint: widget.dockEditorDockPoint,
+            dockEditorStandoffPoint: widget.dockEditorStandoffPoint,
+            dockEditorActiveIndex: widget.dockEditorActiveIndex,
           ),
         );
 
@@ -889,14 +985,14 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       // markerScale keeps that distance a constant on-screen size
       // regardless of zoom, the same reasoning as the painter's own
       // markerScale keeps drawn marker sizes constant.
-      final draft = _draftPixel;
-      const handleScreenDistance = _draftConeRadius + 2;
+      final draft = effectiveDraftPixel;
+      const handleScreenDistance = 44.0;
       final handleContentPos = draft == null
           ? null
           : draft +
               Offset(
-                handleScreenDistance * markerScale * cos(_draftYaw),
-                -handleScreenDistance * markerScale * sin(_draftYaw),
+                handleScreenDistance * markerScale * cos(effectiveDraftYaw),
+                -handleScreenDistance * markerScale * sin(effectiveDraftYaw),
               );
 
       return SizedBox.expand(
@@ -956,31 +1052,31 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
                   behavior: HitTestBehavior.opaque,
                   onPanStart: (d) => _updateDraftYaw(d.globalPosition),
                   onPanUpdate: (d) => _updateDraftYaw(d.globalPosition),
-                  // A generous 44px hit area for touch accuracy, but the
-                  // *visible* grab dot is small and undecorated (no icon)
-                  // — sitting right at the marker's own cone tip (see
-                  // handleContentPos above), it should read as part of the
-                  // marker's nose, not as a separate button bolted on
-                  // nearby. Same white-bordered-dot language _drawPin uses
-                  // for every other marker in this file.
+                  // A generous 48px hit area for touch/mouse accuracy, with
+                  // an intuitive rotation grab ring.
                   child: Container(
-                    width: 44,
-                    height: 44,
+                    width: 48,
+                    height: 48,
                     color: Colors.transparent,
                     alignment: Alignment.center,
                     child: Container(
-                      width: 16,
-                      height: 16,
+                      width: 22,
+                      height: 22,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: AppColors.accent,
-                        border: Border.all(color: Colors.white, width: 2),
+                        border: Border.all(color: Colors.white, width: 2.5),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 3,
+                            color: Colors.black.withValues(alpha: 0.35),
+                            blurRadius: 4,
+                            spreadRadius: 1,
                           ),
                         ],
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.sync_rounded,
+                            size: 13, color: Colors.white),
                       ),
                     ),
                   ),
@@ -1011,7 +1107,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         boundaryMargin: const EdgeInsets.all(200),
         child: Center(child: revealedFor(markerScale, key: _contentBoxKey)),
       );
-      if (widget.onLocationTap == null && widget.onDockTap == null) {
+      if (widget.onLocationTap == null && widget.onDockTap == null && !widget.dockEditorMode) {
         return _withLocalizationBadge(viewer);
       }
       // A GestureDetector wrapping InteractiveViewer (rather than nested
@@ -1132,9 +1228,15 @@ class _OccupancyGridPainter extends CustomPainter {
     required this.localCostmap,
     required this.mapOdomTransform,
     required this.locations,
+    required this.showWaypointRoute,
     required this.draftPixel,
     required this.draftYaw,
     this.markerScale = 1.0,
+    this.scan,
+    this.dockEditorMode = false,
+    this.dockEditorDockPoint,
+    this.dockEditorStandoffPoint,
+    this.dockEditorActiveIndex = 0,
   });
 
   final ui.Image image;
@@ -1144,23 +1246,17 @@ class _OccupancyGridPainter extends CustomPainter {
   final nav_msgs.Path? path;
   final _CostmapLayer? globalCostmap;
   final _CostmapLayer? localCostmap;
-
-  /// The live `map` -> `odom` transform, needed to place [localCostmap]
-  /// correctly since it's published in `odom` rather than `map` — see
-  /// [OccupancyGridView]'s class doc. Null (odom==map assumed) until the
-  /// first `/tf` message carrying that edge arrives. Irrelevant to
-  /// [globalCostmap], which is already in `map`.
   final _RigidTransform2D? mapOdomTransform;
-
   final List<Map<String, dynamic>> locations;
+  final bool showWaypointRoute;
   final Offset? draftPixel;
   final double draftYaw;
-
-  /// Multiplies the robot marker's radius — the inverse of the current view
-  /// zoom, so the marker's on-screen size stays constant instead of growing
-  /// with the map as the operator zooms in. 1.0 outside an interactive,
-  /// user-zoomable view (see OccupancyGridView.build).
   final double markerScale;
+  final sensor_msgs.LaserScan? scan;
+  final bool dockEditorMode;
+  final ({double x, double y})? dockEditorDockPoint;
+  final ({double x, double y})? dockEditorStandoffPoint;
+  final int dockEditorActiveIndex;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1176,7 +1272,7 @@ class _OccupancyGridPainter extends CustomPainter {
     }
 
     _drawPath(canvas);
-    _drawWaypointRoute(canvas);
+    if (showWaypointRoute) _drawWaypointRoute(canvas);
 
     for (final loc in locations) {
       if (loc['x'] is! num || loc['y'] is! num) continue;
@@ -1209,11 +1305,153 @@ class _OccupancyGridPainter extends CustomPainter {
 
     final draft = draftPixel;
     if (draft != null) {
-      // Same dot+cone size as the live robot marker above (both default to
-      // _draftDotRadius/_draftConeRadius) — only the color tells them apart.
-      _drawRobotMarker(canvas, draft, draftYaw, AppColors.accent,
+      _drawPickerMarker(canvas, draft, draftYaw, AppColors.accent,
           sizeScale: markerScale);
     }
+
+    final s = scan;
+    if (s != null) _drawLaserScan(canvas, s);
+
+    if (dockEditorMode) {
+      _drawDockEditor(canvas);
+    }
+  }
+
+  void _drawLaserScan(Canvas canvas, sensor_msgs.LaserScan s) {
+    final p = pose;
+    if (p == null) return;
+    final robotX = p.pose.pose.position.x;
+    final robotY = p.pose.pose.position.y;
+    final robotYaw = _yawOf(p.pose.pose.orientation);
+
+    final dotRadius = 1.6 * markerScale;
+    final paint = Paint()
+      ..color = const Color(0xFFFF2B3C).withValues(alpha: 0.90)
+      ..style = PaintingStyle.fill;
+
+    final len = s.ranges.length;
+    for (var i = 0; i < len; i++) {
+      final r = s.ranges[i];
+      if (r.isNaN || r.isInfinite || r < s.range_min || r > s.range_max) {
+        continue;
+      }
+      final beamAngle = s.angle_min + i * s.angle_increment;
+      final worldAngle = robotYaw + beamAngle;
+      final wx = robotX + r * cos(worldAngle);
+      final wy = robotY + r * sin(worldAngle);
+      final px = _worldToPixel(grid, wx, wy);
+      canvas.drawCircle(px, dotRadius, paint);
+    }
+  }
+
+  void _drawDockEditor(Canvas canvas) {
+    final dockPt = dockEditorDockPoint;
+    final standoffPt = dockEditorStandoffPoint;
+
+    Offset? dockPixel;
+    Offset? standoffPixel;
+    if (dockPt != null) {
+      dockPixel = _worldToPixel(grid, dockPt.x, dockPt.y);
+    }
+    if (standoffPt != null) {
+      standoffPixel = _worldToPixel(grid, standoffPt.x, standoffPt.y);
+    }
+
+    if (dockPixel != null && standoffPixel != null && dockPt != null && standoffPt != null) {
+      final dx = standoffPt.x - dockPt.x;
+      final dy = standoffPt.y - dockPt.y;
+      final dist = sqrt(dx * dx + dy * dy);
+      final dockHeading = atan2(dy, dx);
+      final standoffHeading = atan2(-dy, -dx);
+
+      // Connecting guide line
+      final linePaint = Paint()
+        ..color = AppColors.stateDocking
+        ..strokeWidth = 2.5 * markerScale
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(dockPixel, standoffPixel, linePaint);
+
+      // Distance badge pill in middle of line
+      final midPixel = Offset(
+        (dockPixel.dx + standoffPixel.dx) / 2,
+        (dockPixel.dy + standoffPixel.dy) / 2,
+      );
+      final distText = '${(dist * 100).toStringAsFixed(1)} cm (${dist.toStringAsFixed(2)} m)';
+      _drawPillLabel(canvas, midPixel, distText, AppColors.stateDocking, sizeScale: markerScale);
+
+      // Dock Marker (⚡) with orientation pointing towards standoff
+      _drawDockStationMarker(canvas, dockPixel, dockHeading, isSelected: dockEditorActiveIndex == 0, sizeScale: markerScale);
+
+      // Standoff Marker (🎯) with orientation pointing towards dock
+      _drawStandoffPointMarker(canvas, standoffPixel, standoffHeading, isSelected: dockEditorActiveIndex == 1, sizeScale: markerScale);
+    } else {
+      if (dockPixel != null) {
+        _drawDockStationMarker(canvas, dockPixel, 0.0, isSelected: dockEditorActiveIndex == 0, sizeScale: markerScale);
+      }
+      if (standoffPixel != null) {
+        _drawStandoffPointMarker(canvas, standoffPixel, 0.0, isSelected: dockEditorActiveIndex == 1, sizeScale: markerScale);
+      }
+    }
+  }
+
+  void _drawDockStationMarker(Canvas canvas, Offset center, double heading, {required bool isSelected, double sizeScale = 1.0}) {
+    final radius = 14 * sizeScale;
+    if (isSelected) {
+      canvas.drawCircle(center, radius + 8 * sizeScale, Paint()..color = AppColors.stateDocking.withValues(alpha: 0.25));
+      canvas.drawCircle(center, radius + 4 * sizeScale, Paint()..color = AppColors.stateDocking.withValues(alpha: 0.45));
+    }
+    // Directional heading arrow pointing along heading
+    final arrowDist = radius + 8 * sizeScale;
+    final arrowTip = center + Offset(arrowDist * cos(heading), -arrowDist * sin(heading));
+    final arrowLeft = center + Offset((radius + 2 * sizeScale) * cos(heading + 0.5), -(radius + 2 * sizeScale) * sin(heading + 0.5));
+    final arrowRight = center + Offset((radius + 2 * sizeScale) * cos(heading - 0.5), -(radius + 2 * sizeScale) * sin(heading - 0.5));
+    final arrowPath = Path()..moveTo(arrowTip.dx, arrowTip.dy)..lineTo(arrowLeft.dx, arrowLeft.dy)..lineTo(arrowRight.dx, arrowRight.dy)..close();
+    canvas.drawPath(arrowPath, Paint()..color = AppColors.stateDocking);
+
+    _drawPin(canvas, center, AppColors.stateDocking, Icons.ev_station_rounded, sizeScale: sizeScale);
+    _drawPinLabel(canvas, center, '1. Dock Station (⚡)', sizeScale: sizeScale);
+  }
+
+  void _drawStandoffPointMarker(Canvas canvas, Offset center, double heading, {required bool isSelected, double sizeScale = 1.0}) {
+    final radius = 14 * sizeScale;
+    if (isSelected) {
+      canvas.drawCircle(center, radius + 8 * sizeScale, Paint()..color = AppColors.primary.withValues(alpha: 0.25));
+      canvas.drawCircle(center, radius + 4 * sizeScale, Paint()..color = AppColors.primary.withValues(alpha: 0.45));
+    }
+    // Directional heading arrow pointing along heading
+    final arrowDist = radius + 8 * sizeScale;
+    final arrowTip = center + Offset(arrowDist * cos(heading), -arrowDist * sin(heading));
+    final arrowLeft = center + Offset((radius + 2 * sizeScale) * cos(heading + 0.5), -(radius + 2 * sizeScale) * sin(heading + 0.5));
+    final arrowRight = center + Offset((radius + 2 * sizeScale) * cos(heading - 0.5), -(radius + 2 * sizeScale) * sin(heading - 0.5));
+    final arrowPath = Path()..moveTo(arrowTip.dx, arrowTip.dy)..lineTo(arrowLeft.dx, arrowLeft.dy)..lineTo(arrowRight.dx, arrowRight.dy)..close();
+    canvas.drawPath(arrowPath, Paint()..color = AppColors.primary);
+
+    _drawPin(canvas, center, AppColors.primary, Icons.my_location_rounded, sizeScale: sizeScale);
+    _drawPinLabel(canvas, center, '2. Standoff Point (🎯)', sizeScale: sizeScale);
+  }
+
+  void _drawPillLabel(Canvas canvas, Offset center, String text, Color color, {double sizeScale = 1.0}) {
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: 10 * sizeScale,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+    )..layout();
+
+    final pillWidth = textPainter.width + 12 * sizeScale;
+    final pillHeight = textPainter.height + 6 * sizeScale;
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: center, width: pillWidth, height: pillHeight),
+      Radius.circular(pillHeight / 2),
+    );
+    canvas.drawRRect(rect, Paint()..color = Colors.black.withValues(alpha: 0.85));
+    canvas.drawRRect(rect, Paint()..color = color.withValues(alpha: 0.9)..style = PaintingStyle.stroke..strokeWidth = 1.2 * sizeScale);
+    textPainter.paint(canvas, center - Offset(textPainter.width / 2, textPainter.height / 2));
   }
 
   /// [frameTransform] is the rigid transform from this layer's own
@@ -1343,6 +1581,9 @@ class _OccupancyGridPainter extends CustomPainter {
   /// glance far more clearly than a thin line ever did. A white halo under
   /// the dot keeps it visible against both the pale "free space" and the
   /// darker "occupied" regions of the map underneath.
+  /// A high-visibility robot marker with a crisp chassis circle, a wide
+  /// directional cone, and a prominent forward-pointing arrow chevron that
+  /// scales consistently with [sizeScale] so it never disappears when zoomed in.
   void _drawRobotMarker(
     Canvas canvas,
     Offset center,
@@ -1352,34 +1593,202 @@ class _OccupancyGridPainter extends CustomPainter {
     double coneRadius = _draftConeRadius,
     double sizeScale = 1.0,
   }) {
-    dotRadius *= sizeScale;
-    coneRadius *= sizeScale;
-    const coneHalfAngle = 0.5; // ~28.6°, ~57° total spread
-    const segments = 12;
+    final r = dotRadius * sizeScale;
+    final strokeW = 2.0 * sizeScale;
 
+    // 1. Soft wide orientation field / headlight cone
+    final coneR = coneRadius * sizeScale;
+    const coneHalfAngle = 0.52; // ~30° spread
+    const segments = 16;
     final conePath = Path()..moveTo(center.dx, center.dy);
     for (var i = 0; i <= segments; i++) {
       final t = -coneHalfAngle + (2 * coneHalfAngle) * (i / segments);
       final angle = yaw + t;
-      // Canvas Y grows downward while yaw is measured counter-clockwise
-      // from +X in the world frame — negate the Y term to match.
-      conePath.lineTo(center.dx + coneRadius * cos(angle),
-          center.dy - coneRadius * sin(angle));
+      conePath.lineTo(
+          center.dx + coneR * cos(angle), center.dy - coneR * sin(angle));
     }
     conePath.close();
-    canvas.drawPath(conePath, Paint()..color = color.withValues(alpha: 0.28));
+    canvas.drawPath(conePath, Paint()..color = color.withValues(alpha: 0.25));
 
-    canvas.drawCircle(center, dotRadius + 3,
-        Paint()..color = Colors.white.withValues(alpha: 0.9));
-    canvas.drawCircle(center, dotRadius, Paint()..color = color);
+    // 2. Chassis outer shadow ring
     canvas.drawCircle(
       center,
-      dotRadius,
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.9)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
+      r + 2.5 * sizeScale,
+      Paint()..color = Colors.black.withValues(alpha: 0.35),
     );
+
+    // 3. Robot chassis body disc
+    canvas.drawCircle(center, r, Paint()..color = color);
+    canvas.drawCircle(
+      center,
+      r,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeW,
+    );
+
+    // 4. Prominent, high-contrast forward-pointing arrow chevron
+    // Extends past the front edge of the robot circle along yaw.
+    final arrowTipDist = r + 8.0 * sizeScale;
+    final arrowBaseDist = r * 0.15;
+    final arrowWingDist = r * 0.95;
+    const arrowWingAngle = 0.70;
+
+    final tip = center +
+        Offset(arrowTipDist * cos(yaw), -arrowTipDist * sin(yaw));
+    final leftWing = center +
+        Offset(arrowWingDist * cos(yaw + arrowWingAngle),
+            -arrowWingDist * sin(yaw + arrowWingAngle));
+    final rightWing = center +
+        Offset(arrowWingDist * cos(yaw - arrowWingAngle),
+            -arrowWingDist * sin(yaw - arrowWingAngle));
+    final base = center +
+        Offset(arrowBaseDist * cos(yaw), -arrowBaseDist * sin(yaw));
+
+    final arrowPath = Path()
+      ..moveTo(tip.dx, tip.dy)
+      ..lineTo(leftWing.dx, leftWing.dy)
+      ..lineTo(base.dx, base.dy)
+      ..lineTo(rightWing.dx, rightWing.dy)
+      ..close();
+
+    // Dark stroke outline around arrow for maximum legibility against any background
+    canvas.drawPath(
+      arrowPath,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0 * sizeScale,
+    );
+
+    // Solid bright white pointer arrow
+    canvas.drawPath(arrowPath, Paint()..color = Colors.white);
+
+    // Center pivot core
+    canvas.drawCircle(center, 2.5 * sizeScale, Paint()..color = Colors.white);
+  }
+
+  /// Location picker marker: uses the robot marker design (chassis disc,
+  /// shock ring, prominent direction chevron arrow, center core), with an
+  /// anchor tether line tied from the marker center out to the rotation handle.
+  void _drawPickerMarker(
+    Canvas canvas,
+    Offset center,
+    double yaw,
+    Color color, {
+    double sizeScale = 1.0,
+  }) {
+    final r = 12.0 * sizeScale;
+    final strokeW = 2.0 * sizeScale;
+    final anchorDist = 44.0 * sizeScale;
+    final anchorPoint =
+        center + Offset(anchorDist * cos(yaw), -anchorDist * sin(yaw));
+
+    // 1. Anchor tether line tied from the marker to the rotation anchor node
+    canvas.drawLine(
+      center,
+      anchorPoint,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.35)
+        ..strokeWidth = 3.5 * sizeScale
+        ..style = PaintingStyle.stroke,
+    );
+    canvas.drawLine(
+      center,
+      anchorPoint,
+      Paint()
+        ..color = color
+        ..strokeWidth = 2.0 * sizeScale
+        ..style = PaintingStyle.stroke,
+    );
+
+    // Anchor node base ring tied at the tip
+    canvas.drawCircle(
+      anchorPoint,
+      7.0 * sizeScale,
+      Paint()
+        ..color = color.withValues(alpha: 0.25)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawCircle(
+      anchorPoint,
+      4.5 * sizeScale,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5 * sizeScale,
+    );
+
+    // 2. Robot-style Chassis Body Marker
+    // Soft outer shadow / glow
+    canvas.drawCircle(
+      center,
+      r + 3.0 * sizeScale,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+
+    // Translucent outer shock ring
+    canvas.drawCircle(
+      center,
+      r + 1.5 * sizeScale,
+      Paint()
+        ..color = color.withValues(alpha: 0.40)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0 * sizeScale,
+    );
+
+    // Robot chassis body disc
+    canvas.drawCircle(center, r, Paint()..color = color);
+    canvas.drawCircle(
+      center,
+      r,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeW,
+    );
+
+    // 3. Prominent forward-pointing arrow chevron on the robot chassis body
+    final arrowTipDist = r + 8.0 * sizeScale;
+    final arrowBaseDist = r * 0.15;
+    final arrowWingDist = r * 0.95;
+    const arrowWingAngle = 0.70;
+
+    final tip = center +
+        Offset(arrowTipDist * cos(yaw), -arrowTipDist * sin(yaw));
+    final leftWing = center +
+        Offset(arrowWingDist * cos(yaw + arrowWingAngle),
+            -arrowWingDist * sin(yaw + arrowWingAngle));
+    final rightWing = center +
+        Offset(arrowWingDist * cos(yaw - arrowWingAngle),
+            -arrowWingDist * sin(yaw - arrowWingAngle));
+    final base = center +
+        Offset(arrowBaseDist * cos(yaw), -arrowBaseDist * sin(yaw));
+
+    final arrowPath = Path()
+      ..moveTo(tip.dx, tip.dy)
+      ..lineTo(leftWing.dx, leftWing.dy)
+      ..lineTo(base.dx, base.dy)
+      ..lineTo(rightWing.dx, rightWing.dy)
+      ..close();
+
+    // Dark stroke outline around arrow for maximum legibility
+    canvas.drawPath(
+      arrowPath,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0 * sizeScale,
+    );
+
+    // Solid bright white pointer arrow
+    canvas.drawPath(arrowPath, Paint()..color = Colors.white);
+
+    // Center pivot core
+    canvas.drawCircle(center, 2.5 * sizeScale, Paint()..color = Colors.white);
   }
 
   /// A colored circle with a real icon glyph on top — location pins get
@@ -1476,7 +1885,13 @@ class _OccupancyGridPainter extends CustomPainter {
       oldDelegate.localCostmap != localCostmap ||
       oldDelegate.mapOdomTransform != mapOdomTransform ||
       oldDelegate.locations != locations ||
+      oldDelegate.showWaypointRoute != showWaypointRoute ||
       oldDelegate.draftPixel != draftPixel ||
       oldDelegate.draftYaw != draftYaw ||
-      oldDelegate.markerScale != markerScale;
+      oldDelegate.markerScale != markerScale ||
+      oldDelegate.scan != scan ||
+      oldDelegate.dockEditorMode != dockEditorMode ||
+      oldDelegate.dockEditorDockPoint != dockEditorDockPoint ||
+      oldDelegate.dockEditorStandoffPoint != dockEditorStandoffPoint ||
+      oldDelegate.dockEditorActiveIndex != dockEditorActiveIndex;
 }

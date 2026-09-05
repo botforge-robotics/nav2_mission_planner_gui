@@ -24,7 +24,8 @@ class SdkEvent {
     }
     if (name.endsWith('.low') ||
         name.endsWith('.lost') ||
-        name.contains('slip')) {
+        name.contains('slip') ||
+        (name == 'mission.paused' && data['reason'] == 'low_battery')) {
       return SdkEventSeverity.warning;
     }
     return SdkEventSeverity.info;
@@ -33,6 +34,20 @@ class SdkEvent {
   String get message {
     final msg = data['message'];
     if (msg is String && msg.isNotEmpty) return msg;
+    if (name == 'mission.paused') {
+      final reason = data['reason'];
+      if (reason == 'low_battery') {
+        return 'Mission paused: Low battery (auto-docking to recharge)';
+      }
+      return 'Mission paused by operator';
+    }
+    if (name == 'mission.resumed') {
+      final reason = data['reason'];
+      if (reason == 'battery_charged') {
+        return 'Battery charged to 95%: Mission resumed automatically';
+      }
+      return 'Mission resumed';
+    }
     return name;
   }
 }

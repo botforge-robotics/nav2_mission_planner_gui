@@ -62,60 +62,222 @@ class _DashboardContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final telemetry = context.watch<RobotTelemetryProvider>();
     final robot = connection.robot!;
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Dashboard')),
-      body: SafeArea(
-        child: CenteredFormColumn(
-          maxWidth: 720,
-          child: SdkStateBuilder(
-            robotIp: robot.ip,
-            builder: (context, sdkState) {
-              final battery = telemetry.batteryPercentage;
-              final charging =
-                  telemetry.chargeStatus == ChargeStatus.charging ||
-                      telemetry.chargeStatus == ChargeStatus.full;
-              var step = 0;
-              Duration nextDelay() => Duration(milliseconds: 60 * step++);
-
-              return ListView(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                children: [
-                  if (battery != null && battery <= 15 && !charging) ...[
-                    FadeSlideIn(
-                      delay: nextDelay(),
-                      child: _LowBatteryBanner(percentage: battery),
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        actions: [
+          if (isDesktop) ...[
+            if (telemetry.localized)
+              Container(
+                margin: const EdgeInsets.only(right: AppSpacing.sm),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.gps_fixed_rounded, size: 14, color: AppColors.success),
+                    const SizedBox(width: 6),
+                    Text(
+                      'AMCL: (${telemetry.poseX?.toStringAsFixed(2) ?? '--'}, ${telemetry.poseY?.toStringAsFixed(2) ?? '--'})',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
                   ],
-                  FadeSlideIn(
-                    delay: nextDelay(),
-                    child: _RobotCard(
-                        robot: robot, telemetry: telemetry, sdkState: sdkState),
+                ),
+              )
+            else
+              Container(
+                margin: const EdgeInsets.only(right: AppSpacing.sm),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.warning),
+                    SizedBox(width: 6),
+                    Text(
+                      'Not Localized',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.warning),
+                    ),
+                  ],
+                ),
+              ),
+            if (telemetry.dockStatus != null)
+              Container(
+                margin: const EdgeInsets.only(right: AppSpacing.sm),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.dock_rounded, size: 14, color: AppColors.accent),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Dock: ${telemetry.dockStatus}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent),
+                    ),
+                  ],
+                ),
+              ),
+            Container(
+              margin: const EdgeInsets.only(right: AppSpacing.md),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceSunken,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    telemetry.chargeStatus == ChargeStatus.charging
+                        ? Icons.bolt_rounded
+                        : Icons.battery_full_rounded,
+                    size: 14,
+                    color: telemetry.batteryPercentage != null && telemetry.batteryPercentage! < 20
+                        ? AppColors.danger
+                        : AppColors.success,
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  FadeSlideIn(
-                    delay: nextDelay(),
-                    child: _StatRow(telemetry: telemetry, sdkState: sdkState),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  FadeSlideIn(
-                    delay: nextDelay(),
-                    child: _MapPreviewCard(
-                        ros2: connection.ros2!,
-                        mapName: sdkState.mapName,
-                        robotIp: robot.ip),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  FadeSlideIn(
-                    delay: nextDelay(),
-                    child: _AlertsCard(robotIp: robot.ip),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${telemetry.batteryPercentage?.round() ?? '--'}%',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                   ),
                 ],
-              );
-            },
-          ),
-        ),
+              ),
+            ),
+          ],
+        ],
+      ),
+      body: SafeArea(
+        child: isDesktop
+            ? SdkStateBuilder(
+                robotIp: robot.ip,
+                builder: (context, sdkState) {
+                  final battery = telemetry.batteryPercentage;
+                  final charging =
+                      telemetry.chargeStatus == ChargeStatus.charging ||
+                          telemetry.chargeStatus == ChargeStatus.full;
+
+                  return Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xl),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Left Column (flex: 6): Robot Hero & Large Live Map
+                        Expanded(
+                          flex: 6,
+                          child: ListView(
+                            padding: EdgeInsets.zero,
+                            children: [
+                              if (battery != null &&
+                                  battery <= 15 &&
+                                  !charging) ...[
+                                _LowBatteryBanner(percentage: battery),
+                                const SizedBox(height: AppSpacing.lg),
+                              ],
+                              _RobotCard(
+                                  robot: robot,
+                                  telemetry: telemetry,
+                                  sdkState: sdkState),
+                              const SizedBox(height: AppSpacing.lg),
+                              _MapPreviewCard(
+                                ros2: connection.ros2!,
+                                mapName: sdkState.mapName,
+                                robotIp: robot.ip,
+                                height: 440,
+                                interactive: true,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xl),
+                        // Right Column (flex: 4): Telemetry Grid & Alerts Stream
+                        Expanded(
+                          flex: 4,
+                          child: ListView(
+                            padding: EdgeInsets.zero,
+                            children: [
+                              _StatGridDesktop(
+                                  telemetry: telemetry, sdkState: sdkState),
+                              const SizedBox(height: AppSpacing.lg),
+                              _AlertsCard(robotIp: robot.ip),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              )
+            : CenteredFormColumn(
+                maxWidth: 720,
+                child: SdkStateBuilder(
+                  robotIp: robot.ip,
+                  builder: (context, sdkState) {
+                    final battery = telemetry.batteryPercentage;
+                    final charging =
+                        telemetry.chargeStatus == ChargeStatus.charging ||
+                            telemetry.chargeStatus == ChargeStatus.full;
+                    var step = 0;
+                    Duration nextDelay() =>
+                        Duration(milliseconds: 60 * step++);
+
+                    return ListView(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      children: [
+                        if (battery != null && battery <= 15 && !charging) ...[
+                          FadeSlideIn(
+                            delay: nextDelay(),
+                            child: _LowBatteryBanner(percentage: battery),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                        ],
+                        FadeSlideIn(
+                          delay: nextDelay(),
+                          child: _RobotCard(
+                              robot: robot,
+                              telemetry: telemetry,
+                              sdkState: sdkState),
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        FadeSlideIn(
+                          delay: nextDelay(),
+                          child: _StatRow(
+                              telemetry: telemetry, sdkState: sdkState),
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        FadeSlideIn(
+                          delay: nextDelay(),
+                          child: _MapPreviewCard(
+                              ros2: connection.ros2!,
+                              mapName: sdkState.mapName,
+                              robotIp: robot.ip),
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        FadeSlideIn(
+                          delay: nextDelay(),
+                          child: _AlertsCard(robotIp: robot.ip),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
       ),
     );
   }
@@ -285,9 +447,18 @@ class _StatRow extends StatelessWidget {
             value: AnimatedSwitcher(
               duration: AppMotion.fast,
               child: Text(
-                sdkState.missionStatus?.toUpperCase() ?? '—',
-                key: ValueKey(sdkState.missionStatus),
-                style: Theme.of(context).textTheme.titleMedium,
+                sdkState.missionStatus == 'paused' &&
+                        sdkState.pauseReason == 'low_battery'
+                    ? 'PAUSED (CHARGING)'
+                    : (sdkState.missionStatus?.toUpperCase() ?? '—'),
+                key: ValueKey(
+                    '${sdkState.missionStatus}_${sdkState.pauseReason}'),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: sdkState.missionStatus == 'paused' &&
+                              sdkState.pauseReason == 'low_battery'
+                          ? AppColors.warning
+                          : null,
+                    ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -327,13 +498,104 @@ class _Stat extends StatelessWidget {
   }
 }
 
+class _StatGridDesktop extends StatelessWidget {
+  const _StatGridDesktop({required this.telemetry, required this.sdkState});
+
+  final RobotTelemetryProvider telemetry;
+  final SdkState sdkState;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _Stat(
+                icon: Icons.speed_rounded,
+                label: 'Linear Speed',
+                value: AnimatedMetricText(
+                  value: telemetry.linearSpeedMps?.abs(),
+                  formatter: (v) => '${v.toStringAsFixed(2)} m/s',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _Stat(
+                icon: Icons.flag_rounded,
+                label: 'Mission Status',
+                value: Text(
+                  sdkState.missionStatus == 'paused' &&
+                          sdkState.pauseReason == 'low_battery'
+                      ? 'PAUSED (CHARGING)'
+                      : (sdkState.missionStatus?.toUpperCase() ?? 'IDLE'),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: sdkState.missionStatus == 'paused' &&
+                                sdkState.pauseReason == 'low_battery'
+                            ? AppColors.warning
+                            : null,
+                      ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: _Stat(
+                icon: Icons.my_location_rounded,
+                label: 'AMCL Localization',
+                value: Text(
+                  telemetry.localized ? 'LOCALIZED' : 'UNLOCALIZED',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: telemetry.localized
+                        ? AppColors.success
+                        : AppColors.warning,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: _Stat(
+                icon: Icons.dock_rounded,
+                label: 'Dock State',
+                value: Text(
+                  telemetry.dockStatus?.toUpperCase() ?? 'UNDOCKED',
+                  style: Theme.of(context).textTheme.titleMedium,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _MapPreviewCard extends StatefulWidget {
-  const _MapPreviewCard(
-      {required this.ros2, required this.mapName, required this.robotIp});
+  const _MapPreviewCard({
+    required this.ros2,
+    required this.mapName,
+    required this.robotIp,
+    this.height = 140,
+    this.interactive = false,
+  });
 
   final Ros2 ros2;
   final String? mapName;
   final String robotIp;
+  final double height;
+  final bool interactive;
 
   @override
   State<_MapPreviewCard> createState() => _MapPreviewCardState();
@@ -390,29 +652,24 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
             ClipRRect(
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
               child: Container(
-                height: 140,
+                height: widget.height,
                 width: double.infinity,
                 color: AppColors.surfaceSunken,
                 child: Stack(
                   children: [
-                    // Not interactive here, and no key tying it to the map
-                    // name — same live subscription just keeps painting
-                    // whatever /map currently holds, matching the preview's
-                    // own "live" framing rather than a point-in-time
-                    // snapshot. Its own small badge is suppressed in favor
-                    // of the bigger, actionable banner below. The layer
-                    // selection is shared app-wide (see
-                    // MapLayersController) — this preview shows whatever's
-                    // toggled on from any screen.
                     Positioned.fill(
                       child: ValueListenableBuilder<Set<MapLayer>>(
                         valueListenable: MapLayersController.instance,
                         builder: (context, visibleLayers, _) =>
                             OccupancyGridView(
                           ros2: widget.ros2,
-                          interactive: false,
+                          interactive: widget.interactive,
                           showDock: visibleLayers.contains(MapLayer.dock),
                           showPath: visibleLayers.contains(MapLayer.path),
+                          showLaserScan:
+                              visibleLayers.contains(MapLayer.laserScan),
+                          initialPose: telemetry.rawPose,
+                          initialPath: telemetry.currentPath,
                           showGlobalCostmap:
                               visibleLayers.contains(MapLayer.globalCostmap),
                           showLocalCostmap:

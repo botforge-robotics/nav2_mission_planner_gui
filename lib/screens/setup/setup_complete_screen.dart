@@ -1,6 +1,8 @@
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../providers/connection_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell/app_shell.dart';
 import 'setup_scaffold.dart';
@@ -36,10 +38,13 @@ class _SetupCompleteScreenState extends State<SetupCompleteScreen> {
       title: 'Setup Complete!',
       subtitle: 'Your robot is ready to roll.',
       primaryLabel: 'Go to Dashboard',
-      onPrimary: () => Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const AppShell()),
-        (route) => false,
-      ),
+      onPrimary: () {
+        context.read<ConnectionProvider>().reconnect();
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AppShell()),
+          (route) => false,
+        );
+      },
       child: Stack(
         alignment: Alignment.topCenter,
         children: [

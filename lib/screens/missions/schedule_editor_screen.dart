@@ -149,135 +149,382 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar:
-          AppBar(title: Text(_isEditing ? 'Edit Schedule' : 'New Schedule')),
-      body: SafeArea(
-        child: CenteredFormColumn(
-          maxWidth: 560,
-          child: ListView(
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
+    final selectedMission = widget.missions
+        .cast<Map<String, dynamic>?>()
+        .firstWhere((m) => m?['id'] == _missionId, orElse: () => null);
+
+    final formContent = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 1. Mission Picker Card
+        Card(
+          child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            children: [
-              Text('Mission', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String>(
-                initialValue: _missionId,
-                isExpanded: true,
-                hint: const Text('Choose a mission'),
-                items: [
-                  for (final m in widget.missions)
-                    DropdownMenuItem(
-                      value: m['id'] as String,
-                      child: Text(m['name'] as String? ?? m['id'] as String),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.alt_route_rounded,
+                        size: 20, color: AppColors.primary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      'Mission to Execute',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                ],
-                onChanged: (v) => setState(() => _missionId = v),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text('Name (optional)',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _nameController,
-                decoration:
-                    const InputDecoration(hintText: 'Defaults to mission name'),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text('Time', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.sm),
-              OutlinedButton.icon(
-                onPressed: _pickTime,
-                icon: const Icon(Icons.access_time_rounded),
-                label: Text(_time.format(context)),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text('Repeat', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                children: [
-                  ChoiceChip(
-                    label: const Text('Once'),
-                    selected: _repeat == 'once',
-                    onSelected: (_) => setState(() => _repeat = 'once'),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                DropdownButtonFormField<String>(
+                  initialValue: _missionId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Select Mission',
+                    hintText: 'Choose a mission from your library',
+                    prefixIcon: Icon(Icons.list_alt_rounded),
                   ),
-                  ChoiceChip(
-                    label: const Text('Daily'),
-                    selected: _repeat == 'daily',
-                    onSelected: (_) => setState(() => _repeat = 'daily'),
+                  items: [
+                    for (final m in widget.missions)
+                      DropdownMenuItem(
+                        value: m['id'] as String,
+                        child: Text(
+                          '${m['name'] as String? ?? m['id'] as String} (${(m['steps'] as List? ?? const []).length} steps)',
+                        ),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _missionId = v),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Schedule Title (Optional)',
+                    hintText: 'e.g. Morning Patrol',
+                    prefixIcon: Icon(Icons.label_outline_rounded),
                   ),
-                  ChoiceChip(
-                    label: const Text('Weekly'),
-                    selected: _repeat == 'weekly',
-                    onSelected: (_) => setState(() => _repeat = 'weekly'),
-                  ),
-                ],
-              ),
-              if (_repeat == 'once') ...[
-                const SizedBox(height: AppSpacing.sm),
-                OutlinedButton.icon(
-                  onPressed: _pickDate,
-                  icon: const Icon(Icons.calendar_today_rounded),
-                  label: Text(
-                      '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}'),
                 ),
               ],
-              if (_repeat == 'weekly') ...[
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+
+        // 2. Frequency & Recurrence Card
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.repeat_rounded,
+                        size: 20, color: AppColors.primary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      'Recurrence & Frequency',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Daily'),
+                      selected: _repeat == 'daily',
+                      onSelected: (_) => setState(() => _repeat = 'daily'),
+                    ),
+                    ChoiceChip(
+                      label: const Text('Weekly Days'),
+                      selected: _repeat == 'weekly',
+                      onSelected: (_) => setState(() => _repeat = 'weekly'),
+                    ),
+                    ChoiceChip(
+                      label: const Text('One-time Run'),
+                      selected: _repeat == 'once',
+                      onSelected: (_) => setState(() => _repeat = 'once'),
+                    ),
+                  ],
+                ),
+                if (_repeat == 'once') ...[
+                  const SizedBox(height: AppSpacing.md),
+                  OutlinedButton.icon(
+                    onPressed: _pickDate,
+                    icon: const Icon(Icons.calendar_today_rounded, size: 18),
+                    label: Text(
+                        'Date: ${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}'),
+                  ),
+                ],
+                if (_repeat == 'weekly') ...[
+                  const SizedBox(height: AppSpacing.md),
+                  const Text('Repeat on days:',
+                      style: TextStyle(
+                          fontSize: 13, color: AppColors.textSecondary)),
+                  const SizedBox(height: AppSpacing.xs),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    children: [
+                      for (var i = 0; i < 7; i++)
+                        FilterChip(
+                          label: Text(_weekdayLabels[i]),
+                          selected: _weekdays.contains(i),
+                          onSelected: (sel) => setState(() {
+                            if (sel) {
+                              _weekdays.add(i);
+                            } else {
+                              _weekdays.remove(i);
+                            }
+                          }),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+
+        // 3. Time Picker Card
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.access_time_rounded,
+                        size: 20, color: AppColors.primary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      'Trigger Time',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(
+                        _time.format(context),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'monospace',
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    OutlinedButton.icon(
+                      onPressed: _pickTime,
+                      icon: const Icon(Icons.schedule_rounded, size: 18),
+                      label: const Text('Change Time'),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 Wrap(
                   spacing: AppSpacing.xs,
                   children: [
-                    for (var i = 0; i < 7; i++)
-                      FilterChip(
-                        label: Text(_weekdayLabels[i]),
-                        selected: _weekdays.contains(i),
-                        onSelected: (sel) => setState(() {
-                          if (sel) {
-                            _weekdays.add(i);
-                          } else {
-                            _weekdays.remove(i);
-                          }
-                        }),
-                      ),
+                    ActionChip(
+                      label: const Text('08:00 AM'),
+                      onPressed: () => setState(() =>
+                          _time = const TimeOfDay(hour: 8, minute: 0)),
+                    ),
+                    ActionChip(
+                      label: const Text('12:00 PM'),
+                      onPressed: () => setState(() =>
+                          _time = const TimeOfDay(hour: 12, minute: 0)),
+                    ),
+                    ActionChip(
+                      label: const Text('06:00 PM'),
+                      onPressed: () => setState(() =>
+                          _time = const TimeOfDay(hour: 18, minute: 0)),
+                    ),
+                    ActionChip(
+                      label: const Text('10:00 PM'),
+                      onPressed: () => setState(() =>
+                          _time = const TimeOfDay(hour: 22, minute: 0)),
+                    ),
                   ],
                 ),
               ],
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.md),
-                Text(_error!, style: const TextStyle(color: AppColors.danger)),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    // Live preview string
+    final repeatSummary = _repeat == 'daily'
+        ? 'Every day'
+        : _repeat == 'weekly'
+            ? 'Every ${_weekdays.isEmpty ? "week" : _weekdays.map((d) => _weekdayLabels[d]).join(", ")}'
+            : 'Once on ${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}';
+
+    final missionTitle = selectedMission?['name'] as String? ??
+        (selectedMission?['id'] as String?) ??
+        'None selected';
+
+    final previewCard = Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.preview_rounded,
+                    size: 20, color: AppColors.accent),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  'Schedule Summary',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              Row(
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceSunken,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _saving
-                          ? null
-                          : () => Navigator.of(context).pop(false),
-                      child: const Text('Cancel'),
-                    ),
+                  Text(
+                    'Robotic Automation Task:',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textSecondary),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _saving ? null : _save,
-                      child: _saving
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.textOnPrimary),
-                            )
-                          : Text(
-                              _isEditing ? 'Save Changes' : 'Create Schedule'),
+                  const SizedBox(height: 4),
+                  Text(
+                    'The robot will autonomously start "$missionTitle" at ${_time.format(context)} ($repeatSummary).',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ],
               ),
+            ),
+            if (selectedMission != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  const Icon(Icons.alt_route_rounded,
+                      size: 16, color: AppColors.textSecondary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Route steps: ${(selectedMission['steps'] as List? ?? const []).length} steps configured',
+                    style: const TextStyle(
+                        fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
             ],
-          ),
+            const Spacer(),
+            if (_error != null) ...[
+              Text(_error!, style: const TextStyle(color: AppColors.danger)),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            SizedBox(
+              height: 44,
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppColors.textOnPrimary),
+                      )
+                    : const Icon(Icons.check_rounded, size: 20),
+                label: Text(
+                  _isEditing ? 'Save Changes' : 'Create Schedule',
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              height: 38,
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed:
+                    _saving ? null : () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Edit Schedule' : 'New Schedule'),
+      ),
+      body: SafeArea(
+        child: isDesktop
+            ? Padding(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      flex: 6,
+                      child: SingleChildScrollView(child: formContent),
+                    ),
+                    const SizedBox(width: AppSpacing.xl),
+                    Expanded(
+                      flex: 4,
+                      child: previewCard,
+                    ),
+                  ],
+                ),
+              )
+            : ListView(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: [
+                  formContent,
+                  const SizedBox(height: AppSpacing.lg),
+                  previewCard,
+                ],
+              ),
       ),
     );
   }

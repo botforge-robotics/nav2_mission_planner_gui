@@ -11,6 +11,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../../widgets/design/breathing_opacity.dart';
 import '../../widgets/design/fade_in.dart';
+import 'dock_position_editor_screen.dart';
 
 /// Reference §11 (Dock & Charge). The big circular percentage stays on the
 /// core telemetry path (RobotTelemetryProvider), same as before; everything
@@ -134,7 +135,20 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
     final tagVisible = _dockStatus?['tag_visible'] == true;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Dock & Charge')),
+      appBar: AppBar(
+        title: const Text('Dock & Charge'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.tune_rounded),
+            tooltip: 'Edit Dock Position',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const DockPositionEditorScreen(),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: robotIp == null
             ? const Center(child: Text('Not connected.'))

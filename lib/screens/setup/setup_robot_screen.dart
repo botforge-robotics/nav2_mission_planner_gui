@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../providers/connection_provider.dart';
 import '../../providers/setup_flow_controller.dart';
 import '../../services/robot_connection_store.dart';
 import '../../services/rosbridge_probe.dart';
@@ -54,6 +55,10 @@ class _SetupRobotScreenState extends State<SetupRobotScreen> {
     if (ok) {
       await RobotConnectionStore()
           .save(SavedRobot(name: robot.name, ip: robot.ip));
+      if (mounted) {
+        context.read<ConnectionProvider>().reconnect();
+      }
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const SetupCompleteScreen()),
       );

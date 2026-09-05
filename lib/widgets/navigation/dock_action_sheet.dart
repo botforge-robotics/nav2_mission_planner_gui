@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../screens/dock/dock_position_editor_screen.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/action_feedback.dart';
@@ -51,11 +52,24 @@ Future<void> showDockActionSheet({
           subtitle: const Text('Leave the dock'),
           onTap: () => Navigator.of(sheetContext).pop('undock'),
         ),
+        ListTile(
+          leading: const Icon(Icons.tune_rounded, color: AppColors.primary),
+          title: const Text('Edit Dock & Standoff Position'),
+          subtitle: const Text('Visually adjust dock and standoff poses'),
+          onTap: () => Navigator.of(sheetContext).pop('edit_dock'),
+        ),
         const SizedBox(height: AppSpacing.sm),
       ],
     ),
   );
   if (choice == null || !context.mounted) return;
+
+  if (choice == 'edit_dock') {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const DockPositionEditorScreen()),
+    );
+    return;
+  }
 
   String successMessage;
   Future<void> Function() action;
@@ -76,10 +90,10 @@ Future<void> showDockActionSheet({
   }
 
   // The request only confirms the goal was *accepted* — briefly watch the
-  // real outcome and report it, and automatically retry a real failure (up
-  // to 3 attempts total, never on a timeout — that just means it's still in
-  // progress), rather than leaving "Heading to…"/"Undocking…" as the last
-  // word if it's aborted moments later.
+  // real outcome and report it, and automatically retry a real failure
+  // (never on a timeout — that just means it's still in progress), rather
+  // than leaving "Heading to…"/"Undocking…" as the last word if it's
+  // aborted moments later. Attempt counts differ per action; see below.
   await retryOnFailure(
     context: context,
     actionLabel: choice == 'goto'
@@ -87,6 +101,11 @@ Future<void> showDockActionSheet({
         : choice == 'dock'
             ? 'Docking'
             : 'Undocking',
+    // Docking gets one attempt only: dock_manager now backs off ~0.25m and
+    // re-approaches internally on a contact-without-charge, with the tag
+    // still in view. A client-side retry instead re-ran the whole staging
+    // navigation from hard against the dock, driving back blind.
+    maxAttempts: choice == 'dock' ? 1 : 3,
     attempt: (attemptNumber) async {
       try {
         await action();

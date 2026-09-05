@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 
 import '../../providers/connection_provider.dart';
+import '../../providers/robot_telemetry_provider.dart';
+import '../../services/locations_controller.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
@@ -99,8 +101,23 @@ class _MapsListScreenState extends State<MapsListScreen> {
     final connection = context.watch<ConnectionProvider>();
     final robotIp = connection.robot?.ip;
 
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Maps')),
+      appBar: AppBar(
+        title: const Text('Maps'),
+        actions: [
+          if (isDesktop && robotIp != null)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.md),
+              child: FilledButton.icon(
+                onPressed: () => _createMap(context),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Create Map (SLAM)'),
+              ),
+            ),
+        ],
+      ),
       body: SafeArea(
         child: robotIp == null
             ? const Center(child: Text('Not connected.'))
@@ -108,8 +125,23 @@ class _MapsListScreenState extends State<MapsListScreen> {
                 robotIp: robotIp,
                 builder: (context, sdkState) {
                   final activeMap = sdkState.mapName;
+                  if (isDesktop) {
+                    return _DesktopMapsView(
+                      maps: _maps,
+                      error: _error,
+                      activeMap: activeMap,
+                      query: _query,
+                      onQueryChanged: (v) =>
+                          setState(() => _query = v.trim().toLowerCase()),
+                      ros2: connection.ros2,
+                      robotIp: robotIp,
+                      onRetry: _load,
+                      onCreateMap: () => _createMap(context),
+                    );
+                  }
                   return CenteredFormColumn(
-                    maxWidth: 720,
+                    maxWidth:
+                        Breakpoints.of(context) == DeviceClass.desktop ? 960 : 720,
                     child: Padding(
                       padding: const EdgeInsets.all(AppSpacing.lg),
                       child: Column(
@@ -477,6 +509,621 @@ class _BodyState extends State<_Body> {
           ),
         );
       },
+    );
+  }
+}
+
+class _DesktopMapsView extends StatefulWidget {
+  const _DesktopMapsView({
+    required this.maps,
+    required this.error,
+    required this.activeMap,
+    required this.query,
+    required this.onQueryChanged,
+    required this.ros2,
+    required this.robotIp,
+    required this.onRetry,
+    required this.onCreateMap,
+  });
+
+  final List<String>? maps;
+  final String? error;
+  final String? activeMap;
+  final String query;
+  final ValueChanged<String> onQueryChanged;
+  final Ros2? ros2;
+  final String? robotIp;
+  final VoidCallback onRetry;
+  final VoidCallback onCreateMap;
+
+  @override
+  State<_DesktopMapsView> createState() => _DesktopMapsViewState();
+}
+
+class _DesktopMapsViewState extends State<_DesktopMapsView> {
+  bool _switching = false;
+
+  Future<void> _switchTo(String name) async {
+    final ip = widget.robotIp;
+    if (ip == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Switch Map?'),
+        content: Text(
+          'This restarts navigation using "$name" instead of "${widget.activeMap ?? 'the current map'}".',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Switch')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _switching = true);
+    try {
+      await SdkApiService(ip).activateMap(name);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Switching to "$name"… it\'ll finish loading in a few seconds.')));
+      widget.onRetry();
+    } on SdkApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+          e.isUnreachable
+              ? "Switching maps needs navpro-sdk.service — it isn't reachable right now."
+              : e.message,
+        ),
+      ));
+    } finally {
+      if (mounted) setState(() => _switching = false);
+    }
+  }
+
+  Future<bool> _deleteMap(String name, bool isActive) async {
+    final ip = widget.robotIp;
+    if (ip == null) return false;
+    if (isActive) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Switch to a different map before deleting "$name" — it\'s the one navigation is currently using.'),
+      ));
+      return false;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Map?'),
+        content:
+            Text('This permanently deletes "$name". This can\'t be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return false;
+
+    try {
+      await SdkApiService(ip).deleteMap(name);
+      if (!mounted) return true;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Deleted "$name".')));
+      widget.onRetry();
+      return true;
+    } on SdkApiException catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+          e.isUnreachable
+              ? "Deleting maps needs navpro-sdk.service — it isn't reachable right now."
+              : e.message,
+        ),
+      ));
+      return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maps = widget.maps;
+    final error = widget.error;
+    final activeMap = widget.activeMap;
+    final query = widget.query;
+    final ros2 = widget.ros2;
+    final telemetry = context.watch<RobotTelemetryProvider>();
+
+    if (error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline_rounded,
+                size: 48, color: AppColors.danger),
+            const SizedBox(height: AppSpacing.md),
+            Text(error,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textSecondary)),
+            const SizedBox(height: AppSpacing.sm),
+            TextButton(onPressed: widget.onRetry, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+
+    if (maps == null) {
+      return const Padding(
+        padding: EdgeInsets.all(AppSpacing.xl),
+        child: SkeletonList(),
+      );
+    }
+
+    final filtered =
+        maps.where((m) => m.toLowerCase().contains(query)).toList();
+
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 1. Search & Filter Bar
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Search saved maps...',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        filled: true,
+                        fillColor: AppColors.surface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: AppColors.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: AppColors.border),
+                        ),
+                      ),
+                      onChanged: widget.onQueryChanged,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Chip(
+                    avatar: const Icon(Icons.folder_copy_outlined,
+                        size: 16, color: AppColors.primary),
+                    label: Text('${maps.length} total maps'),
+                    backgroundColor: AppColors.surface,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  if (activeMap != null)
+                    Chip(
+                      avatar: StatusPulseDot(
+                          color: AppColors.stateIdle, live: true, size: 8),
+                      label: Text('Active: $activeMap'),
+                      backgroundColor: AppColors.surface,
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+
+              // 2. Dual-Pane Content: Map Grid (Left) + Active Station (Right)
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Left: Map Cards Grid (flex: 7)
+                    Expanded(
+                      flex: 7,
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Text(
+                                maps.isEmpty
+                                    ? 'No saved maps yet. Click Create Map above to begin SLAM mapping.'
+                                    : 'No maps match "$query".',
+                                style: const TextStyle(
+                                    color: AppColors.textSecondary),
+                              ),
+                            )
+                          : GridView.builder(
+                              gridDelegate:
+                                  const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 380,
+                                mainAxisExtent: 195,
+                                crossAxisSpacing: AppSpacing.md,
+                                mainAxisSpacing: AppSpacing.md,
+                              ),
+                              itemCount: filtered.length,
+                              itemBuilder: (context, i) {
+                                final name = filtered[i];
+                                final isActive = name == activeMap;
+                                return Card(
+                                  elevation: isActive ? 2 : 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(
+                                        AppSpacing.cardRadius),
+                                    side: BorderSide(
+                                      color: isActive
+                                          ? AppColors.primary
+                                          : AppColors.border,
+                                      width: isActive ? 2 : 1,
+                                    ),
+                                  ),
+                                  child: Padding(
+                                    padding:
+                                        const EdgeInsets.all(AppSpacing.md),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        // Header Row: Map name + status
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: (isActive
+                                                        ? AppColors.primary
+                                                        : AppColors.textSecondary)
+                                                    .withValues(alpha: 0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Icon(
+                                                Icons.map_rounded,
+                                                size: 20,
+                                                color: isActive
+                                                    ? AppColors.primary
+                                                    : AppColors.textSecondary,
+                                              ),
+                                            ),
+                                            const SizedBox(width: AppSpacing.sm),
+                                            Expanded(
+                                              child: Text(
+                                                name,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (isActive)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.success
+                                                      .withValues(alpha: 0.15),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                                child: const Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.check_circle_rounded,
+                                                        size: 14,
+                                                        color: AppColors.success),
+                                                    SizedBox(width: 4),
+                                                    Text(
+                                                      'Active',
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color:
+                                                            AppColors.success,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                        const Spacer(),
+                                        Text(
+                                          isActive
+                                              ? 'Currently loaded in Nav2 navigation stack.'
+                                              : 'Stored floorplan ready to load.',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        // Action buttons row
+                                        Row(
+                                          children: [
+                                            if (isActive)
+                                              Expanded(
+                                                child: FilledButton.icon(
+                                                  onPressed: () =>
+                                                      Navigator.of(context)
+                                                          .push(
+                                                    MaterialPageRoute(
+                                                        builder: (_) =>
+                                                            const MapViewScreen()),
+                                                  ),
+                                                  icon: const Icon(
+                                                      Icons.open_in_new_rounded,
+                                                      size: 16),
+                                                  label: const Text(
+                                                      'Open 2D View'),
+                                                ),
+                                              )
+                                            else ...[
+                                              Expanded(
+                                                child: OutlinedButton.icon(
+                                                  onPressed: () =>
+                                                      _switchTo(name),
+                                                  icon: const Icon(
+                                                      Icons.play_arrow_rounded,
+                                                      size: 16),
+                                                  label: const Text(
+                                                      'Load / Activate'),
+                                                ),
+                                              ),
+                                              const SizedBox(
+                                                  width: AppSpacing.xs),
+                                              IconButton(
+                                                tooltip: 'Delete map',
+                                                icon: const Icon(
+                                                    Icons
+                                                        .delete_outline_rounded,
+                                                    size: 18,
+                                                    color: AppColors.danger),
+                                                onPressed: () =>
+                                                    _deleteMap(name, isActive),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    const SizedBox(width: AppSpacing.lg),
+
+                    // Right: Active Navigation Station (flex: 5)
+                    Expanded(
+                      flex: 5,
+                      child: Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.cardRadius),
+                          side: const BorderSide(color: AppColors.border),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.hub_rounded,
+                                      size: 20, color: AppColors.primary),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Text(
+                                    'Active Map Live Studio',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const Spacer(),
+                                  if (activeMap != null)
+                                    IconButton(
+                                      tooltip: 'Open Fullscreen 2D View',
+                                      icon: const Icon(
+                                          Icons.open_in_full_rounded,
+                                          size: 18),
+                                      onPressed: () => Navigator.of(context)
+                                          .push(MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const MapViewScreen())),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              if (activeMap != null && ros2 != null) ...[
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    height: 280,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surfaceSunken,
+                                      border:
+                                          Border.all(color: AppColors.border),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: OccupancyGridView(
+                                      ros2: ros2,
+                                      interactive: false,
+                                      showRobot: true,
+                                      initialPose: telemetry.rawPose,
+                                      initialPath: telemetry.currentPath,
+                                      showDock: true,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton.icon(
+                                        onPressed: () => Navigator.of(context)
+                                            .push(MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const MapViewScreen())),
+                                        icon: const Icon(
+                                            Icons.my_location_rounded,
+                                            size: 16),
+                                        label: const Text('Open 2D Cockpit'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                                const Divider(),
+                                const SizedBox(height: AppSpacing.xs),
+                                // Saved Locations header
+                                Row(
+                                  children: [
+                                    const Icon(Icons.place_rounded,
+                                        size: 16, color: AppColors.primary),
+                                    const SizedBox(width: 6),
+                                    const Text('Saved Locations',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13)),
+                                    const Spacer(),
+                                    ValueListenableBuilder<
+                                        List<Map<String, dynamic>>?>(
+                                      valueListenable:
+                                          LocationsController.instance,
+                                      builder: (context, locs, _) => Text(
+                                        '${locs?.length ?? 0} locations',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+                                Expanded(
+                                  child: ValueListenableBuilder<
+                                      List<Map<String, dynamic>>?>(
+                                    valueListenable:
+                                        LocationsController.instance,
+                                    builder: (context, locations, _) {
+                                      if (locations == null ||
+                                          locations.isEmpty) {
+                                        return const Center(
+                                          child: Text(
+                                            'No locations saved on this map yet.\nOpen 2D View to add pins.',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                                fontSize: 12,
+                                                color: AppColors.textSecondary),
+                                          ),
+                                        );
+                                      }
+                                      return ListView.separated(
+                                        itemCount: locations.length,
+                                        separatorBuilder: (_, __) =>
+                                            const Divider(height: 1),
+                                        itemBuilder: (context, idx) {
+                                          final loc = locations[idx];
+                                          final name =
+                                              loc['name'] as String? ?? '';
+                                          final x = (loc['x'] as num?)
+                                                  ?.toDouble() ??
+                                              0.0;
+                                          final y = (loc['y'] as num?)
+                                                  ?.toDouble() ??
+                                              0.0;
+                                          return ListTile(
+                                            dense: true,
+                                            contentPadding: EdgeInsets.zero,
+                                            leading: const CircleAvatar(
+                                              radius: 12,
+                                              backgroundColor:
+                                                  AppColors.surfaceSunken,
+                                              child: Icon(Icons.place_rounded,
+                                                  size: 14,
+                                                  color: AppColors.primary),
+                                            ),
+                                            title: Text(name,
+                                                style: const TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.w600)),
+                                            subtitle: Text(
+                                              '(${x.toStringAsFixed(2)}, ${y.toStringAsFixed(2)})',
+                                              style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color:
+                                                      AppColors.textSecondary),
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ] else ...[
+                                const Expanded(
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.map_outlined,
+                                            size: 40,
+                                            color: AppColors.textTertiary),
+                                        SizedBox(height: AppSpacing.sm),
+                                        Text(
+                                          'No active map loaded in navigation stack.',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                              color: AppColors.textSecondary),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_switching)
+          Container(
+            color: AppColors.surface.withValues(alpha: 0.7),
+            child: const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: AppSpacing.md),
+                  Text('Activating map and restarting navigation…'),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

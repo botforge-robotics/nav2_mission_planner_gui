@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'map_layers_store.dart';
 
 /// Which optional map overlays can be shown — dock, saved locations, the
-/// planner's current path, and both costmaps.
-enum MapLayer { dock, locations, path, globalCostmap, localCostmap }
+/// planner's current path, both costmaps, and real-time laser scan.
+enum MapLayer { dock, locations, path, globalCostmap, localCostmap, laserScan }
 
 /// The single, app-wide "which overlays are visible" selection — shared by
 /// every live map view (Map View, Teleop, Create Map, Dashboard's
@@ -24,7 +24,8 @@ enum MapLayer { dock, locations, path, globalCostmap, localCostmap }
 /// the Navigator; a static sidesteps the whole class of bug by
 /// construction instead.
 class MapLayersController extends ValueNotifier<Set<MapLayer>> {
-  MapLayersController._() : super({MapLayer.dock, MapLayer.locations}) {
+  MapLayersController._()
+      : super({MapLayer.dock, MapLayer.locations, MapLayer.path, MapLayer.laserScan}) {
     _load();
   }
 

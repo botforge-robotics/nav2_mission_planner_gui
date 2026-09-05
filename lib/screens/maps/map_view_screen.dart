@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,11 +9,13 @@ import '../../services/locations_controller.dart';
 import '../../services/map_layers_controller.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/breakpoints.dart';
 import '../../utils/localize_at_dock.dart';
 import '../../widgets/map/not_localized_banner.dart';
 import '../../widgets/map/occupancy_grid_view.dart';
 import '../../widgets/navigation/dock_action_sheet.dart';
 import '../../widgets/navigation/go_to_confirm_sheet.dart';
+import '../dock/dock_position_editor_screen.dart';
 
 /// Reference §5's Map View (2D) — the currently-active map, live, with the
 /// robot's position, plus real controls: zoom, a Layers panel (dock,
@@ -199,6 +203,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
                   'Where the planner treats the map as blocked'),
               tile(MapLayer.localCostmap, Icons.grid_4x4_rounded,
                   'Local Costmap', 'Live obstacles the robot sees right now'),
+              tile(MapLayer.laserScan, Icons.radar_rounded,
+                  'LiDAR Points', 'Real-time laser obstacle reflections'),
               const SizedBox(height: AppSpacing.sm),
             ],
           );
@@ -238,6 +244,14 @@ class _MapViewScreenState extends State<MapViewScreen> {
                 const Text('Tap to set position, drag the handle for heading'),
             onTap: () => Navigator.of(sheetContext).pop('map'),
           ),
+          ListTile(
+            leading:
+                const Icon(Icons.blur_on_rounded, color: AppColors.accent),
+            title: const Text('Global Relocalize (Recovery)'),
+            subtitle: const Text(
+                'Disperse particles across map to recover from slip or strike'),
+            onTap: () => Navigator.of(sheetContext).pop('global'),
+          ),
           const SizedBox(height: AppSpacing.sm),
         ],
       ),
@@ -245,6 +259,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
     if (!mounted || choice == null) return;
     if (choice == 'dock') {
       await _localizeAtDock();
+    } else if (choice == 'global') {
+      await _globalRelocalize();
     } else {
       setState(() {
         _posePicking = true;
@@ -277,6 +293,31 @@ class _MapViewScreenState extends State<MapViewScreen> {
     setState(() => _localizing = true);
     try {
       await localizeAtDock(context: context, api: api);
+    } finally {
+      if (mounted) setState(() => _localizing = false);
+    }
+  }
+
+  Future<void> _globalRelocalize() async {
+    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final api = _apiFor(ip);
+    if (api == null) return;
+    setState(() => _localizing = true);
+    try {
+      await api.reinitializeGlobalLocalization();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'AMCL global relocalization triggered. Drive or rotate the robot in place to let particles converge.'),
+          duration: Duration(seconds: 4),
+        ),
+      );
+    } on SdkApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Global relocalization failed: ${e.message}')),
+      );
     } finally {
       if (mounted) setState(() => _localizing = false);
     }
@@ -325,7 +366,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Add Location'),
+        title: const Text('Save Location'),
         content: TextField(
           controller: nameController,
           autofocus: true,
@@ -385,104 +426,305 @@ class _MapViewScreenState extends State<MapViewScreen> {
     final ros2 = connection.ros2;
     final telemetry = context.watch<RobotTelemetryProvider>();
     final api = _apiFor(connection.robot?.ip);
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Map View')),
+      appBar: AppBar(
+        title: Text(isDesktop ? '2D Map Cockpit' : 'Map View'),
+        actions: [
+          if (isDesktop) ...[
+            if (telemetry.localized)
+              Container(
+                margin: const EdgeInsets.only(right: AppSpacing.sm),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.gps_fixed_rounded, size: 14, color: AppColors.success),
+                    const SizedBox(width: 6),
+                    Text(
+                      'AMCL: (${telemetry.poseX?.toStringAsFixed(2) ?? '--'}, ${telemetry.poseY?.toStringAsFixed(2) ?? '--'}) · ${(telemetry.poseTheta != null ? (telemetry.poseTheta! * 180 / pi).toStringAsFixed(1) : '0.0')}°',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Container(
+                margin: const EdgeInsets.only(right: AppSpacing.sm),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.warning),
+                    SizedBox(width: 6),
+                    Text(
+                      'Not Localized',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.warning),
+                    ),
+                  ],
+                ),
+              ),
+            if (telemetry.dockStatus != null)
+              Container(
+                margin: const EdgeInsets.only(right: AppSpacing.md),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.dock_rounded, size: 14, color: AppColors.accent),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Dock: ${telemetry.dockStatus}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
       body: ros2 == null
           ? const Center(child: Text('Not connected.'))
-          : Stack(
-              children: [
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    _viewportSize = constraints.biggest;
-                    final visibleLayers = MapLayersController.instance.value;
-                    return Container(
-                      color: AppColors.background,
-                      child: OccupancyGridView(
-                        ros2: ros2,
-                        interactive: true,
-                        showDock: visibleLayers.contains(MapLayer.dock),
-                        showPath: visibleLayers.contains(MapLayer.path),
-                        showGlobalCostmap:
-                            visibleLayers.contains(MapLayer.globalCostmap),
-                        showLocalCostmap:
-                            visibleLayers.contains(MapLayer.localCostmap),
-                        locations: visibleLayers.contains(MapLayer.locations)
-                            ? (LocationsController.instance.value ?? const [])
-                            : const [],
-                        showOverlays: true,
-                        transformationController: _transformController,
-                        posePicking: _posePicking,
-                        onDraftPose: (x, y, theta) => setState(
-                            () => _draftPose = (x: x, y: y, theta: theta)),
-                        onLocationTap:
-                            visibleLayers.contains(MapLayer.locations)
-                                ? _onLocationTapped
-                                : null,
-                        onDockTap: visibleLayers.contains(MapLayer.dock)
-                            ? _onDockTapped
-                            : null,
-                        // Map View shows its own bigger, actionable banner
-                        // below instead of the generic small badge.
-                        showLocalizationBadge: false,
-                        dockPoseOverride: _dockPose,
+          : isDesktop
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              _viewportSize = constraints.biggest;
+                              final visibleLayers =
+                                  MapLayersController.instance.value;
+                              return Container(
+                                color: AppColors.background,
+                                child: OccupancyGridView(
+                                  ros2: ros2,
+                                  interactive: true,
+                                  showDock:
+                                      visibleLayers.contains(MapLayer.dock),
+                                  showPath:
+                                      visibleLayers.contains(MapLayer.path),
+                                  showLaserScan: visibleLayers
+                                      .contains(MapLayer.laserScan),
+                                  initialPose: telemetry.rawPose,
+                                  initialPath: telemetry.currentPath,
+                                  showGlobalCostmap: visibleLayers
+                                      .contains(MapLayer.globalCostmap),
+                                  showLocalCostmap: visibleLayers
+                                      .contains(MapLayer.localCostmap),
+                                  locations:
+                                      visibleLayers.contains(MapLayer.locations)
+                                          ? (LocationsController
+                                                  .instance.value ??
+                                              const [])
+                                          : const [],
+                                  showOverlays: true,
+                                  transformationController:
+                                      _transformController,
+                                  posePicking: _posePicking,
+                                  draftPoseOverride: _draftPose,
+                                  onDraftPose: (x, y, theta) => setState(
+                                      () => _draftPose =
+                                          (x: x, y: y, theta: theta)),
+                                  onLocationTap:
+                                      visibleLayers.contains(MapLayer.locations)
+                                          ? _onLocationTapped
+                                          : null,
+                                  onDockTap:
+                                      visibleLayers.contains(MapLayer.dock)
+                                          ? _onDockTapped
+                                          : null,
+                                  showLocalizationBadge: false,
+                                  dockPoseOverride: _dockPose,
+                                ),
+                              );
+                            },
+                          ),
+                          if (!_posePicking &&
+                              !telemetry.localized &&
+                              api != null)
+                            Positioned(
+                              left: AppSpacing.md,
+                              right: 120,
+                              top: AppSpacing.md,
+                              child: NotLocalizedBanner(
+                                api: api,
+                                onDecline: () {
+                                  setState(() {
+                                    _posePicking = true;
+                                    _pickPurpose = _PickPurpose.localize;
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Tap the map to set the position, then drag the handle to set the heading.')));
+                                },
+                              ),
+                            ),
+                          Positioned(
+                            right: AppSpacing.md,
+                            top: AppSpacing.md,
+                            child: _DesktopZoomHud(
+                              onZoomIn: () => _zoomBy(1.25),
+                              onZoomOut: () => _zoomBy(0.8),
+                              onReset: () {
+                                _transformController.value =
+                                    Matrix4.identity();
+                              },
+                            ),
+                          ),
+                          if (_posePicking)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: _PosePickingBar(
+                                hasDraft: _draftPose != null,
+                                busy: _pickPurpose == _PickPurpose.addLocation
+                                    ? _savingLocation
+                                    : _localizing,
+                                forLocation:
+                                    _pickPurpose == _PickPurpose.addLocation,
+                                onCancel: () => setState(() {
+                                  _posePicking = false;
+                                  _draftPose = null;
+                                }),
+                                onConfirm: _confirmDraftPose,
+                              ),
+                            ),
+                        ],
                       ),
-                    );
-                  },
-                ),
-                if (!_posePicking && !telemetry.localized && api != null)
-                  Positioned(
-                    left: AppSpacing.md,
-                    right: 76,
-                    top: AppSpacing.md,
-                    child: NotLocalizedBanner(
-                      api: api,
-                      onDecline: () {
+                    ),
+                    _DesktopStudioSidebar(
+                      onLocalizeMap: () {
                         setState(() {
                           _posePicking = true;
                           _pickPurpose = _PickPurpose.localize;
+                          _draftPose = null;
                         });
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                            content: Text(
-                                'Tap the map to set the position, then drag the handle to set the heading.')));
+                      },
+                      onLocalizeDock: _localizeAtDock,
+                      onGlobalRelocalize: _globalRelocalize,
+                      onAddLocation: _startAddLocationPicking,
+                      onLocationTap: _onLocationTapped,
+                      onDockTap: _onDockTapped,
+                      localizing: _localizing,
+                    ),
+                  ],
+                )
+              : Stack(
+                  children: [
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        _viewportSize = constraints.biggest;
+                        final visibleLayers = MapLayersController.instance.value;
+                        return Container(
+                          color: AppColors.background,
+                          child: OccupancyGridView(
+                            ros2: ros2,
+                            interactive: true,
+                            showDock: visibleLayers.contains(MapLayer.dock),
+                            showPath: visibleLayers.contains(MapLayer.path),
+                            showLaserScan:
+                                visibleLayers.contains(MapLayer.laserScan),
+                            initialPose: telemetry.rawPose,
+                            initialPath: telemetry.currentPath,
+                            showGlobalCostmap:
+                                visibleLayers.contains(MapLayer.globalCostmap),
+                            showLocalCostmap:
+                                visibleLayers.contains(MapLayer.localCostmap),
+                            locations: visibleLayers.contains(MapLayer.locations)
+                                ? (LocationsController.instance.value ?? const [])
+                                : const [],
+                            showOverlays: true,
+                            transformationController: _transformController,
+                            posePicking: _posePicking,
+                            draftPoseOverride: _draftPose,
+                            onDraftPose: (x, y, theta) => setState(
+                                () => _draftPose = (x: x, y: y, theta: theta)),
+                            onLocationTap:
+                                visibleLayers.contains(MapLayer.locations)
+                                    ? _onLocationTapped
+                                    : null,
+                            onDockTap: visibleLayers.contains(MapLayer.dock)
+                                ? _onDockTapped
+                                : null,
+                            showLocalizationBadge: false,
+                            dockPoseOverride: _dockPose,
+                          ),
+                        );
                       },
                     ),
-                  ),
-                if (!_posePicking)
-                  Positioned(
-                    right: AppSpacing.md,
-                    top: AppSpacing.md,
-                    child: _ControlCluster(
-                      layersActive:
-                          MapLayersController.instance.value.isNotEmpty,
-                      onLayers: _openLayersPanel,
-                      onZoomIn: () => _zoomBy(1.25),
-                      onZoomOut: () => _zoomBy(0.8),
-                      onLocalize: _localizing ? null : _openLocalizeOptions,
-                      localizing: _localizing,
-                      onAddLocation: _startAddLocationPicking,
-                    ),
-                  ),
-                if (_posePicking)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: _PosePickingBar(
-                      hasDraft: _draftPose != null,
-                      busy: _pickPurpose == _PickPurpose.addLocation
-                          ? _savingLocation
-                          : _localizing,
-                      forLocation: _pickPurpose == _PickPurpose.addLocation,
-                      onCancel: () => setState(() {
-                        _posePicking = false;
-                        _draftPose = null;
-                      }),
-                      onConfirm: _confirmDraftPose,
-                    ),
-                  ),
-              ],
-            ),
+                    if (!_posePicking && !telemetry.localized && api != null)
+                      Positioned(
+                        left: AppSpacing.md,
+                        right: 76,
+                        top: AppSpacing.md,
+                        child: NotLocalizedBanner(
+                          api: api,
+                          onDecline: () {
+                            setState(() {
+                              _posePicking = true;
+                              _pickPurpose = _PickPurpose.localize;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                content: Text(
+                                    'Tap the map to set the position, then drag the handle to set the heading.')));
+                          },
+                        ),
+                      ),
+                    if (!_posePicking)
+                      Positioned(
+                        right: AppSpacing.md,
+                        top: AppSpacing.md,
+                        child: _ControlCluster(
+                          layersActive:
+                              MapLayersController.instance.value.isNotEmpty,
+                          onLayers: _openLayersPanel,
+                          onZoomIn: () => _zoomBy(1.25),
+                          onZoomOut: () => _zoomBy(0.8),
+                          onLocalize: _localizing ? null : _openLocalizeOptions,
+                          localizing: _localizing,
+                          onAddLocation: _startAddLocationPicking,
+                        ),
+                      ),
+                    if (_posePicking)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: _PosePickingBar(
+                          hasDraft: _draftPose != null,
+                          busy: _pickPurpose == _PickPurpose.addLocation
+                              ? _savingLocation
+                              : _localizing,
+                          forLocation: _pickPurpose == _PickPurpose.addLocation,
+                          onCancel: () => setState(() {
+                            _posePicking = false;
+                            _draftPose = null;
+                          }),
+                          onConfirm: _confirmDraftPose,
+                        ),
+                      ),
+                  ],
+                ),
     );
   }
 }
@@ -542,7 +784,7 @@ class _ControlCluster extends StatelessWidget {
           const Divider(height: 1),
           _ControlButton(
             icon: Icons.add_location_alt_rounded,
-            tooltip: 'Add Location',
+            tooltip: 'Save Location',
             onTap: onAddLocation,
             color: AppColors.primary,
           ),
@@ -672,6 +914,275 @@ class _PosePickingBar extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DesktopZoomHud extends StatelessWidget {
+  const _DesktopZoomHud({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onReset,
+  });
+
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: 'Zoom in',
+            icon: const Icon(Icons.add_rounded, size: 20),
+            onPressed: onZoomIn,
+          ),
+          const Divider(height: 1),
+          IconButton(
+            tooltip: 'Zoom out',
+            icon: const Icon(Icons.remove_rounded, size: 20),
+            onPressed: onZoomOut,
+          ),
+          const Divider(height: 1),
+          IconButton(
+            tooltip: 'Reset view / Center',
+            icon: const Icon(Icons.center_focus_strong_rounded, size: 18),
+            onPressed: onReset,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopStudioSidebar extends StatelessWidget {
+  const _DesktopStudioSidebar({
+    required this.onLocalizeMap,
+    required this.onLocalizeDock,
+    required this.onGlobalRelocalize,
+    required this.onAddLocation,
+    required this.onLocationTap,
+    required this.onDockTap,
+    required this.localizing,
+  });
+
+  final VoidCallback onLocalizeMap;
+  final VoidCallback onLocalizeDock;
+  final VoidCallback onGlobalRelocalize;
+  final VoidCallback onAddLocation;
+  final void Function(Map<String, dynamic>) onLocationTap;
+  final VoidCallback onDockTap;
+  final bool localizing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 320,
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(left: BorderSide(color: AppColors.border)),
+      ),
+      child: ListView(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        children: [
+          // Section 1: Map Layers
+          Row(
+            children: [
+              const Icon(Icons.layers_rounded,
+                  size: 18, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                'Map Layers',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          ValueListenableBuilder<Set<MapLayer>>(
+            valueListenable: MapLayersController.instance,
+            builder: (context, visible, _) {
+              Widget layerTile(MapLayer layer, IconData icon, String title) {
+                final isChecked = visible.contains(layer);
+                return SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  secondary: Icon(icon,
+                      size: 18,
+                      color:
+                          isChecked ? AppColors.primary : AppColors.textSecondary),
+                  title: Text(title, style: const TextStyle(fontSize: 13)),
+                  value: isChecked,
+                  onChanged: (v) => MapLayersController.instance
+                      .setVisible(layer, v),
+                );
+              }
+
+              return Column(
+                children: [
+                  layerTile(MapLayer.dock, Icons.ev_station_rounded, 'Docking Station'),
+                  layerTile(MapLayer.locations, Icons.place_rounded, 'Saved Locations'),
+                  layerTile(MapLayer.path, Icons.route_rounded, 'Planned Path'),
+                  layerTile(MapLayer.globalCostmap, Icons.grid_on_rounded, 'Global Costmap'),
+                  layerTile(MapLayer.localCostmap, Icons.grid_4x4_rounded, 'Local Costmap'),
+                  layerTile(MapLayer.laserScan, Icons.radar_rounded, 'LiDAR Points'),
+                ],
+              );
+            },
+          ),
+          const Divider(height: AppSpacing.lg),
+
+          // Section 2: Cartography Tools
+          Row(
+            children: [
+              const Icon(Icons.handyman_outlined,
+                  size: 18, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                'Cartography Tools',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          FilledButton.tonalIcon(
+            onPressed: onLocalizeMap,
+            icon: const Icon(Icons.touch_app_rounded, size: 16),
+            label: const Text('Set 2D Pose on Map'),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const DockPositionEditorScreen(),
+              ),
+            ),
+            icon: const Icon(Icons.tune_rounded, size: 16),
+            label: const Text('Edit Dock & Standoff Pose'),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          OutlinedButton.icon(
+            onPressed: localizing ? null : onLocalizeDock,
+            icon: localizing
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.ev_station_rounded, size: 16),
+            label: const Text('Relocalize at Dock'),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          OutlinedButton.icon(
+            onPressed: localizing ? null : onGlobalRelocalize,
+            icon: const Icon(Icons.blur_on_rounded, size: 16),
+            label: const Text('Global Relocalize (Recovery)'),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          FilledButton.icon(
+            onPressed: onAddLocation,
+            icon: const Icon(Icons.add_location_alt_rounded, size: 16),
+            label: const Text('Save Location'),
+          ),
+          const Divider(height: AppSpacing.lg),
+
+          // Section 3: Saved Locations on this Map
+          Row(
+            children: [
+              const Icon(Icons.place_rounded,
+                  size: 18, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                'Saved Locations',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              ValueListenableBuilder<List<Map<String, dynamic>>?>(
+                valueListenable: LocationsController.instance,
+                builder: (context, locs, _) => Text(
+                  '${locs?.length ?? 0}',
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textSecondary),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          ValueListenableBuilder<List<Map<String, dynamic>>?>(
+            valueListenable: LocationsController.instance,
+            builder: (context, locations, _) {
+              if (locations == null || locations.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  child: Center(
+                    child: Text(
+                      'No saved locations.\nClick "Save Location" above.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                children: locations.map((loc) {
+                  final name = loc['name'] as String? ?? '';
+                  final x = (loc['x'] as num?)?.toDouble() ?? 0.0;
+                  final y = (loc['y'] as num?)?.toDouble() ?? 0.0;
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+                    elevation: 0,
+                    color: AppColors.surfaceSunken,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(color: AppColors.border),
+                    ),
+                    child: ListTile(
+                      dense: true,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                      leading: const Icon(Icons.pin_drop_rounded,
+                          size: 18, color: AppColors.primary),
+                      title: Text(name,
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold)),
+                      subtitle: Text(
+                        '(${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)})',
+                        style: const TextStyle(
+                            fontSize: 10, color: AppColors.textSecondary),
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.navigation_rounded,
+                            size: 16, color: AppColors.accent),
+                        tooltip: 'Navigate here',
+                        onPressed: () => onLocationTap(loc),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

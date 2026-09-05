@@ -65,15 +65,15 @@ class SetupFlowController extends ChangeNotifier {
     foundRobots.clear();
     notifyListeners();
 
-    final subnet = await discovery.currentSubnetPrefix();
-    if (subnet == null) {
+    final subnets = await discovery.allSubnetPrefixes();
+    if (subnets.isEmpty) {
       isScanning = false;
       scanError = 'Could not determine your network — make sure Wi-Fi is on.';
       notifyListeners();
       return;
     }
 
-    await for (final robot in discovery.scan(subnetPrefix: subnet)) {
+    await for (final robot in discovery.scan()) {
       if (foundRobots.any((r) => r.ip == robot.ip)) continue;
       foundRobots.add(robot);
       notifyListeners();

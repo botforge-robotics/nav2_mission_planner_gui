@@ -185,15 +185,31 @@ class AppTheme {
             const TextStyle(color: AppColors.textSecondary, height: 1.35),
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
-        centerTitle: true,
+        scrolledUnderElevation: 0.5,
+        centerTitle: false,
         titleTextStyle: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
           color: AppColors.textPrimary,
-          letterSpacing: -0.3,
+          letterSpacing: -0.4,
+          fontFamily: 'Roboto',
+        ),
+        shape: Border(
+          bottom: BorderSide(
+            color: AppColors.border,
+            width: 1.0,
+          ),
+        ),
+        iconTheme: IconThemeData(
+          color: AppColors.textPrimary,
+          size: 20,
+        ),
+        actionsIconTheme: IconThemeData(
+          color: AppColors.textPrimary,
+          size: 20,
         ),
       ),
       cardTheme: CardThemeData(
@@ -216,7 +232,7 @@ class AppTheme {
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.textOnPrimary,
           disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size(64, 48),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
@@ -229,7 +245,7 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
           side: const BorderSide(color: AppColors.border),
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
           ),

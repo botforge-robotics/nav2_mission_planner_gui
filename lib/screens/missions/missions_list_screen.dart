@@ -70,6 +70,13 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
     }
   }
 
+  Future<void> _createMission() async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const MissionEditorScreen()),
+    );
+    if (created == true) _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final robotIp = context.watch<ConnectionProvider>().robot?.ip;
@@ -81,31 +88,57 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _load());
     }
 
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Missions'),
+        title: Text(isDesktop ? 'Missions & Autonomous Tasks' : 'Missions'),
         actions: [
-          IconButton(
-            tooltip: 'Scheduler',
-            icon: const Icon(Icons.alarm_rounded),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SchedulesListScreen()),
+          if (isDesktop) ...[
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+                icon: const Icon(Icons.alarm_rounded, size: 18),
+                label: const Text('Scheduler'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const SchedulesListScreen()),
+                ),
+              ),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.md),
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Add Mission'),
+                onPressed: _createMission,
+              ),
+            ),
+          ] else ...[
+            IconButton(
+              tooltip: 'Scheduler',
+              icon: const Icon(Icons.alarm_rounded),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SchedulesListScreen()),
+              ),
+            ),
+          ],
         ],
       ),
-      floatingActionButton: robotIp == null
+      floatingActionButton: isDesktop
           ? null
           : FloatingActionButton.extended(
-              onPressed: () async {
-                final created = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
-                      builder: (_) => const MissionEditorScreen()),
-                );
-                if (created == true) _load();
-              },
+              onPressed: _createMission,
               icon: const Icon(Icons.add_rounded),
-              label: const Text('New Mission'),
+              label: const Text('Add Mission'),
             ),
       body: SafeArea(
         child: robotIp == null
@@ -115,6 +148,7 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
                 runnerStatus: _runnerStatus,
                 error: _error,
                 onRetry: _load,
+                onCreateMission: _createMission,
                 onOpen: (mission) async {
                   final changed = await Navigator.of(context).push<bool>(
                     MaterialPageRoute(
@@ -134,6 +168,7 @@ class _Body extends StatelessWidget {
     required this.runnerStatus,
     required this.error,
     required this.onRetry,
+    required this.onCreateMission,
     required this.onOpen,
   });
 
@@ -141,6 +176,7 @@ class _Body extends StatelessWidget {
   final Map<String, dynamic>? runnerStatus;
   final SdkApiException? error;
   final VoidCallback onRetry;
+  final VoidCallback onCreateMission;
   final void Function(Map<String, dynamic>) onOpen;
 
   @override
@@ -191,6 +227,12 @@ class _Body extends StatelessWidget {
             const Text('Create one from your saved locations.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.textSecondary)),
+            const SizedBox(height: AppSpacing.md),
+            FilledButton.icon(
+              onPressed: onCreateMission,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add Mission'),
+            ),
           ],
         ),
       );
@@ -198,9 +240,21 @@ class _Body extends StatelessWidget {
 
     final activeId = runnerStatus?['mission_id'] as String?;
     final activeState = runnerStatus?['state'] as String?;
+    final pauseReason = runnerStatus?['pause_reason'] as String?;
+    final isLowBatteryPaused =
+        activeState == 'paused' && pauseReason == 'low_battery';
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
+
+    if (isDesktop) {
+      return _buildDesktop(
+          context, missions!, activeId, activeState, pauseReason);
+    }
+
+    final isRunning = activeState == 'running' || activeState == 'paused';
 
     return CenteredFormColumn(
-      maxWidth: 720,
+      maxWidth:
+          Breakpoints.of(context) == DeviceClass.desktop ? 960 : 720,
       child: ListView.separated(
         padding: const EdgeInsets.all(AppSpacing.lg),
         itemCount: missions!.length,
@@ -210,16 +264,19 @@ class _Body extends StatelessWidget {
           final id = mission['id'] as String;
           final steps = (mission['steps'] as List? ?? const [])
               .cast<Map<String, dynamic>>();
-          final isActive =
-              id == activeId && activeState != null && activeState != 'idle';
-          final status = isActive ? activeState : null;
+          final isActive = id == activeId && isRunning;
+          final isCompleted = id == activeId && activeState == 'completed';
+          final status =
+              isActive ? activeState : (isCompleted ? 'completed' : null);
           final loopForever = mission['loop_forever'] == true;
           final loopCount = (mission['loop_count'] as num?)?.toInt() ?? 1;
           final color =
               status == null ? AppColors.primary : _statusColor(status);
 
           var subtitle = '${steps.length} step${steps.length == 1 ? '' : 's'}';
-          if (loopForever) {
+          if (isActive && isLowBatteryPaused) {
+            subtitle += ' · ⚡ Auto-charging at dock';
+          } else if (loopForever) {
             subtitle += ' · repeats forever';
           } else if (loopCount > 1) {
             subtitle += ' · repeats ${loopCount}x';
@@ -269,8 +326,14 @@ class _Body extends StatelessWidget {
                                       color: _statusColor(status),
                                       live: true,
                                       size: 6)
-                                  : null,
-                              label: Text(status.toUpperCase(),
+                                  : (isActive && isLowBatteryPaused
+                                      ? const Icon(Icons.bolt_rounded,
+                                          size: 12, color: AppColors.warning)
+                                      : null),
+                              label: Text(
+                                  isActive && isLowBatteryPaused
+                                      ? 'CHARGING'
+                                      : status.toUpperCase(),
                                   style: const TextStyle(fontSize: 11)),
                               backgroundColor:
                                   _statusColor(status).withValues(alpha: 0.12),
@@ -287,6 +350,281 @@ class _Body extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildDesktop(
+      BuildContext context,
+      List<Map<String, dynamic>> missions,
+      String? activeId,
+      String? activeState,
+      String? pauseReason) {
+    final activeMission = activeId != null
+        ? missions.firstWhere((m) => m['id'] == activeId,
+            orElse: () => const {})
+        : null;
+    final isRunning = activeState == 'running' || activeState == 'paused';
+    final isCompleted = activeState == 'completed';
+    final isLowBattery =
+        activeState == 'paused' && pauseReason == 'low_battery';
+
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (isRunning &&
+              activeMission != null &&
+              activeMission.isNotEmpty) ...[
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+                side: BorderSide(
+                  color: _statusColor(activeState!),
+                  width: 2,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Row(
+                  children: [
+                    StatusPulseDot(
+                      color: _statusColor(activeState),
+                      live: activeState == 'running',
+                      size: 10,
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                activeMission['name'] as String? ?? activeId!,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              Chip(
+                                avatar: isLowBattery
+                                    ? const Icon(Icons.bolt_rounded,
+                                        size: 14, color: AppColors.warning)
+                                    : null,
+                                label: Text(
+                                    isLowBattery
+                                        ? 'PAUSED (CHARGING)'
+                                        : activeState.toUpperCase(),
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold)),
+                                backgroundColor: _statusColor(activeState)
+                                    .withValues(alpha: 0.15),
+                                labelStyle: TextStyle(
+                                    color: _statusColor(activeState)),
+                                side: BorderSide.none,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          if (isLowBattery)
+                            const Text(
+                              'Battery low (≤ 5%) · Auto-docked to recharge · Auto-resumes at 95%',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.warning,
+                                  fontWeight: FontWeight.w600),
+                            )
+                          else
+                            Builder(builder: (context) {
+                              final totalSteps =
+                                  (activeMission['steps'] as List? ?? []).length;
+                              final stepIdx =
+                                  (runnerStatus?['step_index'] as int? ?? 0);
+                              final currentStepNum = (stepIdx + 1)
+                                  .clamp(1, totalSteps > 0 ? totalSteps : 1);
+                              return Text(
+                                'Step $currentStepNum of $totalSteps currently executing',
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textSecondary),
+                              );
+                            }),
+                        ],
+                      ),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () => onOpen(activeMission),
+                      icon: const Icon(Icons.fullscreen_rounded, size: 18),
+                      label: const Text('View Live Execution'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
+          Row(
+            children: [
+              Text(
+                'All Missions (${missions.length})',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              Chip(
+                avatar: const Icon(Icons.tune_rounded,
+                    size: 14, color: AppColors.primary),
+                label: Text('Mission Runner: ${activeState ?? 'idle'}'),
+                backgroundColor: AppColors.surface,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Expanded(
+            child: GridView.builder(
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 440,
+                mainAxisExtent: 220,
+                crossAxisSpacing: AppSpacing.md,
+                mainAxisSpacing: AppSpacing.md,
+              ),
+              itemCount: missions.length,
+              itemBuilder: (context, i) {
+                final mission = missions[i];
+                final id = mission['id'] as String;
+                final steps = (mission['steps'] as List? ?? const [])
+                    .cast<Map<String, dynamic>>();
+                final isActive = id == activeId && isRunning;
+                final isCompletedCard = id == activeId && isCompleted;
+                final status = isActive
+                    ? activeState
+                    : (isCompletedCard ? 'completed' : null);
+                final loopForever = mission['loop_forever'] == true;
+                final loopCount =
+                    (mission['loop_count'] as num?)?.toInt() ?? 1;
+                final color =
+                    status == null ? AppColors.primary : _statusColor(status);
+
+                var subtitle =
+                    '${steps.length} step${steps.length == 1 ? '' : 's'}';
+                if (loopForever) {
+                  subtitle += ' · repeats forever';
+                } else if (loopCount > 1) {
+                  subtitle += ' · repeats ${loopCount}x';
+                }
+
+                return Card(
+                  elevation: isActive ? 2 : 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.cardRadius),
+                    side: BorderSide(
+                      color: isActive ? color : AppColors.border,
+                      width: isActive ? 2 : 1,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor: color.withValues(alpha: 0.12),
+                              child: Icon(Icons.route_rounded,
+                                  color: color, size: 20),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    mission['name'] as String? ?? id,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.bold),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    subtitle,
+                                    style: const TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (status != null)
+                              Chip(
+                                avatar: status == 'running'
+                                    ? StatusPulseDot(
+                                        color: _statusColor(status),
+                                        live: true,
+                                        size: 6)
+                                    : (isActive && isLowBattery
+                                        ? const Icon(Icons.bolt_rounded,
+                                            size: 12, color: AppColors.warning)
+                                        : null),
+                                label: Text(
+                                    isActive && isLowBattery
+                                        ? 'CHARGING'
+                                        : status.toUpperCase(),
+                                    style: const TextStyle(fontSize: 11)),
+                                backgroundColor: _statusColor(status)
+                                    .withValues(alpha: 0.12),
+                                labelStyle: TextStyle(
+                                    color: _statusColor(status)),
+                                side: BorderSide.none,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        const Text(
+                          'Step Route:',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 4),
+                        _StepPreviewRow(steps: steps),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: () => onOpen(mission),
+                                icon: Icon(
+                                    isActive
+                                        ? Icons.open_in_new_rounded
+                                        : Icons.play_arrow_rounded,
+                                    size: 16),
+                                label: Text(isActive
+                                    ? 'View Live'
+                                    : 'Details & Run'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -11,7 +11,10 @@ import '../../services/locations_controller.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
+import '../../utils/localize_at_dock.dart';
 import '../../utils/mission_step_summary.dart';
+import '../../widgets/app_shell/app_shell.dart';
+import '../../widgets/map/occupancy_grid_view.dart';
 import '../maps/pick_map_position_screen.dart';
 
 /// Reference §7's Mission Planner "Add Waypoint" step, built on the real
@@ -59,6 +62,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
   SdkApiException? _loadError;
   bool _saving = false;
   String? _saveError;
+  ({double x, double y, double theta})? _dockPose;
 
   bool get _isEditing => widget.existing != null;
 
@@ -93,6 +97,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
       if (!mounted) return;
       setState(() => _loadError = e);
     }
+    final dock = await fetchDockPose(api);
+    if (mounted) setState(() => _dockPose = dock);
   }
 
   // -- Add Step ---------------------------------------------------------
@@ -170,6 +176,10 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
       ),
     );
     if (!mounted || choice == null) return;
+    await _handleStepChoice(choice);
+  }
+
+  Future<void> _handleStepChoice(String choice) async {
     switch (choice) {
       case 'map':
         await _pickFromMap();
@@ -451,7 +461,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
           loopCount: _repeat == _Repeat.count ? _loopCount : 1,
           loopForever: _repeat == _Repeat.forever);
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      _goBack(true);
     } on SdkApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -461,159 +471,610 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
     }
   }
 
+  void _goBack([bool? result]) {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(result ?? false);
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const AppShell()),
+      );
+    }
+  }
+
+  List<Map<String, dynamic>> _routePins(List<Map<String, dynamic>> steps) {
+    final pins = <Map<String, dynamic>>[];
+    final locations =
+        LocationsController.instance.value ?? const <Map<String, dynamic>>[];
+
+    for (var i = 0; i < steps.length; i++) {
+      final step = steps[i];
+      double? x, y;
+      if (step['type'] == 'navigate') {
+        final target = step['target'];
+        if (target is String) {
+          for (final loc in locations) {
+            if (loc['name'] == target) {
+              x = (loc['x'] as num?)?.toDouble();
+              y = (loc['y'] as num?)?.toDouble();
+              break;
+            }
+          }
+        } else {
+          x = (step['x'] as num?)?.toDouble();
+          y = (step['y'] as num?)?.toDouble();
+        }
+      } else if (step['type'] == 'dock' || step['type'] == 'undock') {
+        x = _dockPose?.x;
+        y = _dockPose?.y;
+      }
+      if (x != null && y != null) {
+        pins.add({'name': '${i + 1}', 'x': x, 'y': y});
+      }
+    }
+    return pins;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? 'Edit Mission' : 'New Mission')),
-      body: SafeArea(
-        child: CenteredFormColumn(
-          maxWidth: 640,
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
+    final ros2 = context.watch<ConnectionProvider>().ros2;
+    final telemetry = context.read<RobotTelemetryProvider>();
+    final routePins = _routePins(_steps);
+
+    if (isDesktop) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, __) {
+          if (!didPop) _goBack(false);
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              tooltip: 'Back to Missions',
+              onPressed: () => _goBack(false),
+            ),
+            title: Text(_isEditing
+                ? 'Mission Studio · Edit Mission'
+                : 'Mission Studio · New Mission'),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.md),
+              child: ElevatedButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppColors.textOnPrimary),
+                      )
+                    : const Icon(Icons.check_rounded, size: 18),
+                label: Text(_isEditing ? 'Save Changes' : 'Save Mission'),
+              ),
+            ),
+          ],
+        ),
+        body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                      hintText: 'Mission name, e.g. Patrol Route A'),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Row(
-                  children: [
-                    Text('Steps',
-                        style: Theme.of(context).textTheme.titleMedium),
-                    const Spacer(),
-                    TextButton.icon(
-                      onPressed: _addStepSheet,
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('Add Step'),
-                    ),
-                  ],
-                ),
-                if (_loadError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: Text(
-                      _loadError!.isUnreachable
-                          ? "Can't load saved locations — the SDK isn't reachable."
-                          : _loadError!.message,
-                      style: const TextStyle(color: AppColors.danger),
-                    ),
-                  ),
-                Expanded(
-                  child: _steps.isEmpty
-                      ? Center(
+                // 1. LEFT COLUMN: Configuration, Step Palette & Primary Save Card
+                SizedBox(
+                  width: 360,
+                  child: ListView(
+                    children: [
+                      // Mission Name & Repeat Card
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.md),
                           child: Column(
-                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.route_outlined,
-                                  size: 40, color: AppColors.textTertiary),
-                              const SizedBox(height: AppSpacing.sm),
-                              const Text('No steps added yet.',
-                                  style: TextStyle(
-                                      color: AppColors.textSecondary)),
+                              Text(
+                                'Mission Configuration',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              TextField(
+                                controller: _nameController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Mission Name',
+                                  hintText: 'e.g. Living Room Patrol',
+                                  prefixIcon: Icon(Icons.label_outline_rounded),
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              _RepeatCard(
+                                repeat: _repeat,
+                                count: _loopCount,
+                                onChanged: (r) => setState(() => _repeat = r),
+                                onCountChanged: (c) =>
+                                    setState(() => _loopCount = c),
+                              ),
                             ],
                           ),
-                        )
-                      : ReorderableListView.builder(
-                          // Off: ReorderableListView.builder defaults this
-                          // to true and auto-appends its own trailing drag
-                          // handle — since a drag handle is already added
-                          // by hand below (via ReorderableDragStartListener,
-                          // so it actually drags), leaving the default on
-                          // meant two overlapping handle icons crammed into
-                          // trailing alongside the delete button.
-                          buildDefaultDragHandles: false,
-                          itemCount: _steps.length,
-                          onReorder: (oldIndex, newIndex) {
-                            setState(() {
-                              if (newIndex > oldIndex) newIndex -= 1;
-                              final item = _steps.removeAt(oldIndex);
-                              _steps.insert(newIndex, item);
-                            });
-                          },
-                          itemBuilder: (context, i) => Card(
-                            key: ValueKey('$i-${_steps[i].hashCode}'),
-                            margin:
-                                const EdgeInsets.only(bottom: AppSpacing.sm),
-                            child: ListTile(
-                              leading: StepIconChip(step: _steps[i]),
-                              title: Text(missionStepSummary(_steps[i]),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600)),
-                              subtitle: Text(
-                                  'Step ${i + 1} · ${_steps[i]['type']}',
-                                  style: const TextStyle(
-                                      color: AppColors.textSecondary,
-                                      fontSize: 12)),
-                              trailing: Row(
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+
+                      // Step Palette Card
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Add Step to Route',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Click any tool to insert into route:',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              _StepOptionGrid(
+                                options: const [
+                                  _StepOption(
+                                      'map',
+                                      Icons.touch_app_rounded,
+                                      AppColors.primary,
+                                      'Add Position',
+                                      'Tap the map'),
+                                  _StepOption(
+                                      'location',
+                                      Icons.place_rounded,
+                                      AppColors.primary,
+                                      'Saved Location',
+                                      'Pick from list'),
+                                  _StepOption(
+                                      'current',
+                                      Icons.my_location_rounded,
+                                      AppColors.primary,
+                                      'Current Pose',
+                                      "Robot's pose now"),
+                                  _StepOption(
+                                      'wait',
+                                      Icons.hourglass_bottom_rounded,
+                                      AppColors.stateLocalizing,
+                                      'Wait Duration',
+                                      'Pause timer'),
+                                  _StepOption(
+                                      'dock',
+                                      Icons.ev_station_rounded,
+                                      AppColors.stateDocking,
+                                      'Dock',
+                                      'Navigate & dock'),
+                                  _StepOption(
+                                      'undock',
+                                      Icons.logout_rounded,
+                                      AppColors.textSecondary,
+                                      'Undock',
+                                      'Leave dock'),
+                                ],
+                                onPick: (id) => _handleStepChoice(id),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              const Divider(),
+                              const SizedBox(height: AppSpacing.xs),
+                              const Text(
+                                'Advanced ROS 2 Calls:',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textSecondary),
+                              ),
+                              const SizedBox(height: AppSpacing.sm),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () =>
+                                          _handleStepChoice('call_service'),
+                                      icon: const Icon(
+                                          Icons.settings_ethernet_rounded,
+                                          size: 16),
+                                      label: const Text('Service'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () =>
+                                          _handleStepChoice('call_action'),
+                                      icon: const Icon(Icons.bolt_rounded,
+                                          size: 16),
+                                      label: const Text('Action'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+
+                      if (_saveError != null)
+                        Card(
+                          color: AppColors.danger.withValues(alpha: 0.12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppSpacing.cardRadius),
+                            side: const BorderSide(color: AppColors.danger),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline_rounded,
+                                    color: AppColors.danger, size: 20),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: Text(_saveError!,
+                                      style: const TextStyle(
+                                          color: AppColors.danger,
+                                          fontWeight: FontWeight.w600)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.lg),
+
+                // 2. CENTER COLUMN: Live Interactive Map Preview (flex: 6)
+                Expanded(
+                  flex: 6,
+                  child: Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: ros2 == null
+                              ? const Center(child: Text('Not connected.'))
+                              : OccupancyGridView(
+                                  ros2: ros2,
+                                  interactive: true,
+                                  initialPose: telemetry.rawPose,
+                                  initialPath: telemetry.currentPath,
+                                  locations: routePins,
+                                  showWaypointRoute: true,
+                                  fitWholeMap: false,
+                                  showRobot: true,
+                                  showDock: true,
+                                  showPath: true,
+                                ),
+                        ),
+                        Positioned(
+                          left: AppSpacing.md,
+                          top: AppSpacing.md,
+                          child: Card(
+                            color: AppColors.surface.withValues(alpha: 0.92),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.md,
+                                  vertical: AppSpacing.xs),
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.close_rounded,
-                                        size: 18),
-                                    onPressed: () =>
-                                        setState(() => _steps.removeAt(i)),
-                                  ),
-                                  ReorderableDragStartListener(
-                                    index: i,
-                                    child: const Padding(
-                                      padding:
-                                          EdgeInsets.symmetric(horizontal: 4),
-                                      child: Icon(Icons.drag_handle_rounded,
-                                          color: AppColors.textTertiary,
-                                          size: 20),
-                                    ),
+                                  const Icon(Icons.map_rounded,
+                                      size: 16, color: AppColors.primary),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Text(
+                                    'Mission Route Preview (${routePins.length} waypoints plotted)',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12),
                                   ),
                                 ],
                               ),
                             ),
                           ),
                         ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: AppSpacing.md),
-                _RepeatCard(
-                  repeat: _repeat,
-                  count: _loopCount,
-                  onChanged: (r) => setState(() => _repeat = r),
-                  onCountChanged: (c) => setState(() => _loopCount = c),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                if (_saveError != null) ...[
-                  Text(_saveError!,
-                      style: const TextStyle(color: AppColors.danger)),
-                  const SizedBox(height: AppSpacing.sm),
-                ],
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _saving
-                            ? null
-                            : () => Navigator.of(context).pop(false),
-                        child: const Text('Cancel'),
+                const SizedBox(width: AppSpacing.lg),
+
+                // 3. RIGHT COLUMN: Visual Pipeline Sequence (width: 350)
+                SizedBox(
+                  width: 350,
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.alt_route_rounded,
+                                  color: AppColors.primary, size: 20),
+                              const SizedBox(width: AppSpacing.sm),
+                              Text(
+                                'Pipeline (${_steps.length} steps)',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Drag handles to reorder execution flow',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          const Divider(),
+                          Expanded(
+                            child: _steps.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.route_outlined,
+                                            size: 40,
+                                            color: AppColors.textTertiary),
+                                        const SizedBox(height: AppSpacing.sm),
+                                        const Text('No steps added yet.',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: AppSpacing.xs),
+                                        const Text(
+                                          'Use the palette on the left to add waypoints or actions.',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                              color: AppColors.textSecondary,
+                                              fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : ReorderableListView.builder(
+                                    buildDefaultDragHandles: false,
+                                    itemCount: _steps.length,
+                                    onReorder: (oldIndex, newIndex) {
+                                      setState(() {
+                                        if (newIndex > oldIndex) newIndex -= 1;
+                                        final item =
+                                            _steps.removeAt(oldIndex);
+                                        _steps.insert(newIndex, item);
+                                      });
+                                    },
+                                    itemBuilder: (context, i) => Card(
+                                      key: ValueKey(
+                                          '$i-${_steps[i].hashCode}'),
+                                      margin: const EdgeInsets.only(
+                                          bottom: AppSpacing.xs),
+                                      color: AppColors.surfaceSunken,
+                                      child: ListTile(
+                                        dense: true,
+                                        leading: StepIconChip(step: _steps[i]),
+                                        title: Text(
+                                            missionStepSummary(_steps[i]),
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13)),
+                                        subtitle: Text(
+                                            'Step ${i + 1} · ${_steps[i]['type']}',
+                                            style: const TextStyle(
+                                                color: AppColors.textSecondary,
+                                                fontSize: 11)),
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(
+                                                  Icons.close_rounded,
+                                                  size: 18),
+                                              onPressed: () => setState(
+                                                  () => _steps.removeAt(i)),
+                                            ),
+                                            ReorderableDragStartListener(
+                                              index: i,
+                                              child: const Padding(
+                                                padding: EdgeInsets.symmetric(
+                                                    horizontal: 4),
+                                                child: Icon(
+                                                    Icons.drag_handle_rounded,
+                                                    color:
+                                                        AppColors.textTertiary,
+                                                    size: 20),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _saving ? null : _save,
-                        child: _saving
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.textOnPrimary),
-                              )
-                            : Text(
-                                _isEditing ? 'Save Changes' : 'Create Mission'),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, __) {
+        if (!didPop) _goBack(false);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            tooltip: 'Back to Missions',
+            onPressed: () => _goBack(false),
+          ),
+          title: Text(_isEditing ? 'Edit Mission' : 'New Mission'),
+        ),
+        body: SafeArea(
+          child: CenteredFormColumn(
+            maxWidth: 640,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (routePins.isNotEmpty) _RouteMapCard(pins: routePins),
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                        hintText: 'Mission name, e.g. Patrol Route A'),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  Row(
+                    children: [
+                      Text('Steps',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: _addStepSheet,
+                        icon: const Icon(Icons.add_rounded, size: 18),
+                        label: const Text('Add Step'),
+                      ),
+                    ],
+                  ),
+                  if (_loadError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: Text(
+                        _loadError!.isUnreachable
+                            ? "Can't load saved locations — the SDK isn't reachable."
+                            : _loadError!.message,
+                        style: const TextStyle(color: AppColors.danger),
+                      ),
+                    ),
+                  Expanded(
+                    child: _steps.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.route_outlined,
+                                    size: 40, color: AppColors.textTertiary),
+                                const SizedBox(height: AppSpacing.sm),
+                                const Text('No steps added yet.',
+                                    style: TextStyle(
+                                        color: AppColors.textSecondary)),
+                              ],
+                            ),
+                          )
+                        : ReorderableListView.builder(
+                            buildDefaultDragHandles: false,
+                            itemCount: _steps.length,
+                            onReorder: (oldIndex, newIndex) {
+                              setState(() {
+                                if (newIndex > oldIndex) newIndex -= 1;
+                                final item = _steps.removeAt(oldIndex);
+                                _steps.insert(newIndex, item);
+                              });
+                            },
+                            itemBuilder: (context, i) => Card(
+                              key: ValueKey('$i-${_steps[i].hashCode}'),
+                              margin:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: ListTile(
+                                leading: StepIconChip(step: _steps[i]),
+                                title: Text(missionStepSummary(_steps[i]),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600)),
+                                subtitle: Text(
+                                    'Step ${i + 1} · ${_steps[i]['type']}',
+                                    style: const TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 12)),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.close_rounded,
+                                          size: 18),
+                                      onPressed: () =>
+                                          setState(() => _steps.removeAt(i)),
+                                    ),
+                                    ReorderableDragStartListener(
+                                      index: i,
+                                      child: const Padding(
+                                        padding:
+                                            EdgeInsets.symmetric(horizontal: 4),
+                                        child: Icon(Icons.drag_handle_rounded,
+                                            color: AppColors.textTertiary,
+                                            size: 20),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  _RepeatCard(
+                    repeat: _repeat,
+                    count: _loopCount,
+                    onChanged: (r) => setState(() => _repeat = r),
+                    onCountChanged: (c) => setState(() => _loopCount = c),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  if (_saveError != null) ...[
+                    Text(_saveError!,
+                        style: const TextStyle(color: AppColors.danger)),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _saving ? null : () => _goBack(false),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _saving ? null : _save,
+                          child: _saving
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.textOnPrimary),
+                                )
+                              : Text(
+                                  _isEditing ? 'Save Changes' : 'Create Mission'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -771,6 +1232,37 @@ class _RepeatCard extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RouteMapCard extends StatelessWidget {
+  const _RouteMapCard({required this.pins});
+
+  final List<Map<String, dynamic>> pins;
+
+  @override
+  Widget build(BuildContext context) {
+    final ros2 = context.watch<ConnectionProvider>().ros2;
+    final telemetry = context.read<RobotTelemetryProvider>();
+    if (ros2 == null || pins.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          height: 180,
+          child: OccupancyGridView(
+            ros2: ros2,
+            interactive: false,
+            initialPose: telemetry.rawPose,
+            initialPath: telemetry.currentPath,
+            locations: pins,
+            showWaypointRoute: true,
+            fitWholeMap: true,
+          ),
         ),
       ),
     );

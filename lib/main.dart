@@ -42,10 +42,10 @@ class NavProMiniApp extends StatelessWidget {
         // route, pushed or not.
         builder: (context, child) {
           final connection = context.watch<ConnectionProvider>();
-          if (!connection.isConnected) return child!;
+          final ros2 = connection.isConnected ? connection.ros2 : null;
           return ChangeNotifierProvider<RobotTelemetryProvider>(
-            key: ValueKey(connection.ros2),
-            create: (_) => RobotTelemetryProvider(connection.ros2!),
+            key: ValueKey(ros2),
+            create: (_) => RobotTelemetryProvider(ros2),
             child: child!,
           );
         },

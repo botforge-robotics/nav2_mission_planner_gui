@@ -17,7 +17,6 @@ import '../../widgets/design/status_pulse.dart';
 import '../alerts/alerts_log_screen.dart';
 import '../dock/dock_charge_screen.dart';
 import '../robot_status/robot_status_screen.dart';
-import 'coming_soon_screen.dart';
 import 'help_about_screen.dart';
 import 'tools_api_screen.dart';
 
@@ -76,28 +75,14 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
       appBar: AppBar(title: const Text('Settings')),
       body: SafeArea(
         child: CenteredFormColumn(
-          maxWidth: 640,
+          maxWidth:
+              Breakpoints.of(context) == DeviceClass.desktop ? 840 : 640,
           child: FadeSlideIn(
             child: ListView(
               padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
                 const _RobotSummaryCard(),
                 const SizedBox(height: AppSpacing.lg),
-                _SettingsTile(
-                  icon: Icons.notifications_outlined,
-                  title: 'Notification Settings',
-                  subtitle: 'Not available yet',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const ComingSoonScreen(
-                        title: 'Notification Settings',
-                        explanation:
-                            'There\'s no notification-preference storage on the robot or in '
-                            'this app yet — Alerts & Fault Log already shows every event live.',
-                      ),
-                    ),
-                  ),
-                ),
                 _SettingsTile(
                   icon: Icons.report_gmailerrorred_rounded,
                   title: 'Alerts & Fault Log',

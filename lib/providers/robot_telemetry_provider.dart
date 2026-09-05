@@ -29,10 +29,10 @@ ChargeStatus _chargeStatusOf(int value) => switch (value) {
 /// uses on the robot side.
 class RobotTelemetryProvider extends ChangeNotifier {
   RobotTelemetryProvider(this._ros2) {
-    _subscribe();
+    if (_ros2 != null) _subscribe();
   }
 
-  final Ros2 _ros2;
+  final Ros2? _ros2;
   final List<Subscriber> _subscribers = [];
 
   double? batteryPercentage;
@@ -43,6 +43,9 @@ class RobotTelemetryProvider extends ChangeNotifier {
   double? poseX;
   double? poseY;
 
+  geometry_msgs.PoseWithCovarianceStamped? rawPose;
+  nav_msgs.Path? currentPath;
+
   /// Yaw, radians, derived from `/amcl_pose`'s quaternion — same formula
   /// `occupancy_grid_view.dart`'s painter already uses for the robot marker,
   /// mirrored here rather than shared, since one is ROS-message-shaped math
@@ -50,11 +53,13 @@ class RobotTelemetryProvider extends ChangeNotifier {
   double? poseTheta;
 
   void _subscribe() {
+    final ros2 = _ros2;
+    if (ros2 == null) return;
     _subscribers.addAll([
       Subscriber<sensor_msgs.BatteryState>(
         name: '/battery/state',
         type: sensor_msgs.BatteryState().fullType,
-        ros2: _ros2,
+        ros2: ros2,
         prototype: sensor_msgs.BatteryState(),
         callback: (msg) {
           // sensor_msgs/BatteryState.percentage is conventionally a 0-1
@@ -71,8 +76,9 @@ class RobotTelemetryProvider extends ChangeNotifier {
       Subscriber<nav_msgs.Odometry>(
         name: '/odom',
         type: nav_msgs.Odometry().fullType,
-        ros2: _ros2,
+        ros2: ros2,
         prototype: nav_msgs.Odometry(),
+        qos: const {'reliability': 'best_effort'},
         callback: (msg) {
           linearSpeedMps = msg.twist.twist.linear.x;
           notifyListeners();
@@ -81,10 +87,15 @@ class RobotTelemetryProvider extends ChangeNotifier {
       Subscriber<geometry_msgs.PoseWithCovarianceStamped>(
         name: '/amcl_pose',
         type: geometry_msgs.PoseWithCovarianceStamped().fullType,
-        ros2: _ros2,
+        ros2: ros2,
         prototype: geometry_msgs.PoseWithCovarianceStamped(),
+        // AMCL publishes /amcl_pose with TRANSIENT_LOCAL durability — without
+        // matching durability, a reconnecting or stationary subscriber never
+        // receives the latched pose until the robot physically moves.
+        qos: const {'durability': 'transient_local'},
         callback: (msg) {
           localized = true;
+          rawPose = msg;
           poseX = msg.pose.pose.position.x;
           poseY = msg.pose.pose.position.y;
           final q = msg.pose.pose.orientation;
@@ -93,10 +104,20 @@ class RobotTelemetryProvider extends ChangeNotifier {
           notifyListeners();
         },
       ),
+      Subscriber<nav_msgs.Path>(
+        name: '/plan',
+        type: nav_msgs.Path().fullType,
+        ros2: ros2,
+        prototype: nav_msgs.Path(),
+        callback: (msg) {
+          currentPath = msg;
+          notifyListeners();
+        },
+      ),
       Subscriber<std_msgs.StringMessage>(
         name: '/dock_status',
         type: std_msgs.StringMessage().fullType,
-        ros2: _ros2,
+        ros2: ros2,
         prototype: std_msgs.StringMessage(),
         callback: (msg) {
           dockStatus = msg.data;

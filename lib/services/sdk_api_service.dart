@@ -167,7 +167,8 @@ class SdkApiService {
 
   Future<void> goToWaypoint(String name, {bool replace = false}) =>
       _send('POST', '/api/v1/navigation/goto',
-          body: {'waypoint': name, if (replace) 'replace': true});
+          body: {'waypoint': name, if (replace) 'replace': true},
+          timeout: const Duration(seconds: 20));
 
   Future<void> goToPose(double x, double y,
           {double theta = 0.0, bool replace = false}) =>
@@ -175,6 +176,7 @@ class SdkApiService {
         'POST',
         '/api/v1/navigation/goto',
         body: {'x': x, 'y': y, 'theta': theta, if (replace) 'replace': true},
+        timeout: const Duration(seconds: 20),
       );
 
   Future<Map<String, dynamic>> navigationStatus() =>
@@ -194,6 +196,11 @@ class SdkApiService {
       _send('POST', '/api/v1/navigation/localize',
           body: {'x': x, 'y': y, 'theta': theta});
 
+  /// Triggers AMCL /reinitialize_global_localization to disperse particle cloud
+  /// across map free space for global relocalization recovery.
+  Future<void> reinitializeGlobalLocalization() =>
+      _send('POST', '/api/v1/navigation/relocalize/global');
+
   // -- docking ---------------------------------------------------------------
 
   Future<void> dock({bool navigateToStaging = true}) =>
@@ -209,6 +216,18 @@ class SdkApiService {
   /// localize option. 404s (as `not_found`-ish text via the SDK's
   /// `no_dock_pose` code) when no dock pose is known yet.
   Future<Map<String, dynamic>> dockPose() => _send('GET', '/api/v1/dock/pose');
+
+  /// Set and persist the robot's dock pose in map coordinates.
+  Future<void> setDockPose({
+    required double x,
+    required double y,
+    double theta = 0.0,
+  }) =>
+      _send('PUT', '/api/v1/dock/pose',
+          body: {'x': x, 'y': y, 'theta': theta});
+
+  /// Permanently removes the saved dock pose from the robot.
+  Future<void> deleteDockPose() => _send('DELETE', '/api/v1/dock/pose');
 
   // -- mode (idle / mapping / navigation) -------------------------------------
 
@@ -235,6 +254,16 @@ class SdkApiService {
         body: {'mode': mode, if (map != null) 'map': map},
         timeout: _modeChangeTimeout,
       );
+
+  /// Fetches all saved maps on the robot via the SDK.
+  Future<List<String>> listMaps() async {
+    final resp = await _send('GET', '/api/v1/maps');
+    final maps = resp['maps'];
+    if (maps is List) {
+      return maps.map((e) => e.toString()).toList();
+    }
+    return const [];
+  }
 
   /// Switches navigation onto a different saved map — restarts the
   /// navigation stack on it. Convenience wrapper the SDK itself provides

@@ -45,6 +45,7 @@ class Subscriber<T extends RosMessage<T>> {
   final T _prototype;
   final Map<String, dynamic>? qos;
   StreamSubscription? _subscription;
+  StreamSubscription? _statusSubscription;
 
   Subscriber({
     required this.name,
@@ -55,20 +56,21 @@ class Subscriber<T extends RosMessage<T>> {
     this.qos,
   }) : _prototype = prototype {
     subscribe();
+    _statusSubscription = ros2.statusStream.listen((status) {
+      if (status == Status.connected) {
+        _bindListener();
+        _TopicSubscriptionManager.instance.resendActive(ros2);
+      }
+    });
   }
 
   void subscribe() {
-    final msg = <String, dynamic>{
-      'op': 'subscribe',
-      'topic': name,
-      'type': type,
-    };
-    // Needed for /map (map_server / slam use TRANSIENT_LOCAL)
-    if (qos != null) {
-      msg['qos'] = qos;
-    }
-    ros2.send(msg);
+    _bindListener();
+    _TopicSubscriptionManager.instance.subscribe(this);
+  }
 
+  void _bindListener() {
+    _subscription?.cancel();
     _subscription = ros2.stream.listen((data) {
       if (data['op'] == 'publish' && data['topic'] == name) {
         try {
@@ -88,14 +90,104 @@ class Subscriber<T extends RosMessage<T>> {
   }
 
   void unsubscribe() {
+    _statusSubscription?.cancel();
+    _statusSubscription = null;
     _subscription?.cancel();
     _subscription = null;
-    ros2.send({
-      'op': 'unsubscribe',
-      'topic': name,
-      'type': type,
-    });
+    _TopicSubscriptionManager.instance.unsubscribe(this);
   }
+}
+
+/// App-wide reference counter for ROS topic subscriptions per Ros2 connection.
+/// Prevents one disposed widget/screen from canceling a topic subscription that
+/// other screens or background providers are still actively listening to.
+class _TopicSubscriptionManager {
+  static final _TopicSubscriptionManager instance =
+      _TopicSubscriptionManager._();
+  _TopicSubscriptionManager._();
+
+  final Expando<Map<String, _TopicSubscriptionState>> _states = Expando();
+
+  Map<String, _TopicSubscriptionState> _for(Ros2 ros2) {
+    var map = _states[ros2];
+    if (map == null) {
+      map = <String, _TopicSubscriptionState>{};
+      _states[ros2] = map;
+    }
+    return map;
+  }
+
+  void subscribe(Subscriber sub) {
+    final map = _for(sub.ros2);
+    var state = map[sub.name];
+    final isNew = state == null;
+    if (state == null) {
+      state = _TopicSubscriptionState(
+          topic: sub.name, type: sub.type, qos: sub.qos);
+      map[sub.name] = state;
+    } else {
+      if (sub.qos != null) {
+        state.qos = sub.qos;
+      }
+    }
+    state.subscribers.add(sub);
+
+    // Send subscribe op if this is a new topic or QoS was updated
+    if (isNew || sub.qos != null) {
+      final msg = <String, dynamic>{
+        'op': 'subscribe',
+        'topic': sub.name,
+        'type': sub.type,
+      };
+      if (state.qos != null) {
+        msg['qos'] = state.qos;
+      }
+      sub.ros2.send(msg);
+    }
+  }
+
+  void unsubscribe(Subscriber sub) {
+    final map = _for(sub.ros2);
+    final state = map[sub.name];
+    if (state == null) return;
+
+    state.subscribers.remove(sub);
+    // ONLY unsubscribe from rosbridge if no other active subscribers remain!
+    if (state.subscribers.isEmpty) {
+      map.remove(sub.name);
+      sub.ros2.send({
+        'op': 'unsubscribe',
+        'topic': sub.name,
+        'type': sub.type,
+      });
+    }
+  }
+
+  void resendActive(Ros2 ros2) {
+    final map = _for(ros2);
+    for (final state in map.values) {
+      if (state.subscribers.isNotEmpty) {
+        final msg = <String, dynamic>{
+          'op': 'subscribe',
+          'topic': state.topic,
+          'type': state.type,
+        };
+        if (state.qos != null) {
+          msg['qos'] = state.qos;
+        }
+        ros2.send(msg);
+      }
+    }
+  }
+}
+
+class _TopicSubscriptionState {
+  final String topic;
+  final String type;
+  Map<String, dynamic>? qos;
+  final Set<Subscriber> subscribers = {};
+
+  _TopicSubscriptionState({required this.topic, required this.type, this.qos});
 }
 
 /// Dynamic Publisher for publishing to any topic without predefined message types

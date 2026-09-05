@@ -97,16 +97,25 @@ float32[] intensities''';
   @override
   LaserScan fromJson(Map<String, dynamic> jsonMap) {
     return LaserScan(
-        header: std_msgs.Header()
-            .fromJson(jsonMap['header'] as Map<String, dynamic>),
-        angle_min: jsonMap['angle_min'] as double,
-        angle_max: jsonMap['angle_max'] as double,
-        angle_increment: jsonMap['angle_increment'] as double,
-        time_increment: jsonMap['time_increment'] as double,
-        scan_time: jsonMap['scan_time'] as double,
-        range_min: jsonMap['range_min'] as double,
-        range_max: jsonMap['range_max'] as double,
-        ranges: (jsonMap['ranges'] as List).cast<double>(),
-        intensities: (jsonMap['intensities'] as List).cast<double>());
+      header: jsonMap['header'] != null
+          ? std_msgs.Header()
+              .fromJson(jsonMap['header'] as Map<String, dynamic>)
+          : std_msgs.Header(),
+      angle_min: (jsonMap['angle_min'] as num?)?.toDouble() ?? 0.0,
+      angle_max: (jsonMap['angle_max'] as num?)?.toDouble() ?? 0.0,
+      angle_increment: (jsonMap['angle_increment'] as num?)?.toDouble() ?? 0.0,
+      time_increment: (jsonMap['time_increment'] as num?)?.toDouble() ?? 0.0,
+      scan_time: (jsonMap['scan_time'] as num?)?.toDouble() ?? 0.0,
+      range_min: (jsonMap['range_min'] as num?)?.toDouble() ?? 0.0,
+      range_max: (jsonMap['range_max'] as num?)?.toDouble() ?? 0.0,
+      ranges: (jsonMap['ranges'] as List?)
+              ?.map((e) => (e as num?)?.toDouble() ?? double.nan)
+              .toList() ??
+          const [],
+      intensities: (jsonMap['intensities'] as List?)
+              ?.map((e) => (e as num?)?.toDouble() ?? 0.0)
+              .toList() ??
+          const [],
+    );
   }
 }

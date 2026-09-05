@@ -2,9 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:navpromini_launch_manager_interfaces/srv.dart';
 import 'package:provider/provider.dart';
-import 'package:ros2_api/ros2_api.dart';
 
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_status.dart';
@@ -36,9 +34,6 @@ class RobotStatusScreen extends StatefulWidget {
 }
 
 class _RobotStatusScreenState extends State<RobotStatusScreen> {
-  // Matches maps_list_screen.dart's own MAP_PATH exactly.
-  static const _mapPath = 'navpromini_mapping/maps';
-
   Map<String, dynamic>? _info;
   SdkApiException? _infoError;
   List<Map<String, dynamic>>? _locations;
@@ -79,26 +74,6 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
     }
   }
 
-  /// Fetches every saved map's name — same GetMapList service call
-  /// maps_list_screen.dart itself uses, since map listing has no
-  /// SdkApiService route (it's a raw ROS service, not an SDK HTTP one).
-  Future<List<String>> _listMapNames(Ros2 ros2) async {
-    final client =
-        ServiceClient<GetMapList, GetMapListRequest, GetMapListResponse>(
-      ros2: ros2,
-      name: 'get_map_list',
-      type: GetMapList().fullType,
-      serviceType: GetMapList(),
-      timeout: 15,
-    );
-    try {
-      final resp = await client.call(GetMapListRequest(path: _mapPath));
-      return resp.success ? resp.maplist : const [];
-    } finally {
-      client.dispose();
-    }
-  }
-
   Future<void> _confirmResetRobot() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -127,18 +102,31 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
   Future<void> _resetRobot() async {
     final connection = context.read<ConnectionProvider>();
     final api = _api;
-    final ros2 = connection.ros2;
-    if (api == null || ros2 == null) return;
+    if (api == null) return;
 
     var mapNames = <String>[];
     var locationNames = <String>[];
+    var missionIds = <String>[];
+    var scheduleIds = <String>[];
     try {
-      final results =
-          await Future.wait([_listMapNames(ros2), api.listWaypoints()]);
+      final results = await Future.wait([
+        api.listMaps(),
+        api.listWaypoints(),
+        api.listMissions(),
+        api.listSchedules(),
+      ]);
       mapNames = results[0] as List<String>;
       locationNames = (results[1] as List<Map<String, dynamic>>)
           .map((l) => l['name'] as String? ?? '')
           .where((n) => n.isNotEmpty)
+          .toList();
+      missionIds = (results[2] as List<Map<String, dynamic>>)
+          .map((m) => m['id'] as String? ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+      scheduleIds = (results[3] as List<Map<String, dynamic>>)
+          .map((s) => s['id'] as String? ?? '')
+          .where((id) => id.isNotEmpty)
           .toList();
     } catch (e) {
       if (!mounted) return;
@@ -191,6 +179,26 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
         failures++;
       }
     }
+    for (final id in missionIds) {
+      progress.value = 'Deleting mission "$id"…';
+      try {
+        await api.deleteMission(id);
+      } catch (_) {
+        failures++;
+      }
+    }
+    for (final id in scheduleIds) {
+      progress.value = 'Deleting schedule "$id"…';
+      try {
+        await api.deleteSchedule(id);
+      } catch (_) {
+        failures++;
+      }
+    }
+    progress.value = 'Clearing dock pose…';
+    try {
+      await api.deleteDockPose();
+    } catch (_) {}
     await LocationsController.instance.refresh(api);
 
     if (!mounted) return;

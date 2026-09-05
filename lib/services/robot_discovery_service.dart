@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -53,37 +55,81 @@ class RobotDiscoveryService {
     return result.isGranted;
   }
 
+  /// Discovers all local IPv4 /24 subnet prefixes (e.g. ['192.168.0']).
+  /// Uses native NetworkInterface.list() on desktop (Linux/macOS/Windows)
+  /// and falls back to NetworkInfo().getWifiIP() on mobile.
+  Future<List<String>> allSubnetPrefixes() async {
+    final prefixes = <String>{};
+
+    // 1. Native interfaces on desktop (Linux, Windows, macOS) and mobile
+    if (!kIsWeb) {
+      try {
+        final interfaces = await NetworkInterface.list();
+        for (final iface in interfaces) {
+          final name = iface.name.toLowerCase();
+          if (name.startsWith('lo') ||
+              name.startsWith('docker') ||
+              name.startsWith('veth') ||
+              name.startsWith('br-')) {
+            continue;
+          }
+          for (final addr in iface.addresses) {
+            if (addr.type == InternetAddressType.IPv4 &&
+                !addr.isLoopback &&
+                !addr.isLinkLocal) {
+              final parts = addr.address.split('.');
+              if (parts.length == 4) {
+                prefixes.add('${parts[0]}.${parts[1]}.${parts[2]}');
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. Wi-Fi info via network_info_plus (primary path on mobile devices)
+    if (prefixes.isEmpty) {
+      try {
+        await ensureLocationPermission();
+        final ip = await _network.getWifiIP();
+        if (ip != null && ip.isNotEmpty && ip != '0.0.0.0') {
+          final parts = ip.split('.');
+          if (parts.length == 4) {
+            prefixes.add('${parts[0]}.${parts[1]}.${parts[2]}');
+          }
+        }
+      } catch (_) {}
+    }
+
+    return prefixes.toList();
+  }
+
   /// The device's current Wi-Fi subnet, as "a.b.c" (no trailing octet) —
   /// null if not on Wi-Fi, permission was denied, or the platform won't
   /// report it (some desktop/web contexts don't expose this at all).
   Future<String?> currentSubnetPrefix() async {
-    try {
-      await ensureLocationPermission();
-      final ip = await _network.getWifiIP();
-      if (ip == null || ip.isEmpty || ip == '0.0.0.0') return null;
-      final parts = ip.split('.');
-      if (parts.length != 4) return null;
-      return '${parts[0]}.${parts[1]}.${parts[2]}';
-    } catch (_) {
-      return null;
-    }
+    final list = await allSubnetPrefixes();
+    return list.isNotEmpty ? list.first : null;
   }
 
-  /// Scans the given subnet (or the current one, if omitted) and emits each
+  /// Scans the given subnet (or all local subnets, if omitted) and emits each
   /// robot as it's found — a bounded-concurrency worker pool over the 254
-  /// candidate hosts, same idea as the PC API's own scanNearby() sweep
-  /// (server/src/index.js), ported to Dart since that server isn't present
-  /// in a pure mobile/desktop build.
+  /// candidate hosts per subnet.
   Stream<DiscoveredRobot> scan({String? subnetPrefix}) {
     final controller = StreamController<DiscoveredRobot>();
 
     Future<void> run() async {
-      final prefix = subnetPrefix ?? await currentSubnetPrefix();
-      if (prefix == null) {
+      final prefixes = subnetPrefix != null
+          ? [subnetPrefix]
+          : await allSubnetPrefixes();
+      if (prefixes.isEmpty) {
         await controller.close();
         return;
       }
-      final hosts = List.generate(254, (i) => '$prefix.${i + 1}');
+      final hosts = <String>[];
+      for (final prefix in prefixes) {
+        hosts.addAll(List.generate(254, (i) => '$prefix.${i + 1}'));
+      }
       var nextIndex = 0;
 
       Future<void> worker() async {

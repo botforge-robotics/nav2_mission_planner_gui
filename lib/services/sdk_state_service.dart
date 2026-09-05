@@ -8,17 +8,25 @@ import 'package:http/http.dart' as http;
 /// status, lifecycle. Everything nullable: a field missing from the
 /// response, or the whole poll failing, both mean "unknown", not zero/empty.
 class SdkState {
-  const SdkState({this.mode, this.mapName, this.missionStatus, this.lifecycle});
+  const SdkState({
+    this.mode,
+    this.mapName,
+    this.missionStatus,
+    this.pauseReason,
+    this.lifecycle,
+  });
 
   final String? mode;
   final String? mapName;
   final String? missionStatus;
+  final String? pauseReason;
   final String? lifecycle;
 
   factory SdkState.fromJson(Map<String, dynamic> json) => SdkState(
         mode: json['mode'] as String?,
         mapName: (json['map'] as Map?)?['name'] as String?,
         missionStatus: (json['mission'] as Map?)?['status'] as String?,
+        pauseReason: (json['mission'] as Map?)?['pause_reason'] as String?,
         lifecycle: json['lifecycle'] as String?,
       );
 
@@ -39,15 +47,21 @@ class SdkStateService {
 
   String get _baseUrl => 'http://$robotIp:$port';
 
+  SdkState _lastState = SdkState.unknown;
+
   Future<SdkState> fetchOnce() async {
     try {
       final resp = await http
           .get(Uri.parse('$_baseUrl/api/v1/state'))
-          .timeout(const Duration(seconds: 3));
-      if (resp.statusCode != 200) return SdkState.unknown;
-      return SdkState.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode != 200) return _lastState;
+      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      _lastState = SdkState.fromJson(json);
+      return _lastState;
     } catch (_) {
-      return SdkState.unknown;
+      // Network drop, timeout, or transient error: retain the last known
+      // state rather than instantly wiping active map/mode to null.
+      return _lastState;
     }
   }
 

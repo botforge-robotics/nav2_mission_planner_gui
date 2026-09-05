@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -55,6 +56,12 @@ class _TeleopScreenState extends State<TeleopScreen> {
   bool _docking = false;
   bool _undocking = false;
 
+  Timer? _navStatusTimer;
+  Map<String, dynamic>? _navStatus;
+  double _distanceTraveled = 0.0;
+  double? _lastPoseX;
+  double? _lastPoseY;
+
   /// True while a finger is actively dragging the joystick — disables the
   /// controls list's own scroll physics for that duration (see
   /// DrivePad.onDragActiveChanged) so a touch that starts on the stick
@@ -63,6 +70,68 @@ class _TeleopScreenState extends State<TeleopScreen> {
 
   bool _requestedLocations = false;
   ({double x, double y, double theta})? _dockPose;
+
+  @override
+  void initState() {
+    super.initState();
+    _navStatusTimer = Timer.periodic(
+        const Duration(milliseconds: 900), (_) => _pollNavigationStatus());
+  }
+
+  @override
+  void dispose() {
+    _navStatusTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _pollNavigationStatus() async {
+    final api = _api;
+    if (api == null) return;
+    try {
+      final status = await api.navigationStatus();
+      if (!mounted) return;
+      final state = status['state'] as String?;
+      if (state == 'active') {
+        final telemetry = context.read<RobotTelemetryProvider>();
+        if (telemetry.poseX != null && telemetry.poseY != null) {
+          if (_lastPoseX != null && _lastPoseY != null) {
+            final dx = telemetry.poseX! - _lastPoseX!;
+            final dy = telemetry.poseY! - _lastPoseY!;
+            final d = sqrt(dx * dx + dy * dy);
+            if (d > 0.005 && d < 2.0) {
+              _distanceTraveled += d;
+            }
+          }
+          _lastPoseX = telemetry.poseX;
+          _lastPoseY = telemetry.poseY;
+        }
+      } else {
+        _distanceTraveled = 0.0;
+        _lastPoseX = null;
+        _lastPoseY = null;
+      }
+      setState(() => _navStatus = status);
+    } catch (_) {}
+  }
+
+  Future<void> _cancelActiveNavigation() async {
+    final api = _api;
+    if (api == null) return;
+    try {
+      await api.cancelNavigation();
+      await _stop();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Navigation goal canceled')),
+      );
+      _pollNavigationStatus();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to cancel navigation: $e')),
+      );
+    }
+  }
 
   SdkApiService? get _api {
     final ip = context.read<ConnectionProvider>().robot?.ip;
@@ -105,6 +174,12 @@ class _TeleopScreenState extends State<TeleopScreen> {
     await retryOnFailure(
       context: context,
       actionLabel: 'Docking',
+      // One attempt only. dock_manager now backs off ~0.25m and re-approaches
+      // internally on a contact-without-charge, keeping the tag in view the
+      // whole time. A client-side retry instead re-ran the entire staging
+      // navigation from hard against the dock, which drove the robot back
+      // without ever reacquiring the tag.
+      maxAttempts: 1,
       attempt: (attemptNumber) async {
         try {
           await api.dock();
@@ -243,6 +318,159 @@ class _TeleopScreenState extends State<TeleopScreen> {
     final telemetry = context.watch<RobotTelemetryProvider>();
     final ros2 = connection.ros2;
     final isMobile = Breakpoints.of(context) == DeviceClass.mobile;
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
+
+    if (isDesktop) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Teleoperation Cockpit'),
+          actions: [
+            if (telemetry.localized)
+              Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.sm),
+                child: Chip(
+                  avatar: const Icon(Icons.my_location_rounded,
+                      size: 16, color: AppColors.success),
+                  label: Text(
+                      'Pose: (${telemetry.poseX?.toStringAsFixed(2)}, ${telemetry.poseY?.toStringAsFixed(2)})'),
+                  backgroundColor: AppColors.surfaceSunken,
+                ),
+              ),
+            if (telemetry.linearSpeedMps != null)
+              Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.md),
+                child: Chip(
+                  avatar: const Icon(Icons.speed_rounded,
+                      size: 16, color: AppColors.textSecondary),
+                  label: Text(
+                      '${telemetry.linearSpeedMps!.abs().toStringAsFixed(2)} m/s'),
+                  backgroundColor: AppColors.surfaceSunken,
+                ),
+              ),
+          ],
+        ),
+        body: SafeArea(
+          child: robotIp == null
+              ? const Center(child: Text('Not connected.'))
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Left 60%: Interactive Live Map Cockpit
+                    Expanded(
+                      flex: 6,
+                      child: ValueListenableBuilder<List<Map<String, dynamic>>?>(
+                        valueListenable: LocationsController.instance,
+                        builder: (context, locations, _) => _LiveMapSection(
+                          ros2: ros2,
+                          telemetry: telemetry,
+                          api: _api,
+                          fullBleed: true,
+                          isDesktop: true,
+                          locations: locations,
+                          dockPoseOverride: _dockPose,
+                          onLocationTap: _goTo,
+                          onDockTap: _onDockTapped,
+                          navStatus: _navStatus,
+                          distanceTraveled: _distanceTraveled,
+                          onCancelNavigation: _cancelActiveNavigation,
+                        ),
+                      ),
+                    ),
+                    const VerticalDivider(width: 1, color: AppColors.border),
+                    // Right 40%: Drive & Navigation Controls
+                    SizedBox(
+                      width: 440,
+                      child: Stack(
+                        children: [
+                          ListView(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            physics: _joystickDragging
+                                ? const NeverScrollableScrollPhysics()
+                                : null,
+                            children: [
+                              if (_navStatus != null &&
+                                  _navStatus!['state'] == 'active') ...[
+                                _NavProgressCard(
+                                  navStatus: _navStatus!,
+                                  distanceTraveled: _distanceTraveled,
+                                  linearSpeed: telemetry.linearSpeedMps,
+                                  onCancel: _cancelActiveNavigation,
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                              ],
+                              Card(
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.all(AppSpacing.lg),
+                                  child: Column(
+                                    children: [
+                                      DrivePad(
+                                        onVelocity: _onVelocity,
+                                        onStop: _stop,
+                                        onDragActiveChanged: (active) =>
+                                            setState(() =>
+                                                _joystickDragging = active),
+                                      ),
+                                      if (_motionError != null) ...[
+                                        const SizedBox(height: AppSpacing.md),
+                                        Text(
+                                          _motionError!.contains('unreachable')
+                                              ? "Direct drive needs navpro-sdk.service — it isn't reachable right now."
+                                              : _motionError!,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                              color: AppColors.danger,
+                                              fontSize: 12),
+                                        ),
+                                      ],
+                                      const SizedBox(height: AppSpacing.lg),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            flex: 3,
+                                            child: ElevatedButton.icon(
+                                              onPressed: _stop,
+                                              style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      AppColors.danger),
+                                              icon: const Icon(
+                                                  Icons.stop_circle_rounded),
+                                              label: const Text('STOP ROBOT'),
+                                            ),
+                                          ),
+                                          const SizedBox(
+                                              width: AppSpacing.sm),
+                                          Expanded(
+                                            flex: 3,
+                                            child: _DockUndockControl(
+                                              docking: _docking,
+                                              undocking: _undocking,
+                                              onDock: _dock,
+                                              onUndock: _undock,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.lg),
+                              _GoToLocationCard(onGoTo: _goTo),
+                            ],
+                          ),
+                          if (_dockBusy)
+                            Positioned.fill(
+                              child: _DockBusyOverlay(label: _dockBusyLabel),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Teleoperation')),
@@ -267,6 +495,9 @@ class _TeleopScreenState extends State<TeleopScreen> {
                       dockPoseOverride: _dockPose,
                       onLocationTap: _goTo,
                       onDockTap: _onDockTapped,
+                      navStatus: _navStatus,
+                      distanceTraveled: _distanceTraveled,
+                      onCancelNavigation: _cancelActiveNavigation,
                     ),
                   ),
                   Expanded(
@@ -282,6 +513,16 @@ class _TeleopScreenState extends State<TeleopScreen> {
                                 ? const NeverScrollableScrollPhysics()
                                 : null,
                             children: [
+                              if (_navStatus != null &&
+                                  _navStatus!['state'] == 'active') ...[
+                                _NavProgressCard(
+                                  navStatus: _navStatus!,
+                                  distanceTraveled: _distanceTraveled,
+                                  linearSpeed: telemetry.linearSpeedMps,
+                                  onCancel: _cancelActiveNavigation,
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                              ],
                               FadeSlideIn(
                                 child: Card(
                                   child: Padding(
@@ -379,14 +620,22 @@ class _LiveMapSection extends StatelessWidget {
     required this.dockPoseOverride,
     required this.onLocationTap,
     required this.onDockTap,
+    this.isDesktop = false,
+    this.navStatus,
+    this.distanceTraveled = 0.0,
+    this.onCancelNavigation,
   });
 
   final Ros2? ros2;
   final RobotTelemetryProvider telemetry;
   final SdkApiService? api;
   final bool fullBleed;
+  final bool isDesktop;
   final List<Map<String, dynamic>>? locations;
   final ({double x, double y, double theta})? dockPoseOverride;
+  final Map<String, dynamic>? navStatus;
+  final double distanceTraveled;
+  final VoidCallback? onCancelNavigation;
 
   /// Tapping a location or dock pin sends the robot there — the map's own
   /// pins are now the way to do that from Teleop, replacing the separate
@@ -396,95 +645,114 @@ class _LiveMapSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final map = SizedBox(
-      height: 280,
-      width: double.infinity,
-      child: Container(
-        color: AppColors.surfaceSunken,
-        child: ros2 == null
-            ? const Center(child: Text('Not connected.'))
-            : Stack(
-                children: [
-                  Positioned.fill(
-                    // The layer selection is shared app-wide (see
-                    // MapLayersController) — this map shows whatever's
-                    // toggled on from any screen, not a fixed subset.
-                    child: ValueListenableBuilder<Set<MapLayer>>(
-                      valueListenable: MapLayersController.instance,
-                      builder: (context, visibleLayers, _) => OccupancyGridView(
-                        ros2: ros2!,
-                        interactive: true,
-                        showRobot: true,
-                        showDock: visibleLayers.contains(MapLayer.dock),
-                        showPath: visibleLayers.contains(MapLayer.path),
-                        showGlobalCostmap:
-                            visibleLayers.contains(MapLayer.globalCostmap),
-                        showLocalCostmap:
-                            visibleLayers.contains(MapLayer.localCostmap),
-                        locations: visibleLayers.contains(MapLayer.locations)
-                            ? (locations ?? const [])
-                            : const [],
-                        dockPoseOverride: dockPoseOverride,
-                        onLocationTap: onLocationTap,
-                        onDockTap: onDockTap,
-                        // The banner below takes over "not localized"
-                        // messaging here.
-                        showLocalizationBadge: false,
-                      ),
+    Widget mapContent = Container(
+      color: AppColors.surfaceSunken,
+      child: ros2 == null
+          ? const Center(child: Text('Not connected.'))
+          : Stack(
+              children: [
+                Positioned.fill(
+                  // The layer selection is shared app-wide (see
+                  // MapLayersController) — this map shows whatever's
+                  // toggled on from any screen, not a fixed subset.
+                  child: ValueListenableBuilder<Set<MapLayer>>(
+                    valueListenable: MapLayersController.instance,
+                    builder: (context, visibleLayers, _) => OccupancyGridView(
+                      ros2: ros2!,
+                      interactive: true,
+                      showRobot: true,
+                      showDock: visibleLayers.contains(MapLayer.dock),
+                      showPath: visibleLayers.contains(MapLayer.path),
+                      showLaserScan: visibleLayers.contains(MapLayer.laserScan),
+                      initialPose: telemetry.rawPose,
+                      initialPath: telemetry.currentPath,
+                      showGlobalCostmap:
+                          visibleLayers.contains(MapLayer.globalCostmap),
+                      showLocalCostmap:
+                          visibleLayers.contains(MapLayer.localCostmap),
+                      locations: visibleLayers.contains(MapLayer.locations)
+                          ? (locations ?? const [])
+                          : const [],
+                      dockPoseOverride: dockPoseOverride,
+                      onLocationTap: onLocationTap,
+                      onDockTap: onDockTap,
+                      // The banner below takes over "not localized"
+                      // messaging here.
+                      showLocalizationBadge: false,
                     ),
                   ),
-                  if (telemetry.localized)
-                    Positioned(
-                      left: AppSpacing.sm,
-                      top: AppSpacing.sm,
-                      child: HudChip(
-                        text: 'x: ${telemetry.poseX!.toStringAsFixed(2)}  '
-                            'y: ${telemetry.poseY!.toStringAsFixed(2)}  '
-                            'θ: ${(telemetry.poseTheta ?? 0).toStringAsFixed(2)} rad',
-                      ),
-                    )
-                  else if (api != null)
-                    Positioned(
-                      left: AppSpacing.sm,
-                      right: AppSpacing.sm,
-                      top: AppSpacing.sm,
-                      child: NotLocalizedBanner(
-                        api: api!,
-                        onDecline: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text(
-                                  'Open Map to set the initial pose.'),
-                              action: SnackBarAction(
-                                label: 'Open Map',
-                                onPressed: () => Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => const MapViewScreen(
-                                        initialPosePicking: true),
-                                  ),
+                ),
+                if (navStatus != null &&
+                    navStatus!['state'] == 'active' &&
+                    isDesktop)
+                  Positioned(
+                    left: AppSpacing.lg,
+                    right: AppSpacing.lg,
+                    bottom: AppSpacing.lg,
+                    child: _NavProgressCard(
+                      navStatus: navStatus!,
+                      distanceTraveled: distanceTraveled,
+                      linearSpeed: telemetry.linearSpeedMps,
+                      onCancel: onCancelNavigation ?? () {},
+                      floating: true,
+                    ),
+                  ),
+                if (telemetry.localized)
+                  Positioned(
+                    left: AppSpacing.sm,
+                    top: AppSpacing.sm,
+                    child: HudChip(
+                      text: 'x: ${telemetry.poseX!.toStringAsFixed(2)}  '
+                          'y: ${telemetry.poseY!.toStringAsFixed(2)}  '
+                          'θ: ${(telemetry.poseTheta ?? 0).toStringAsFixed(2)} rad',
+                    ),
+                  )
+                else if (api != null)
+                  Positioned(
+                    left: AppSpacing.sm,
+                    right: AppSpacing.sm,
+                    top: AppSpacing.sm,
+                    child: NotLocalizedBanner(
+                      api: api!,
+                      onDecline: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text(
+                                'Open Map to set the initial pose.'),
+                            action: SnackBarAction(
+                              label: 'Open Map',
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const MapViewScreen(
+                                      initialPosePicking: true),
                                 ),
                               ),
                             ),
-                          );
-                        },
-                      ),
-                    ),
-                  // Speed used to be its own SpeedGauge section below the
-                  // map — moved up here as a HUD chip so the map itself
-                  // gets the freed-up vertical space.
-                  Positioned(
-                    left: AppSpacing.sm,
-                    bottom: AppSpacing.sm,
-                    child: HudChip(
-                      text: telemetry.linearSpeedMps != null
-                          ? '${telemetry.linearSpeedMps!.abs().toStringAsFixed(2)} m/s'
-                          : '— m/s',
+                          ),
+                        );
+                      },
                     ),
                   ),
-                ],
-              ),
-      ),
+                Positioned(
+                  left: AppSpacing.sm,
+                  bottom: AppSpacing.sm,
+                  child: HudChip(
+                    text: telemetry.linearSpeedMps != null
+                        ? '${telemetry.linearSpeedMps!.abs().toStringAsFixed(2)} m/s'
+                        : '— m/s',
+                  ),
+                ),
+              ],
+            ),
     );
+
+    final map = isDesktop
+        ? mapContent
+        : SizedBox(
+            height: 280,
+            width: double.infinity,
+            child: mapContent,
+          );
     if (fullBleed) return map;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -691,6 +959,189 @@ class _DockBusyOverlay extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _NavProgressCard extends StatelessWidget {
+  const _NavProgressCard({
+    required this.navStatus,
+    required this.distanceTraveled,
+    this.linearSpeed,
+    required this.onCancel,
+    this.floating = false,
+  });
+
+  final Map<String, dynamic> navStatus;
+  final double distanceTraveled;
+  final double? linearSpeed;
+  final VoidCallback onCancel;
+  final bool floating;
+
+  @override
+  Widget build(BuildContext context) {
+    final target = navStatus['target'] as Map<String, dynamic>?;
+    final destName = (target?['waypoint'] as String?)?.isNotEmpty == true
+        ? target!['waypoint'] as String
+        : (target?['x'] != null
+            ? '(${(target!['x'] as num).toStringAsFixed(2)}, ${(target['y'] as num).toStringAsFixed(2)})'
+            : 'Active Goal');
+    final distRem = (navStatus['distance_remaining'] as num?)?.toDouble();
+    final elapsedSec = (navStatus['elapsed_sec'] as num?)?.toInt() ?? 0;
+    final elapsedStr =
+        '${(elapsedSec ~/ 60).toString().padLeft(2, '0')}:${(elapsedSec % 60).toString().padLeft(2, '0')}';
+
+    return Card(
+      elevation: floating ? 6 : 2,
+      color: floating
+          ? AppColors.surface.withValues(alpha: 0.96)
+          : AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: AppColors.primary, width: 1.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      SizedBox(
+                        width: 10,
+                        height: 10,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'NAVIGATING',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'To: $destName',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.danger,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  onPressed: onCancel,
+                  icon: const Icon(Icons.cancel_rounded, size: 16),
+                  label: const Text(
+                    'Cancel Goal',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const Divider(height: 1),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _ProgressMetric(
+                  label: 'Traveled',
+                  value: '${distanceTraveled.toStringAsFixed(2)} m',
+                  icon: Icons.timeline_rounded,
+                ),
+                _ProgressMetric(
+                  label: 'Remaining',
+                  value:
+                      distRem != null ? '${distRem.toStringAsFixed(2)} m' : '—',
+                  icon: Icons.flag_rounded,
+                ),
+                _ProgressMetric(
+                  label: 'Elapsed',
+                  value: elapsedStr,
+                  icon: Icons.timer_outlined,
+                ),
+                if (linearSpeed != null)
+                  _ProgressMetric(
+                    label: 'Speed',
+                    value: '${linearSpeed!.abs().toStringAsFixed(2)} m/s',
+                    icon: Icons.speed_rounded,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressMetric extends StatelessWidget {
+  const _ProgressMetric({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: AppColors.primary),
+        const SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style:
+                  const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+            ),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
