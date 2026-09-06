@@ -28,6 +28,16 @@ String missionStepSummary(Map<String, dynamic> step) {
       return 'Call "${step['service'] ?? ''}"';
     case 'call_action':
       return 'Call action "${step['action'] ?? ''}"';
+    case 'call_api':
+      final method = (step['method'] as String? ?? 'POST').toUpperCase();
+      final url = step['url'] as String? ?? '';
+      try {
+        final uri = Uri.parse(url);
+        final path = uri.path.isNotEmpty ? uri.path : uri.host;
+        return 'HTTP $method $path';
+      } catch (_) {
+        return 'HTTP $method';
+      }
     default:
       return step['type']?.toString() ?? 'Step';
   }
@@ -40,6 +50,7 @@ IconData missionStepIcon(Map<String, dynamic> step) => switch (step['type']) {
       'undock' => Icons.logout_rounded,
       'call_service' => Icons.settings_ethernet_rounded,
       'call_action' => Icons.bolt_rounded,
+      'call_api' => Icons.http_rounded,
       _ => Icons.circle_rounded,
     };
 
@@ -51,7 +62,7 @@ Color missionStepColor(Map<String, dynamic> step) => switch (step['type']) {
       'wait' => AppColors.stateLocalizing,
       'dock' => AppColors.stateDocking,
       'undock' => AppColors.textSecondary,
-      'call_service' || 'call_action' => AppColors.accent,
+      'call_service' || 'call_action' || 'call_api' => AppColors.accent,
       _ => AppColors.textSecondary,
     };
 

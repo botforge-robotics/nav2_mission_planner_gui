@@ -139,6 +139,58 @@ class _MapViewScreenState extends State<MapViewScreen> {
     showDockActionSheet(context: context, api: api, dockPose: _dockPose);
   }
 
+  Future<void> _onLocationDelete(Map<String, dynamic> location) async {
+    final name = location['name'] as String? ?? '';
+    if (name.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Delete Location'),
+        content: Text('Are you sure you want to remove "$name" from this map?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final api = _apiFor(ip);
+    if (api == null) return;
+
+    try {
+      await api.deleteWaypoint(name);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Location "$name" removed'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+      await LocationsController.instance.refresh(api);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete location "$name": $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
+  }
+
   /// Scales around the viewport's center rather than the transform's own
   /// origin — a plain `..scale(factor)` keeps (0,0) of the *scene* fixed,
   /// which is essentially never where the viewport happens to be pointed,
@@ -209,6 +261,127 @@ class _MapViewScreenState extends State<MapViewScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Future<void> _openSavedLocationsSheet() async {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ValueListenableBuilder<List<Map<String, dynamic>>?>(
+          valueListenable: LocationsController.instance,
+          builder: (context, locations, _) {
+            if (locations == null || locations.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(AppSpacing.xl),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.place_outlined,
+                          size: 40, color: AppColors.textTertiary),
+                      SizedBox(height: AppSpacing.sm),
+                      Text(
+                        'No saved locations on this map.',
+                        style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w600),
+                      ),
+                      SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Use "Save Location" in the map tools to add one.',
+                        style: TextStyle(
+                            fontSize: 12, color: AppColors.textTertiary),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.place_rounded,
+                          size: 20, color: AppColors.primary),
+                      const SizedBox(width: AppSpacing.sm),
+                      Text(
+                        'Saved Locations (${locations.length})',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    itemCount: locations.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: AppSpacing.xs),
+                    itemBuilder: (context, i) {
+                      final loc = locations[i];
+                      final name = loc['name'] as String? ?? '';
+                      final x = (loc['x'] as num?)?.toDouble() ?? 0.0;
+                      final y = (loc['y'] as num?)?.toDouble() ?? 0.0;
+                      return Card(
+                        margin: EdgeInsets.zero,
+                        elevation: 0,
+                        color: AppColors.surfaceSunken,
+                        child: ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.pin_drop_rounded,
+                              color: AppColors.primary),
+                          title: Text(name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold)),
+                          subtitle: Text(
+                            '(${x.toStringAsFixed(2)}, ${y.toStringAsFixed(2)})',
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline_rounded,
+                                    size: 20, color: AppColors.danger),
+                                tooltip: 'Delete location',
+                                onPressed: () {
+                                  Navigator.pop(sheetContext);
+                                  _onLocationDelete(loc);
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.navigation_rounded,
+                                    size: 20, color: AppColors.accent),
+                                tooltip: 'Navigate here',
+                                onPressed: () {
+                                  Navigator.pop(sheetContext);
+                                  _onLocationTapped(loc);
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -624,6 +797,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                       onGlobalRelocalize: _globalRelocalize,
                       onAddLocation: _startAddLocationPicking,
                       onLocationTap: _onLocationTapped,
+                      onLocationDelete: _onLocationDelete,
                       onDockTap: _onDockTapped,
                       localizing: _localizing,
                     ),
@@ -703,6 +877,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                           onLocalize: _localizing ? null : _openLocalizeOptions,
                           localizing: _localizing,
                           onAddLocation: _startAddLocationPicking,
+                          onShowLocations: _openSavedLocationsSheet,
                         ),
                       ),
                     if (_posePicking)
@@ -738,6 +913,7 @@ class _ControlCluster extends StatelessWidget {
     required this.onLocalize,
     required this.localizing,
     required this.onAddLocation,
+    required this.onShowLocations,
   });
 
   final bool layersActive;
@@ -747,6 +923,7 @@ class _ControlCluster extends StatelessWidget {
   final VoidCallback? onLocalize;
   final bool localizing;
   final VoidCallback onAddLocation;
+  final VoidCallback onShowLocations;
 
   @override
   Widget build(BuildContext context) {
@@ -786,6 +963,13 @@ class _ControlCluster extends StatelessWidget {
             icon: Icons.add_location_alt_rounded,
             tooltip: 'Save Location',
             onTap: onAddLocation,
+            color: AppColors.primary,
+          ),
+          const Divider(height: 1),
+          _ControlButton(
+            icon: Icons.place_rounded,
+            tooltip: 'Saved Locations',
+            onTap: onShowLocations,
             color: AppColors.primary,
           ),
         ]),
@@ -971,6 +1155,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
     required this.onGlobalRelocalize,
     required this.onAddLocation,
     required this.onLocationTap,
+    this.onLocationDelete,
     required this.onDockTap,
     required this.localizing,
   });
@@ -980,6 +1165,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
   final VoidCallback onGlobalRelocalize;
   final VoidCallback onAddLocation;
   final void Function(Map<String, dynamic>) onLocationTap;
+  final void Function(Map<String, dynamic>)? onLocationDelete;
   final VoidCallback onDockTap;
   final bool localizing;
 
@@ -1170,11 +1356,22 @@ class _DesktopStudioSidebar extends StatelessWidget {
                         style: const TextStyle(
                             fontSize: 10, color: AppColors.textSecondary),
                       ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.navigation_rounded,
-                            size: 16, color: AppColors.accent),
-                        tooltip: 'Navigate here',
-                        onPressed: () => onLocationTap(loc),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded,
+                                size: 16, color: AppColors.danger),
+                            tooltip: 'Delete location',
+                            onPressed: () => onLocationDelete?.call(loc),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.navigation_rounded,
+                                size: 16, color: AppColors.accent),
+                            tooltip: 'Navigate here',
+                            onPressed: () => onLocationTap(loc),
+                          ),
+                        ],
                       ),
                     ),
                   );

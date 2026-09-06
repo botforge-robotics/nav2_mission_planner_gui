@@ -149,6 +149,13 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
                 error: _error,
                 onRetry: _load,
                 onCreateMission: _createMission,
+                onEdit: (mission) async {
+                  final changed = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(
+                        builder: (_) => MissionEditorScreen(existing: mission)),
+                  );
+                  if (changed == true) _load();
+                },
                 onOpen: (mission) async {
                   final changed = await Navigator.of(context).push<bool>(
                     MaterialPageRoute(
@@ -169,6 +176,7 @@ class _Body extends StatelessWidget {
     required this.error,
     required this.onRetry,
     required this.onCreateMission,
+    required this.onEdit,
     required this.onOpen,
   });
 
@@ -177,6 +185,7 @@ class _Body extends StatelessWidget {
   final SdkApiException? error;
   final VoidCallback onRetry;
   final VoidCallback onCreateMission;
+  final void Function(Map<String, dynamic>) onEdit;
   final void Function(Map<String, dynamic>) onOpen;
 
   @override
@@ -319,30 +328,38 @@ class _Body extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
-                      status != null
-                          ? Chip(
-                              avatar: status == 'running'
-                                  ? StatusPulseDot(
-                                      color: _statusColor(status),
-                                      live: true,
-                                      size: 6)
-                                  : (isActive && isLowBatteryPaused
-                                      ? const Icon(Icons.bolt_rounded,
-                                          size: 12, color: AppColors.warning)
-                                      : null),
-                              label: Text(
-                                  isActive && isLowBatteryPaused
-                                      ? 'CHARGING'
-                                      : status.toUpperCase(),
-                                  style: const TextStyle(fontSize: 11)),
-                              backgroundColor:
-                                  _statusColor(status).withValues(alpha: 0.12),
-                              labelStyle:
-                                  TextStyle(color: _statusColor(status)),
-                              side: BorderSide.none,
-                            )
-                          : const Icon(Icons.chevron_right_rounded,
-                              color: AppColors.textTertiary),
+                      if (status != null) ...[
+                        Chip(
+                          avatar: status == 'running'
+                              ? StatusPulseDot(
+                                  color: _statusColor(status),
+                                  live: true,
+                                  size: 6)
+                              : (isActive && isLowBatteryPaused
+                                  ? const Icon(Icons.bolt_rounded,
+                                      size: 12, color: AppColors.warning)
+                                  : null),
+                          label: Text(
+                              isActive && isLowBatteryPaused
+                                  ? 'CHARGING'
+                                  : status.toUpperCase(),
+                              style: const TextStyle(fontSize: 11)),
+                          backgroundColor:
+                              _statusColor(status).withValues(alpha: 0.12),
+                          labelStyle:
+                              TextStyle(color: _statusColor(status)),
+                          side: BorderSide.none,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined,
+                            size: 20, color: AppColors.primary),
+                        tooltip: 'Edit mission',
+                        onPressed: () => onEdit(mission),
+                      ),
+                      const Icon(Icons.chevron_right_rounded,
+                          color: AppColors.textTertiary),
                     ],
                   ),
                 ),
@@ -602,6 +619,12 @@ class _Body extends StatelessWidget {
                         const Spacer(),
                         Row(
                           children: [
+                            OutlinedButton.icon(
+                              onPressed: () => onEdit(mission),
+                              icon: const Icon(Icons.edit_outlined, size: 16),
+                              label: const Text('Edit'),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
                             Expanded(
                               child: FilledButton.icon(
                                 onPressed: () => onOpen(mission),

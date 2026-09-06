@@ -170,6 +170,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                   AppColors.accent, 'Call Service', 'By name + type'),
               _StepOption('call_action', Icons.bolt_rounded, AppColors.accent,
                   'Call Action', 'By name + type'),
+              _StepOption('call_api', Icons.http_rounded, AppColors.accent,
+                  'HTTP / API Call', 'Webhooks & endpoints'),
             ], onPick: (id) => Navigator.of(sheetContext).pop(id)),
           ],
         ),
@@ -195,9 +197,11 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
       case 'undock':
         setState(() => _steps.add({'type': 'undock'}));
       case 'call_service':
-        await _addRosCallStep(isAction: false);
+        await _showRosCallDialog(isAction: false);
       case 'call_action':
-        await _addRosCallStep(isAction: true);
+        await _showRosCallDialog(isAction: true);
+      case 'call_api':
+        await _showApiCallDialog();
     }
   }
 
@@ -305,24 +309,41 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
 
   /// Shared dialog for `call_service`/`call_action` — name, type, and an
   /// optional JSON request/goal, validated inline so a malformed JSON body
-  /// can't reach Save.
-  Future<void> _addRosCallStep({required bool isAction}) async {
-    final nameController = TextEditingController();
-    final typeController = TextEditingController();
-    final bodyController = TextEditingController();
-    final timeoutController =
-        TextEditingController(text: isAction ? '300' : '15');
+  /// can't reach Save. Supports adding a new step or editing an existing one.
+  Future<void> _showRosCallDialog(
+      {required bool isAction, int? editIndex}) async {
+    final existing = editIndex != null ? _steps[editIndex] : null;
+    final nameController = TextEditingController(
+        text: existing != null
+            ? (isAction ? existing['action'] : existing['service']) as String? ??
+                ''
+            : '');
+    final typeController = TextEditingController(
+        text: existing != null
+            ? (isAction
+                    ? existing['action_type']
+                    : existing['service_type']) as String? ??
+                ''
+            : '');
+    final existingBody =
+        existing != null ? (existing[isAction ? 'goal' : 'request']) : null;
+    final bodyController = TextEditingController(
+        text: existingBody != null
+            ? const JsonEncoder.withIndent('  ').convert(existingBody)
+            : '');
+    final timeoutController = TextEditingController(
+        text: existing != null
+            ? '${existing['timeout'] ?? (isAction ? '300' : '15')}'
+            : (isAction ? '300' : '15'));
     String? bodyError;
 
     final step = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(isAction ? 'Call Action' : 'Call Service'),
-          // A bare SingleChildScrollView has no width of its own to hand
-          // the Column below, so without this the dialog shrank to a
-          // cramped, barely-usable width — a fixed generous width (clamped
-          // to the actual screen on a narrow phone) instead.
+          title: Text(editIndex != null
+              ? (isAction ? 'Edit Action' : 'Edit Service')
+              : (isAction ? 'Call Action' : 'Call Service')),
           content: SizedBox(
             width: min(440, MediaQuery.sizeOf(context).width - 80),
             child: SingleChildScrollView(
@@ -415,16 +436,12 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                   'timeout': timeout,
                 });
               },
-              child: const Text('Add'),
+              child: Text(editIndex != null ? 'Save Changes' : 'Add'),
             ),
           ],
         ),
       ),
     );
-    // Deferred a frame — see the matching comment in map_view_screen.dart's
-    // _confirmAddLocation: disposing an autofocused dialog's controllers
-    // synchronously right after showDialog resolves can race the dialog's
-    // still-unwinding exit transition and throw a framework assertion.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       nameController.dispose();
       typeController.dispose();
@@ -432,7 +449,596 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
       timeoutController.dispose();
     });
     if (step != null && mounted) {
-      setState(() => _steps.add(step));
+      setState(() {
+        if (editIndex != null) {
+          _steps[editIndex] = step;
+        } else {
+          _steps.add(step);
+        }
+      });
+    }
+  }
+
+  /// Dialog for HTTP API call steps — method, URL, headers, and body payload.
+  Future<void> _showApiCallDialog({int? editIndex}) async {
+    final existing = editIndex != null ? _steps[editIndex] : null;
+    final urlController = TextEditingController(
+        text: existing != null ? (existing['url'] as String? ?? '') : '');
+    var selectedMethod =
+        (existing != null ? (existing['method'] as String?) : null)?.toUpperCase() ??
+            'POST';
+    final headersController = TextEditingController(
+        text: existing != null && existing['headers'] != null
+            ? const JsonEncoder.withIndent('  ').convert(existing['headers'])
+            : '');
+    final payloadController = TextEditingController(
+        text: existing != null && existing['payload'] != null
+            ? (existing['payload'] is String
+                ? existing['payload'] as String
+                : const JsonEncoder.withIndent('  ').convert(existing['payload']))
+            : '');
+    final timeoutController = TextEditingController(
+        text: existing != null ? '${existing['timeout'] ?? 15}' : '15');
+    var ignoreError =
+        existing != null ? (existing['ignore_error'] == true) : false;
+    String? bodyError;
+
+    final step = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(editIndex != null ? 'Edit HTTP API Call' : 'HTTP / API Call'),
+          content: SizedBox(
+            width: min(480, MediaQuery.sizeOf(context).width - 80),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 110,
+                        child: DropdownButtonFormField<String>(
+                          initialValue: selectedMethod,
+                          decoration: const InputDecoration(labelText: 'Method'),
+                          items: const [
+                            DropdownMenuItem(value: 'GET', child: Text('GET')),
+                            DropdownMenuItem(value: 'POST', child: Text('POST')),
+                            DropdownMenuItem(value: 'PUT', child: Text('PUT')),
+                            DropdownMenuItem(value: 'PATCH', child: Text('PATCH')),
+                            DropdownMenuItem(value: 'DELETE', child: Text('DELETE')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setDialogState(() => selectedMethod = val);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: TextField(
+                          controller: urlController,
+                          autofocus: true,
+                          decoration: const InputDecoration(
+                            labelText: 'URL Endpoint',
+                            hintText: 'http://192.168.1.50:8000/api/hook',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: headersController,
+                    minLines: 2,
+                    maxLines: 4,
+                    style:
+                        const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                    decoration: const InputDecoration(
+                      labelText: 'Headers (JSON, optional)',
+                      hintText: '{"Content-Type": "application/json"}',
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    controller: payloadController,
+                    minLines: 3,
+                    maxLines: 6,
+                    style:
+                        const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                    decoration: InputDecoration(
+                      labelText: 'Payload / Body (JSON or text, optional)',
+                      hintText: '{"status": "arrived", "robot_id": 1}',
+                      errorText: bodyError,
+                    ),
+                    onChanged: (_) => setDialogState(() => bodyError = null),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: timeoutController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                              labelText: 'Timeout', suffixText: 'sec'),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Ignore error',
+                              style: TextStyle(fontSize: 13)),
+                          subtitle: const Text('Continue on HTTP error',
+                              style: TextStyle(fontSize: 11)),
+                          value: ignoreError,
+                          onChanged: (val) =>
+                              setDialogState(() => ignoreError = val),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final url = urlController.text.trim();
+                if (url.isEmpty) {
+                  setDialogState(() => bodyError = 'URL is required.');
+                  return;
+                }
+                Map<String, String>? headersMap;
+                final headersRaw = headersController.text.trim();
+                if (headersRaw.isNotEmpty) {
+                  try {
+                    final decoded = jsonDecode(headersRaw);
+                    if (decoded is! Map) {
+                      setDialogState(() =>
+                          bodyError = 'Headers must be a JSON object.');
+                      return;
+                    }
+                    headersMap = decoded
+                        .map((k, v) => MapEntry(k.toString(), v.toString()));
+                  } on FormatException catch (e) {
+                    setDialogState(
+                        () => bodyError = 'Invalid Headers JSON: ${e.message}');
+                    return;
+                  }
+                }
+                dynamic payloadVal;
+                final payloadRaw = payloadController.text.trim();
+                if (payloadRaw.isNotEmpty) {
+                  try {
+                    payloadVal = jsonDecode(payloadRaw);
+                  } on FormatException {
+                    payloadVal = payloadRaw;
+                  }
+                }
+                final timeout =
+                    double.tryParse(timeoutController.text) ?? 15.0;
+                Navigator.pop(dialogContext, {
+                  'type': 'call_api',
+                  'url': url,
+                  'method': selectedMethod,
+                  if (headersMap != null && headersMap.isNotEmpty)
+                    'headers': headersMap,
+                  if (payloadVal != null) 'payload': payloadVal,
+                  'timeout': timeout,
+                  if (ignoreError) 'ignore_error': true,
+                });
+              },
+              child: Text(editIndex != null ? 'Save Changes' : 'Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      urlController.dispose();
+      headersController.dispose();
+      payloadController.dispose();
+      timeoutController.dispose();
+    });
+
+    if (step != null && mounted) {
+      setState(() {
+        if (editIndex != null) {
+          _steps[editIndex] = step;
+        } else {
+          _steps.add(step);
+        }
+      });
+    }
+  }
+
+  /// Edits an existing navigate step: allows switching between saved location
+  /// and exact coordinates, picking from map, or reading current pose.
+  Future<void> _editNavigateStep(int index) async {
+    final current = _steps[index];
+    final isSavedLoc = current['target'] != null;
+    final locations = LocationsController.instance.value ?? const [];
+
+    String selectedType = isSavedLoc ? 'location' : 'coords';
+    String? selectedLoc = current['target'] as String?;
+    if (selectedLoc == null && locations.isNotEmpty) {
+      selectedLoc = locations.first['name'] as String?;
+    }
+
+    final xCtrl = TextEditingController(
+        text: (current['x'] as num?)?.toStringAsFixed(2) ?? '0.00');
+    final yCtrl = TextEditingController(
+        text: (current['y'] as num?)?.toStringAsFixed(2) ?? '0.00');
+    final thetaCtrl = TextEditingController(
+        text: current['theta'] != null
+            ? ((current['theta'] as num).toDouble() * 180 / pi).toStringAsFixed(1)
+            : '0.0');
+
+    final updated = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.place_rounded, color: AppColors.primary),
+              SizedBox(width: AppSpacing.sm),
+              Text('Edit Navigation Step'),
+            ],
+          ),
+          content: SizedBox(
+            width: min(440, MediaQuery.sizeOf(context).width - 80),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'location',
+                        label: Text('Saved Location'),
+                        icon: Icon(Icons.bookmark_outline_rounded, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: 'coords',
+                        label: Text('Coordinates'),
+                        icon: Icon(Icons.pin_drop_outlined, size: 16),
+                      ),
+                    ],
+                    selected: {selectedType},
+                    onSelectionChanged: (val) =>
+                        setDialogState(() => selectedType = val.first),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  if (selectedType == 'location') ...[
+                    if (locations.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                        child: Text(
+                          'No saved locations found. Switch to Coordinates or add locations in the Map tab.',
+                          style: TextStyle(
+                              color: AppColors.textSecondary, fontSize: 13),
+                        ),
+                      )
+                    else
+                      DropdownButtonFormField<String>(
+                        initialValue: locations.any((l) => l['name'] == selectedLoc)
+                            ? selectedLoc
+                            : locations.first['name'] as String?,
+                        decoration: const InputDecoration(
+                          labelText: 'Select Location',
+                          prefixIcon: Icon(Icons.place_rounded, size: 18),
+                        ),
+                        items: [
+                          for (final loc in locations)
+                            DropdownMenuItem<String>(
+                              value: loc['name'] as String?,
+                              child: Text(loc['name'] as String? ?? ''),
+                            ),
+                        ],
+                        onChanged: (val) =>
+                            setDialogState(() => selectedLoc = val),
+                      ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: xCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true, signed: true),
+                            decoration: const InputDecoration(
+                              labelText: 'X',
+                              suffixText: 'm',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: TextField(
+                            controller: yCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true, signed: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Y',
+                              suffixText: 'm',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: TextField(
+                            controller: thetaCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true, signed: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Heading',
+                              suffixText: '°',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.map_rounded, size: 16),
+                            label: const Text('Pick on Map'),
+                            onPressed: () async {
+                              final initX = double.tryParse(xCtrl.text);
+                              final initY = double.tryParse(yCtrl.text);
+                              final initDeg =
+                                  double.tryParse(thetaCtrl.text) ?? 0.0;
+                              final picked = await Navigator.of(context).push<
+                                  ({double x, double y, double theta})>(
+                                MaterialPageRoute(
+                                  builder: (_) => PickMapPositionScreen(
+                                    initialPose: initX != null && initY != null
+                                        ? (
+                                            x: initX,
+                                            y: initY,
+                                            theta: initDeg * pi / 180
+                                          )
+                                        : null,
+                                    title: 'Pick Position on Map',
+                                  ),
+                                ),
+                              );
+                              if (picked != null) {
+                                setDialogState(() {
+                                  xCtrl.text = picked.x.toStringAsFixed(2);
+                                  yCtrl.text = picked.y.toStringAsFixed(2);
+                                  thetaCtrl.text =
+                                      (picked.theta * 180 / pi).toStringAsFixed(1);
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.my_location_rounded, size: 16),
+                            label: const Text('Current Pose'),
+                            onPressed: () {
+                              final telemetry =
+                                  context.read<RobotTelemetryProvider>();
+                              if (telemetry.poseX == null ||
+                                  telemetry.poseY == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Robot is not localized.')),
+                                );
+                                return;
+                              }
+                              setDialogState(() {
+                                xCtrl.text = telemetry.poseX!.toStringAsFixed(2);
+                                yCtrl.text = telemetry.poseY!.toStringAsFixed(2);
+                                thetaCtrl.text = (telemetry.poseTheta != null
+                                        ? (telemetry.poseTheta! * 180 / pi)
+                                        : 0.0)
+                                    .toStringAsFixed(1);
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (selectedType == 'location') {
+                  if (selectedLoc == null || selectedLoc!.isEmpty) return;
+                  Navigator.of(dialogCtx)
+                      .pop({'type': 'navigate', 'target': selectedLoc});
+                } else {
+                  final x = double.tryParse(xCtrl.text) ?? 0.0;
+                  final y = double.tryParse(yCtrl.text) ?? 0.0;
+                  final deg = double.tryParse(thetaCtrl.text) ?? 0.0;
+                  Navigator.of(dialogCtx).pop({
+                    'type': 'navigate',
+                    'x': x,
+                    'y': y,
+                    'theta': deg * pi / 180,
+                  });
+                }
+              },
+              child: const Text('Save Changes'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      xCtrl.dispose();
+      yCtrl.dispose();
+      thetaCtrl.dispose();
+    });
+
+    if (updated != null && mounted) {
+      setState(() => _steps[index] = updated);
+    }
+  }
+
+  /// Edits an existing wait step duration.
+  Future<void> _editWaitStep(int index) async {
+    final current = _steps[index];
+    final controller =
+        TextEditingController(text: '${current['duration'] ?? 5}');
+    final seconds = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.hourglass_bottom_rounded, color: AppColors.primary),
+            SizedBox(width: AppSpacing.sm),
+            Text('Edit Wait Step'),
+          ],
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Duration',
+            hintText: 'Seconds',
+            suffixText: 'sec',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+                dialogContext, double.tryParse(controller.text)),
+            child: const Text('Save Changes'),
+          ),
+        ],
+      ),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
+    if (seconds != null && seconds > 0 && mounted) {
+      setState(() => _steps[index] = {'type': 'wait', 'duration': seconds});
+    }
+  }
+
+  /// Edits an existing dock step staging configuration.
+  Future<void> _editDockStep(int index) async {
+    final current = _steps[index];
+    var navigateToStaging = current['navigate_to_staging'] != false;
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.ev_station_rounded, color: AppColors.primary),
+              SizedBox(width: AppSpacing.sm),
+              Text('Edit Dock Step'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Navigate to staging pose first'),
+                subtitle: const Text(
+                    'Robot navigates in front of dock before visual docking approach.'),
+                value: navigateToStaging,
+                onChanged: (val) =>
+                    setDialogState(() => navigateToStaging = val),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, navigateToStaging),
+              child: const Text('Save Changes'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (updated != null && mounted) {
+      setState(() => _steps[index] = {
+            'type': 'dock',
+            'navigate_to_staging': updated,
+          });
+    }
+  }
+
+  /// Informs or confirms undock step.
+  Future<void> _editUndockStep(int index) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: AppColors.primary),
+            SizedBox(width: AppSpacing.sm),
+            Text('Undock Step'),
+          ],
+        ),
+        content: const Text(
+            'The robot will back out from the charging dock to clear the contacts. No additional parameters are required.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Dispatches editing to the appropriate editor based on step type.
+  Future<void> _editStep(int index) async {
+    if (index < 0 || index >= _steps.length) return;
+    final step = _steps[index];
+    switch (step['type']) {
+      case 'navigate':
+        await _editNavigateStep(index);
+      case 'wait':
+        await _editWaitStep(index);
+      case 'dock':
+        await _editDockStep(index);
+      case 'undock':
+        await _editUndockStep(index);
+      case 'call_service':
+        await _showRosCallDialog(isAction: false, editIndex: index);
+      case 'call_action':
+        await _showRosCallDialog(isAction: true, editIndex: index);
+      case 'call_api':
+        await _showApiCallDialog(editIndex: index);
     }
   }
 
@@ -670,7 +1276,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                               const Divider(),
                               const SizedBox(height: AppSpacing.xs),
                               const Text(
-                                'Advanced ROS 2 Calls:',
+                                'Advanced & API Calls:',
                                 style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
@@ -685,18 +1291,31 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                           _handleStepChoice('call_service'),
                                       icon: const Icon(
                                           Icons.settings_ethernet_rounded,
-                                          size: 16),
-                                      label: const Text('Service'),
+                                          size: 15),
+                                      label: const Text('Service',
+                                          style: TextStyle(fontSize: 12)),
                                     ),
                                   ),
-                                  const SizedBox(width: AppSpacing.sm),
+                                  const SizedBox(width: 6),
                                   Expanded(
                                     child: OutlinedButton.icon(
                                       onPressed: () =>
                                           _handleStepChoice('call_action'),
                                       icon: const Icon(Icons.bolt_rounded,
-                                          size: 16),
-                                      label: const Text('Action'),
+                                          size: 15),
+                                      label: const Text('Action',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () =>
+                                          _handleStepChoice('call_api'),
+                                      icon: const Icon(Icons.http_rounded,
+                                          size: 15),
+                                      label: const Text('HTTP API',
+                                          style: TextStyle(fontSize: 12)),
                                     ),
                                   ),
                                 ],
@@ -848,63 +1467,72 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                       ],
                                     ),
                                   )
-                                : ReorderableListView.builder(
-                                    buildDefaultDragHandles: false,
-                                    itemCount: _steps.length,
-                                    onReorder: (oldIndex, newIndex) {
-                                      setState(() {
-                                        if (newIndex > oldIndex) newIndex -= 1;
-                                        final item =
-                                            _steps.removeAt(oldIndex);
-                                        _steps.insert(newIndex, item);
-                                      });
-                                    },
-                                    itemBuilder: (context, i) => Card(
-                                      key: ValueKey(
-                                          '$i-${_steps[i].hashCode}'),
-                                      margin: const EdgeInsets.only(
-                                          bottom: AppSpacing.xs),
-                                      color: AppColors.surfaceSunken,
-                                      child: ListTile(
-                                        dense: true,
-                                        leading: StepIconChip(step: _steps[i]),
-                                        title: Text(
-                                            missionStepSummary(_steps[i]),
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 13)),
-                                        subtitle: Text(
-                                            'Step ${i + 1} · ${_steps[i]['type']}',
-                                            style: const TextStyle(
-                                                color: AppColors.textSecondary,
-                                                fontSize: 11)),
-                                        trailing: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            IconButton(
-                                              icon: const Icon(
-                                                  Icons.close_rounded,
-                                                  size: 18),
-                                              onPressed: () => setState(
-                                                  () => _steps.removeAt(i)),
-                                            ),
-                                            ReorderableDragStartListener(
-                                              index: i,
-                                              child: const Padding(
-                                                padding: EdgeInsets.symmetric(
-                                                    horizontal: 4),
-                                                child: Icon(
-                                                    Icons.drag_handle_rounded,
-                                                    color:
-                                                        AppColors.textTertiary,
-                                                    size: 20),
+                                  : ReorderableListView.builder(
+                                      buildDefaultDragHandles: false,
+                                      itemCount: _steps.length,
+                                      onReorderItem: (oldIndex, newIndex) {
+                                        setState(() {
+                                          final item =
+                                              _steps.removeAt(oldIndex);
+                                          _steps.insert(newIndex, item);
+                                        });
+                                      },
+                                      itemBuilder: (context, i) => Card(
+                                        key: ValueKey(
+                                            '$i-${_steps[i].hashCode}'),
+                                        margin: const EdgeInsets.only(
+                                            bottom: AppSpacing.xs),
+                                        color: AppColors.surfaceSunken,
+                                        child: ListTile(
+                                          dense: true,
+                                          onTap: () => _editStep(i),
+                                          leading: StepIconChip(step: _steps[i]),
+                                          title: Text(
+                                              missionStepSummary(_steps[i]),
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13)),
+                                          subtitle: Text(
+                                              'Step ${i + 1} · ${_steps[i]['type']} · Click to edit',
+                                              style: const TextStyle(
+                                                  color: AppColors.textSecondary,
+                                                  fontSize: 11)),
+                                          trailing: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                icon: const Icon(
+                                                    Icons.edit_outlined,
+                                                    size: 18,
+                                                    color: AppColors.primary),
+                                                tooltip: 'Edit step',
+                                                onPressed: () => _editStep(i),
                                               ),
-                                            ),
-                                          ],
+                                              IconButton(
+                                                icon: const Icon(
+                                                    Icons.close_rounded,
+                                                    size: 18),
+                                                tooltip: 'Remove step',
+                                                onPressed: () => setState(
+                                                    () => _steps.removeAt(i)),
+                                              ),
+                                              ReorderableDragStartListener(
+                                                index: i,
+                                                child: const Padding(
+                                                  padding: EdgeInsets.symmetric(
+                                                      horizontal: 4),
+                                                  child: Icon(
+                                                      Icons.drag_handle_rounded,
+                                                      color:
+                                                          AppColors.textTertiary,
+                                                      size: 20),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
                           ),
                         ],
                       ),
@@ -988,9 +1616,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                         : ReorderableListView.builder(
                             buildDefaultDragHandles: false,
                             itemCount: _steps.length,
-                            onReorder: (oldIndex, newIndex) {
+                            onReorderItem: (oldIndex, newIndex) {
                               setState(() {
-                                if (newIndex > oldIndex) newIndex -= 1;
                                 final item = _steps.removeAt(oldIndex);
                                 _steps.insert(newIndex, item);
                               });
@@ -1000,12 +1627,13 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                               margin:
                                   const EdgeInsets.only(bottom: AppSpacing.sm),
                               child: ListTile(
+                                onTap: () => _editStep(i),
                                 leading: StepIconChip(step: _steps[i]),
                                 title: Text(missionStepSummary(_steps[i]),
                                     style: const TextStyle(
                                         fontWeight: FontWeight.w600)),
                                 subtitle: Text(
-                                    'Step ${i + 1} · ${_steps[i]['type']}',
+                                    'Step ${i + 1} · ${_steps[i]['type']} · Tap to edit',
                                     style: const TextStyle(
                                         color: AppColors.textSecondary,
                                         fontSize: 12)),
@@ -1013,8 +1641,15 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
+                                      icon: const Icon(Icons.edit_outlined,
+                                          size: 18, color: AppColors.primary),
+                                      tooltip: 'Edit step',
+                                      onPressed: () => _editStep(i),
+                                    ),
+                                    IconButton(
                                       icon: const Icon(Icons.close_rounded,
                                           size: 18),
+                                      tooltip: 'Remove step',
                                       onPressed: () =>
                                           setState(() => _steps.removeAt(i)),
                                     ),

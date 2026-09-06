@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:ros2_api/ros2_api.dart';
 
+import '../../services/locations_controller.dart';
 import '../../services/route_estimate_service.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
@@ -215,6 +216,45 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
     );
   }
 
+  Future<void> _deleteLocation() async {
+    final name = widget.locationName;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Delete Location'),
+        content: Text('Are you sure you want to remove "$name" from this map?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await widget.api.deleteWaypoint(name);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      final caller = widget.callerContext;
+      if (caller.mounted) {
+        ScaffoldMessenger.of(caller).showSnackBar(
+          SnackBar(content: Text('Location "$name" deleted')),
+        );
+      }
+      await LocationsController.instance.refresh(widget.api);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _sendError = 'Failed to delete location: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -224,9 +264,22 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Go to "${widget.locationName}"?',
-              style:
-                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          Row(
+            children: [
+              Expanded(
+                child: Text('Go to "${widget.locationName}"?',
+                    style:
+                        const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              ),
+              if (widget.locationName.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded,
+                      color: AppColors.danger, size: 20),
+                  tooltip: 'Delete location from map',
+                  onPressed: _sending ? null : _deleteLocation,
+                ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.sm),
           _distanceLine(),
           if (_sendError != null) ...[
