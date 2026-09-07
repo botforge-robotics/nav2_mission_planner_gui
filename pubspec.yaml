@@ -1,6 +1,6 @@
 name: nav2_mission_planner
 description: "Nav2 Mission Planner - A comprehensive ROS2 navigation mission planning application for mobile devices."
-version: 2.0.1+1
+version: 1.0.0+1
 publish_to: none
 
 environment:

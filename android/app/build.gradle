@@ -12,7 +12,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.botforge.nav2missionplanner"
+    namespace = "com.botforge.navpromini"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -26,11 +26,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.botforge.nav2missionplanner"
+        applicationId = "com.botforge.navpromini"
         minSdk = 24
         targetSdk = 36
-        versionCode = 19
-        versionName = "2.0.1"
+        versionCode = 1
+        versionName = "1.0.0"
     }
 
     signingConfigs {

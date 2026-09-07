@@ -18,6 +18,7 @@ import '../alerts/alerts_log_screen.dart';
 import '../dock/dock_charge_screen.dart';
 import '../robot_status/robot_status_screen.dart';
 import 'help_about_screen.dart';
+import 'software_update_screen.dart';
 import 'tools_api_screen.dart';
 
 /// Reference §13/§16 (Settings). Only entries backed by something real are
@@ -114,6 +115,13 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   child: Divider(),
+                ),
+                _SettingsTile(
+                  icon: Icons.system_update_alt_rounded,
+                  title: 'Software Updates',
+                  subtitle: 'Robot companion packages & GUI application updates',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const SoftwareUpdateScreen())),
                 ),
                 _SettingsTile(
                   icon: Icons.help_outline_rounded,

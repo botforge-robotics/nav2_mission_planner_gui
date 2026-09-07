@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
+import 'software_update_screen.dart';
 
 class HelpAboutScreen extends StatefulWidget {
   const HelpAboutScreen({super.key});
@@ -41,6 +42,15 @@ class _HelpAboutScreenState extends State<HelpAboutScreen> {
                   subtitle: Text(_info != null
                       ? '${_info!.version} (${_info!.buildNumber})'
                       : '—'),
+                  trailing: TextButton.icon(
+                    icon: const Icon(Icons.system_update_alt_rounded, size: 16),
+                    label: const Text('Updates'),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SoftwareUpdateScreen(),
+                      ),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),

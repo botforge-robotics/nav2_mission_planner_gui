@@ -10,7 +10,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:464749209452:android:84782bca2e97bfdbe0f549",
         "android_client_info": {
-          "package_name": "com.botforge.nav2missionplanner"
+          "package_name": "com.botforge.navpromini"
         }
       },
       "oauth_client": [
@@ -18,7 +18,7 @@
           "client_id": "464749209452-bpu98fp6ij5ijtd72i6m2jtgkvj194g5.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.botforge.nav2missionplanner",
+            "package_name": "com.botforge.navpromini",
             "certificate_hash": "78a3eb4a0f06b883eac50a437739560a3318609d"
           }
         },
@@ -26,7 +26,7 @@
           "client_id": "464749209452-vaf2ckk1u1v5pbjf83msc9b78q74i09d.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.botforge.nav2missionplanner",
+            "package_name": "com.botforge.navpromini",
             "certificate_hash": "177801071bacd8d4e93da447e6b768b82fb3a36f"
           }
         },

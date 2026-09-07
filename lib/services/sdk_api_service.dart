@@ -401,4 +401,18 @@ class SdkApiService {
       );
     }
   }
+
+  // -- Software Updates (OTA) -----------------------------------------------
+
+  Future<Map<String, dynamic>> getRobotUpdates() =>
+      _send('GET', '/api/v1/system/updates');
+
+  Future<Map<String, dynamic>> checkRobotUpdates() =>
+      _send('POST', '/api/v1/system/updates/check', timeout: const Duration(seconds: 35));
+
+  Future<Map<String, dynamic>> applyRobotUpdate() =>
+      _send('POST', '/api/v1/system/updates/apply');
+
+  Future<Map<String, dynamic>> getRobotUpdateStatus() =>
+      _send('GET', '/api/v1/system/updates/status');
 }

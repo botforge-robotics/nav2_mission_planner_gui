@@ -1,4 +1,4 @@
-package com.botforge.nav2missionplanner
+package com.botforge.navpromini
 
 import android.os.Bundle
 import androidx.core.view.WindowCompat

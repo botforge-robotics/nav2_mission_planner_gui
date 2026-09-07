@@ -29,7 +29,7 @@
 -keep class io.flutter.plugins.**  { *; }
 
 # ROS2 API specific rules
--keep class com.botforge.nav2missionplanner.** { *; }
+-keep class com.botforge.navpromini.** { *; }
 
 # Play Core library rules
 -keep class com.google.android.play.core.** { *; }

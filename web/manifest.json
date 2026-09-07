@@ -1,6 +1,6 @@
 {
-    "name": "nav2_mission_planner",
-    "short_name": "nav2_mission_planner",
+    "name": "NavPro Mini",
+    "short_name": "NavPro Mini",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#ffffff",
