@@ -40,6 +40,7 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
 
   List<Map<String, dynamic>>? _locations;
   ({double x, double y, double theta})? _dockPose;
+  String? _currentMap;
 
   String get _id => widget.mission['id'] as String;
 
@@ -66,7 +67,13 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
     if (api == null) return;
     try {
       final locations = await api.listWaypoints();
-      if (mounted) setState(() => _locations = locations);
+      final currentMap = await api.getCurrentMap();
+      if (mounted) {
+        setState(() {
+          _locations = locations;
+          _currentMap = currentMap;
+        });
+      }
     } on SdkApiException {
       // Route preview just won't have pins for by-name steps — not fatal.
     }
@@ -291,6 +298,62 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                                             color: AppColors.textSecondary,
                                             fontSize: 13),
                                       ),
+                                      if (widget.mission['map'] != null) ...[
+                                        const SizedBox(height: 4),
+                                        Builder(builder: (context) {
+                                          final missionMap =
+                                              widget.mission['map'] as String;
+                                          final isMismatch = _currentMap != null &&
+                                              missionMap != _currentMap;
+                                          return Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: isMismatch
+                                                  ? AppColors.warning
+                                                      .withValues(alpha: 0.12)
+                                                  : AppColors.primary
+                                                      .withValues(alpha: 0.08),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: isMismatch
+                                                    ? AppColors.warning
+                                                        .withValues(alpha: 0.4)
+                                                    : AppColors.primary
+                                                        .withValues(alpha: 0.2),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  isMismatch
+                                                      ? Icons.warning_amber_rounded
+                                                      : Icons.map_outlined,
+                                                  size: 13,
+                                                  color: isMismatch
+                                                      ? AppColors.warning
+                                                      : AppColors.primary,
+                                                ),
+                                                const SizedBox(width: 5),
+                                                Text(
+                                                  isMismatch
+                                                      ? 'Map: $missionMap (Active map: $_currentMap)'
+                                                      : 'Map: $missionMap',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: isMismatch
+                                                        ? AppColors.warning
+                                                        : AppColors.primary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }),
+                                      ],
                                     ],
                                   ),
                                 ),
@@ -490,6 +553,57 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _RouteMapCard(pins: _routePins(steps)),
+                  if (widget.mission['map'] != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Builder(builder: (context) {
+                      final missionMap = widget.mission['map'] as String;
+                      final isMismatch =
+                          _currentMap != null && missionMap != _currentMap;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isMismatch
+                              ? AppColors.warning.withValues(alpha: 0.12)
+                              : AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isMismatch
+                                ? AppColors.warning.withValues(alpha: 0.4)
+                                : AppColors.primary.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isMismatch
+                                  ? Icons.warning_amber_rounded
+                                  : Icons.map_outlined,
+                              size: 14,
+                              color: isMismatch
+                                  ? AppColors.warning
+                                  : AppColors.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                isMismatch
+                                    ? 'Map Mismatch: Mission is for "$missionMap", active map is "$_currentMap"'
+                                    : 'Map: $missionMap',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isMismatch
+                                      ? AppColors.warning
+                                      : AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
                   if (_isThisMission) ...[
                     FadeSlideIn(
                       child: Card(

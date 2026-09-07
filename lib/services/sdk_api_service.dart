@@ -301,22 +301,36 @@ class SdkApiService {
 
   Future<void> stopMotion() => _send('POST', '/api/v1/motion/stop');
 
+  /// Fetches the currently loaded map name from the robot.
+  Future<String?> getCurrentMap() async {
+    try {
+      final resp = await _send('GET', '/api/v1/maps/current');
+      return resp['current'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // -- missions ----------------------------------------------------------------
 
-  Future<List<Map<String, dynamic>>> listMissions() async {
-    final resp = await _send('GET', '/api/v1/missions');
+  Future<List<Map<String, dynamic>>> listMissions({String? map}) async {
+    final path = map != null && map.isNotEmpty
+        ? '/api/v1/missions?map=${Uri.encodeComponent(map)}'
+        : '/api/v1/missions';
+    final resp = await _send('GET', path);
     return (resp['missions'] as List? ?? const []).cast<Map<String, dynamic>>();
   }
 
   Future<Map<String, dynamic>> putMission(
       String id, String name, List<Map<String, dynamic>> steps,
-      {int loopCount = 1, bool loopForever = false}) async {
+      {int loopCount = 1, bool loopForever = false, String? map}) async {
     final resp = await _send('POST', '/api/v1/missions', body: {
       'id': id,
       'name': name,
       'steps': steps,
       'loop_count': loopCount,
       'loop_forever': loopForever,
+      if (map != null && map.isNotEmpty) 'map': map,
     });
     return resp['mission'] as Map<String, dynamic>;
   }

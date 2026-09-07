@@ -30,6 +30,7 @@ class MissionsListScreen extends StatefulWidget {
 class _MissionsListScreenState extends State<MissionsListScreen> {
   List<Map<String, dynamic>>? _missions;
   Map<String, dynamic>? _runnerStatus;
+  String? _currentMap;
   SdkApiException? _error;
   bool _requested = false;
   SdkApiService? _api;
@@ -57,12 +58,16 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
     if (api == null) return;
     setState(() => _error = null);
     try {
-      final results =
-          await Future.wait([api.listMissions(), api.missionStatus()]);
+      final results = await Future.wait([
+        api.listMissions(),
+        api.missionStatus(),
+        api.getCurrentMap(),
+      ]);
       if (!mounted) return;
       setState(() {
         _missions = results[0] as List<Map<String, dynamic>>;
         _runnerStatus = results[1] as Map<String, dynamic>;
+        _currentMap = results[2] as String?;
       });
     } on SdkApiException catch (e) {
       if (!mounted) return;
@@ -146,6 +151,7 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
             : _Body(
                 missions: _missions,
                 runnerStatus: _runnerStatus,
+                currentMap: _currentMap,
                 error: _error,
                 onRetry: _load,
                 onCreateMission: _createMission,
@@ -173,6 +179,7 @@ class _Body extends StatelessWidget {
   const _Body({
     required this.missions,
     required this.runnerStatus,
+    required this.currentMap,
     required this.error,
     required this.onRetry,
     required this.onCreateMission,
@@ -182,6 +189,7 @@ class _Body extends StatelessWidget {
 
   final List<Map<String, dynamic>>? missions;
   final Map<String, dynamic>? runnerStatus;
+  final String? currentMap;
   final SdkApiException? error;
   final VoidCallback onRetry;
   final VoidCallback onCreateMission;
@@ -320,6 +328,56 @@ class _Body extends StatelessWidget {
                                 style: const TextStyle(
                                     color: AppColors.textSecondary,
                                     fontSize: 12)),
+                            if (mission['map'] != null) ...[
+                              const SizedBox(height: 4),
+                              Builder(builder: (context) {
+                                final missionMap = mission['map'] as String;
+                                final isMismatch = currentMap != null &&
+                                    missionMap != currentMap;
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: isMismatch
+                                        ? AppColors.warning.withValues(alpha: 0.12)
+                                        : AppColors.primary.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: isMismatch
+                                          ? AppColors.warning.withValues(alpha: 0.4)
+                                          : AppColors.primary.withValues(alpha: 0.2),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isMismatch
+                                            ? Icons.warning_amber_rounded
+                                            : Icons.map_outlined,
+                                        size: 11,
+                                        color: isMismatch
+                                            ? AppColors.warning
+                                            : AppColors.primary,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        isMismatch
+                                            ? '$missionMap (Inactive)'
+                                            : 'Map: $missionMap',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: isMismatch
+                                              ? AppColors.warning
+                                              : AppColors.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
                             if (steps.isNotEmpty) ...[
                               const SizedBox(height: AppSpacing.xs),
                               _StepPreviewRow(steps: steps),
@@ -492,6 +550,15 @@ class _Body extends StatelessWidget {
                     .titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
+              if (currentMap != null) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Chip(
+                  avatar: const Icon(Icons.map_outlined,
+                      size: 14, color: AppColors.primary),
+                  label: Text('Map: $currentMap'),
+                  backgroundColor: AppColors.surface,
+                ),
+              ],
               const Spacer(),
               Chip(
                 avatar: const Icon(Icons.tune_rounded,
@@ -534,6 +601,11 @@ class _Body extends StatelessWidget {
                 } else if (loopCount > 1) {
                   subtitle += ' · repeats ${loopCount}x';
                 }
+
+                final missionMap = mission['map'] as String?;
+                final isMismatch = missionMap != null &&
+                    currentMap != null &&
+                    missionMap != currentMap;
 
                 return Card(
                   elevation: isActive ? 2 : 0,
@@ -579,6 +651,51 @@ class _Body extends StatelessWidget {
                                         color: AppColors.textSecondary,
                                         fontSize: 12),
                                   ),
+                                  if (missionMap != null) ...[
+                                    const SizedBox(height: 2),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: isMismatch
+                                            ? AppColors.warning.withValues(alpha: 0.12)
+                                            : AppColors.primary.withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: isMismatch
+                                              ? AppColors.warning.withValues(alpha: 0.4)
+                                              : AppColors.primary.withValues(alpha: 0.2),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            isMismatch
+                                                ? Icons.warning_amber_rounded
+                                                : Icons.map_outlined,
+                                            size: 10,
+                                            color: isMismatch
+                                                ? AppColors.warning
+                                                : AppColors.primary,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            isMismatch
+                                                ? '$missionMap (Inactive)'
+                                                : 'Map: $missionMap',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: isMismatch
+                                                  ? AppColors.warning
+                                                  : AppColors.primary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),

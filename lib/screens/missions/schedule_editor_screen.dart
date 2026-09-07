@@ -39,7 +39,7 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
   late TimeOfDay _time = _initialTime();
   late String _repeat = widget.existing?['repeat'] as String? ?? 'daily';
   late DateTime _date = _initialDate();
-  late Set<int> _weekdays = {
+  late final Set<int> _weekdays = {
     for (final d in (widget.existing?['weekdays'] as List? ?? const []))
       d as int,
   };
@@ -192,7 +192,7 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
                       DropdownMenuItem(
                         value: m['id'] as String,
                         child: Text(
-                          '${m['name'] as String? ?? m['id'] as String} (${(m['steps'] as List? ?? const []).length} steps)',
+                          '${m['name'] as String? ?? m['id'] as String} (${(m['steps'] as List? ?? const []).length} steps${m['map'] != null ? ' · Map: ${m['map']}' : ''})',
                         ),
                       ),
                   ],

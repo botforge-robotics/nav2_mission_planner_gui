@@ -63,12 +63,15 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
   bool _saving = false;
   String? _saveError;
   ({double x, double y, double theta})? _dockPose;
+  String? _missionMap;
+  String? _currentActiveMap;
 
   bool get _isEditing => widget.existing != null;
 
   @override
   void initState() {
     super.initState();
+    _missionMap = widget.existing?['map'] as String?;
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadLocations());
   }
 
@@ -88,11 +91,16 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
     if (api == null) return;
     try {
       final list = await api.listWaypoints();
+      final currentMap = await api.getCurrentMap();
       if (!mounted) return;
       // Shared app-wide (see LocationsController's own doc) — written here
       // too, not just read, so a fresher list this screen happens to fetch
       // is visible everywhere else immediately as well.
       LocationsController.instance.value = list;
+      setState(() {
+        _currentActiveMap = currentMap;
+        _missionMap ??= currentMap;
+      });
     } on SdkApiException catch (e) {
       if (!mounted) return;
       setState(() => _loadError = e);
@@ -1065,7 +1073,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
       final id = widget.existing?['id'] as String? ?? const Uuid().v4();
       await api.putMission(id, name, _steps,
           loopCount: _repeat == _Repeat.count ? _loopCount : 1,
-          loopForever: _repeat == _Repeat.forever);
+          loopForever: _repeat == _Repeat.forever,
+          map: _missionMap ?? _currentActiveMap);
       if (!mounted) return;
       _goBack(true);
     } on SdkApiException catch (e) {
@@ -1195,6 +1204,71 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                   prefixIcon: Icon(Icons.label_outline_rounded),
                                 ),
                               ),
+                              const SizedBox(height: AppSpacing.sm),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: (_missionMap != null &&
+                                              _currentActiveMap != null &&
+                                              _missionMap != _currentActiveMap)
+                                          ? AppColors.warning.withValues(alpha: 0.12)
+                                          : AppColors.primary.withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: (_missionMap != null &&
+                                                _currentActiveMap != null &&
+                                                _missionMap != _currentActiveMap)
+                                            ? AppColors.warning.withValues(alpha: 0.4)
+                                            : AppColors.primary.withValues(alpha: 0.2),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          (_missionMap != null &&
+                                                  _currentActiveMap != null &&
+                                                  _missionMap != _currentActiveMap)
+                                              ? Icons.warning_amber_rounded
+                                              : Icons.map_outlined,
+                                          size: 14,
+                                          color: (_missionMap != null &&
+                                                  _currentActiveMap != null &&
+                                                  _missionMap != _currentActiveMap)
+                                              ? AppColors.warning
+                                              : AppColors.primary,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Map: ${_missionMap ?? _currentActiveMap ?? "Active Map"}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: (_missionMap != null &&
+                                                    _currentActiveMap != null &&
+                                                    _missionMap != _currentActiveMap)
+                                                ? AppColors.warning
+                                                : AppColors.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (_missionMap != null &&
+                                  _currentActiveMap != null &&
+                                  _missionMap != _currentActiveMap) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Warning: Active map on robot is "$_currentActiveMap". Waypoints may mismatch.',
+                                  style: const TextStyle(
+                                      fontSize: 11, color: AppColors.warning),
+                                ),
+                              ],
                               const SizedBox(height: AppSpacing.md),
                               _RepeatCard(
                                 repeat: _repeat,
@@ -1395,7 +1469,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                       size: 16, color: AppColors.primary),
                                   const SizedBox(width: AppSpacing.sm),
                                   Text(
-                                    'Mission Route Preview (${routePins.length} waypoints plotted)',
+                                    'Mission Route Preview • Map: ${_missionMap ?? _currentActiveMap ?? "Active Map"} (${routePins.length} waypoints plotted)',
                                     style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 12),
@@ -1575,6 +1649,71 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                     decoration: const InputDecoration(
                         hintText: 'Mission name, e.g. Patrol Route A'),
                   ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: (_missionMap != null &&
+                                  _currentActiveMap != null &&
+                                  _missionMap != _currentActiveMap)
+                              ? AppColors.warning.withValues(alpha: 0.12)
+                              : AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: (_missionMap != null &&
+                                    _currentActiveMap != null &&
+                                    _missionMap != _currentActiveMap)
+                                ? AppColors.warning.withValues(alpha: 0.4)
+                                : AppColors.primary.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              (_missionMap != null &&
+                                      _currentActiveMap != null &&
+                                      _missionMap != _currentActiveMap)
+                                  ? Icons.warning_amber_rounded
+                                  : Icons.map_outlined,
+                              size: 14,
+                              color: (_missionMap != null &&
+                                      _currentActiveMap != null &&
+                                      _missionMap != _currentActiveMap)
+                                  ? AppColors.warning
+                                  : AppColors.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Map: ${_missionMap ?? _currentActiveMap ?? "Active Map"}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: (_missionMap != null &&
+                                        _currentActiveMap != null &&
+                                        _missionMap != _currentActiveMap)
+                                    ? AppColors.warning
+                                    : AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_missionMap != null &&
+                      _currentActiveMap != null &&
+                      _missionMap != _currentActiveMap) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Warning: Active map on robot is "$_currentActiveMap". Waypoints may mismatch.',
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.warning),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   Row(
                     children: [

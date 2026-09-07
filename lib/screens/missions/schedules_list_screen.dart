@@ -29,6 +29,7 @@ class SchedulesListScreen extends StatefulWidget {
 class _SchedulesListScreenState extends State<SchedulesListScreen> {
   List<Map<String, dynamic>>? _schedules;
   List<Map<String, dynamic>>? _missions;
+  String? _currentMap;
   SdkApiException? _error;
   bool _requested = false;
   Timer? _poll;
@@ -51,12 +52,16 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
     final api = _api;
     if (api == null) return;
     try {
-      final results =
-          await Future.wait([api.listSchedules(), api.listMissions()]);
+      final results = await Future.wait([
+        api.listSchedules(),
+        api.listMissions(),
+        api.getCurrentMap(),
+      ]);
       if (!mounted) return;
       setState(() {
-        _schedules = results[0];
-        _missions = results[1];
+        _schedules = results[0] as List<Map<String, dynamic>>?;
+        _missions = results[1] as List<Map<String, dynamic>>?;
+        _currentMap = results[2] as String?;
         _error = null;
       });
     } on SdkApiException catch (e) {
@@ -104,6 +109,37 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
   Future<void> _runNow(String missionId) async {
     final api = _api;
     if (api == null) return;
+    final mapName = _missionMap(missionId);
+    if (mapName != null && _currentMap != null && mapName != _currentMap) {
+      if (!mounted) return;
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: AppColors.warning),
+              SizedBox(width: 8),
+              Text('Map Mismatch'),
+            ],
+          ),
+          content: Text(
+            'This mission was planned for map "$mapName", but the active map on the robot is "$_currentMap".\n\n'
+            'Starting it now may cause navigation errors or collisions. Do you want to proceed?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Run Anyway'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+    }
     try {
       await api.startMission(missionId);
       if (!mounted) return;
@@ -123,6 +159,13 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
         .cast<Map<String, dynamic>?>()
         .firstWhere((m) => m?['id'] == missionId, orElse: () => null);
     return m?['name'] as String? ?? missionId;
+  }
+
+  String? _missionMap(String missionId) {
+    final m = (_missions ?? const [])
+        .cast<Map<String, dynamic>?>()
+        .firstWhere((m) => m?['id'] == missionId, orElse: () => null);
+    return m?['map'] as String?;
   }
 
   String _repeatLabel(Map<String, dynamic> schedule) {
@@ -208,9 +251,11 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
                 schedules: _schedules,
                 totalCount: totalCount,
                 activeCount: activeCount,
+                currentMap: _currentMap,
                 error: _error,
                 onRetry: _load,
                 missionName: _missionName,
+                missionMap: _missionMap,
                 repeatLabel: _repeatLabel,
                 onToggle: _toggleEnabled,
                 onEdit: _openEditor,
@@ -229,9 +274,11 @@ class _Body extends StatelessWidget {
     required this.schedules,
     required this.totalCount,
     required this.activeCount,
+    required this.currentMap,
     required this.error,
     required this.onRetry,
     required this.missionName,
+    required this.missionMap,
     required this.repeatLabel,
     required this.onToggle,
     required this.onEdit,
@@ -244,9 +291,11 @@ class _Body extends StatelessWidget {
   final List<Map<String, dynamic>>? schedules;
   final int totalCount;
   final int activeCount;
+  final String? currentMap;
   final SdkApiException? error;
   final VoidCallback onRetry;
   final String Function(String missionId) missionName;
+  final String? Function(String missionId) missionMap;
   final String Function(Map<String, dynamic>) repeatLabel;
   final void Function(Map<String, dynamic>, bool) onToggle;
   final void Function(Map<String, dynamic>) onEdit;
@@ -378,6 +427,9 @@ class _Body extends StatelessWidget {
                       schedule: schedules![i],
                       missionName:
                           missionName(schedules![i]['mission_id'] as String),
+                      missionMap:
+                          missionMap(schedules![i]['mission_id'] as String),
+                      currentMap: currentMap,
                       repeatLabel: repeatLabel(schedules![i]),
                       onToggle: (v) => onToggle(schedules![i], v),
                       onEdit: () => onEdit(schedules![i]),
@@ -399,6 +451,10 @@ class _Body extends StatelessWidget {
                           TimeOfDay(hour: hour, minute: minute).format(context);
                       final mName =
                           missionName(schedule['mission_id'] as String);
+                      final mMap =
+                          missionMap(schedule['mission_id'] as String);
+                      final isMismatch =
+                          mMap != null && currentMap != null && mMap != currentMap;
                       return Card(
                         child: ListTile(
                           onTap: () => onEdit(schedule),
@@ -413,8 +469,62 @@ class _Body extends StatelessWidget {
                                     : AppColors.textTertiary),
                           ),
                           title: Text(schedule['name'] as String? ?? mName),
-                          subtitle: Text(
-                              '$time · ${repeatLabel(schedule)} · $mName'),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                  '$time · ${repeatLabel(schedule)} · $mName'),
+                              if (mMap != null) ...[
+                                const SizedBox(height: 3),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: isMismatch
+                                        ? AppColors.warning
+                                            .withValues(alpha: 0.12)
+                                        : AppColors.primary
+                                            .withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: isMismatch
+                                          ? AppColors.warning
+                                              .withValues(alpha: 0.4)
+                                          : AppColors.primary
+                                              .withValues(alpha: 0.2),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isMismatch
+                                            ? Icons.warning_amber_rounded
+                                            : Icons.map_outlined,
+                                        size: 10,
+                                        color: isMismatch
+                                            ? AppColors.warning
+                                            : AppColors.primary,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        isMismatch
+                                            ? '$mMap (Inactive Map)'
+                                            : 'Map: $mMap',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: isMismatch
+                                              ? AppColors.warning
+                                              : AppColors.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -509,6 +619,8 @@ class _ScheduleDesktopCard extends StatelessWidget {
   const _ScheduleDesktopCard({
     required this.schedule,
     required this.missionName,
+    this.missionMap,
+    this.currentMap,
     required this.repeatLabel,
     required this.onToggle,
     required this.onEdit,
@@ -518,6 +630,8 @@ class _ScheduleDesktopCard extends StatelessWidget {
 
   final Map<String, dynamic> schedule;
   final String missionName;
+  final String? missionMap;
+  final String? currentMap;
   final String repeatLabel;
   final ValueChanged<bool> onToggle;
   final VoidCallback onEdit;
@@ -639,6 +753,54 @@ class _ScheduleDesktopCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (missionMap != null) ...[
+                  const SizedBox(width: 6),
+                  Builder(builder: (context) {
+                    final isMismatch = currentMap != null && missionMap != currentMap;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: isMismatch
+                            ? AppColors.warning.withValues(alpha: 0.12)
+                            : AppColors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: isMismatch
+                              ? AppColors.warning.withValues(alpha: 0.4)
+                              : AppColors.primary.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isMismatch
+                                ? Icons.warning_amber_rounded
+                                : Icons.map_outlined,
+                            size: 10,
+                            color: isMismatch
+                                ? AppColors.warning
+                                : AppColors.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isMismatch
+                                ? '$missionMap (Inactive)'
+                                : 'Map: $missionMap',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: isMismatch
+                                  ? AppColors.warning
+                                  : AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
               ],
             ),
             const SizedBox(height: AppSpacing.xs),
