@@ -46,7 +46,26 @@ When bumping the version, you MUST update:
 
 ---
 
-## 3. How to Trigger an Automated Multi-Platform Release
+## 3. Branching & Deployment Strategy
+
+To ensure client and robot stability:
+- **`dev` (Internal Development)**:
+  - All day-to-day feature development, experimentation, and internal company testing occur on `dev`.
+  - Work-in-progress code remains on `dev` and is never pushed directly to the public release branch.
+- **`navpro-mini` (Public Production)**:
+  - This is the official public release branch.
+  - When changes are fully tested and ready for release, merge `dev` into `navpro-mini`:
+    ```bash
+    git checkout navpro-mini
+    git merge dev --ff-only
+    git push origin navpro-mini
+    ```
+- **Release Tags (`v*`)**:
+  - Tags (`vX.Y.Z`) are cut strictly from `navpro-mini` to trigger the automated GitHub Actions CI/CD release workflow.
+
+---
+
+## 4. How to Trigger an Automated Multi-Platform Release
 
 The repository uses GitHub Actions (`.github/workflows/release.yml`) to automatically compile Linux, Android, and Windows binaries and attach them to a GitHub Release.
 
@@ -76,7 +95,7 @@ The repository uses GitHub Actions (`.github/workflows/release.yml`) to automati
 
 ---
 
-## 4. Local Build Commands
+## 5. Local Build Commands
 
 To build artifacts locally without CI:
 
