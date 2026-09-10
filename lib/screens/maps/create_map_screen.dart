@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../services/map_layers_controller.dart';
+import '../../services/mode_transition_tracker.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
@@ -184,6 +185,9 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
         ? 'Restoring "$_previousMap" — this can take up to a minute…'
         : 'Stopping mapping…');
     try {
+      ModeTransitionTracker.instance.startStoppingMapping(
+        targetMode: _previousMap != null ? 'navigation' : 'idle',
+      );
       if (_previousMap != null) {
         await api.setMode('navigation', map: _previousMap);
       } else {
@@ -193,6 +197,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       Navigator.of(context).pop();
     } on SdkApiException catch (e) {
       if (!mounted) return;
+      ModeTransitionTracker.instance.clear();
       setState(() {
         _busyMessage = null;
         _error = e.message;
@@ -219,6 +224,9 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       _error = null;
     });
     try {
+      ModeTransitionTracker.instance.startStoppingMapping(
+        targetMode: 'navigation',
+      );
       await api.finishMapping(name, overwrite: overwrite);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -226,6 +234,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       Navigator.of(context).pop();
     } on SdkApiException catch (e) {
       if (!mounted) return;
+      ModeTransitionTracker.instance.clear();
       if (e.code == 'map_exists') {
         setState(() => _busyMessage = null);
         final overwriteConfirmed = await showDialog<bool>(
@@ -323,6 +332,10 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                                                 ros2: ros2,
                                                 interactive: true,
                                                 showRobot: true,
+                                                showLocalizationBadge: false,
+                                                isMapping: true,
+                                                initialPose: telemetry.rawPose ??
+                                                    telemetry.rawOdomPose,
                                                 showDock: visibleLayers
                                                     .contains(MapLayer.dock),
                                                 showPath: visibleLayers
@@ -346,7 +359,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                                                   ? 'x: ${telemetry.poseX!.toStringAsFixed(2)}  '
                                                       'y: ${telemetry.poseY!.toStringAsFixed(2)}  '
                                                       'θ: ${(telemetry.poseTheta ?? 0).toStringAsFixed(2)} rad'
-                                                  : 'Position not localized yet',
+                                                  : 'x: 0.00  y: 0.00  θ: 0.00 rad',
                                             ),
                                           ),
                                           Positioned(
@@ -366,7 +379,12 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                           ),
                           const SizedBox(height: AppSpacing.md),
                           DrivePad(
-                              onVelocity: _onVelocity, onStop: _stopMotion),
+                            onVelocity: _onVelocity,
+                            onStop: _stopMotion,
+                            maxLinear: DrivePad.defaultMaxLinear * 0.5,
+                            maxAngular: DrivePad.defaultMaxAngular * 0.5,
+                            rotateAngular: DrivePad.defaultRotateAngular * 0.5,
+                          ),
                           if (_error != null) ...[
                             const SizedBox(height: AppSpacing.sm),
                             Text(_error!,

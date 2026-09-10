@@ -52,6 +52,19 @@ class RobotTelemetryProvider extends ChangeNotifier {
   /// and the other is a provider field with no natural common module yet.
   double? poseTheta;
 
+  double? odomX;
+  double? odomY;
+  double? odomTheta;
+  nav_msgs.Odometry? rawOdom;
+
+  geometry_msgs.PoseWithCovarianceStamped? get rawOdomPose {
+    final o = rawOdom;
+    if (o == null) return null;
+    return geometry_msgs.PoseWithCovarianceStamped()
+      ..header = o.header
+      ..pose = o.pose;
+  }
+
   void _subscribe() {
     final ros2 = _ros2;
     if (ros2 == null) return;
@@ -81,6 +94,17 @@ class RobotTelemetryProvider extends ChangeNotifier {
         qos: const {'reliability': 'best_effort'},
         callback: (msg) {
           linearSpeedMps = msg.twist.twist.linear.x;
+          rawOdom = msg;
+          odomX = msg.pose.pose.position.x;
+          odomY = msg.pose.pose.position.y;
+          final q = msg.pose.pose.orientation;
+          odomTheta = atan2(
+              2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
+          if (!localized) {
+            poseX = odomX;
+            poseY = odomY;
+            poseTheta = odomTheta;
+          }
           notifyListeners();
         },
       ),

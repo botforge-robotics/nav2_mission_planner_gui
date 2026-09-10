@@ -7,6 +7,7 @@ import '../providers/robot_status.dart';
 import '../providers/robot_telemetry_provider.dart';
 import '../services/alerts_controller.dart';
 import '../services/map_layers_controller.dart';
+import '../services/mode_transition_tracker.dart';
 import '../services/robot_connection_store.dart';
 import '../services/sdk_api_service.dart';
 import '../services/sdk_events_service.dart';
@@ -311,52 +312,64 @@ class _RobotCard extends StatelessWidget {
         telemetry.chargeStatus == ChargeStatus.full;
     final isActive = _isActiveStatus(status);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return ValueListenableBuilder<String?>(
+      valueListenable: ModeTransitionTracker.instance.transitioningTo,
+      builder: (context, transitioningTo, _) {
+        final isStopping =
+            transitioningTo == 'idle' || transitioningTo == 'navigation';
+        final statusLabel = isStopping ? 'STOPPING MAPPING…' : status.label;
+        final statusColor = isStopping ? AppColors.warning : status.color;
+        final livePulse = isStopping || isActive;
+        final subtitle = isStopping
+            ? 'Cleaning up SLAM session on robot…'
+            : _subtitleFor(status);
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(robot.name,
-                          style: Theme.of(context).textTheme.headlineSmall),
-                      const SizedBox(height: 6),
-                      Row(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          StatusPulseDot(
-                              color: status.color, live: isActive, size: 8),
-                          const SizedBox(width: 6),
+                          Text(robot.name,
+                              style: Theme.of(context).textTheme.headlineSmall),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              StatusPulseDot(
+                                  color: statusColor, live: livePulse, size: 8),
+                              const SizedBox(width: 6),
+                              AnimatedSwitcher(
+                                duration: AppMotion.fast,
+                                child: Text(
+                                  'Online · $statusLabel',
+                                  key: ValueKey('${status}_$isStopping'),
+                                  style: const TextStyle(
+                                      color: AppColors.textSecondary),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
                           AnimatedSwitcher(
                             duration: AppMotion.fast,
                             child: Text(
-                              'Online · ${status.label}',
-                              key: ValueKey(status),
+                              subtitle,
+                              key: ValueKey('subtitle-$status-$isStopping'),
                               style: const TextStyle(
-                                  color: AppColors.textSecondary),
+                                  color: AppColors.textTertiary, fontSize: 13),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      AnimatedSwitcher(
-                        duration: AppMotion.fast,
-                        child: Text(
-                          _subtitleFor(status),
-                          key: ValueKey('subtitle-$status'),
-                          style: const TextStyle(
-                              color: AppColors.textTertiary, fontSize: 13),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
                 // The robot's real product photo (assets/robot_photo.png) —
                 // shown directly on the card's own surface rather than
                 // inside a colored tile, since the photo is already a
@@ -394,6 +407,8 @@ class _RobotCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+      },
     );
   }
 }
@@ -616,111 +631,173 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
       widget.mapName != null &&
       widget.mapName != 'default';
 
-  /// True when there's no active map and no mapping in progress.
-  bool get _noActiveMap => !_isMappingActive && !_isNavigating;
-
   @override
   Widget build(BuildContext context) {
     final telemetry = context.watch<RobotTelemetryProvider>();
     final api = SdkApiService(widget.robotIp);
 
-    // Derive card title
-    final String title = _isMappingActive
-        ? 'Mapping in progress…'
-        : (_isNavigating ? widget.mapName! : 'Map');
+    return ValueListenableBuilder<String?>(
+      valueListenable: ModeTransitionTracker.instance.transitioningTo,
+      builder: (context, transitioningTo, _) {
+        final isStoppingMapping =
+            transitioningTo == 'idle' || transitioningTo == 'navigation';
+        final isCurrentlyMapping = _isMappingActive && !isStoppingMapping;
+        final hasActiveNav = _isNavigating && !isStoppingMapping;
+        final showNoActiveMap = !isStoppingMapping && !isCurrentlyMapping && !hasActiveNav;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        // Derive card title
+        final String title = isStoppingMapping
+            ? 'Stopping mapping…'
+            : (isCurrentlyMapping
+                ? 'Mapping in progress…'
+                : (hasActiveNav ? widget.mapName! : 'Map'));
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (!_noActiveMap)
-                  TextButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const MapViewScreen()),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    child: const Text('Open Map'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-              child: Container(
-                height: widget.height,
-                width: double.infinity,
-                color: AppColors.surfaceSunken,
-                child: _noActiveMap
-                    ? _NoActiveMapPrompt(robotIp: widget.robotIp)
-                    : Stack(
-                        children: [
-                          Positioned.fill(
-                            child: ValueListenableBuilder<Set<MapLayer>>(
-                              valueListenable: MapLayersController.instance,
-                              builder: (context, visibleLayers, _) =>
-                                  OccupancyGridView(
-                                ros2: widget.ros2,
-                                interactive: widget.interactive,
-                                showDock: visibleLayers.contains(MapLayer.dock),
-                                showPath: visibleLayers.contains(MapLayer.path),
-                                showLaserScan:
-                                    visibleLayers.contains(MapLayer.laserScan),
-                                initialPose: telemetry.rawPose,
-                                initialPath: telemetry.currentPath,
-                                showGlobalCostmap: visibleLayers
-                                    .contains(MapLayer.globalCostmap),
-                                showLocalCostmap: visibleLayers
-                                    .contains(MapLayer.localCostmap),
-                                dockPoseOverride: _dockPose,
-                                showLocalizationBadge: false,
+                    if (isCurrentlyMapping)
+                      TextButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const CreateMapScreen()),
+                        ),
+                        child: const Text('Resume Mapping'),
+                      )
+                    else if (hasActiveNav)
+                      TextButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const MapViewScreen()),
+                        ),
+                        child: const Text('Open Map'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                  child: Container(
+                    height: widget.height,
+                    width: double.infinity,
+                    color: AppColors.surfaceSunken,
+                    child: isStoppingMapping
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(
+                                    width: 28,
+                                    height: 28,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2.5),
+                                  ),
+                                  const SizedBox(height: AppSpacing.md),
+                                  Text(
+                                    'Stopping mapping session…',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Text(
+                                    'Shutting down SLAM on robot. This takes a few seconds.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary),
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-                          if (!telemetry.localized && _isNavigating)
-                            Positioned(
-                              left: AppSpacing.xs,
-                              right: AppSpacing.xs,
-                              top: AppSpacing.xs,
-                              child: NotLocalizedBanner(
-                                api: api,
-                                onDecline: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: const Text(
-                                          'Open Map to set the initial pose.'),
-                                      action: SnackBarAction(
-                                        label: 'Open Map',
-                                        onPressed: () =>
-                                            Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                const MapViewScreen(
-                                                    initialPosePicking: true),
-                                          ),
-                                        ),
+                          )
+                        : (showNoActiveMap
+                            ? _NoActiveMapPrompt(robotIp: widget.robotIp)
+                            : Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: ValueListenableBuilder<
+                                        Set<MapLayer>>(
+                                      valueListenable:
+                                          MapLayersController.instance,
+                                      builder: (context, visibleLayers, _) =>
+                                          OccupancyGridView(
+                                        ros2: widget.ros2,
+                                        interactive: widget.interactive,
+                                        isMapping: isCurrentlyMapping,
+                                        showDock: visibleLayers
+                                            .contains(MapLayer.dock),
+                                        showPath: visibleLayers
+                                            .contains(MapLayer.path),
+                                        showLaserScan: visibleLayers
+                                            .contains(MapLayer.laserScan),
+                                        initialPose: telemetry.rawPose ??
+                                            telemetry.rawOdomPose,
+                                        initialPath: telemetry.currentPath,
+                                        showGlobalCostmap: visibleLayers
+                                            .contains(MapLayer.globalCostmap),
+                                        showLocalCostmap: visibleLayers
+                                            .contains(MapLayer.localCostmap),
+                                        dockPoseOverride: _dockPose,
+                                        showLocalizationBadge: false,
                                       ),
                                     ),
-                                  );
-                                },
-                              ),
-                            ),
-                        ],
-                      ),
-              ),
+                                  ),
+                                  if (!telemetry.localized && hasActiveNav)
+                                    Positioned(
+                                      left: AppSpacing.xs,
+                                      right: AppSpacing.xs,
+                                      top: AppSpacing.xs,
+                                      child: NotLocalizedBanner(
+                                        api: api,
+                                        onDecline: () {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                              content: const Text(
+                                                  'Open Map to set the initial pose.'),
+                                              action: SnackBarAction(
+                                                label: 'Open Map',
+                                                onPressed: () =>
+                                                    Navigator.of(context).push(
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        const MapViewScreen(
+                                                            initialPosePicking:
+                                                                true),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                ],
+                              )),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

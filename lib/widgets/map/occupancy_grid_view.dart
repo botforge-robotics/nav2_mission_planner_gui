@@ -41,6 +41,15 @@ Offset _pixelToWorld(nav_msgs.OccupancyGrid baseGrid, Offset px) {
 double _yawOf(geometry_msgs.Quaternion q) =>
     atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
 
+geometry_msgs.Quaternion _quaternionFromYaw(double yaw) {
+  final half = yaw / 2;
+  return geometry_msgs.Quaternion()
+    ..x = 0
+    ..y = 0
+    ..z = sin(half)
+    ..w = cos(half);
+}
+
 /// A rigid 2D transform (rotation + translation, no scale) — used here for
 /// the live `map` -> `odom` transform (see [OccupancyGridView]'s class doc
 /// on why the local costmap specifically needs it).
@@ -159,6 +168,7 @@ class OccupancyGridView extends StatefulWidget {
     this.onLocationTap,
     this.onDockTap,
     this.showLocalizationBadge = true,
+    this.isMapping = false,
     this.dockPoseOverride,
     this.fitWholeMap = false,
     this.initialPose,
@@ -254,6 +264,10 @@ class OccupancyGridView extends StatefulWidget {
   /// this false so the two don't stack.
   final bool showLocalizationBadge;
 
+  /// Whether this view is rendering a SLAM mapping session.
+  /// Suppresses AMCL-specific localization badges and prefers SLAM/odom poses.
+  final bool isMapping;
+
   /// A fallback dock position, used to draw the dock pin when [showDock] is
   /// on but the live `/dock_pose` ROS topic hasn't delivered anything (it's
   /// only republished when the dockwatch node freshly (re)detects the dock,
@@ -290,6 +304,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   Subscriber<tf2_msgs.TFMessage>? _tfSub;
   Subscriber<sensor_msgs.LaserScan>? _scanSub;
   sensor_msgs.LaserScan? _scan;
+  Subscriber<nav_msgs.Odometry>? _odomSub;
+  geometry_msgs.PoseWithCovarianceStamped? _odomPose;
 
   /// The live `map` -> `odom` transform, tracked only while the local
   /// costmap is shown (it's the only thing here that needs it — see the
@@ -303,6 +319,34 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   ui.Image? _image;
   geometry_msgs.PoseWithCovarianceStamped? _pose;
   geometry_msgs.PoseStamped? _dockPose;
+
+  /// Effective pose: uses /amcl_pose when available, otherwise falls back
+  /// to /odom (transformed by map->odom if available), guaranteeing the
+  /// robot marker is drawn live during SLAM mapping without AMCL.
+  geometry_msgs.PoseWithCovarianceStamped? get _effectivePose {
+    final amcl = _pose;
+    if (amcl != null) return amcl;
+    final odom = _odomPose ?? widget.initialPose;
+    if (odom == null) return null;
+    final tf = _mapOdomTransform;
+    if (tf != null) {
+      final ox = odom.pose.pose.position.x;
+      final oy = odom.pose.pose.position.y;
+      final c = cos(tf.theta), s = sin(tf.theta);
+      final mapX = tf.x + c * ox - s * oy;
+      final mapY = tf.y + s * ox + c * oy;
+      final odomYaw = _yawOf(odom.pose.pose.orientation);
+      final mapYaw = tf.theta + odomYaw;
+      final transformed = geometry_msgs.PoseWithCovarianceStamped()
+        ..header = odom.header
+        ..pose.pose.position.x = mapX
+        ..pose.pose.position.y = mapY
+        ..pose.pose.position.z = odom.pose.pose.position.z
+        ..pose.pose.orientation = _quaternionFromYaw(mapYaw);
+      return transformed;
+    }
+    return odom;
+  }
 
   /// The live topic value when it has one, else [widget.dockPoseOverride]
   /// (only its position is used — the pin doesn't draw orientation) —
@@ -404,6 +448,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     _mapSub = null;
     _poseSub?.unsubscribe();
     _poseSub = null;
+    _odomSub?.unsubscribe();
+    _odomSub = null;
+    _odomPose = null;
     _dockSub?.unsubscribe();
     _dockSub = null;
     _pathSub?.unsubscribe();
@@ -440,6 +487,22 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         if (mounted) setState(() => _pose = msg);
       },
     );
+    _odomSub = Subscriber<nav_msgs.Odometry>(
+      name: '/odom',
+      type: nav_msgs.Odometry().fullType,
+      ros2: widget.ros2,
+      prototype: nav_msgs.Odometry(),
+      qos: const {'reliability': 'best_effort'},
+      callback: (msg) {
+        if (mounted) {
+          final converted = geometry_msgs.PoseWithCovarianceStamped()
+            ..header = msg.header
+            ..pose = msg.pose;
+          setState(() => _odomPose = converted);
+        }
+      },
+    );
+    _subscribeTf();
   }
 
   void _subscribeDock() {
@@ -574,7 +637,10 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       } else {
         _poseSub?.unsubscribe();
         _poseSub = null;
+        _odomSub?.unsubscribe();
+        _odomSub = null;
         _pose = null;
+        _odomPose = null;
       }
     }
     if (widget.showDock != oldWidget.showDock) {
@@ -803,7 +869,10 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   /// on views that never asked for a robot marker in the first place (e.g.
   /// Maps List's thumbnail, which passes showRobot: false).
   Widget _withLocalizationBadge(Widget child) {
-    if (!widget.showRobot || !widget.showLocalizationBadge || _pose != null) {
+    if (!widget.showRobot ||
+        !widget.showLocalizationBadge ||
+        widget.isMapping ||
+        _effectivePose != null) {
       return child;
     }
     return Stack(
@@ -941,7 +1010,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           painter: _OccupancyGridPainter(
             image: image,
             grid: grid,
-            pose: widget.showRobot ? (_pose ?? widget.initialPose) : null,
+            pose: widget.showRobot ? (_effectivePose ?? widget.initialPose) : null,
             dockPose:
                 (widget.showDock && showOverlays && !widget.dockEditorMode) ? _resolvedDockPose : null,
             path: (widget.showPath && showOverlays)
@@ -1167,7 +1236,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         final offsetX =
             widget.fitWholeMap ? (viewport.width - mapWidthScaled) / 2 : 0.0;
         double offsetY;
-        final pose = _pose;
+        final pose = _effectivePose;
         if (widget.fitWholeMap || mapHeightScaled <= viewport.height) {
           offsetY = (viewport.height - mapHeightScaled) / 2;
         } else if (widget.showRobot && pose != null) {

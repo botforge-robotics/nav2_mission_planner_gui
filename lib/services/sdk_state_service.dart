@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'mode_transition_tracker.dart';
+
 /// The subset of navpromini_sdk's GET /api/v1/state (doc §18's canonical
 /// Robot State model) this app actually reads — mode, current map, mission
 /// status, lifecycle. Everything nullable: a field missing from the
@@ -57,6 +59,7 @@ class SdkStateService {
       if (resp.statusCode != 200) return _lastState;
       final json = jsonDecode(resp.body) as Map<String, dynamic>;
       _lastState = SdkState.fromJson(json);
+      ModeTransitionTracker.instance.onSdkModeUpdated(_lastState.mode);
       return _lastState;
     } catch (_) {
       // Network drop, timeout, or transient error: retain the last known
