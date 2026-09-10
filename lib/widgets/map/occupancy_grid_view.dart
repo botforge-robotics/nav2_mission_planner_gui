@@ -315,6 +315,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   /// rather than not drawing at all.
   _RigidTransform2D? _mapOdomTransform;
 
+  Subscriber<geometry_msgs.PoseWithCovarianceStamped>? _slamPoseSub;
+
   nav_msgs.OccupancyGrid? _grid;
   ui.Image? _image;
   geometry_msgs.PoseWithCovarianceStamped? _pose;
@@ -448,6 +450,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     _mapSub = null;
     _poseSub?.unsubscribe();
     _poseSub = null;
+    _slamPoseSub?.unsubscribe();
+    _slamPoseSub = null;
     _odomSub?.unsubscribe();
     _odomSub = null;
     _odomPose = null;
@@ -483,6 +487,15 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       // matching durability, a reconnecting or stationary subscriber never
       // receives the latched pose until the robot physically moves.
       qos: const {'durability': 'transient_local'},
+      callback: (msg) {
+        if (mounted) setState(() => _pose = msg);
+      },
+    );
+    _slamPoseSub = Subscriber<geometry_msgs.PoseWithCovarianceStamped>(
+      name: '/pose',
+      type: geometry_msgs.PoseWithCovarianceStamped().fullType,
+      ros2: widget.ros2,
+      prototype: geometry_msgs.PoseWithCovarianceStamped(),
       callback: (msg) {
         if (mounted) setState(() => _pose = msg);
       },
@@ -579,7 +592,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
 
   void _onTf(tf2_msgs.TFMessage msg) {
     for (final t in msg.transforms) {
-      if (t.header.frame_id == 'map' && t.child_frame_id == 'odom') {
+      final parent = t.header.frame_id.replaceAll('/', '');
+      final child = t.child_frame_id.replaceAll('/', '');
+      if (parent == 'map' && child == 'odom') {
         final tr = t.transform;
         if (mounted) {
           setState(() => _mapOdomTransform = (
@@ -637,6 +652,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       } else {
         _poseSub?.unsubscribe();
         _poseSub = null;
+        _slamPoseSub?.unsubscribe();
+        _slamPoseSub = null;
         _odomSub?.unsubscribe();
         _odomSub = null;
         _pose = null;

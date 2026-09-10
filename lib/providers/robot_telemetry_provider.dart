@@ -100,11 +100,26 @@ class RobotTelemetryProvider extends ChangeNotifier {
           final q = msg.pose.pose.orientation;
           odomTheta = atan2(
               2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
-          if (!localized) {
+          if (!localized && rawPose == null) {
             poseX = odomX;
             poseY = odomY;
             poseTheta = odomTheta;
           }
+          notifyListeners();
+        },
+      ),
+      Subscriber<geometry_msgs.PoseWithCovarianceStamped>(
+        name: '/pose',
+        type: geometry_msgs.PoseWithCovarianceStamped().fullType,
+        ros2: ros2,
+        prototype: geometry_msgs.PoseWithCovarianceStamped(),
+        callback: (msg) {
+          rawPose = msg;
+          poseX = msg.pose.pose.position.x;
+          poseY = msg.pose.pose.position.y;
+          final q = msg.pose.pose.orientation;
+          poseTheta = atan2(
+              2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
           notifyListeners();
         },
       ),

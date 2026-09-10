@@ -7,9 +7,15 @@ class Publisher<T extends RosMessage<T>> {
   final String name;
   final String type;
   final Ros2 ros2;
+  StreamSubscription? _statusSubscription;
 
   Publisher({required this.name, required this.type, required this.ros2}) {
     advertise();
+    _statusSubscription = ros2.statusStream.listen((status) {
+      if (status == Status.connected) {
+        advertise();
+      }
+    });
   }
 
   void advertise() {
@@ -20,12 +26,14 @@ class Publisher<T extends RosMessage<T>> {
     });
   }
 
-  void publish(T message) {
+  bool publish(T message) {
     String serializedMessage = message.toJsonString();
-    ros2.send('{"op": "publish", "topic": "$name", "msg": $serializedMessage}');
+    return ros2.send('{"op": "publish", "topic": "$name", "msg": $serializedMessage}');
   }
 
   Future<void> shutdown() async {
+    await _statusSubscription?.cancel();
+    _statusSubscription = null;
     unadvertise();
   }
 

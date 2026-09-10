@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 
@@ -78,9 +79,33 @@ class _TeleopScreenState extends State<TeleopScreen> {
         const Duration(milliseconds: 900), (_) => _pollNavigationStatus());
   }
 
+  Publisher<geometry_msgs.Twist>? _cmdVelPub;
+  Ros2? _cmdVelRos2;
+
+  Publisher<geometry_msgs.Twist>? _getCmdVelPublisher() {
+    final ros2 = context.read<ConnectionProvider>().ros2;
+    if (ros2 == null) {
+      _cmdVelPub?.shutdown();
+      _cmdVelPub = null;
+      _cmdVelRos2 = null;
+      return null;
+    }
+    if (_cmdVelRos2 != ros2 || _cmdVelPub == null) {
+      _cmdVelPub?.shutdown();
+      _cmdVelRos2 = ros2;
+      _cmdVelPub = Publisher<geometry_msgs.Twist>(
+        name: '/cmd_vel_teleop',
+        type: geometry_msgs.Twist().fullType,
+        ros2: ros2,
+      );
+    }
+    return _cmdVelPub;
+  }
+
   @override
   void dispose() {
     _navStatusTimer?.cancel();
+    _cmdVelPub?.shutdown();
     super.dispose();
   }
 
@@ -150,6 +175,18 @@ class _TeleopScreenState extends State<TeleopScreen> {
   }
 
   Future<void> _onVelocity(double linear, double angular) async {
+    final pub = _getCmdVelPublisher();
+    final ros2 = _cmdVelRos2;
+    if (pub != null && ros2 != null && ros2.status == Status.connected) {
+      final twist = geometry_msgs.Twist(
+        linear: geometry_msgs.Vector3(x: linear, y: 0.0, z: 0.0),
+        angular: geometry_msgs.Vector3(x: 0.0, y: 0.0, z: angular),
+      );
+      pub.publish(twist);
+      if (_motionError != null && mounted) setState(() => _motionError = null);
+      return;
+    }
+
     try {
       await _api?.setVelocity(linear, angular);
       if (_motionError != null && mounted) setState(() => _motionError = null);
@@ -159,6 +196,15 @@ class _TeleopScreenState extends State<TeleopScreen> {
   }
 
   Future<void> _stop() async {
+    final pub = _getCmdVelPublisher();
+    final ros2 = _cmdVelRos2;
+    if (pub != null && ros2 != null && ros2.status == Status.connected) {
+      final stopTwist = geometry_msgs.Twist(
+        linear: geometry_msgs.Vector3(x: 0.0, y: 0.0, z: 0.0),
+        angular: geometry_msgs.Vector3(x: 0.0, y: 0.0, z: 0.0),
+      );
+      pub.publish(stopTwist);
+    }
     try {
       await _api?.stopMotion();
     } on SdkApiException {

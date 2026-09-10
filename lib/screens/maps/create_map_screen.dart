@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:provider/provider.dart';
+import 'package:ros2_api/ros2_api.dart';
 
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
@@ -104,12 +106,9 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Start Mapping?'),
         content: Text(
-          (_previousMap != null
-                  ? 'This stops navigation on "$_previousMap" and starts a new mapping session. '
-                      'You can cancel later to go back to navigation on that map.\n\n'
-                  : 'This starts a new mapping session.\n\n') +
-              'Place the robot at its dock before starting — wherever mapping '
-                  "begins is encoded as this map's dock position.",
+          '${_previousMap != null ? 'This stops navigation on "$_previousMap" and starts a new mapping session. You can cancel later to go back to navigation on that map.\n\n' : 'This starts a new mapping session.\n\n'}'
+          'Place the robot at its dock before starting — wherever mapping '
+          "begins is encoded as this map's dock position.",
         ),
         actions: [
           TextButton(
@@ -156,7 +155,47 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
     }
   }
 
+  Publisher<geometry_msgs.Twist>? _cmdVelPub;
+  Ros2? _cmdVelRos2;
+
+  Publisher<geometry_msgs.Twist>? _getCmdVelPublisher() {
+    final ros2 = context.read<ConnectionProvider>().ros2;
+    if (ros2 == null) {
+      _cmdVelPub?.shutdown();
+      _cmdVelPub = null;
+      _cmdVelRos2 = null;
+      return null;
+    }
+    if (_cmdVelRos2 != ros2 || _cmdVelPub == null) {
+      _cmdVelPub?.shutdown();
+      _cmdVelRos2 = ros2;
+      _cmdVelPub = Publisher<geometry_msgs.Twist>(
+        name: '/cmd_vel_teleop',
+        type: geometry_msgs.Twist().fullType,
+        ros2: ros2,
+      );
+    }
+    return _cmdVelPub;
+  }
+
+  @override
+  void dispose() {
+    _cmdVelPub?.shutdown();
+    super.dispose();
+  }
+
   Future<void> _onVelocity(double linear, double angular) async {
+    final pub = _getCmdVelPublisher();
+    final ros2 = _cmdVelRos2;
+    if (pub != null && ros2 != null && ros2.status == Status.connected) {
+      final twist = geometry_msgs.Twist(
+        linear: geometry_msgs.Vector3(x: linear, y: 0.0, z: 0.0),
+        angular: geometry_msgs.Vector3(x: 0.0, y: 0.0, z: angular),
+      );
+      pub.publish(twist);
+      return;
+    }
+
     final ip = context.read<ConnectionProvider>().robot?.ip;
     final api = _apiFor(ip);
     try {
@@ -168,6 +207,15 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   }
 
   Future<void> _stopMotion() async {
+    final pub = _getCmdVelPublisher();
+    final ros2 = _cmdVelRos2;
+    if (pub != null && ros2 != null && ros2.status == Status.connected) {
+      final stopTwist = geometry_msgs.Twist(
+        linear: geometry_msgs.Vector3(x: 0.0, y: 0.0, z: 0.0),
+        angular: geometry_msgs.Vector3(x: 0.0, y: 0.0, z: 0.0),
+      );
+      pub.publish(stopTwist);
+    }
     final ip = context.read<ConnectionProvider>().robot?.ip;
     try {
       await _apiFor(ip)?.stopMotion();
@@ -381,9 +429,6 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                           DrivePad(
                             onVelocity: _onVelocity,
                             onStop: _stopMotion,
-                            maxLinear: DrivePad.defaultMaxLinear * 0.5,
-                            maxAngular: DrivePad.defaultMaxAngular * 0.5,
-                            rotateAngular: DrivePad.defaultRotateAngular * 0.5,
                           ),
                           if (_error != null) ...[
                             const SizedBox(height: AppSpacing.sm),
