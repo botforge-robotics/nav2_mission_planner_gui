@@ -154,6 +154,7 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
             return ActionOutcome.failed;
           }
         }
+        if (!caller.mounted) return ActionOutcome.failed;
         return watchAndReportOutcome(
           context: caller,
           fetchStatus: widget.api.navigationStatus,
@@ -167,6 +168,7 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
         );
       },
     );
+    if (!mounted) return;
   }
 
   String _formatEta(double seconds) {

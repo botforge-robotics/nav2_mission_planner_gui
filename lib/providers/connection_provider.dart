@@ -24,6 +24,7 @@ class ConnectionProvider extends ChangeNotifier {
   final RobotConnectionStore _store;
   Ros2? _ros2;
   StreamSubscription<Status>? _statusSub;
+  Timer? _connectTimeoutTimer;
 
   SavedRobot? robot;
   Status status = Status.none;
@@ -33,6 +34,7 @@ class ConnectionProvider extends ChangeNotifier {
   bool get isConnected => status == Status.connected;
 
   Future<void> _connect() async {
+    _connectTimeoutTimer?.cancel();
     error = null;
     status = Status.connecting;
     notifyListeners();
@@ -46,13 +48,23 @@ class ConnectionProvider extends ChangeNotifier {
       return;
     }
 
+    _connectTimeoutTimer = Timer(const Duration(seconds: 7), () {
+      if (status == Status.connecting) {
+        error = 'Unable to reach ${saved.name} at ${saved.ip}.\n'
+            'Make sure the robot is powered on and on the same network.';
+        notifyListeners();
+      }
+    });
+
     final ros2 = Ros2(url: saved.rosbridgeUrl);
     _ros2 = ros2;
     _statusSub = ros2.statusStream.listen((s) {
       status = s;
       if (s == Status.errored || s == Status.closed) {
-        error = 'Lost connection to ${saved.name}.';
+        _connectTimeoutTimer?.cancel();
+        error = 'Lost connection to ${saved.name} (${saved.ip}).';
       } else if (s == Status.connected) {
+        _connectTimeoutTimer?.cancel();
         error = null;
       }
       notifyListeners();
@@ -61,6 +73,7 @@ class ConnectionProvider extends ChangeNotifier {
     try {
       ros2.connect();
     } catch (e) {
+      _connectTimeoutTimer?.cancel();
       error = 'Could not connect: $e';
       notifyListeners();
     }
@@ -70,6 +83,7 @@ class ConnectionProvider extends ChangeNotifier {
   /// a "Reconnect" affordance rather than making the caller re-derive the
   /// robot's address itself.
   Future<void> reconnect() async {
+    _connectTimeoutTimer?.cancel();
     await _ros2?.close();
     await _statusSub?.cancel();
     error = null;
@@ -77,10 +91,25 @@ class ConnectionProvider extends ChangeNotifier {
     await _connect();
   }
 
+  /// Updates the robot IP directly and connects immediately.
+  Future<void> updateRobotIp(String newIp, {String? name}) async {
+    _connectTimeoutTimer?.cancel();
+    await _ros2?.close();
+    await _statusSub?.cancel();
+    final updated = SavedRobot(
+      name: name ?? robot?.name ?? 'navpromini',
+      ip: newIp.trim(),
+    );
+    await _store.save(updated);
+    robot = updated;
+    await _connect();
+  }
+
   /// Disconnects and forgets the saved robot — used by Settings' "Run Setup
   /// Again". The caller is responsible for navigating to the setup flow
   /// afterwards; this only clears connection state and persisted storage.
   Future<void> forget() async {
+    _connectTimeoutTimer?.cancel();
     await _ros2?.close();
     await _statusSub?.cancel();
     await _store.clear();
@@ -93,6 +122,7 @@ class ConnectionProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _connectTimeoutTimer?.cancel();
     _statusSub?.cancel();
     _ros2?.close();
     super.dispose();

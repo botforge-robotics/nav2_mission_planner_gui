@@ -91,27 +91,6 @@ class _DashboardContent extends StatelessWidget {
                     ),
                   ],
                 ),
-              )
-            else
-              Container(
-                margin: const EdgeInsets.only(right: AppSpacing.sm),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.warning),
-                    SizedBox(width: 6),
-                    Text(
-                      'Not Localized',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.warning),
-                    ),
-                  ],
-                ),
               ),
             if (telemetry.dockStatus != null)
               Container(
@@ -555,13 +534,19 @@ class _StatGridDesktop extends StatelessWidget {
                 icon: Icons.my_location_rounded,
                 label: 'AMCL Localization',
                 value: Text(
-                  telemetry.localized ? 'LOCALIZED' : 'UNLOCALIZED',
+                  telemetry.localized
+                      ? 'LOCALIZED'
+                      : (sdkState.mode == 'navigation'
+                          ? 'UNLOCALIZED'
+                          : 'OFF (IDLE)'),
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: telemetry.localized
                         ? AppColors.success
-                        : AppColors.warning,
+                        : (sdkState.mode == 'navigation'
+                            ? AppColors.warning
+                            : AppColors.textTertiary),
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -625,8 +610,14 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
   /// True when SLAM is active — map publishes live even without a saved map name.
   bool get _isMappingActive => widget.sdkMode == 'mapping';
 
+  /// True when Nav2 navigation is actively running with an active map.
+  bool get _isNavigating =>
+      widget.sdkMode == 'navigation' &&
+      widget.mapName != null &&
+      widget.mapName != 'default';
+
   /// True when there's no active map and no mapping in progress.
-  bool get _noActiveMap => widget.mapName == null && !_isMappingActive;
+  bool get _noActiveMap => !_isMappingActive && !_isNavigating;
 
   @override
   Widget build(BuildContext context) {
@@ -636,7 +627,7 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
     // Derive card title
     final String title = _isMappingActive
         ? 'Mapping in progress…'
-        : (widget.mapName != null ? widget.mapName! : 'Live Map');
+        : (_isNavigating ? widget.mapName! : 'Map');
 
     return Card(
       child: Padding(
@@ -695,7 +686,7 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                               ),
                             ),
                           ),
-                          if (!telemetry.localized && !_isMappingActive)
+                          if (!telemetry.localized && _isNavigating)
                             Positioned(
                               left: AppSpacing.xs,
                               right: AppSpacing.xs,
