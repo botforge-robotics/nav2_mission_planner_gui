@@ -689,7 +689,12 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
                   child: Container(
-                    height: widget.height,
+                    height: (showNoActiveMap || isStoppingMapping)
+                        ? null
+                        : widget.height,
+                    constraints: (showNoActiveMap || isStoppingMapping)
+                        ? BoxConstraints(minHeight: widget.height)
+                        : null,
                     width: double.infinity,
                     color: AppColors.surfaceSunken,
                     child: isStoppingMapping
@@ -813,7 +818,10 @@ class _NoActiveMapPrompt extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.lg,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -837,8 +845,10 @@ class _NoActiveMapPrompt extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.md),
-            Row(
-              mainAxisSize: MainAxisSize.min,
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              alignment: WrapAlignment.center,
               children: [
                 OutlinedButton.icon(
                   onPressed: () => Navigator.of(context).push(
@@ -847,7 +857,6 @@ class _NoActiveMapPrompt extends StatelessWidget {
                   icon: const Icon(Icons.layers_rounded, size: 16),
                   label: const Text('My Maps'),
                 ),
-                const SizedBox(width: AppSpacing.sm),
                 FilledButton.icon(
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(
