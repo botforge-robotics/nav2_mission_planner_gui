@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../providers/connection_provider.dart';
+import '../screens/setup/setup_power_screen.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_theme.dart';
 import 'design/radiating_icon.dart';
@@ -85,6 +87,16 @@ class _ErrorState extends StatelessWidget {
 
   final ConnectionProvider connection;
 
+  Future<void> _switchRobot(BuildContext context) async {
+    final conn = context.read<ConnectionProvider>();
+    await conn.forget();
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const SetupPowerScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -113,6 +125,15 @@ class _ErrorState extends StatelessWidget {
         const SizedBox(height: AppSpacing.lg),
         ElevatedButton(
             onPressed: connection.reconnect, child: const Text('Retry')),
+        const SizedBox(height: AppSpacing.sm),
+        TextButton.icon(
+          onPressed: () => _switchRobot(context),
+          icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+          label: const Text('Connect to a different robot'),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.textSecondary,
+          ),
+        ),
       ],
     );
   }

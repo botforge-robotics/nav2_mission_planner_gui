@@ -20,6 +20,7 @@ import '../robot_status/robot_status_screen.dart';
 import 'help_about_screen.dart';
 import 'software_update_screen.dart';
 import 'tools_api_screen.dart';
+import '../setup/setup_power_screen.dart';
 
 /// Reference §13/§16 (Settings). Only entries backed by something real are
 /// full screens here: Alerts & Fault Log (already built — reused, not
@@ -122,6 +123,39 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                   subtitle: 'Robot companion packages & GUI application updates',
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const SoftwareUpdateScreen())),
+                ),
+                _SettingsTile(
+                  icon: Icons.swap_horiz_rounded,
+                  title: 'Change Robot',
+                  subtitle: 'Forget saved robot and connect to a different one',
+                  onTap: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Change Robot?'),
+                        content: const Text(
+                            'This will forget the currently saved robot. '
+                            'You can reconnect to it or scan for a new one.'),
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Cancel')),
+                          TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('Forget & Change')),
+                        ],
+                      ),
+                    );
+                    if (confirmed != true) return;
+                    if (!context.mounted) return;
+                    await context.read<ConnectionProvider>().forget();
+                    if (!context.mounted) return;
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                          builder: (_) => const SetupPowerScreen()),
+                      (route) => false,
+                    );
+                  },
                 ),
                 _SettingsTile(
                   icon: Icons.help_outline_rounded,
