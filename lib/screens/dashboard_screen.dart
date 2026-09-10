@@ -25,6 +25,8 @@ import '../widgets/sdk_state_builder.dart';
 import 'alerts/alerts_log_screen.dart';
 import 'dock/dock_charge_screen.dart';
 import 'maps/map_view_screen.dart';
+import 'maps/maps_list_screen.dart';
+import 'maps/create_map_screen.dart';
 
 /// Reference §4 (Dashboard & Home). Core telemetry (battery, speed,
 /// localization, dock) comes from direct rosbridge subscriptions via
@@ -198,6 +200,7 @@ class _DashboardContent extends StatelessWidget {
                               _MapPreviewCard(
                                 ros2: connection.ros2!,
                                 mapName: sdkState.mapName,
+                                sdkMode: sdkState.mode,
                                 robotIp: robot.ip,
                                 height: 440,
                                 interactive: true,
@@ -266,6 +269,7 @@ class _DashboardContent extends StatelessWidget {
                           child: _MapPreviewCard(
                               ros2: connection.ros2!,
                               mapName: sdkState.mapName,
+                              sdkMode: sdkState.mode,
                               robotIp: robot.ip),
                         ),
                         const SizedBox(height: AppSpacing.lg),
@@ -587,12 +591,14 @@ class _MapPreviewCard extends StatefulWidget {
     required this.ros2,
     required this.mapName,
     required this.robotIp,
+    this.sdkMode,
     this.height = 140,
     this.interactive = false,
   });
 
   final Ros2 ros2;
   final String? mapName;
+  final String? sdkMode;
   final String robotIp;
   final double height;
   final bool interactive;
@@ -610,19 +616,28 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadDockPose());
   }
 
-  /// Same fallback Map View's own live view uses — see the doc on
-  /// [OccupancyGridView.dockPoseOverride] for why the live `/dock_pose`
-  /// topic alone isn't reliable enough to draw the dock pin from.
   Future<void> _loadDockPose() async {
     final dock = await fetchDockPose(SdkApiService(widget.robotIp));
     if (!mounted || dock == null) return;
     setState(() => _dockPose = dock);
   }
 
+  /// True when SLAM is active — map publishes live even without a saved map name.
+  bool get _isMappingActive => widget.sdkMode == 'mapping';
+
+  /// True when there's no active map and no mapping in progress.
+  bool get _noActiveMap => widget.mapName == null && !_isMappingActive;
+
   @override
   Widget build(BuildContext context) {
     final telemetry = context.watch<RobotTelemetryProvider>();
     final api = SdkApiService(widget.robotIp);
+
+    // Derive card title
+    final String title = _isMappingActive
+        ? 'Mapping in progress…'
+        : (widget.mapName != null ? widget.mapName! : 'Live Map');
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -633,19 +648,18 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
               children: [
                 Expanded(
                   child: Text(
-                    widget.mapName != null
-                        ? 'LiveMap-${widget.mapName}'
-                        : 'Live Map',
+                    title,
                     style: Theme.of(context).textTheme.titleMedium,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                TextButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const MapViewScreen()),
+                if (!_noActiveMap)
+                  TextButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MapViewScreen()),
+                    ),
+                    child: const Text('Open Map'),
                   ),
-                  child: const Text('Open Map'),
-                ),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -655,58 +669,62 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                 height: widget.height,
                 width: double.infinity,
                 color: AppColors.surfaceSunken,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: ValueListenableBuilder<Set<MapLayer>>(
-                        valueListenable: MapLayersController.instance,
-                        builder: (context, visibleLayers, _) =>
-                            OccupancyGridView(
-                          ros2: widget.ros2,
-                          interactive: widget.interactive,
-                          showDock: visibleLayers.contains(MapLayer.dock),
-                          showPath: visibleLayers.contains(MapLayer.path),
-                          showLaserScan:
-                              visibleLayers.contains(MapLayer.laserScan),
-                          initialPose: telemetry.rawPose,
-                          initialPath: telemetry.currentPath,
-                          showGlobalCostmap:
-                              visibleLayers.contains(MapLayer.globalCostmap),
-                          showLocalCostmap:
-                              visibleLayers.contains(MapLayer.localCostmap),
-                          dockPoseOverride: _dockPose,
-                          showLocalizationBadge: false,
-                        ),
-                      ),
-                    ),
-                    if (!telemetry.localized)
-                      Positioned(
-                        left: AppSpacing.xs,
-                        right: AppSpacing.xs,
-                        top: AppSpacing.xs,
-                        child: NotLocalizedBanner(
-                          api: api,
-                          onDecline: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text(
-                                    'Open Map to set the initial pose.'),
-                                action: SnackBarAction(
-                                  label: 'Open Map',
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const MapViewScreen(
-                                          initialPosePicking: true),
-                                    ),
-                                  ),
-                                ),
+                child: _noActiveMap
+                    ? _NoActiveMapPrompt(robotIp: widget.robotIp)
+                    : Stack(
+                        children: [
+                          Positioned.fill(
+                            child: ValueListenableBuilder<Set<MapLayer>>(
+                              valueListenable: MapLayersController.instance,
+                              builder: (context, visibleLayers, _) =>
+                                  OccupancyGridView(
+                                ros2: widget.ros2,
+                                interactive: widget.interactive,
+                                showDock: visibleLayers.contains(MapLayer.dock),
+                                showPath: visibleLayers.contains(MapLayer.path),
+                                showLaserScan:
+                                    visibleLayers.contains(MapLayer.laserScan),
+                                initialPose: telemetry.rawPose,
+                                initialPath: telemetry.currentPath,
+                                showGlobalCostmap: visibleLayers
+                                    .contains(MapLayer.globalCostmap),
+                                showLocalCostmap: visibleLayers
+                                    .contains(MapLayer.localCostmap),
+                                dockPoseOverride: _dockPose,
+                                showLocalizationBadge: false,
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          ),
+                          if (!telemetry.localized && !_isMappingActive)
+                            Positioned(
+                              left: AppSpacing.xs,
+                              right: AppSpacing.xs,
+                              top: AppSpacing.xs,
+                              child: NotLocalizedBanner(
+                                api: api,
+                                onDecline: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text(
+                                          'Open Map to set the initial pose.'),
+                                      action: SnackBarAction(
+                                        label: 'Open Map',
+                                        onPressed: () =>
+                                            Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const MapViewScreen(
+                                                    initialPosePicking: true),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                        ],
                       ),
-                  ],
-                ),
               ),
             ),
           ],
@@ -715,6 +733,71 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
     );
   }
 }
+
+/// Shown in the map card when there is no active map and the robot is not
+/// currently mapping. Gives the user two clear next steps: activate a saved
+/// map or create a new one — instead of a blank dark box with no guidance.
+class _NoActiveMapPrompt extends StatelessWidget {
+  const _NoActiveMapPrompt({required this.robotIp});
+  final String robotIp;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.map_outlined,
+              size: 36,
+              color: AppColors.textSecondary.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const Text(
+              'No active map',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            const Text(
+              'Activate a saved map or create a new one to start navigating.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const MapsListScreen()),
+                  ),
+                  icon: const Icon(Icons.layers_rounded, size: 16),
+                  label: const Text('My Maps'),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const CreateMapScreen()),
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text('Create Map'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
 
 /// Low-battery banner matching reference §"Low Battery" — a real threshold
 /// on real telemetry (not the fabricated 15% from the mockup's own text;
