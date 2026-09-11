@@ -16,6 +16,7 @@ import '../../utils/mission_step_summary.dart';
 import '../../widgets/app_shell/app_shell.dart';
 import '../../widgets/map/occupancy_grid_view.dart';
 import '../maps/pick_map_position_screen.dart';
+import 'graph/mission_graph_editor_screen.dart';
 
 /// Reference §7's Mission Planner "Add Waypoint" step, built on the real
 /// step schema navpromini_sdk's own mission runner understands
@@ -1153,6 +1154,22 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                 ? 'Mission Studio · Edit Mission'
                 : 'Mission Studio · New Mission'),
           actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.account_tree_outlined, size: 16),
+                label: const Text('Visual Node Editor'),
+                onPressed: () {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (_) => MissionGraphEditorScreen(
+                        existingMission: widget.existing,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.md),
               child: ElevatedButton.icon(

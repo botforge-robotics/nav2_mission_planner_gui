@@ -335,6 +335,39 @@ class SdkApiService {
     return resp['mission'] as Map<String, dynamic>;
   }
 
+  /// Saves a visual node-and-edge graph mission.
+  Future<Map<String, dynamic>> putGraphMission(
+      Map<String, dynamic> missionData) async {
+    final resp = await _send('POST', '/api/v1/missions', body: missionData);
+    return resp['mission'] as Map<String, dynamic>;
+  }
+
+  /// Fetches the catalog of all available graph node types from the robot SDK.
+  Future<Map<String, dynamic>> fetchNodeTypes() async {
+    final resp = await _send('GET', '/api/v1/missions/node_types');
+    return (resp['node_types'] as Map? ?? const {}).cast<String, dynamic>();
+  }
+
+  /// Fetches currently active on-screen human interaction, if any.
+  Future<Map<String, dynamic>?> fetchActiveUiInteraction() async {
+    final resp = await _send('GET', '/api/v1/missions/active_ui_interaction');
+    return resp['active_interaction'] as Map<String, dynamic>?;
+  }
+
+  /// Submits operator response for an on-screen form, choice, or kiosk prompt.
+  Future<void> submitUiResponse(
+    String interactionId, {
+    String action = 'submit',
+    String? selected,
+    Map<String, dynamic>? formData,
+  }) =>
+      _send('POST', '/api/v1/missions/ui_response', body: {
+        'interaction_id': interactionId,
+        'action': action,
+        if (selected != null) 'selected': selected,
+        if (formData != null) 'form_data': formData,
+      });
+
   Future<void> deleteMission(String id) =>
       _send('DELETE', '/api/v1/missions/${Uri.encodeComponent(id)}');
 

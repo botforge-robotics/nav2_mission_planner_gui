@@ -14,6 +14,7 @@ import '../../widgets/design/status_pulse.dart';
 import 'mission_detail_screen.dart';
 import 'mission_editor_screen.dart';
 import 'schedules_list_screen.dart';
+import 'graph/mission_graph_editor_screen.dart';
 
 /// Reference §7 (Mission Planner). Missions — named, ordered step sequences
 /// with server-side start/pause/resume/cancel — are genuinely SDK-exclusive
@@ -116,6 +117,24 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
               ),
             ),
             Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+                icon: const Icon(Icons.account_tree_outlined, size: 18),
+                label: const Text('Node Editor'),
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const MissionGraphEditorScreen()),
+                  );
+                  _load();
+                },
+              ),
+            ),
+            Padding(
               padding: const EdgeInsets.only(right: AppSpacing.md),
               child: FilledButton.icon(
                 style: FilledButton.styleFrom(
@@ -156,16 +175,24 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
                 onRetry: _load,
                 onCreateMission: _createMission,
                 onEdit: (mission) async {
+                  final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
                   final changed = await Navigator.of(context).push<bool>(
                     MaterialPageRoute(
-                        builder: (_) => MissionEditorScreen(existing: mission)),
+                      builder: (_) => isGraph
+                          ? MissionGraphEditorScreen(existingMission: mission)
+                          : MissionEditorScreen(existing: mission),
+                    ),
                   );
                   if (changed == true) _load();
                 },
                 onOpen: (mission) async {
+                  final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
                   final changed = await Navigator.of(context).push<bool>(
                     MaterialPageRoute(
-                        builder: (_) => MissionDetailScreen(mission: mission)),
+                      builder: (_) => isGraph
+                          ? MissionGraphEditorScreen(existingMission: mission)
+                          : MissionDetailScreen(mission: mission),
+                    ),
                   );
                   if (changed == true) _load();
                 },
@@ -279,7 +306,10 @@ class _Body extends StatelessWidget {
         itemBuilder: (context, i) {
           final mission = missions![i];
           final id = mission['id'] as String;
+          final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
           final steps = (mission['steps'] as List? ?? const [])
+              .cast<Map<String, dynamic>>();
+          final nodes = (mission['nodes'] as List? ?? const [])
               .cast<Map<String, dynamic>>();
           final isActive = id == activeId && isRunning;
           final isCompleted = id == activeId && activeState == 'completed';
@@ -288,9 +318,11 @@ class _Body extends StatelessWidget {
           final loopForever = mission['loop_forever'] == true;
           final loopCount = (mission['loop_count'] as num?)?.toInt() ?? 1;
           final color =
-              status == null ? AppColors.primary : _statusColor(status);
+              status == null ? (isGraph ? const Color(0xFF00E5FF) : AppColors.primary) : _statusColor(status);
 
-          var subtitle = '${steps.length} step${steps.length == 1 ? '' : 's'}';
+          var subtitle = isGraph
+              ? '${nodes.length} node${nodes.length == 1 ? '' : 's'} · Visual Graph'
+              : '${steps.length} step${steps.length == 1 ? '' : 's'}';
           if (isActive && isLowBatteryPaused) {
             subtitle += ' · ⚡ Auto-charging at dock';
           } else if (loopForever) {
@@ -581,7 +613,10 @@ class _Body extends StatelessWidget {
               itemBuilder: (context, i) {
                 final mission = missions[i];
                 final id = mission['id'] as String;
+                final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
                 final steps = (mission['steps'] as List? ?? const [])
+                    .cast<Map<String, dynamic>>();
+                final nodes = (mission['nodes'] as List? ?? const [])
                     .cast<Map<String, dynamic>>();
                 final isActive = id == activeId && isRunning;
                 final isCompletedCard = id == activeId && isCompleted;
@@ -592,10 +627,11 @@ class _Body extends StatelessWidget {
                 final loopCount =
                     (mission['loop_count'] as num?)?.toInt() ?? 1;
                 final color =
-                    status == null ? AppColors.primary : _statusColor(status);
+                    status == null ? (isGraph ? const Color(0xFF00E5FF) : AppColors.primary) : _statusColor(status);
 
-                var subtitle =
-                    '${steps.length} step${steps.length == 1 ? '' : 's'}';
+                var subtitle = isGraph
+                    ? '${nodes.length} node${nodes.length == 1 ? '' : 's'} · Visual Graph'
+                    : '${steps.length} step${steps.length == 1 ? '' : 's'}';
                 if (loopForever) {
                   subtitle += ' · repeats forever';
                 } else if (loopCount > 1) {
@@ -627,8 +663,10 @@ class _Body extends StatelessWidget {
                             CircleAvatar(
                               radius: 18,
                               backgroundColor: color.withValues(alpha: 0.12),
-                              child: Icon(Icons.route_rounded,
-                                  color: color, size: 20),
+                              child: Icon(
+                                  isGraph ? Icons.account_tree_outlined : Icons.route_rounded,
+                                  color: color,
+                                  size: 20),
                             ),
                             const SizedBox(width: AppSpacing.sm),
                             Expanded(
