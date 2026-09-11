@@ -156,6 +156,17 @@ class GraphNode {
           NodePort(id: 'succeeded', label: 'Succeeded', isInput: false, color: Color(0xFF4CAF50)),
           NodePort(id: 'failed', label: 'Failed', isInput: false, color: Color(0xFFF44336)),
         ];
+      case 'publish_topic':
+        return const [NodePort(id: 'next', label: 'Next', isInput: false, color: Color(0xFF4CAF50))];
+      case 'relocalize':
+        return const [
+          NodePort(id: 'success', label: 'Success', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'failed', label: 'Failed', isInput: false, color: Color(0xFFF44336)),
+        ];
+      case 'cancel_navigation':
+      case 'emergency_stop':
+      case 'jog_motion':
+        return const [NodePort(id: 'next', label: 'Next', isInput: false, color: Color(0xFF4CAF50))];
       case 'ui_media':
         return const [
           NodePort(id: 'completed', label: 'Completed', isInput: false, color: Color(0xFF4CAF50)),
@@ -165,6 +176,13 @@ class GraphNode {
       case 'ui_speech':
         return const [
           NodePort(id: 'done', label: 'Done', isInput: false, color: Color(0xFF4CAF50)),
+        ];
+      case 'ui_choice':
+        final opts = (params['options'] as List? ?? ['Yes', 'No']).map((e) => e.toString()).toList();
+        return [
+          for (final opt in opts)
+            NodePort(id: opt.toLowerCase(), label: opt, isInput: false, color: const Color(0xFF4CAF50)),
+          const NodePort(id: 'timeout', label: 'Timeout', isInput: false, color: Color(0xFFFF9800)),
         ];
       case 'ui_interaction':
         final subtype = params['subtype'] as String? ?? 'dynamic_form';

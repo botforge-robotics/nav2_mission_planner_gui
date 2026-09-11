@@ -9,11 +9,13 @@ class MissionNodeInspector extends StatefulWidget {
     super.key,
     required this.node,
     required this.onChanged,
+    this.onDelete,
     this.readOnly = false,
   });
 
   final GraphNode node;
   final VoidCallback onChanged;
+  final VoidCallback? onDelete;
   final bool readOnly;
 
   @override
@@ -78,6 +80,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     ),
                   ),
                 ),
+                if (widget.onDelete != null && node.type != 'start' && !widget.readOnly)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 20),
+                    tooltip: 'Delete Node',
+                    onPressed: widget.onDelete,
+                  ),
               ],
             ),
           ),
@@ -167,6 +175,20 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           _buildUiMediaInspector()
         else if (node.type == 'ui_speech')
           _buildUiSpeechInspector()
+        else if (node.type == 'call_service')
+          _buildCallServiceInspector()
+        else if (node.type == 'call_action')
+          _buildCallActionInspector()
+        else if (node.type == 'publish_topic')
+          _buildPublishTopicInspector()
+        else if (node.type == 'relocalize')
+          _buildRelocalizeInspector()
+        else if (node.type == 'jog_motion')
+          _buildJogMotionInspector()
+        else if (node.type == 'emergency_stop')
+          _buildEmergencyStopInspector()
+        else if (node.type == 'cancel_navigation')
+          _buildCancelNavigationInspector()
         else
           Text(
             'Node ID: ${node.id}\nNo extra parameters required.',
@@ -656,6 +678,96 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       const Text('Req', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                     ],
                   ),
+                  if (fields[i].type == 'select') ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Options', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: fields[i].options.map((opt) {
+                              return Chip(
+                                label: Text(opt, style: const TextStyle(fontSize: 11)),
+                                padding: EdgeInsets.zero,
+                                backgroundColor: AppColors.surfaceSunken,
+                                deleteIcon: const Icon(Icons.close, size: 14),
+                                onDeleted: widget.readOnly ? null : () {
+                                  setState(() {
+                                    fields[i].options.remove(opt);
+                                    if (fields[i].defaultValue == opt) fields[i].defaultValue = null;
+                                    widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
+                                  });
+                                  widget.onChanged();
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  decoration: InputDecoration(
+                                    isDense: true,
+                                    hintText: 'New option...',
+                                    hintStyle: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                                  ),
+                                  style: const TextStyle(fontSize: 11),
+                                  onSubmitted: widget.readOnly ? null : (val) {
+                                    if (val.trim().isNotEmpty && !fields[i].options.contains(val.trim())) {
+                                      setState(() {
+                                        fields[i].options.add(val.trim());
+                                        widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
+                                      });
+                                      widget.onChanged();
+                                    }
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            key: ValueKey('${widget.node.id}_field_${i}_def_${fields[i].defaultValue}'),
+                            isExpanded: true,
+                            initialValue: fields[i].options.contains(fields[i].defaultValue) ? fields[i].defaultValue : null,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              labelText: 'Default Value',
+                              labelStyle: const TextStyle(fontSize: 11),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                            style: const TextStyle(fontSize: 11, color: AppColors.textPrimary),
+                            items: [
+                              const DropdownMenuItem<String>(value: null, child: Text('None')),
+                              for (final opt in fields[i].options)
+                                DropdownMenuItem(value: opt, child: Text(opt)),
+                            ],
+                            onChanged: widget.readOnly ? null : (val) {
+                              setState(() {
+                                fields[i].defaultValue = val;
+                                widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
+                              });
+                              widget.onChanged();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -762,13 +874,16 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   Widget _buildCallApiInspector() {
     final method = widget.node.params['method'] as String? ?? 'POST';
     final url = widget.node.params['url'] as String? ?? '';
+    final token = widget.node.params['bearer_token'] as String? ?? '';
+    final headers = widget.node.params['headers'] as String? ?? '{}';
+    final payload = widget.node.params['payload'] as String? ?? '{}';
 
     return Column(
       children: [
         DropdownButtonFormField<String>(
           key: ValueKey('${widget.node.id}_method_$method'),
           isExpanded: true,
-          initialValue: ['GET', 'POST', 'PUT', 'DELETE'].contains(method) ? method : 'POST',
+          initialValue: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].contains(method) ? method : 'POST',
           dropdownColor: AppColors.surface,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
@@ -786,6 +901,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             DropdownMenuItem(value: 'POST', child: Text('POST')),
             DropdownMenuItem(value: 'PUT', child: Text('PUT')),
             DropdownMenuItem(value: 'DELETE', child: Text('DELETE')),
+            DropdownMenuItem(value: 'PATCH', child: Text('PATCH')),
           ],
           onChanged: widget.readOnly
               ? null
@@ -800,7 +916,6 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Endpoint URL',
-            hintText: 'https://...',
             labelStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -811,6 +926,78 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           ),
           onChanged: (v) {
             widget.node.params['url'] = v;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: token,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Bearer Auth Token',
+            prefixIcon: const Icon(Icons.key, size: 16),
+            labelStyle: const TextStyle(color: AppColors.textSecondary),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          onChanged: (v) {
+            widget.node.params['bearer_token'] = v;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: headers,
+          maxLines: 2,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Headers (JSON)',
+            labelStyle: const TextStyle(color: AppColors.textSecondary),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          onChanged: (v) {
+            widget.node.params['headers'] = v;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: payload,
+          maxLines: 3,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Request Payload / Body (JSON)',
+            labelStyle: const TextStyle(color: AppColors.textSecondary),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          onChanged: (v) {
+            widget.node.params['payload'] = v;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildNumberSlider(
+          label: 'Timeout (seconds)',
+          value: (widget.node.params['timeout_sec'] as num?)?.toDouble() ?? 10.0,
+          min: 1.0,
+          max: 120.0,
+          divisions: 119,
+          onChanged: (v) {
+            widget.node.params['timeout_sec'] = v;
             widget.onChanged();
           },
         ),
@@ -1429,6 +1616,182 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 },
         ),
       ],
+    );
+  }
+
+  Widget _buildCallServiceInspector() {
+    return Column(
+      children: [
+        _buildTextField('Service Name', 'service_name', '/set_mode'),
+        const SizedBox(height: 12),
+        _buildTextField('Service Type', 'service_type', 'std_srvs/srv/SetBool'),
+        const SizedBox(height: 12),
+        _buildTextField('Request Payload (JSON)', 'payload', '{"data": true}', maxLines: 3),
+        const SizedBox(height: 12),
+        _buildNumberSlider(
+          label: 'Timeout (seconds)',
+          value: (widget.node.params['timeout_sec'] as num?)?.toDouble() ?? 5.0,
+          min: 1.0,
+          max: 60.0,
+          divisions: 59,
+          onChanged: (v) {
+            widget.node.params['timeout_sec'] = v;
+            widget.onChanged();
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCallActionInspector() {
+    return Column(
+      children: [
+        _buildTextField('Action Name', 'action_name', '/navigate_to_pose'),
+        const SizedBox(height: 12),
+        _buildTextField('Action Type', 'action_type', 'nav2_msgs/action/NavigateToPose'),
+        const SizedBox(height: 12),
+        _buildTextField('Goal Payload (JSON)', 'payload', '{}', maxLines: 3),
+        const SizedBox(height: 12),
+        _buildNumberSlider(
+          label: 'Timeout (seconds)',
+          value: (widget.node.params['timeout_sec'] as num?)?.toDouble() ?? 60.0,
+          min: 1.0,
+          max: 300.0,
+          divisions: 29,
+          onChanged: (v) {
+            widget.node.params['timeout_sec'] = v;
+            widget.onChanged();
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPublishTopicInspector() {
+    return Column(
+      children: [
+        _buildTextField('Topic Name', 'topic_name', '/cmd_vel'),
+        const SizedBox(height: 12),
+        _buildTextField('Message Type', 'message_type', 'geometry_msgs/msg/Twist'),
+        const SizedBox(height: 12),
+        _buildTextField('Message Payload (JSON)', 'payload', '{}', maxLines: 3),
+      ],
+    );
+  }
+
+  Widget _buildRelocalizeInspector() {
+    final mode = widget.node.params['mode'] as String? ?? 'global_scan';
+    return DropdownButtonFormField<String>(
+      key: ValueKey('${widget.node.id}_mode_$mode'),
+      isExpanded: true,
+      initialValue: ['global_scan', 'dock_seed'].contains(mode) ? mode : 'global_scan',
+      dropdownColor: AppColors.surface,
+      decoration: InputDecoration(
+        labelText: 'Relocalization Mode',
+        labelStyle: const TextStyle(color: AppColors.textSecondary),
+        filled: true,
+        fillColor: AppColors.surfaceSunken,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+      ),
+      items: const [
+        DropdownMenuItem(value: 'global_scan', child: Text('Global Scan')),
+        DropdownMenuItem(value: 'dock_seed', child: Text('Dock Seed')),
+      ],
+      onChanged: widget.readOnly ? null : (v) {
+        widget.node.params['mode'] = v;
+        widget.onChanged();
+      },
+    );
+  }
+
+  Widget _buildJogMotionInspector() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: _buildTextField('Linear Vel (m/s)', 'linear_vel', '0.0')),
+            const SizedBox(width: 8),
+            Expanded(child: _buildTextField('Angular Vel (rad/s)', 'angular_vel', '0.0')),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildNumberSlider(
+          label: 'Duration (seconds)',
+          value: (widget.node.params['duration_sec'] as num?)?.toDouble() ?? 1.0,
+          min: 0.1,
+          max: 10.0,
+          divisions: 99,
+          onChanged: (v) {
+            widget.node.params['duration_sec'] = v;
+            widget.onChanged();
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmergencyStopInspector() {
+    final sound = widget.node.params['sound_alert'] as bool? ?? true;
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Play Sound Alert', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+      value: sound,
+      activeThumbColor: AppColors.primary,
+      onChanged: widget.readOnly ? null : (v) {
+        setState(() => widget.node.params['sound_alert'] = v);
+        widget.onChanged();
+      },
+    );
+  }
+
+  Widget _buildCancelNavigationInspector() {
+    final haltType = widget.node.params['halt_type'] as String? ?? 'abort_goal';
+    return DropdownButtonFormField<String>(
+      key: ValueKey('${widget.node.id}_halt_$haltType'),
+      isExpanded: true,
+      initialValue: ['abort_goal', 'zero_vel'].contains(haltType) ? haltType : 'abort_goal',
+      dropdownColor: AppColors.surface,
+      decoration: InputDecoration(
+        labelText: 'Halt Type',
+        labelStyle: const TextStyle(color: AppColors.textSecondary),
+        filled: true,
+        fillColor: AppColors.surfaceSunken,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+      ),
+      items: const [
+        DropdownMenuItem(value: 'abort_goal', child: Text('Abort Active Goal')),
+        DropdownMenuItem(value: 'zero_vel', child: Text('Send Zero Velocity')),
+      ],
+      onChanged: widget.readOnly ? null : (v) {
+        widget.node.params['halt_type'] = v;
+        widget.onChanged();
+      },
+    );
+  }
+
+  Widget _buildTextField(String label, String paramKey, String defaultVal, {int maxLines = 1}) {
+    return TextFormField(
+      initialValue: widget.node.params[paramKey]?.toString() ?? defaultVal,
+      maxLines: maxLines,
+      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        filled: true,
+        fillColor: AppColors.surfaceSunken,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+      ),
+      onChanged: (v) {
+        if (double.tryParse(v) != null && !v.contains('{') && !v.contains('[')) {
+          widget.node.params[paramKey] = double.parse(v);
+        } else {
+          widget.node.params[paramKey] = v;
+        }
+        widget.onChanged();
+      },
     );
   }
 

@@ -1,3 +1,4 @@
+import "package:flutter/services.dart";
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -358,12 +359,28 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         defaultLabel = 'Go to Coordinates';
         defaultParams = {'x': 0.0, 'y': 0.0, 'theta': 0.0, 'tolerance_m': 0.25};
         break;
+      case 'relocalize':
+        defaultLabel = 'Relocalize';
+        defaultParams = {'mode': 'global_scan'};
+        break;
+      case 'cancel_navigation':
+        defaultLabel = 'Cancel Goal';
+        defaultParams = {'halt_type': 'abort_goal'};
+        break;
       case 'dock':
         defaultLabel = 'Dock to Charger';
         defaultParams = {'timeout_sec': 60.0};
         break;
       case 'undock':
         defaultLabel = 'Undock Robot';
+        break;
+      case 'jog_motion':
+        defaultLabel = 'Jog / Move Base';
+        defaultParams = {'linear_vel': 0.0, 'angular_vel': 0.0, 'duration_sec': 1.0};
+        break;
+      case 'emergency_stop':
+        defaultLabel = 'Emergency Stop';
+        defaultParams = {'sound_alert': true};
         break;
       case 'wait':
         defaultLabel = 'Wait / Delay';
@@ -387,6 +404,16 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           ],
         };
         break;
+      case 'ui_choice':
+        defaultLabel = 'User Choice Dialog';
+        defaultParams = {
+          'target': 'robot_screen',
+          'subtype': 'choice',
+          'title': 'Make a Choice',
+          'timeout_sec': 60.0,
+          'options': ['Yes', 'No']
+        };
+        break;
       case 'ui_media':
         defaultLabel = 'Multimedia Player';
         defaultParams = {
@@ -403,7 +430,40 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         break;
       case 'call_api':
         defaultLabel = 'Webhook / HTTP';
-        defaultParams = {'method': 'POST', 'url': 'https://api.example.com/log', 'timeout_sec': 10.0};
+        defaultParams = {
+          'method': 'POST',
+          'url': 'https://api.example.com/log',
+          'bearer_token': '',
+          'headers': '{}',
+          'payload': '{}',
+          'timeout_sec': 10.0
+        };
+        break;
+      case 'call_service':
+        defaultLabel = 'ROS 2 Service';
+        defaultParams = {
+          'service_name': '/set_mode',
+          'service_type': 'std_srvs/srv/SetBool',
+          'payload': '{"data": true}',
+          'timeout_sec': 5.0
+        };
+        break;
+      case 'call_action':
+        defaultLabel = 'ROS 2 Action';
+        defaultParams = {
+          'action_name': '/navigate_to_pose',
+          'action_type': 'nav2_msgs/action/NavigateToPose',
+          'payload': '{}',
+          'timeout_sec': 60.0
+        };
+        break;
+      case 'publish_topic':
+        defaultLabel = 'ROS 2 Publisher';
+        defaultParams = {
+          'topic_name': '/cmd_vel',
+          'message_type': 'geometry_msgs/msg/Twist',
+          'payload': '{}'
+        };
         break;
       case 'notify':
         defaultLabel = 'OLED / LED Signal';
@@ -489,6 +549,20 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     );
   }
 
+  void _deleteNode(GraphNode node) {
+    if (node.type == 'start') return;
+    setState(() {
+      _graph.nodes.removeWhere((n) => n.id == node.id);
+      _graph.edges.removeWhere((e) => e.fromNode == node.id || e.toNode == node.id);
+      if (_graph.entrypoint == node.id) {
+        _graph.entrypoint = _graph.nodes.isNotEmpty ? _graph.nodes.first.id : null;
+      }
+      if (_selectedNode?.id == node.id) {
+        _selectedNode = null;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -501,20 +575,32 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
           // Center Graph Canvas with robot interaction banner
           Expanded(
-            child: Column(
-              children: [
-                if (_activeRobotInteraction != null)
-                  _buildRobotInteractionBanner(),
-                Expanded(
-                  child: MissionGraphCanvas(
-                    graph: _graph,
-                    selectedNode: _selectedNode,
-                    activeNodeId: _activeNodeId,
-                    onSelectNode: (node) => setState(() => _selectedNode = node),
-                    onGraphChanged: () => setState(() {}),
+            child: Focus(
+              autofocus: true,
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent && _selectedNode != null && _selectedNode!.type != 'start') {
+                  if (event.logicalKey == LogicalKeyboardKey.delete || event.logicalKey == LogicalKeyboardKey.backspace) {
+                    _deleteNode(_selectedNode!);
+                    return KeyEventResult.handled;
+                  }
+                }
+                return KeyEventResult.ignored;
+              },
+              child: Column(
+                children: [
+                  if (_activeRobotInteraction != null)
+                    _buildRobotInteractionBanner(),
+                  Expanded(
+                    child: MissionGraphCanvas(
+                      graph: _graph,
+                      selectedNode: _selectedNode,
+                      activeNodeId: _activeNodeId,
+                      onSelectNode: (node) => setState(() => _selectedNode = node),
+                      onGraphChanged: () => setState(() {}),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -743,15 +829,22 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
               children: [
-                _buildPaletteCategory('Navigation & Motion', [
-                  _PaletteItem('navigate_waypoint', 'Waypoint Goal', 'Go to named waypoint', Icons.place_outlined, const Color(0xFF2563EB)),
-                  _PaletteItem('navigate_coordinates', 'Coordinates Goal', 'Go to (x, y, theta)', Icons.navigation_outlined, const Color(0xFF0284C7)),
-                  _PaletteItem('patrol_loop', 'Patrol Loop', 'Multi-point perimeter patrol', Icons.sync_rounded, const Color(0xFF3B82F6)),
+                _buildPaletteCategory('Navigation', [
+                  _PaletteItem('navigate_waypoint', 'Go to Waypoint', 'Go to named waypoint', Icons.place_outlined, const Color(0xFF2563EB)),
+                  _PaletteItem('navigate_coordinates', 'Go to Coordinates', 'Go to (x, y, theta)', Icons.navigation_outlined, const Color(0xFF0284C7)),
+                  _PaletteItem('patrol_loop', 'Patrol Loop', 'Waypoints sequence', Icons.sync_rounded, const Color(0xFF3B82F6)),
+                  _PaletteItem('relocalize', 'Relocalize', 'Global scan / AMCL reset', Icons.my_location, const Color(0xFF2563EB)),
+                  _PaletteItem('cancel_navigation', 'Cancel Goal', 'Cancel Goal / Halt', Icons.cancel_outlined, const Color(0xFFDC2626)),
+                ]),
+                _buildPaletteCategory('Motion & Hardware', [
                   _PaletteItem('dock', 'Dock to Charger', 'Auto-align to dock', Icons.battery_charging_full, const Color(0xFF16A34A)),
                   _PaletteItem('undock', 'Undock Robot', 'Back out of charger', Icons.power_settings_new, const Color(0xFF059669)),
+                  _PaletteItem('jog_motion', 'Jog / Move Base', 'Linear & angular vel', Icons.gamepad_outlined, const Color(0xFFD97706)),
+                  _PaletteItem('emergency_stop', 'Emergency Stop', 'Immediate halt', Icons.warning_amber_rounded, const Color(0xFFDC2626)),
                 ]),
                 _buildPaletteCategory('Control Flow & Logic', [
-                  _PaletteItem('end', 'Mission End', 'Clean terminal completion', Icons.stop_circle_outlined, const Color(0xFFDC2626)),
+                  _PaletteItem('start', 'Mission Start', 'Entrypoint', Icons.play_circle_outline, const Color(0xFF16A34A)),
+                  _PaletteItem('end', 'Mission End', 'Terminal sink', Icons.stop_circle_outlined, const Color(0xFFDC2626)),
                   _PaletteItem('loop', 'Loop / Repeat', 'Iterate sub-branch N times', Icons.loop_rounded, const Color(0xFF7C3AED)),
                   _PaletteItem('condition', 'Conditional Branch', 'If-else AST evaluation', Icons.alt_route, const Color(0xFFEA580C)),
                   _PaletteItem('wait', 'Timer / Delay', 'Wait specified seconds', Icons.timer_outlined, const Color(0xFFD97706)),
@@ -759,15 +852,17 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   _PaletteItem('set_variable', 'Set Context Var', 'Blackboard state store', Icons.data_object, const Color(0xFF9333EA)),
                 ]),
                 _buildPaletteCategory('HRI & Interaction', [
-                  _PaletteItem('ui_interaction', 'Operator Form / UI', 'Human-in-the-loop modal', Icons.touch_app_outlined, AppColors.primary),
-                  _PaletteItem('ui_media', 'Multimedia Player', 'Display photo, video or web', Icons.perm_media_outlined, const Color(0xFF0284C7)),
-                  _PaletteItem('ui_speech', 'Voice Announcement', 'Text-to-speech speaker', Icons.record_voice_over_outlined, const Color(0xFF8B5CF6)),
+                  _PaletteItem('ui_interaction', 'Operator Form / UI', 'Touchscreen Kiosk', Icons.touch_app_outlined, AppColors.primary),
+                  _PaletteItem('ui_choice', 'User Choice Dialog', 'Button choices', Icons.ads_click, AppColors.primary),
+                  _PaletteItem('ui_media', 'Multimedia Player', 'Image / Video display', Icons.perm_media_outlined, const Color(0xFF0284C7)),
+                  _PaletteItem('ui_speech', 'Voice Announcement', 'TTS Announcement', Icons.record_voice_over_outlined, const Color(0xFF8B5CF6)),
                   _PaletteItem('notify', 'OLED & LED Signals', 'Show screen lines & LEDs', Icons.tv, const Color(0xFF0D9488)),
                 ]),
-                _buildPaletteCategory('Integrations & Actions', [
+                _buildPaletteCategory('Integrations & ROS 2', [
                   _PaletteItem('call_api', 'Webhook / HTTP', 'REST API trigger', Icons.http, const Color(0xFF7C3AED)),
                   _PaletteItem('call_service', 'ROS 2 Service', 'Trigger service call', Icons.settings_remote, const Color(0xFF4F46E5)),
                   _PaletteItem('call_action', 'ROS 2 Action', 'Trigger action client', Icons.bolt, const Color(0xFF0284C7)),
+                  _PaletteItem('publish_topic', 'ROS 2 Publisher', 'Publish ROS 2 topic', Icons.podcasts, const Color(0xFF4F46E5)),
                 ]),
               ],
             ),
@@ -844,6 +939,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   child: MissionNodeInspector(
                     node: selectedNode,
                     onChanged: () => setState(() {}),
+                    onDelete: () => _deleteNode(selectedNode),
                   ),
                 ),
                 Container(
@@ -865,16 +961,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                           ),
                           icon: const Icon(Icons.delete_outline, size: 16),
                           label: const Text('Delete Node', style: TextStyle(fontSize: 12)),
-                          onPressed: () {
-                            setState(() {
-                              _graph.nodes.removeWhere((n) => n.id == selectedNode.id);
-                              _graph.edges.removeWhere((e) => e.fromNode == selectedNode.id || e.toNode == selectedNode.id);
-                              if (_graph.entrypoint == selectedNode.id) {
-                                _graph.entrypoint = _graph.nodes.isNotEmpty ? _graph.nodes.first.id : null;
-                              }
-                              _selectedNode = null;
-                            });
-                          },
+                          onPressed: () => _deleteNode(selectedNode),
                         ),
                       ),
                       const SizedBox(width: 8),
