@@ -35,6 +35,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   bool _saving = false;
   bool _running = false;
   bool _isModalShowing = false;
+  Map<String, dynamic>? _activeRobotInteraction;
 
   Timer? _statusPoller;
 
@@ -133,16 +134,30 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         }
 
         // Check if there's an active UI interaction prompt
-        if (state == 'waiting_for_user' && !_isModalShowing) {
+        if (state == 'waiting_for_user') {
           final inter = await api.fetchActiveUiInteraction();
           if (inter != null && mounted) {
-            _isModalShowing = true;
-            await UiInteractionDialog.show(
-              context,
-              api: api,
-              interaction: inter,
-            );
-            _isModalShowing = false;
+            final p = inter['params'] as Map<String, dynamic>?;
+            final target = (inter['target'] ?? p?['target'] ?? 'robot_screen').toString().toLowerCase();
+
+            if (target == 'robot_screen') {
+              if (_activeRobotInteraction?['interaction_id'] != inter['interaction_id']) {
+                setState(() => _activeRobotInteraction = inter);
+              }
+            } else if (!_isModalShowing) {
+              setState(() => _activeRobotInteraction = null);
+              _isModalShowing = true;
+              await UiInteractionDialog.show(
+                context,
+                api: api,
+                interaction: inter,
+              );
+              _isModalShowing = false;
+            }
+          }
+        } else {
+          if (_activeRobotInteraction != null && mounted) {
+            setState(() => _activeRobotInteraction = null);
           }
         }
 
@@ -317,6 +332,24 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       case 'start':
         defaultLabel = 'Mission Start';
         break;
+      case 'end':
+      case 'mission_end':
+        defaultLabel = 'Mission End';
+        defaultParams = {'status': 'success', 'message': 'Mission completed successfully.', 'dock_on_end': false};
+        break;
+      case 'loop':
+      case 'loop_counter':
+        defaultLabel = 'Loop / Repeat';
+        defaultParams = {'count': 3, 'variable_name': 'loop_index', 'max_iterations': 50};
+        break;
+      case 'battery_guard':
+        defaultLabel = 'Battery Guard';
+        defaultParams = {'min_battery_pct': 20.0, 'require_charging': false};
+        break;
+      case 'patrol_loop':
+        defaultLabel = 'Patrol Loop';
+        defaultParams = {'waypoints': <String>[], 'laps': 1, 'dwell_sec': 2.0};
+        break;
       case 'navigate_waypoint':
         defaultLabel = 'Go to Waypoint';
         defaultParams = {'waypoint': '', 'tolerance_m': 0.25};
@@ -343,6 +376,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       case 'ui_interaction':
         defaultLabel = 'Operator Form / UI';
         defaultParams = {
+          'target': 'robot_screen',
           'subtype': 'dynamic_form',
           'title': 'Inspection Checklist',
           'message': 'Please complete the field checklist before proceeding.',
@@ -352,6 +386,20 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             {'key': 'status', 'label': 'Status', 'type': 'select', 'options': ['Pass', 'Fail']},
           ],
         };
+        break;
+      case 'ui_media':
+        defaultLabel = 'Multimedia Player';
+        defaultParams = {
+          'media_type': 'image',
+          'url': 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e',
+          'duration_sec': 15.0,
+          'show_skip': true,
+          'target': 'robot_screen',
+        };
+        break;
+      case 'ui_speech':
+        defaultLabel = 'Voice Announcement';
+        defaultParams = {'text': 'NavPro Mini has arrived at your station.', 'wait_completion': true};
         break;
       case 'call_api':
         defaultLabel = 'Webhook / HTTP';
@@ -383,6 +431,64 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     });
   }
 
+  Widget _buildRobotInteractionBanner() {
+    final title = _activeRobotInteraction?['title'] ?? 'Operator Action';
+    final subtype = _activeRobotInteraction?['subtype'] ?? 'form';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFF3EE),
+        border: Border(bottom: BorderSide(color: Color(0xFFFFD4C2), width: 1.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.tablet_mac_rounded, color: AppColors.primary, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Active on Robot Screen ($subtype): $title',
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const Text(
+                  'Awaiting physical interaction from on-site user on the robot screen terminal.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 32),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              side: const BorderSide(color: AppColors.primary),
+              foregroundColor: AppColors.primary,
+            ),
+            icon: const Icon(Icons.open_in_new, size: 14),
+            label: const Text('Respond on Desktop', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            onPressed: () async {
+              final api = _api;
+              final inter = _activeRobotInteraction;
+              if (api != null && inter != null) {
+                await UiInteractionDialog.show(context, api: api, interaction: inter);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -393,14 +499,22 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           // Left Palette
           _buildNodePalette(),
 
-          // Center Graph Canvas
+          // Center Graph Canvas with robot interaction banner
           Expanded(
-            child: MissionGraphCanvas(
-              graph: _graph,
-              selectedNode: _selectedNode,
-              activeNodeId: _activeNodeId,
-              onSelectNode: (node) => setState(() => _selectedNode = node),
-              onGraphChanged: () => setState(() {}),
+            child: Column(
+              children: [
+                if (_activeRobotInteraction != null)
+                  _buildRobotInteractionBanner(),
+                Expanded(
+                  child: MissionGraphCanvas(
+                    graph: _graph,
+                    selectedNode: _selectedNode,
+                    activeNodeId: _activeNodeId,
+                    onSelectNode: (node) => setState(() => _selectedNode = node),
+                    onGraphChanged: () => setState(() {}),
+                  ),
+                ),
+              ],
             ),
           ),
 
@@ -632,16 +746,22 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 _buildPaletteCategory('Navigation & Motion', [
                   _PaletteItem('navigate_waypoint', 'Waypoint Goal', 'Go to named waypoint', Icons.place_outlined, const Color(0xFF2563EB)),
                   _PaletteItem('navigate_coordinates', 'Coordinates Goal', 'Go to (x, y, theta)', Icons.navigation_outlined, const Color(0xFF0284C7)),
+                  _PaletteItem('patrol_loop', 'Patrol Loop', 'Multi-point perimeter patrol', Icons.sync_rounded, const Color(0xFF3B82F6)),
                   _PaletteItem('dock', 'Dock to Charger', 'Auto-align to dock', Icons.battery_charging_full, const Color(0xFF16A34A)),
                   _PaletteItem('undock', 'Undock Robot', 'Back out of charger', Icons.power_settings_new, const Color(0xFF059669)),
                 ]),
                 _buildPaletteCategory('Control Flow & Logic', [
+                  _PaletteItem('end', 'Mission End', 'Clean terminal completion', Icons.stop_circle_outlined, const Color(0xFFDC2626)),
+                  _PaletteItem('loop', 'Loop / Repeat', 'Iterate sub-branch N times', Icons.loop_rounded, const Color(0xFF7C3AED)),
                   _PaletteItem('condition', 'Conditional Branch', 'If-else AST evaluation', Icons.alt_route, const Color(0xFFEA580C)),
                   _PaletteItem('wait', 'Timer / Delay', 'Wait specified seconds', Icons.timer_outlined, const Color(0xFFD97706)),
+                  _PaletteItem('battery_guard', 'Battery Guard', 'Energy threshold check', Icons.battery_saver, const Color(0xFF059669)),
                   _PaletteItem('set_variable', 'Set Context Var', 'Blackboard state store', Icons.data_object, const Color(0xFF9333EA)),
                 ]),
                 _buildPaletteCategory('HRI & Interaction', [
                   _PaletteItem('ui_interaction', 'Operator Form / UI', 'Human-in-the-loop modal', Icons.touch_app_outlined, AppColors.primary),
+                  _PaletteItem('ui_media', 'Multimedia Player', 'Display photo, video or web', Icons.perm_media_outlined, const Color(0xFF0284C7)),
+                  _PaletteItem('ui_speech', 'Voice Announcement', 'Text-to-speech speaker', Icons.record_voice_over_outlined, const Color(0xFF8B5CF6)),
                   _PaletteItem('notify', 'OLED & LED Signals', 'Show screen lines & LEDs', Icons.tv, const Color(0xFF0D9488)),
                 ]),
                 _buildPaletteCategory('Integrations & Actions', [

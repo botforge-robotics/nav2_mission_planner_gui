@@ -155,6 +155,18 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           _buildUiInteractionInspector()
         else if (node.type == 'notify')
           _buildNotifyInspector()
+        else if (node.type == 'end' || node.type == 'mission_end')
+          _buildEndMissionInspector()
+        else if (node.type == 'loop' || node.type == 'loop_counter')
+          _buildLoopInspector()
+        else if (node.type == 'battery_guard')
+          _buildBatteryGuardInspector()
+        else if (node.type == 'patrol_loop')
+          _buildPatrolLoopInspector()
+        else if (node.type == 'ui_media')
+          _buildUiMediaInspector()
+        else if (node.type == 'ui_speech')
+          _buildUiSpeechInspector()
         else
           Text(
             'Node ID: ${node.id}\nNo extra parameters required.',
@@ -415,6 +427,41 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               : (val) {
                   setState(() {
                     widget.node.params['subtype'] = val;
+                  });
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 12),
+
+        // Target Display Surface Dropdown
+        DropdownButtonFormField<String>(
+          key: ValueKey('${widget.node.id}_target_${widget.node.params['target']}'),
+          isExpanded: true,
+          initialValue: ['robot_screen', 'operator_app', 'both'].contains(widget.node.params['target'])
+              ? widget.node.params['target']
+              : 'robot_screen',
+          dropdownColor: AppColors.surface,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Target Display Device',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          items: const [
+            DropdownMenuItem(value: 'robot_screen', child: Text('Robot Touchscreen (Onboard)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'operator_app', child: Text('Operator Console (Remote App)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'both', child: Text('Both Displays (Robot + Operator)', overflow: TextOverflow.ellipsis)),
+          ],
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  setState(() {
+                    widget.node.params['target'] = val;
                   });
                   widget.onChanged();
                 },
@@ -907,6 +954,481 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildEndMissionInspector() {
+    final status = widget.node.params['status'] as String? ?? 'success';
+    final message = widget.node.params['message'] as String? ?? 'Mission completed successfully.';
+    final dockOnEnd = widget.node.params['dock_on_end'] as bool? ?? false;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          key: ValueKey('${widget.node.id}_status_$status'),
+          isExpanded: true,
+          initialValue: ['success', 'failed', 'aborted'].contains(status) ? status : 'success',
+          dropdownColor: AppColors.surface,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Terminal Mission Status',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          items: const [
+            DropdownMenuItem(value: 'success', child: Text('Success (Clean Finish)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'failed', child: Text('Failed (Error Termination)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'aborted', child: Text('Aborted (Operator Exit)', overflow: TextOverflow.ellipsis)),
+          ],
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  setState(() => widget.node.params['status'] = val);
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: message,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Completion Message / Summary',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          onChanged: (v) {
+            widget.node.params['message'] = v;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Auto-Dock on End', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+          subtitle: const Text('Send robot to AprilTag charger upon mission completion', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          value: dockOnEnd,
+          activeThumbColor: AppColors.primary,
+          onChanged: widget.readOnly
+              ? null
+              : (v) {
+                  setState(() => widget.node.params['dock_on_end'] = v);
+                  widget.onChanged();
+                },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoopInspector() {
+    final count = (widget.node.params['count'] as num?)?.toInt() ?? 3;
+    final varName = widget.node.params['variable_name'] as String? ?? 'loop_index';
+    final condition = widget.node.params['condition'] as String? ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildNumberSlider(
+          label: 'Loop Iteration Count',
+          value: count.toDouble(),
+          min: 1.0,
+          max: 50.0,
+          divisions: 49,
+          onChanged: (v) {
+            setState(() => widget.node.params['count'] = v.toInt());
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: varName,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Loop Index Variable Name',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            helperText: 'Injected into context (0..N-1) for templates & conditions',
+            helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          onChanged: (v) {
+            widget.node.params['variable_name'] = v.trim();
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: condition,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'While Condition (Optional)',
+            hintText: 'e.g. form.keep_going == true',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            helperText: 'If provided, loop exits if condition evaluates to false',
+            helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          onChanged: (v) {
+            widget.node.params['condition'] = v.trim();
+            widget.onChanged();
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBatteryGuardInspector() {
+    final minPct = (widget.node.params['min_battery_pct'] as num?)?.toDouble() ?? 20.0;
+    final requireCharging = widget.node.params['require_charging'] as bool? ?? false;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildNumberSlider(
+          label: 'Minimum Battery Required (%)',
+          value: minPct,
+          min: 5.0,
+          max: 95.0,
+          divisions: 18,
+          onChanged: (v) {
+            setState(() => widget.node.params['min_battery_pct'] = v);
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Require Charger Contact', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+          subtitle: const Text('Robot must currently be docked/charging to pass "ok"', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          value: requireCharging,
+          activeThumbColor: AppColors.primary,
+          onChanged: widget.readOnly
+              ? null
+              : (v) {
+                  setState(() => widget.node.params['require_charging'] = v);
+                  widget.onChanged();
+                },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPatrolLoopInspector() {
+    final rawWps = widget.node.params['waypoints'] as List? ?? [];
+    final waypoints = rawWps.map((e) => e.toString()).toList();
+    final laps = (widget.node.params['laps'] as num?)?.toInt() ?? 1;
+    final dwell = (widget.node.params['dwell_sec'] as num?)?.toDouble() ?? 2.0;
+    final availableLocations = LocationsController.instance.value ?? const <Map<String, dynamic>>[];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Patrol Waypoints Order', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.add_location_alt_outlined, size: 18, color: AppColors.primary),
+              tooltip: 'Add Waypoint to Patrol',
+              onSelected: (wpName) {
+                setState(() {
+                  waypoints.add(wpName);
+                  widget.node.params['waypoints'] = waypoints;
+                });
+                widget.onChanged();
+              },
+              itemBuilder: (ctx) => [
+                for (final loc in availableLocations)
+                  PopupMenuItem(
+                    value: loc['name']?.toString() ?? '',
+                    child: Text(loc['name']?.toString() ?? ''),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (waypoints.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceSunken,
+              borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: const Text('No waypoints added yet. Tap icon above to add patrol stops.', style: TextStyle(color: AppColors.textTertiary, fontSize: 11)),
+          )
+        else
+          Column(
+            children: [
+              for (int i = 0; i < waypoints.length; i++)
+                Container(
+                  key: ValueKey('${waypoints[i]}_$i'),
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceSunken,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Text('${i + 1}.', style: const TextStyle(color: AppColors.textTertiary, fontSize: 11, fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(waypoints[i], style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600))),
+                      if (i > 0)
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.arrow_upward, size: 14, color: AppColors.textSecondary),
+                          onPressed: () {
+                            setState(() {
+                              final item = waypoints.removeAt(i);
+                              waypoints.insert(i - 1, item);
+                              widget.node.params['waypoints'] = waypoints;
+                            });
+                            widget.onChanged();
+                          },
+                        ),
+                      if (i < waypoints.length - 1)
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.arrow_downward, size: 14, color: AppColors.textSecondary),
+                          onPressed: () {
+                            setState(() {
+                              final item = waypoints.removeAt(i);
+                              waypoints.insert(i + 1, item);
+                              widget.node.params['waypoints'] = waypoints;
+                            });
+                            widget.onChanged();
+                          },
+                        ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.close, size: 16, color: AppColors.danger),
+                        onPressed: () {
+                          setState(() {
+                            waypoints.removeAt(i);
+                            widget.node.params['waypoints'] = waypoints;
+                          });
+                          widget.onChanged();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        const SizedBox(height: 12),
+        _buildNumberSlider(
+          label: 'Patrol Laps (0 = Infinite)',
+          value: laps.toDouble(),
+          min: 0.0,
+          max: 20.0,
+          divisions: 20,
+          onChanged: (v) {
+            setState(() => widget.node.params['laps'] = v.toInt());
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildNumberSlider(
+          label: 'Dwell Time per Point (seconds)',
+          value: dwell,
+          min: 0.0,
+          max: 30.0,
+          divisions: 30,
+          onChanged: (v) {
+            setState(() => widget.node.params['dwell_sec'] = v);
+            widget.onChanged();
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUiMediaInspector() {
+    final mediaType = widget.node.params['media_type'] as String? ?? 'image';
+    final url = widget.node.params['url'] as String? ?? '';
+    final duration = (widget.node.params['duration_sec'] as num?)?.toDouble() ?? 15.0;
+    final showSkip = widget.node.params['show_skip'] as bool? ?? true;
+    final target = widget.node.params['target'] as String? ?? 'robot_screen';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          key: ValueKey('${widget.node.id}_media_type_$mediaType'),
+          isExpanded: true,
+          initialValue: ['image', 'video', 'web_url'].contains(mediaType) ? mediaType : 'image',
+          dropdownColor: AppColors.surface,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Media Format',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          items: const [
+            DropdownMenuItem(value: 'image', child: Text('Image Poster (PNG/JPG)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'video', child: Text('Video Stream / Clip (MP4)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'web_url', child: Text('Interactive Web URL / Dashboard', overflow: TextOverflow.ellipsis)),
+          ],
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  setState(() => widget.node.params['media_type'] = val);
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          key: ValueKey('${widget.node.id}_media_target_$target'),
+          isExpanded: true,
+          initialValue: ['robot_screen', 'operator_app', 'both'].contains(target) ? target : 'robot_screen',
+          dropdownColor: AppColors.surface,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Target Display Device',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          items: const [
+            DropdownMenuItem(value: 'robot_screen', child: Text('Robot Touchscreen (Onboard)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'operator_app', child: Text('Operator Console (Remote App)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'both', child: Text('Both Displays', overflow: TextOverflow.ellipsis)),
+          ],
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  setState(() => widget.node.params['target'] = val);
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: url,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Resource URL',
+            hintText: 'https://example.com/asset.jpg',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          onChanged: (v) {
+            widget.node.params['url'] = v.trim();
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildNumberSlider(
+          label: 'Display Duration (seconds)',
+          value: duration,
+          min: 5.0,
+          max: 120.0,
+          divisions: 23,
+          onChanged: (v) {
+            setState(() => widget.node.params['duration_sec'] = v);
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Show Skip Button', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+          subtitle: const Text('Allows user on screen to dismiss early', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          value: showSkip,
+          activeThumbColor: AppColors.primary,
+          onChanged: widget.readOnly
+              ? null
+              : (v) {
+                  setState(() => widget.node.params['show_skip'] = v);
+                  widget.onChanged();
+                },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUiSpeechInspector() {
+    final text = widget.node.params['text'] as String? ?? '';
+    final wait = widget.node.params['wait_completion'] as bool? ?? true;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          initialValue: text,
+          maxLines: 3,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Text to Speak (TTS)',
+            hintText: 'e.g. NavPro Mini has arrived. Please collect your items.',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            helperText: 'Supports variables e.g. {{context.form.inspector_name}}',
+            helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          onChanged: (v) {
+            widget.node.params['text'] = v;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Wait Until Finished Speaking', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+          subtitle: const Text('Pause mission execution until TTS audio finishes', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          value: wait,
+          activeThumbColor: AppColors.primary,
+          onChanged: widget.readOnly
+              ? null
+              : (v) {
+                  setState(() => widget.node.params['wait_completion'] = v);
+                  widget.onChanged();
+                },
+        ),
+      ],
     );
   }
 

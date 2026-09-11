@@ -24,13 +24,13 @@ class NodePort {
     final id = json['id'] as String? ?? 'next';
     final label = json['label'] as String? ?? id;
     Color color = const Color(0xFF4CAF50);
-    if (id == 'failed' || id == 'failure' || id == 'false') {
+    if (id == 'failed' || id == 'failure' || id == 'false' || id == 'low_battery') {
       color = const Color(0xFFF44336);
-    } else if (id == 'timeout') {
+    } else if (id == 'timeout' || id == 'interrupted') {
       color = const Color(0xFFFF9800);
-    } else if (id == 'cancelled') {
+    } else if (id == 'cancelled' || id == 'skipped') {
       color = const Color(0xFF9E9E9E);
-    } else if (isInput || id == 'next' || id == 'in') {
+    } else if (isInput || id == 'next' || id == 'in' || id == 'loop_body') {
       color = const Color(0xFF2196F3);
     }
     return NodePort(id: id, label: label, isInput: isInput, color: color);
@@ -103,6 +103,26 @@ class GraphNode {
       case 'set_variable':
       case 'notify':
         return const [NodePort(id: 'next', label: 'Next', isInput: false, color: Color(0xFF4CAF50))];
+      case 'end':
+      case 'mission_end':
+        return const []; // Terminal node
+      case 'loop':
+      case 'loop_counter':
+        return const [
+          NodePort(id: 'loop_body', label: 'Loop Body', isInput: false, color: Color(0xFF2196F3)),
+          NodePort(id: 'completed', label: 'Completed', isInput: false, color: Color(0xFF4CAF50)),
+        ];
+      case 'battery_guard':
+        return const [
+          NodePort(id: 'ok', label: 'Battery OK', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'low_battery', label: 'Low Battery', isInput: false, color: Color(0xFFF44336)),
+        ];
+      case 'patrol_loop':
+        return const [
+          NodePort(id: 'completed', label: 'Completed', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'failed', label: 'Failed', isInput: false, color: Color(0xFFF44336)),
+          NodePort(id: 'interrupted', label: 'Interrupted', isInput: false, color: Color(0xFFFF9800)),
+        ];
       case 'navigate_waypoint':
       case 'navigate_coordinates':
         return const [
@@ -135,6 +155,16 @@ class GraphNode {
         return const [
           NodePort(id: 'succeeded', label: 'Succeeded', isInput: false, color: Color(0xFF4CAF50)),
           NodePort(id: 'failed', label: 'Failed', isInput: false, color: Color(0xFFF44336)),
+        ];
+      case 'ui_media':
+        return const [
+          NodePort(id: 'completed', label: 'Completed', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'skipped', label: 'Skipped', isInput: false, color: Color(0xFF9E9E9E)),
+          NodePort(id: 'timeout', label: 'Timeout', isInput: false, color: Color(0xFFFF9800)),
+        ];
+      case 'ui_speech':
+        return const [
+          NodePort(id: 'done', label: 'Done', isInput: false, color: Color(0xFF4CAF50)),
         ];
       case 'ui_interaction':
         final subtype = params['subtype'] as String? ?? 'dynamic_form';
