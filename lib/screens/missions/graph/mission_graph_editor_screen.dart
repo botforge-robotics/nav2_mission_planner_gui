@@ -446,21 +446,35 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               border: Border.all(color: const Color(0xFF333D50)),
             ),
             child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _availableMaps.contains(_graph.map)
-                    ? _graph.map
-                    : (_currentMap ?? (_availableMaps.isNotEmpty ? _availableMaps.first : null)),
-                dropdownColor: const Color(0xFF1E232F),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-                hint: const Text('Select Map', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                items: [
-                  for (final m in _availableMaps)
-                    DropdownMenuItem(value: m, child: Text(m)),
-                ],
-                onChanged: (val) {
-                  setState(() {
-                    _graph.map = val;
-                  });
+              child: Builder(
+                builder: (context) {
+                  final mapSet = <String>{
+                    ..._availableMaps,
+                    if (_currentMap != null && _currentMap!.isNotEmpty) _currentMap!,
+                    if (_graph.map != null && _graph.map!.isNotEmpty) _graph.map!,
+                  };
+                  final mapList = mapSet.toList();
+                  final selectedMap = mapSet.contains(_graph.map)
+                      ? _graph.map
+                      : (mapSet.contains(_currentMap)
+                          ? _currentMap
+                          : (mapList.isNotEmpty ? mapList.first : null));
+
+                  return DropdownButton<String>(
+                    value: selectedMap,
+                    dropdownColor: const Color(0xFF1E232F),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    hint: const Text('Select Map', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    items: [
+                      for (final m in mapList)
+                        DropdownMenuItem(value: m, child: Text(m)),
+                    ],
+                    onChanged: (val) {
+                      setState(() {
+                        _graph.map = val;
+                      });
+                    },
+                  );
                 },
               ),
             ),
