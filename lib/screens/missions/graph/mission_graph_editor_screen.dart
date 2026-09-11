@@ -763,20 +763,46 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
           const Text('Entrypoint Node', style: TextStyle(color: Colors.grey, fontSize: 12)),
           const SizedBox(height: 6),
-          DropdownButtonFormField<String>(
-            initialValue: _graph.entrypoint,
-            dropdownColor: const Color(0xFF222836),
-            style: const TextStyle(color: Colors.white, fontSize: 13),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: const Color(0xFF222836),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            items: [
-              for (final n in _graph.nodes)
-                DropdownMenuItem(value: n.id, child: Text('${n.label} (${n.id})')),
-            ],
-            onChanged: (v) => setState(() => _graph.entrypoint = v),
+          Builder(
+            builder: (context) {
+              final nodeIds = _graph.nodes.map((n) => n.id).toSet();
+              final validEntrypoint = nodeIds.contains(_graph.entrypoint)
+                  ? _graph.entrypoint
+                  : (_graph.nodes.isNotEmpty ? _graph.nodes.first.id : null);
+              if (_graph.entrypoint != validEntrypoint && validEntrypoint != null) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _graph.entrypoint != validEntrypoint) {
+                    setState(() => _graph.entrypoint = validEntrypoint);
+                  }
+                });
+              }
+
+              return DropdownButtonFormField<String>(
+                key: ValueKey('entrypoint_${validEntrypoint}_${_graph.nodes.length}'),
+                isExpanded: true,
+                initialValue: validEntrypoint,
+                dropdownColor: const Color(0xFF222836),
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: const Color(0xFF222836),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                hint: const Text('No entrypoint selected', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                items: [
+                  for (final n in _graph.nodes)
+                    DropdownMenuItem(
+                      value: n.id,
+                      child: Text(
+                        '${n.label} (${n.id})',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: (v) => setState(() => _graph.entrypoint = v),
+              );
+            },
           ),
           const SizedBox(height: 20),
 

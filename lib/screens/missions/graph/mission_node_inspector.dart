@@ -170,12 +170,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const Text('Target Waypoint', style: TextStyle(color: Colors.grey, fontSize: 12)),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
+          key: ValueKey('${widget.node.id}_wp_$currentWp'),
+          isExpanded: true,
           initialValue: waypoints.any((w) => w['name'] == currentWp) ? currentWp : null,
           dropdownColor: const Color(0xFF222836),
           style: const TextStyle(color: Colors.white, fontSize: 13),
           decoration: InputDecoration(
             filled: true,
             fillColor: const Color(0xFF222836),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
           hint: const Text('Select a waypoint', style: TextStyle(color: Colors.grey)),
@@ -183,7 +186,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             for (final wp in waypoints)
               DropdownMenuItem(
                 value: wp['name']?.toString() ?? '',
-                child: Text('${wp['name']} (x: ${(wp['x'] as num?)?.toStringAsFixed(1) ?? '0.0'}, y: ${(wp['y'] as num?)?.toStringAsFixed(1) ?? '0.0'})'),
+                child: Text(
+                  '${wp['name']} (x: ${(wp['x'] as num?)?.toStringAsFixed(1) ?? '0.0'}, y: ${(wp['y'] as num?)?.toStringAsFixed(1) ?? '0.0'})',
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
           ],
           onChanged: widget.readOnly
@@ -363,7 +369,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       children: [
         // Subtype Dropdown
         DropdownButtonFormField<String>(
-          initialValue: subtype,
+          key: ValueKey('${widget.node.id}_subtype_$subtype'),
+          isExpanded: true,
+          initialValue: ['dynamic_form', 'choice', 'media_display', 'speech', 'kiosk'].contains(subtype) ? subtype : 'dynamic_form',
           dropdownColor: const Color(0xFF222836),
           style: const TextStyle(color: Colors.white, fontSize: 13),
           decoration: InputDecoration(
@@ -371,14 +379,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             labelStyle: const TextStyle(color: Colors.grey),
             filled: true,
             fillColor: const Color(0xFF222836),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
           items: const [
-            DropdownMenuItem(value: 'dynamic_form', child: Text('Dynamic Multi-Field Form')),
-            DropdownMenuItem(value: 'choice', child: Text('Action Buttons / Choices')),
-            DropdownMenuItem(value: 'media_display', child: Text('Media Display (Image/Video)')),
-            DropdownMenuItem(value: 'speech', child: Text('Voice / TTS Announcement')),
-            DropdownMenuItem(value: 'kiosk', child: Text('Destination Kiosk Picker')),
+            DropdownMenuItem(value: 'dynamic_form', child: Text('Dynamic Multi-Field Form', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'choice', child: Text('Action Buttons / Choices', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'media_display', child: Text('Media Display (Image/Video)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'speech', child: Text('Voice / TTS Announcement', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'kiosk', child: Text('Destination Kiosk Picker', overflow: TextOverflow.ellipsis)),
           ],
           onChanged: widget.readOnly
               ? null
@@ -511,18 +520,20 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          initialValue: fields[i].type,
+                          key: ValueKey('${widget.node.id}_field_${i}_${fields[i].type}'),
+                          isExpanded: true,
+                          initialValue: ['text', 'number', 'select', 'checkbox', 'switch', 'signature'].contains(fields[i].type) ? fields[i].type : 'text',
                           dropdownColor: const Color(0xFF1E232F),
                           style: const TextStyle(color: Colors.white, fontSize: 11),
                           isDense: true,
                           decoration: const InputDecoration(isDense: true, labelText: 'Type'),
                           items: const [
-                            DropdownMenuItem(value: 'text', child: Text('Text')),
-                            DropdownMenuItem(value: 'number', child: Text('Number')),
-                            DropdownMenuItem(value: 'select', child: Text('Dropdown / Select')),
-                            DropdownMenuItem(value: 'checkbox', child: Text('Checkbox')),
-                            DropdownMenuItem(value: 'switch', child: Text('Switch')),
-                            DropdownMenuItem(value: 'signature', child: Text('Signature')),
+                            DropdownMenuItem(value: 'text', child: Text('Text', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'number', child: Text('Number', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'select', child: Text('Dropdown / Select', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'checkbox', child: Text('Checkbox', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'switch', child: Text('Switch', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'signature', child: Text('Signature', overflow: TextOverflow.ellipsis)),
                           ],
                           onChanged: widget.readOnly
                               ? null
@@ -655,7 +666,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     return Column(
       children: [
         DropdownButtonFormField<String>(
-          initialValue: method,
+          key: ValueKey('${widget.node.id}_method_$method'),
+          isExpanded: true,
+          initialValue: ['GET', 'POST', 'PUT', 'DELETE'].contains(method) ? method : 'POST',
           dropdownColor: const Color(0xFF222836),
           style: const TextStyle(color: Colors.white, fontSize: 13),
           decoration: InputDecoration(
@@ -663,6 +676,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             labelStyle: const TextStyle(color: Colors.grey),
             filled: true,
             fillColor: const Color(0xFF222836),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
           items: const [

@@ -335,17 +335,25 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
               )
             else if (field.type == 'select')
               DropdownButtonFormField<String>(
-                initialValue: field.options.isNotEmpty ? field.options.first : null,
+                key: ValueKey('field_${field.key}_${_formData[field.key]}'),
+                isExpanded: true,
+                initialValue: field.options.contains(_formData[field.key])
+                    ? _formData[field.key]
+                    : (field.options.isNotEmpty ? field.options.first : null),
                 dropdownColor: const Color(0xFF222836),
                 style: const TextStyle(color: Colors.white, fontSize: 13),
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: const Color(0xFF222836),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 items: [
                   for (final opt in field.options)
-                    DropdownMenuItem(value: opt, child: Text(opt)),
+                    DropdownMenuItem(
+                      value: opt,
+                      child: Text(opt, overflow: TextOverflow.ellipsis),
+                    ),
                 ],
                 onChanged: (v) => _formData[field.key] = v,
                 onSaved: (v) => _formData[field.key] = v,
