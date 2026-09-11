@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/connection_provider.dart';
 import '../../../services/locations_controller.dart';
 import '../../../services/sdk_api_service.dart';
+import '../../../theme/app_theme.dart';
 import 'mission_graph_canvas.dart';
 import 'mission_graph_models.dart';
 import 'mission_node_inspector.dart';
@@ -385,7 +386,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0E121B),
+      backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
       body: Row(
         children: [
@@ -412,25 +413,30 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: const Color(0xFF131722),
-      elevation: 2,
+      backgroundColor: AppColors.surface,
+      elevation: 0,
+      scrolledUnderElevation: 0.5,
+      bottom: const PreferredSize(
+        preferredSize: Size.fromHeight(1),
+        child: Divider(height: 1, thickness: 1, color: AppColors.border),
+      ),
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
         onPressed: () => Navigator.of(context).pop(),
       ),
       title: Row(
         children: [
-          const Icon(Icons.account_tree_outlined, color: Color(0xFF00E5FF), size: 22),
+          const Icon(Icons.account_tree_outlined, color: AppColors.primary, size: 22),
           const SizedBox(width: 12),
           SizedBox(
             width: 220,
             child: TextField(
               controller: _nameController,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Mission Name',
-                hintStyle: TextStyle(color: Colors.grey),
+                hintStyle: TextStyle(color: AppColors.textTertiary),
                 isDense: true,
               ),
             ),
@@ -441,9 +447,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E232F),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: const Color(0xFF333D50)),
+              color: AppColors.surfaceSunken,
+              borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+              border: Border.all(color: AppColors.border),
             ),
             child: DropdownButtonHideUnderline(
               child: Builder(
@@ -462,9 +468,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
                   return DropdownButton<String>(
                     value: selectedMap,
-                    dropdownColor: const Color(0xFF1E232F),
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                    hint: const Text('Select Map', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    dropdownColor: AppColors.surface,
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                    hint: const Text('Select Map', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                     items: [
                       for (final m in mapList)
                         DropdownMenuItem(value: m, child: Text(m)),
@@ -488,10 +494,10 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: _running ? const Color(0xFF00E5FF).withValues(alpha: 0.15) : Colors.white10,
+              color: _running ? AppColors.primary.withValues(alpha: 0.1) : AppColors.success.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: _running ? const Color(0xFF00E5FF) : Colors.grey,
+                color: _running ? AppColors.primary : AppColors.success,
                 width: 1.2,
               ),
             ),
@@ -502,15 +508,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   const SizedBox(
                     width: 10,
                     height: 10,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00E5FF)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
                   )
                 else
-                  const Icon(Icons.check_circle_outline, size: 14, color: Colors.greenAccent),
+                  const Icon(Icons.check_circle_outline, size: 14, color: AppColors.success),
                 const SizedBox(width: 8),
                 Text(
                   _missionState!.toUpperCase(),
                   style: TextStyle(
-                    color: _running ? const Color(0xFF00E5FF) : Colors.white70,
+                    color: _running ? AppColors.primary : AppColors.success,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -520,14 +526,20 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           ),
 
         // Validate Button
-        TextButton.icon(
-          icon: const Icon(Icons.verified_outlined, size: 18, color: Colors.white70),
-          label: const Text('Validate', style: TextStyle(color: Colors.white70)),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            foregroundColor: AppColors.textSecondary,
+            side: const BorderSide(color: AppColors.border),
+          ),
+          icon: const Icon(Icons.verified_outlined, size: 18),
+          label: const Text('Validate'),
           onPressed: () {
             final errs = _validateGraph();
             if (errs.isEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Graph structure is valid!'), backgroundColor: Colors.green),
+                const SnackBar(content: Text('Graph structure is valid!'), backgroundColor: AppColors.success),
               );
             } else {
               _showValidationDialog(errs);
@@ -537,15 +549,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         const SizedBox(width: 8),
 
         // Save Button
-        ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF1E232F),
-            foregroundColor: Colors.white,
-            side: const BorderSide(color: Color(0xFF333D50)),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        FilledButton.tonalIcon(
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            backgroundColor: AppColors.surfaceSunken,
+            foregroundColor: AppColors.textPrimary,
           ),
           icon: _saving
-              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
               : const Icon(Icons.save_outlined, size: 18),
           label: const Text('Save'),
           onPressed: _saving ? null : _saveMission,
@@ -554,24 +566,26 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
         // Run / Cancel Button
         if (_running)
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              backgroundColor: AppColors.danger,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
-            icon: const Icon(Icons.stop, size: 18),
+            icon: const Icon(Icons.stop_rounded, size: 18),
             label: const Text('Abort Mission'),
             onPressed: _cancelMission,
           )
         else
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00E5FF),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textOnPrimary,
             ),
-            icon: const Icon(Icons.play_arrow, size: 18),
+            icon: const Icon(Icons.play_arrow_rounded, size: 18),
             label: const Text('Execute Graph'),
             onPressed: _runMission,
           ),
@@ -584,8 +598,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     return Container(
       width: 250,
       decoration: const BoxDecoration(
-        color: Color(0xFF131722),
-        border: Border(right: BorderSide(color: Color(0xFF1E232F), width: 1.5)),
+        color: AppColors.surface,
+        border: Border(right: BorderSide(color: AppColors.border, width: 1.0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -593,19 +607,19 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0xFF1E232F))),
+              border: Border(bottom: BorderSide(color: AppColors.border)),
             ),
             child: const Row(
               children: [
-                Icon(Icons.widgets_outlined, size: 18, color: Color(0xFF00E5FF)),
+                Icon(Icons.widgets_outlined, size: 18, color: AppColors.primary),
                 SizedBox(width: 8),
                 Text(
                   'NODE LIBRARY',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
-                    letterSpacing: 1.1,
+                    letterSpacing: 0.8,
                   ),
                 ),
               ],
@@ -616,24 +630,24 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
               children: [
                 _buildPaletteCategory('Navigation & Motion', [
-                  _PaletteItem('navigate_waypoint', 'Waypoint Goal', 'Go to named waypoint', Icons.place_outlined, const Color(0xFF00E5FF)),
-                  _PaletteItem('navigate_coordinates', 'Coordinates Goal', 'Go to (x, y, theta)', Icons.navigation_outlined, const Color(0xFF40C4FF)),
-                  _PaletteItem('dock', 'Dock to Charger', 'Auto-align to dock', Icons.battery_charging_full, const Color(0xFF69F0AE)),
-                  _PaletteItem('undock', 'Undock Robot', 'Back out of charger', Icons.power_settings_new, const Color(0xFFB9F6CA)),
+                  _PaletteItem('navigate_waypoint', 'Waypoint Goal', 'Go to named waypoint', Icons.place_outlined, const Color(0xFF2563EB)),
+                  _PaletteItem('navigate_coordinates', 'Coordinates Goal', 'Go to (x, y, theta)', Icons.navigation_outlined, const Color(0xFF0284C7)),
+                  _PaletteItem('dock', 'Dock to Charger', 'Auto-align to dock', Icons.battery_charging_full, const Color(0xFF16A34A)),
+                  _PaletteItem('undock', 'Undock Robot', 'Back out of charger', Icons.power_settings_new, const Color(0xFF059669)),
                 ]),
                 _buildPaletteCategory('Control Flow & Logic', [
-                  _PaletteItem('condition', 'Conditional Branch', 'If-else AST evaluation', Icons.alt_route, const Color(0xFFFF7043)),
-                  _PaletteItem('wait', 'Timer / Delay', 'Wait specified seconds', Icons.timer_outlined, const Color(0xFFFFA726)),
-                  _PaletteItem('set_variable', 'Set Context Var', 'Blackboard state store', Icons.data_object, const Color(0xFFAB47BC)),
+                  _PaletteItem('condition', 'Conditional Branch', 'If-else AST evaluation', Icons.alt_route, const Color(0xFFEA580C)),
+                  _PaletteItem('wait', 'Timer / Delay', 'Wait specified seconds', Icons.timer_outlined, const Color(0xFFD97706)),
+                  _PaletteItem('set_variable', 'Set Context Var', 'Blackboard state store', Icons.data_object, const Color(0xFF9333EA)),
                 ]),
                 _buildPaletteCategory('HRI & Interaction', [
-                  _PaletteItem('ui_interaction', 'Operator Form / UI', 'Human-in-the-loop modal', Icons.touch_app_outlined, const Color(0xFFFF4081)),
-                  _PaletteItem('notify', 'OLED & LED Signals', 'Show screen lines & LEDs', Icons.tv, const Color(0xFF26A69A)),
+                  _PaletteItem('ui_interaction', 'Operator Form / UI', 'Human-in-the-loop modal', Icons.touch_app_outlined, AppColors.primary),
+                  _PaletteItem('notify', 'OLED & LED Signals', 'Show screen lines & LEDs', Icons.tv, const Color(0xFF0D9488)),
                 ]),
                 _buildPaletteCategory('Integrations & Actions', [
-                  _PaletteItem('call_api', 'Webhook / HTTP', 'REST API trigger', Icons.http, const Color(0xFF7E57C2)),
-                  _PaletteItem('call_service', 'ROS 2 Service', 'Trigger service call', Icons.settings_remote, const Color(0xFF5C6BC0)),
-                  _PaletteItem('call_action', 'ROS 2 Action', 'Trigger action client', Icons.bolt, const Color(0xFF29B6F6)),
+                  _PaletteItem('call_api', 'Webhook / HTTP', 'REST API trigger', Icons.http, const Color(0xFF7C3AED)),
+                  _PaletteItem('call_service', 'ROS 2 Service', 'Trigger service call', Icons.settings_remote, const Color(0xFF4F46E5)),
+                  _PaletteItem('call_action', 'ROS 2 Action', 'Trigger action client', Icons.bolt, const Color(0xFF0284C7)),
                 ]),
               ],
             ),
@@ -651,27 +665,28 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           padding: const EdgeInsets.fromLTRB(6, 12, 6, 6),
           child: Text(
             title.toUpperCase(),
-            style: const TextStyle(color: Color(0xFF78909C), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+            style: const TextStyle(color: AppColors.textTertiary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
           ),
         ),
         for (final item in items)
           InkWell(
             onTap: () => _addNodeFromCatalog(item.type),
-            borderRadius: BorderRadius.circular(8),
-            hoverColor: const Color(0xFF1E232F),
+            borderRadius: BorderRadius.circular(10),
+            hoverColor: AppColors.surfaceSunken,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-              margin: const EdgeInsets.symmetric(vertical: 2),
+              margin: const EdgeInsets.symmetric(vertical: 2.5),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.transparent),
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
               ),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: item.color.withValues(alpha: 0.15),
+                      color: item.color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Icon(item.icon, size: 16, color: item.color),
@@ -681,12 +696,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item.title, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-                        Text(item.subtitle, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                        Text(item.title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+                        Text(item.subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
                       ],
                     ),
                   ),
-                  const Icon(Icons.add, size: 16, color: Colors.grey),
+                  const Icon(Icons.add_rounded, size: 18, color: AppColors.textTertiary),
                 ],
               ),
             ),
@@ -699,8 +714,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     return Container(
       width: 320,
       decoration: const BoxDecoration(
-        color: Color(0xFF131722),
-        border: Border(left: BorderSide(color: Color(0xFF1E232F), width: 1.5)),
+        color: AppColors.surface,
+        border: Border(left: BorderSide(color: AppColors.border, width: 1.0)),
       ),
       child: selectedNode != null
           ? Column(
@@ -714,16 +729,19 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF0E121B),
-                    border: Border(top: BorderSide(color: Color(0xFF1E232F))),
+                    color: AppColors.surfaceSunken,
+                    border: Border(top: BorderSide(color: AppColors.border)),
                   ),
                   child: Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.redAccent,
-                            side: const BorderSide(color: Colors.redAccent),
+                            foregroundColor: AppColors.danger,
+                            side: const BorderSide(color: AppColors.danger),
+                            minimumSize: const Size(0, 36),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
                           ),
                           icon: const Icon(Icons.delete_outline, size: 16),
                           label: const Text('Delete Node', style: TextStyle(fontSize: 12)),
@@ -744,7 +762,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                         tooltip: 'Set as Entrypoint',
                         icon: Icon(
                           _graph.entrypoint == selectedNode.id ? Icons.flag : Icons.outlined_flag,
-                          color: const Color(0xFF00E5FF),
+                          color: AppColors.primary,
                         ),
                         onPressed: () {
                           setState(() {
@@ -767,7 +785,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('MISSION OVERVIEW', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+          const Text('MISSION OVERVIEW', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.6)),
           const SizedBox(height: 16),
 
           _buildStatCard('Total Nodes', '${_graph.nodes.length}', Icons.grid_view),
@@ -775,7 +793,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           _buildStatCard('Total Connections', '${_graph.edges.length}', Icons.alt_route),
           const SizedBox(height: 16),
 
-          const Text('Entrypoint Node', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          const Text('Entrypoint Node', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Builder(
             builder: (context) {
@@ -795,15 +813,17 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 key: ValueKey('entrypoint_${validEntrypoint}_${_graph.nodes.length}'),
                 isExpanded: true,
                 initialValue: validEntrypoint,
-                dropdownColor: const Color(0xFF222836),
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                dropdownColor: AppColors.surface,
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: const Color(0xFF222836),
+                  fillColor: AppColors.surfaceSunken,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                 ),
-                hint: const Text('No entrypoint selected', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                hint: const Text('No entrypoint selected', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                 items: [
                   for (final n in _graph.nodes)
                     DropdownMenuItem(
@@ -820,16 +840,16 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           ),
           const SizedBox(height: 20),
 
-          const Divider(color: Color(0xFF1E232F)),
+          const Divider(color: AppColors.border),
           const SizedBox(height: 10),
-          const Text('TIPS', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+          const Text('TIPS', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.6)),
           const SizedBox(height: 8),
           const Text(
             '• Drag from any output port circle to an input port circle to create a connection wire.\n'
             '• Click on any connection wire to delete it.\n'
             '• Pan the canvas using mouse drag or scroll wheel.\n'
             '• Use the Node Library on the left to add new action blocks.',
-            style: TextStyle(color: Color(0xFF90A4AE), fontSize: 12, height: 1.4),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
           ),
         ],
       ),
@@ -840,17 +860,17 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E232F),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF333D50)),
+        color: AppColors.surfaceSunken,
+        borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: const Color(0xFF00E5FF)),
+          Icon(icon, size: 20, color: AppColors.primary),
           const SizedBox(width: 12),
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
           const Spacer(),
-          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
         ],
       ),
     );

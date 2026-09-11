@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../services/locations_controller.dart';
+import '../../../theme/app_theme.dart';
 import 'mission_graph_models.dart';
 
 /// Contextual Properties Inspector & Dynamic Form Builder for the selected node.
@@ -53,7 +54,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
 
     return Container(
       width: 320,
-      color: const Color(0xFF191D26),
+      color: AppColors.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -61,17 +62,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0xFF262E3D))),
+              border: Border(bottom: BorderSide(color: AppColors.border)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.tune, size: 18, color: Color(0xFF448AFF)),
+                const Icon(Icons.tune, size: 18, color: AppColors.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Inspector: ${node.type}',
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),
@@ -85,9 +86,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           if (isUiInteraction)
             TabBar(
               controller: _tabController,
-              indicatorColor: const Color(0xFF448AFF),
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.grey,
+              indicatorColor: AppColors.primary,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.textSecondary,
               tabs: const [
                 Tab(text: 'Properties'),
                 Tab(text: 'Live Preview'),
@@ -121,13 +122,16 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         TextField(
           controller: _labelController,
           enabled: !widget.readOnly,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Node Label',
-            labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: const Color(0xFF222836),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           onChanged: (val) {
             node.label = val;
@@ -154,7 +158,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         else
           Text(
             'Node ID: ${node.id}\nNo extra parameters required.',
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),
       ],
     );
@@ -167,21 +171,23 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Target Waypoint', style: TextStyle(color: Colors.grey, fontSize: 12)),
+        const Text('Target Waypoint', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
           key: ValueKey('${widget.node.id}_wp_$currentWp'),
           isExpanded: true,
           initialValue: waypoints.any((w) => w['name'] == currentWp) ? currentWp : null,
-          dropdownColor: const Color(0xFF222836),
-          style: const TextStyle(color: Colors.white, fontSize: 13),
+          dropdownColor: AppColors.surface,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             filled: true,
-            fillColor: const Color(0xFF222836),
+            fillColor: AppColors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
-          hint: const Text('Select a waypoint', style: TextStyle(color: Colors.grey)),
+          hint: const Text('Select a waypoint', style: TextStyle(color: AppColors.textSecondary)),
           items: [
             for (final wp in waypoints)
               DropdownMenuItem(
@@ -230,13 +236,16 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               child: TextFormField(
                 initialValue: x.toString(),
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
                 decoration: InputDecoration(
                   labelText: 'X (meters)',
-                  labelStyle: const TextStyle(color: Colors.grey),
+                  labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   filled: true,
-                  fillColor: const Color(0xFF222836),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  fillColor: AppColors.surfaceSunken,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                 ),
                 onChanged: (v) {
                   widget.node.params['x'] = double.tryParse(v) ?? 0.0;
@@ -249,13 +258,16 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               child: TextFormField(
                 initialValue: y.toString(),
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
                 decoration: InputDecoration(
                   labelText: 'Y (meters)',
-                  labelStyle: const TextStyle(color: Colors.grey),
+                  labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   filled: true,
-                  fillColor: const Color(0xFF222836),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  fillColor: AppColors.surfaceSunken,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                 ),
                 onChanged: (v) {
                   widget.node.params['y'] = double.tryParse(v) ?? 0.0;
@@ -269,13 +281,16 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         TextFormField(
           initialValue: theta.toString(),
           keyboardType: TextInputType.number,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Orientation (Theta radians)',
-            labelStyle: const TextStyle(color: Colors.grey),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: const Color(0xFF222836),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           onChanged: (v) {
             widget.node.params['theta'] = double.tryParse(v) ?? 0.0;
@@ -310,15 +325,18 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       children: [
         TextFormField(
           initialValue: expr,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Expression',
             hintText: 'e.g. form.status == "Pass"',
-            hintStyle: const TextStyle(color: Colors.grey),
-            labelStyle: const TextStyle(color: Colors.grey),
+            hintStyle: const TextStyle(color: AppColors.textTertiary),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: const Color(0xFF222836),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           onChanged: (v) {
             widget.node.params['expression'] = v;
@@ -328,7 +346,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 10),
         const Text(
           'Quick Token Helpers:',
-          style: TextStyle(color: Colors.grey, fontSize: 11),
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
         Wrap(
@@ -346,8 +364,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
 
   Widget _buildTokenChip(String token) {
     return ActionChip(
-      backgroundColor: const Color(0xFF262E3D),
-      label: Text(token, style: const TextStyle(color: Color(0xFF64B5F6), fontSize: 11)),
+      backgroundColor: AppColors.surfaceSunken,
+      side: const BorderSide(color: AppColors.border),
+      label: Text(token, style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w500)),
       onPressed: widget.readOnly
           ? null
           : () {
@@ -372,15 +391,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           key: ValueKey('${widget.node.id}_subtype_$subtype'),
           isExpanded: true,
           initialValue: ['dynamic_form', 'choice', 'media_display', 'speech', 'kiosk'].contains(subtype) ? subtype : 'dynamic_form',
-          dropdownColor: const Color(0xFF222836),
-          style: const TextStyle(color: Colors.white, fontSize: 13),
+          dropdownColor: AppColors.surface,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'UI Presentation Subtype',
-            labelStyle: const TextStyle(color: Colors.grey),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: const Color(0xFF222836),
+            fillColor: AppColors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           items: const [
             DropdownMenuItem(value: 'dynamic_form', child: Text('Dynamic Multi-Field Form', overflow: TextOverflow.ellipsis)),
@@ -402,13 +423,16 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
 
         TextFormField(
           initialValue: title,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Dialog Title',
-            labelStyle: const TextStyle(color: Colors.grey),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: const Color(0xFF222836),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           onChanged: (v) {
             widget.node.params['title'] = v;
@@ -453,12 +477,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           children: [
             const Text(
               'Form Fields',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+              style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
             ),
             if (!widget.readOnly)
               TextButton.icon(
-                icon: const Icon(Icons.add, size: 14),
+                icon: const Icon(Icons.add_rounded, size: 16),
                 label: const Text('Add Field', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
                 onPressed: () {
                   setState(() {
                     final newField = FormFieldDef(
@@ -477,7 +502,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 8),
         for (int i = 0; i < fields.length; i++)
           Card(
-            color: const Color(0xFF222836),
+            color: AppColors.surfaceElevated,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.border),
+            ),
             margin: const EdgeInsets.only(bottom: 8),
             child: Padding(
               padding: const EdgeInsets.all(10),
@@ -488,11 +518,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       Expanded(
                         child: TextFormField(
                           initialValue: fields[i].label,
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
-                          decoration: const InputDecoration(
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
+                          decoration: InputDecoration(
                             isDense: true,
                             labelText: 'Field Label',
-                            labelStyle: TextStyle(color: Colors.grey, fontSize: 11),
+                            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                            filled: true,
+                            fillColor: AppColors.surfaceSunken,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                           ),
                           onChanged: (v) {
                             fields[i].label = v;
@@ -502,7 +538,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete, size: 16, color: Colors.grey),
+                        icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.textTertiary),
                         onPressed: widget.readOnly
                             ? null
                             : () {
@@ -523,10 +559,20 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           key: ValueKey('${widget.node.id}_field_${i}_${fields[i].type}'),
                           isExpanded: true,
                           initialValue: ['text', 'number', 'select', 'checkbox', 'switch', 'signature'].contains(fields[i].type) ? fields[i].type : 'text',
-                          dropdownColor: const Color(0xFF1E232F),
-                          style: const TextStyle(color: Colors.white, fontSize: 11),
+                          dropdownColor: AppColors.surface,
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w500),
                           isDense: true,
-                          decoration: const InputDecoration(isDense: true, labelText: 'Type'),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            labelText: 'Type',
+                            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                            filled: true,
+                            fillColor: AppColors.surfaceSunken,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                          ),
                           items: const [
                             DropdownMenuItem(value: 'text', child: Text('Text', overflow: TextOverflow.ellipsis)),
                             DropdownMenuItem(value: 'number', child: Text('Number', overflow: TextOverflow.ellipsis)),
@@ -549,7 +595,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       const SizedBox(width: 8),
                       Checkbox(
                         value: fields[i].required,
-                        activeColor: const Color(0xFF448AFF),
+                        activeColor: AppColors.primary,
                         onChanged: widget.readOnly
                             ? null
                             : (v) {
@@ -560,7 +606,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                                 widget.onChanged();
                               },
                       ),
-                      const Text('Req', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      const Text('Req', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                     ],
                   ),
                 ],
@@ -580,11 +626,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Action Buttons', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+            const Text('Action Buttons', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
             if (!widget.readOnly)
               TextButton.icon(
-                icon: const Icon(Icons.add, size: 14),
+                icon: const Icon(Icons.add_rounded, size: 16),
                 label: const Text('Add Option', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
                 onPressed: () {
                   setState(() {
                     options.add('Option ${options.length + 1}');
@@ -604,12 +651,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 Expanded(
                   child: TextFormField(
                     initialValue: options[i],
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
                     decoration: InputDecoration(
                       isDense: true,
                       filled: true,
-                      fillColor: const Color(0xFF222836),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                      fillColor: AppColors.surfaceSunken,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                     ),
                     onChanged: (v) {
                       options[i] = v;
@@ -619,7 +669,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete, size: 16, color: Colors.grey),
+                  icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.textTertiary),
                   onPressed: widget.readOnly
                       ? null
                       : () {
@@ -642,15 +692,18 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
 
     return TextFormField(
       initialValue: mediaUrl,
-      style: const TextStyle(color: Colors.white, fontSize: 13),
+      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         labelText: 'Media / Image URL',
         hintText: 'https://...',
-        hintStyle: const TextStyle(color: Colors.grey),
-        labelStyle: const TextStyle(color: Colors.grey),
+        hintStyle: const TextStyle(color: AppColors.textTertiary),
+        labelStyle: const TextStyle(color: AppColors.textSecondary),
         filled: true,
-        fillColor: const Color(0xFF222836),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        fillColor: AppColors.surfaceSunken,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
       ),
       onChanged: (v) {
         widget.node.params['media_url'] = v;
@@ -669,15 +722,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           key: ValueKey('${widget.node.id}_method_$method'),
           isExpanded: true,
           initialValue: ['GET', 'POST', 'PUT', 'DELETE'].contains(method) ? method : 'POST',
-          dropdownColor: const Color(0xFF222836),
-          style: const TextStyle(color: Colors.white, fontSize: 13),
+          dropdownColor: AppColors.surface,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'HTTP Method',
-            labelStyle: const TextStyle(color: Colors.grey),
+            labelStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
-            fillColor: const Color(0xFF222836),
+            fillColor: AppColors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           items: const [
             DropdownMenuItem(value: 'GET', child: Text('GET')),
@@ -695,14 +750,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         TextFormField(
           initialValue: url,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Endpoint URL',
             hintText: 'https://...',
-            labelStyle: const TextStyle(color: Colors.grey),
+            labelStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
-            fillColor: const Color(0xFF222836),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           onChanged: (v) {
             widget.node.params['url'] = v;
@@ -721,14 +779,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       children: [
         TextFormField(
           initialValue: oled,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'OLED Text Banner',
             hintText: 'e.g. INSPECTION DONE',
-            labelStyle: const TextStyle(color: Colors.grey),
+            labelStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
-            fillColor: const Color(0xFF222836),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           onChanged: (v) {
             widget.node.params['oled_text'] = v;
@@ -738,14 +799,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         TextFormField(
           initialValue: led,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'LED Command',
             hintText: 'solid,0,200,40',
-            labelStyle: const TextStyle(color: Colors.grey),
+            labelStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
-            fillColor: const Color(0xFF222836),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           onChanged: (v) {
             widget.node.params['led_cmd'] = v;
@@ -765,11 +829,16 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     ];
 
     return Container(
-      color: const Color(0xFF141820),
+      color: AppColors.background,
       padding: const EdgeInsets.all(16),
       child: Card(
-        color: const Color(0xFF1E232F),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        color: AppColors.surface,
+        elevation: 2,
+        shadowColor: AppColors.shadowTint.withValues(alpha: 0.1),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: AppColors.border),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -777,14 +846,14 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             children: [
               Text(
                 title,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 15),
               ),
-              const Divider(color: Colors.grey),
+              const Divider(color: AppColors.border),
               if (fields.isEmpty)
                 const Center(
                   child: Padding(
                     padding: EdgeInsets.all(20),
-                    child: Text('No fields configured yet.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    child: Text('No fields configured yet.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                   ),
                 )
               else
@@ -799,23 +868,24 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         children: [
                           Text(
                             '${f.label}${f.required ? ' *' : ''}',
-                            style: const TextStyle(color: Colors.grey, fontSize: 12),
+                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 4),
                           if (f.type == 'switch')
-                            Switch(value: false, onChanged: (_) {})
+                            Switch(value: false, activeThumbColor: AppColors.primary, onChanged: (_) {})
                           else if (f.type == 'checkbox')
-                            Checkbox(value: false, onChanged: (_) {})
+                            Checkbox(value: false, activeColor: AppColors.primary, onChanged: (_) {})
                           else
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF262E3D),
-                                borderRadius: BorderRadius.circular(6),
+                                color: AppColors.surfaceSunken,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.border),
                               ),
                               child: Text(
                                 f.type == 'select' ? 'Select from options...' : 'Enter ${f.label.toLowerCase()}...',
-                                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
                               ),
                             ),
                         ],
@@ -826,7 +896,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: () {},
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF4CAF50)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.textOnPrimary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
+                ),
                 child: const Text('Submit Form'),
               ),
             ],
@@ -850,8 +924,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-            Text(value.toStringAsFixed(1), style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+            Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            Text(value.toStringAsFixed(1), style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
           ],
         ),
         Slider(
@@ -859,7 +933,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           min: min,
           max: max,
           divisions: divisions,
-          activeColor: const Color(0xFF448AFF),
+          activeColor: AppColors.primary,
+          inactiveColor: AppColors.borderStrong,
           onChanged: widget.readOnly ? null : onChanged,
         ),
       ],

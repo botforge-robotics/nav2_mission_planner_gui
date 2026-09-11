@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../../theme/app_theme.dart';
 import 'mission_graph_models.dart';
 
 /// Interactive Canvas for Node-Based Mission Editing.
@@ -46,7 +47,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF141820),
+      color: AppColors.background,
       child: Stack(
         children: [
           // Infinite Grid + Edge Wire Painter
@@ -85,7 +86,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                               ? _portOffsets['${_drawingFromNode!.id}_out_${_drawingFromPort!.id}']
                               : null,
                           drawingCurrentOffset: _drawingCurrentPos,
-                          drawingColor: _drawingFromPort?.color ?? const Color(0xFF4CAF50),
+                          drawingColor: _drawingFromPort?.color ?? AppColors.primary,
                         ),
                       ),
                     ),
@@ -105,26 +106,28 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
               top: 16,
               left: 16,
               child: Card(
-                color: const Color(0xFF262E3D),
+                color: AppColors.surface,
+                elevation: 4,
+                shadowColor: AppColors.shadowTint.withValues(alpha: 0.15),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: const BorderSide(color: Color(0xFFF44336)),
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: AppColors.danger),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.link_off, color: Color(0xFFF44336), size: 18),
+                      const Icon(Icons.link_off, color: AppColors.danger, size: 18),
                       const SizedBox(width: 8),
                       Text(
                         'Connection selected: ${_selectedEdge!.fromNode} → ${_selectedEdge!.toNode}',
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(width: 12),
                       FilledButton.icon(
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFF44336),
+                          backgroundColor: AppColors.danger,
                           visualDensity: VisualDensity.compact,
                         ),
                         onPressed: () {
@@ -134,11 +137,11 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                           });
                           widget.onGraphChanged();
                         },
-                        icon: const Icon(Icons.delete, size: 14),
+                        icon: const Icon(Icons.delete_outline, size: 14),
                         label: const Text('Delete Edge'),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close, size: 16, color: Colors.grey),
+                        icon: const Icon(Icons.close, size: 16, color: AppColors.textSecondary),
                         onPressed: () => setState(() => _selectedEdge = null),
                       ),
                     ],
@@ -152,14 +155,18 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
             bottom: 16,
             right: 16,
             child: Card(
-              color: const Color(0xFF1F2430),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              elevation: 4,
+              color: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: AppColors.border),
+              ),
+              elevation: 3,
+              shadowColor: AppColors.shadowTint.withValues(alpha: 0.14),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.add, color: Colors.white),
+                    icon: const Icon(Icons.add, color: AppColors.textPrimary),
                     tooltip: 'Zoom In',
                     onPressed: () {
                       final matrix = _transformController.value.clone();
@@ -168,7 +175,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.remove, color: Colors.white),
+                    icon: const Icon(Icons.remove, color: AppColors.textPrimary),
                     tooltip: 'Zoom Out',
                     onPressed: () {
                       final matrix = _transformController.value.clone();
@@ -177,7 +184,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.center_focus_strong, color: Colors.white),
+                    icon: const Icon(Icons.center_focus_strong, color: AppColors.textPrimary),
                     tooltip: 'Reset View',
                     onPressed: () {
                       _transformController.value = Matrix4.identity();
@@ -220,33 +227,34 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
         child: Container(
           width: nodeWidth,
           decoration: BoxDecoration(
-            color: const Color(0xFF1E232F),
-            borderRadius: BorderRadius.circular(12),
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: isActive
-                  ? const Color(0xFF00E5FF)
+                  ? AppColors.primary
                   : isSelected
-                      ? const Color(0xFF448AFF)
-                      : const Color(0xFF333D50),
-              width: isActive ? 2.5 : isSelected ? 2.0 : 1.0,
+                      ? AppColors.primary
+                      : AppColors.border,
+              width: isActive ? 2.5 : isSelected ? 2.0 : 1.2,
             ),
             boxShadow: [
               if (isActive)
                 BoxShadow(
-                  color: const Color(0xFF00E5FF).withValues(alpha: 0.35),
+                  color: AppColors.primary.withValues(alpha: 0.35),
                   blurRadius: 18,
                   spreadRadius: 2,
                 )
               else if (isSelected)
                 BoxShadow(
-                  color: const Color(0xFF448AFF).withValues(alpha: 0.25),
-                  blurRadius: 12,
+                  color: AppColors.primary.withValues(alpha: 0.22),
+                  blurRadius: 14,
+                  offset: const Offset(0, 3),
                 )
               else
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 6,
-                  offset: const Offset(0, 3),
+                  color: AppColors.shadowTint.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
             ],
           ),
@@ -263,7 +271,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                 child: _buildNodeSummary(node),
               ),
 
-              const Divider(height: 1, color: Color(0xFF2B3444)),
+              const Divider(height: 1, color: AppColors.border),
 
               // Ports Row
               Padding(
@@ -314,67 +322,77 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
     switch (node.type) {
       case 'start':
         icon = Icons.play_circle_filled;
-        iconColor = const Color(0xFF4CAF50);
+        iconColor = AppColors.success;
         break;
       case 'navigate_waypoint':
       case 'navigate_coordinates':
         icon = Icons.navigation;
-        iconColor = const Color(0xFF2196F3);
+        iconColor = const Color(0xFF2563EB);
         break;
       case 'wait':
         icon = Icons.timer;
-        iconColor = const Color(0xFFFF9800);
+        iconColor = AppColors.warning;
         break;
       case 'dock':
       case 'undock':
         icon = Icons.battery_charging_full;
-        iconColor = const Color(0xFF00E676);
+        iconColor = const Color(0xFF16A34A);
         break;
       case 'ui_interaction':
         icon = Icons.touch_app;
-        iconColor = const Color(0xFFE040FB);
+        iconColor = AppColors.primary;
         break;
       case 'condition':
         icon = Icons.call_split;
-        iconColor = const Color(0xFFFFD600);
+        iconColor = const Color(0xFFEA580C);
         break;
       case 'call_api':
         icon = Icons.http;
-        iconColor = const Color(0xFF00B0FF);
+        iconColor = const Color(0xFF7C3AED);
         break;
       case 'call_service':
       case 'call_action':
         icon = Icons.smart_toy;
-        iconColor = const Color(0xFFFF6D00);
+        iconColor = const Color(0xFF4F46E5);
         break;
       case 'notify':
         icon = Icons.notifications_active;
-        iconColor = const Color(0xFFFF5252);
+        iconColor = const Color(0xFF0D9488);
         break;
       default:
         icon = Icons.circle;
-        iconColor = Colors.grey;
+        iconColor = AppColors.textSecondary;
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF262E3D),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(11),
-          topRight: Radius.circular(11),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceElevated,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(13),
+          topRight: Radius.circular(13),
+        ),
+        border: Border(
+          bottom: BorderSide(color: AppColors.border),
         ),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: iconColor),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, size: 16, color: iconColor),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               node.label.isNotEmpty ? node.label : node.type,
               style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
                 fontSize: 13,
               ),
               maxLines: 1,
@@ -385,13 +403,13 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: const Text(
                 'RUNNING',
                 style: TextStyle(
-                  color: Color(0xFF00E5FF),
+                  color: AppColors.primary,
                   fontSize: 9,
                   fontWeight: FontWeight.bold,
                 ),
@@ -410,7 +428,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                 });
                 widget.onGraphChanged();
               },
-              child: const Icon(Icons.close, size: 16, color: Colors.grey),
+              child: const Icon(Icons.close_rounded, size: 16, color: AppColors.textTertiary),
             ),
         ],
       ),
@@ -458,7 +476,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
 
     return Text(
       summary,
-      style: const TextStyle(color: Color(0xFF9AA7BD), fontSize: 11),
+      style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
     );
@@ -636,22 +654,22 @@ class _EdgesPainter extends CustomPainter {
       final isSelected = selectedEdge?.id == edge.id;
       final isActive = activeNodeId == edge.fromNode;
 
-      Color edgeColor = const Color(0xFF64B5F6);
+      Color edgeColor = const Color(0xFF94A3B8);
       if (edge.fromPort == 'failed' || edge.fromPort == 'false') {
-        edgeColor = const Color(0xFFF44336);
+        edgeColor = AppColors.danger;
       } else if (edge.fromPort == 'timeout') {
-        edgeColor = const Color(0xFFFF9800);
+        edgeColor = AppColors.warning;
       } else if (edge.fromPort == 'submitted' || edge.fromPort == 'true' || edge.fromPort == 'arrived') {
-        edgeColor = const Color(0xFF4CAF50);
+        edgeColor = AppColors.success;
       }
 
       if (isSelected) {
-        edgeColor = Colors.amber;
+        edgeColor = AppColors.danger;
       } else if (isActive) {
-        edgeColor = const Color(0xFF00E5FF);
+        edgeColor = AppColors.primary;
       }
 
-      _drawCubicBezier(canvas, p1, p2, edgeColor, isSelected ? 3.0 : (isActive ? 2.5 : 1.8));
+      _drawCubicBezier(canvas, p1, p2, edgeColor, isSelected ? 3.0 : (isActive ? 2.8 : 2.0));
     }
 
     // 2. Draw live wire in progress
@@ -661,7 +679,7 @@ class _EdgesPainter extends CustomPainter {
         drawingFromOffset!,
         drawingCurrentOffset!,
         drawingColor.withValues(alpha: 0.85),
-        2.0,
+        2.2,
       );
     }
   }
@@ -691,7 +709,7 @@ class _EdgesPainter extends CustomPainter {
 
     canvas.drawPath(path, paint);
 
-    // Draw small directional arrow at center
+    // Draw small directional circle at center
     final midX = 0.5 * (p1.dx + p2.dx);
     final midY = 0.5 * (p1.dy + p2.dy);
     final arrowPaint = Paint()..color = color..style = PaintingStyle.fill;
@@ -702,14 +720,14 @@ class _EdgesPainter extends CustomPainter {
   bool shouldRepaint(covariant _EdgesPainter oldDelegate) => true;
 }
 
-/// Subtle Dot Grid Background Painter.
+/// Subtle Dot Grid Background Painter matching light engineering canvas.
 class _GridBackgroundPainter extends CustomPainter {
   const _GridBackgroundPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
     final dotPaint = Paint()
-      ..color = const Color(0xFF222836)
+      ..color = AppColors.borderStrong.withValues(alpha: 0.65)
       ..strokeWidth = 1.5;
 
     const double spacing = 32.0;
