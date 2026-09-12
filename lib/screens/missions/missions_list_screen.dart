@@ -83,6 +83,143 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
     if (created == true) _load();
   }
 
+  Future<void> _deleteMission(Map<String, dynamic> mission) async {
+    final api = _api;
+    if (api == null) return;
+    final id = mission['id'] as String;
+    final name = mission['name'] as String? ?? id;
+
+    // Check if currently active
+    final activeId = _runnerStatus?['mission_id'] as String?;
+    final activeState = _runnerStatus?['state'] as String?;
+    final isRunning = activeState == 'running' || activeState == 'paused' || activeState == 'charging_paused';
+    if (id == activeId && isRunning) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 36),
+          title: const Text('Mission is Currently Active'),
+          content: Text('Cannot delete "$name" while it is ${activeState ?? "running"}.\nPlease cancel or abort the mission before deleting it.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Check if referenced by other missions via switch_mission / redirect_mission
+    final referencingMissions = <String>[];
+    for (final m in (_missions ?? const [])) {
+      if (m['id'] == id) continue;
+      final nodes = (m['nodes'] as List? ?? const []).cast<Map<String, dynamic>>();
+      for (final node in nodes) {
+        if (node['type'] == 'switch_mission' || node['type'] == 'redirect_mission') {
+          final target = node['params']?['target_mission_id'] ?? node['params']?['mission_id'];
+          if (target == id) {
+            referencingMissions.add(m['name'] as String? ?? m['id'] as String);
+            break;
+          }
+        }
+      }
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: Icon(
+          referencingMissions.isNotEmpty ? Icons.warning_rounded : Icons.delete_outline_rounded,
+          color: AppColors.danger,
+          size: 36,
+        ),
+        title: Text(referencingMissions.isNotEmpty
+            ? 'Warning: Referenced Mission'
+            : 'Delete Mission?'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (referencingMissions.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.error_outline, color: AppColors.danger, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'This mission is referenced by other missions:\n• ${referencingMissions.join("\n• ")}\n\nDeleting it may break workflows.',
+                          style: const TextStyle(fontSize: 12, color: AppColors.danger),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              Text(
+                'Are you sure you want to permanently delete "$name"?',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'This will remove the mission permanently from the robot. This action cannot be undone.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            icon: const Icon(Icons.delete_forever_rounded, size: 18),
+            label: const Text('Delete Mission'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await api.deleteMission(id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Mission "$name" deleted'),
+          backgroundColor: AppColors.surface,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _load();
+    } on SdkApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete mission: ${e.message}'),
+          backgroundColor: AppColors.danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final robotIp = context.watch<ConnectionProvider>().robot?.ip;
@@ -174,6 +311,7 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
                 error: _error,
                 onRetry: _load,
                 onCreateMission: _createMission,
+                onDelete: _deleteMission,
                 onEdit: (mission) async {
                   final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
                   final changed = await Navigator.of(context).push<bool>(
@@ -212,6 +350,7 @@ class _Body extends StatelessWidget {
     required this.onCreateMission,
     required this.onEdit,
     required this.onOpen,
+    required this.onDelete,
   });
 
   final List<Map<String, dynamic>>? missions;
@@ -222,6 +361,7 @@ class _Body extends StatelessWidget {
   final VoidCallback onCreateMission;
   final void Function(Map<String, dynamic>) onEdit;
   final void Function(Map<String, dynamic>) onOpen;
+  final void Function(Map<String, dynamic>) onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -447,6 +587,12 @@ class _Body extends StatelessWidget {
                             size: 20, color: AppColors.primary),
                         tooltip: 'Edit mission',
                         onPressed: () => onEdit(mission),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded,
+                            size: 20, color: AppColors.danger),
+                        tooltip: 'Delete mission',
+                        onPressed: () => onDelete(mission),
                       ),
                       const Icon(Icons.chevron_right_rounded,
                           color: AppColors.textTertiary),
@@ -778,6 +924,18 @@ class _Body extends StatelessWidget {
                               onPressed: () => onEdit(mission),
                               icon: const Icon(Icons.edit_outlined, size: 16),
                               label: const Text('Edit'),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.danger,
+                                side: BorderSide(
+                                  color: AppColors.danger.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              onPressed: () => onDelete(mission),
+                              icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                              label: const Text('Delete'),
                             ),
                             const SizedBox(width: AppSpacing.sm),
                             Expanded(

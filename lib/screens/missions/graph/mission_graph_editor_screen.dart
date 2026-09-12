@@ -254,6 +254,69 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     }
   }
 
+  Future<void> _deleteMission() async {
+    final api = _api;
+    if (api == null) return;
+    if (_running) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 36),
+          title: const Text('Mission is Running'),
+          content: const Text('Cannot delete this mission while it is actively executing. Please abort or cancel first.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 36),
+        title: const Text('Delete Mission?'),
+        content: Text(
+          'Are you sure you want to permanently delete "${_graph.name}"?\n\nThis will remove the entire visual node graph and all configured nodes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            icon: const Icon(Icons.delete_forever_rounded, size: 18),
+            label: const Text('Delete Mission'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await api.deleteMission(_graph.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Mission "${_graph.name}" deleted')),
+        );
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete mission: $e'), backgroundColor: AppColors.danger),
+        );
+      }
+    }
+  }
+
   List<String> _validateGraph() {
     final errors = <String>[];
     if (_graph.nodes.isEmpty) {
@@ -735,6 +798,22 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               ],
             ),
           ),
+
+        // Delete Mission Button (when editing an existing saved mission)
+        if (widget.existingMission != null) ...[
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 36),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              foregroundColor: AppColors.danger,
+              side: BorderSide(color: AppColors.danger.withValues(alpha: 0.4)),
+            ),
+            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+            label: const Text('Delete'),
+            onPressed: _deleteMission,
+          ),
+          const SizedBox(width: 8),
+        ],
 
         // Validate Button
         OutlinedButton.icon(

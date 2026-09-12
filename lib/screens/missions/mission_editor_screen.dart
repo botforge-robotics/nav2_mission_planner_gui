@@ -1087,6 +1087,54 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
     }
   }
 
+  Future<void> _deleteMission() async {
+    final api = _api;
+    if (api == null || widget.existing == null) return;
+    final id = widget.existing!['id'] as String;
+    final name = _nameController.text.trim().isNotEmpty
+        ? _nameController.text.trim()
+        : (widget.existing!['name'] as String? ?? id);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 36),
+        title: const Text('Delete Mission?'),
+        content: Text('Are you sure you want to permanently delete "$name"?\nThis action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            icon: const Icon(Icons.delete_forever_rounded, size: 18),
+            label: const Text('Delete Mission'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await api.deleteMission(id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Mission "$name" deleted')),
+        );
+        _goBack(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e'), backgroundColor: AppColors.danger),
+        );
+      }
+    }
+  }
+
   void _goBack([bool? result]) {
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop(result ?? false);
@@ -1154,6 +1202,19 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                 ? 'Mission Studio · Edit Mission'
                 : 'Mission Studio · New Mission'),
           actions: [
+            if (_isEditing)
+              Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.sm),
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: BorderSide(color: AppColors.danger.withValues(alpha: 0.4)),
+                  ),
+                  icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                  label: const Text('Delete'),
+                  onPressed: _deleteMission,
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.sm),
               child: OutlinedButton.icon(
@@ -1651,6 +1712,14 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
             onPressed: () => _goBack(false),
           ),
           title: Text(_isEditing ? 'Edit Mission' : 'New Mission'),
+          actions: [
+            if (_isEditing)
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+                tooltip: 'Delete Mission',
+                onPressed: _deleteMission,
+              ),
+          ],
         ),
         body: SafeArea(
           child: CenteredFormColumn(
