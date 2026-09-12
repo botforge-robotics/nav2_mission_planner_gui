@@ -340,6 +340,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           _buildCallApiInspector()
         else if (node.type == 'ui_interaction')
           _buildUiInteractionInspector()
+        else if (node.type == 'ui_choice')
+          _buildUiChoiceInspector()
+        else if (node.type == 'set_variable')
+          _buildSetVariableInspector()
         else if (node.type == 'notify')
           _buildNotifyInspector()
         else if (node.type == 'end' || node.type == 'mission_end')
@@ -719,12 +723,267 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: widget.node.params['output_variable'] as String? ?? widget.node.params['variable_name'] as String? ?? '',
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Save Entire Form to Variable (Optional)',
+            hintText: 'e.g. user_form_data',
+            prefixIcon: const Icon(Icons.data_object, size: 16),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: (v) {
+            final val = v.trim();
+            widget.node.params['output_variable'] = val;
+            widget.node.params['variable_name'] = val;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.auto_awesome, size: 16, color: AppColors.primary),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '💡 Every question key (e.g. {field_1} or custom key like {room}) is automatically saved as a variable! You can use {key} in later steps (such as HTTP requests, ROS topics, Screen titles, or TTS voice messages).',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.35),
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 16),
 
         // Subtype specific builders
         if (subtype == 'dynamic_form') _buildDynamicFormFieldsEditor(),
         if (subtype == 'choice') _buildChoiceOptionsEditor(),
         if (subtype == 'media_display') _buildMediaUrlEditor(),
+      ],
+    );
+  }
+
+  Widget _buildUiChoiceInspector() {
+    final title = widget.node.params['title'] as String? ?? 'Choose an Option';
+    final message = widget.node.params['message'] as String? ?? 'Please tap one of the options below:';
+    final outVar = widget.node.params['output_variable'] as String? ?? widget.node.params['variable_name'] as String? ?? '';
+    final timeout = (widget.node.params['timeout_sec'] as num?)?.toDouble() ?? 60.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          key: ValueKey('${widget.node.id}_target_${widget.node.params['target']}'),
+          isExpanded: true,
+          initialValue: ['robot_screen', 'operator_app', 'both'].contains(widget.node.params['target'])
+              ? widget.node.params['target']
+              : 'robot_screen',
+          dropdownColor: AppColors.surface,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Where should choices appear?',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          items: const [
+            DropdownMenuItem(value: 'robot_screen', child: Text('Robot Screen (Touchscreen)')),
+            DropdownMenuItem(value: 'operator_app', child: Text('Operator App (This screen)')),
+            DropdownMenuItem(value: 'both', child: Text('Both Robot and App')),
+          ],
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  setState(() => widget.node.params['target'] = val);
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: title,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Dialog Title',
+            hintText: 'e.g. Confirm Delivery',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: (v) {
+            widget.node.params['title'] = v;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: message,
+          maxLines: 2,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Prompt Message (supports {variable})',
+            hintText: 'e.g. Deliver items to room {room}?',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: (v) {
+            widget.node.params['message'] = v;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: outVar,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Save Choice to Variable (Optional)',
+            hintText: 'e.g. user_decision',
+            prefixIcon: const Icon(Icons.data_object, size: 16),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: (v) {
+            final val = v.trim();
+            widget.node.params['output_variable'] = val;
+            widget.node.params['variable_name'] = val;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildNumberSlider(
+          label: 'Timeout limit (seconds)',
+          value: timeout,
+          min: 5.0,
+          max: 300.0,
+          divisions: 59,
+          onChanged: (v) {
+            widget.node.params['timeout_sec'] = v;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 14),
+        _buildChoiceOptionsEditor(),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.lightbulb_outline, size: 16, color: AppColors.primary),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '💡 The selected choice is automatically saved to {selected_choice} (and your custom variable above). You can connect outgoing branch wires for each button name (e.g. "yes", "no").',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.35),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSetVariableInspector() {
+    final key = widget.node.params['key'] as String? ?? widget.node.params['name'] as String? ?? '';
+    final val = widget.node.params['value']?.toString() ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          initialValue: key,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Variable Name',
+            hintText: 'e.g. target_room or guest_count',
+            prefixIcon: const Icon(Icons.label_outline, size: 16),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: (v) {
+            final trimmed = v.trim();
+            widget.node.params['key'] = trimmed;
+            widget.node.params['name'] = trimmed;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: val,
+          maxLines: 2,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Variable Value (supports text, numbers, or {variables})',
+            hintText: 'e.g. 302, "VIP", or {user_entered_room}',
+            prefixIcon: const Icon(Icons.edit_note, size: 16),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: (v) {
+            if (num.tryParse(v) != null && !v.contains('{')) {
+              widget.node.params['value'] = num.parse(v);
+            } else {
+              widget.node.params['value'] = v;
+            }
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.auto_awesome, size: 16, color: AppColors.primary),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '💡 Stored variables can be used in later nodes (such as Screen text, Voice speech, HTTP URLs, or Waypoints) using {variable_name}.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.35),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -1208,6 +1467,49 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.node.params['timeout_sec'] = v;
             widget.onChanged();
           },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: widget.node.params['output_variable'] as String? ?? widget.node.params['variable_name'] as String? ?? '',
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Save API Response to Variable (Optional)',
+            hintText: 'e.g. api_response or weather_info',
+            prefixIcon: const Icon(Icons.data_object, size: 16),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: (v) {
+            final val = v.trim();
+            widget.node.params['output_variable'] = val;
+            widget.node.params['variable_name'] = val;
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.lightbulb_outline, size: 16, color: AppColors.primary),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '💡 You can insert any previous variable into the URL, Headers, or Payload using {variable_name}. Any JSON response will be saved into the variable above!',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.35),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -2059,13 +2361,35 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   }
 
   Widget _buildCallServiceInspector() {
+    final outVar = widget.node.params['output_variable'] as String? ?? widget.node.params['variable_name'] as String? ?? '';
     return Column(
       children: [
         _buildTextField('Robot Service Name (Advanced)', 'service_name', '/set_mode'),
         const SizedBox(height: 12),
         _buildTextField('Service Message Type', 'service_type', 'std_srvs/srv/SetBool'),
         const SizedBox(height: 12),
-        _buildTextField('Service Request Data (JSON)', 'payload', '{"data": true}', maxLines: 3),
+        _buildTextField('Service Request Data (JSON, supports {variables})', 'payload', '{"data": true}', maxLines: 3),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: outVar,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Save Service Response to Variable (Optional)',
+            hintText: 'e.g. service_result',
+            prefixIcon: const Icon(Icons.data_object, size: 16),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: (v) {
+            final val = v.trim();
+            widget.node.params['output_variable'] = val;
+            widget.node.params['variable_name'] = val;
+            widget.onChanged();
+          },
+        ),
         const SizedBox(height: 12),
         _buildNumberSlider(
           label: 'Wait limit for response (seconds)',
@@ -2083,13 +2407,35 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   }
 
   Widget _buildCallActionInspector() {
+    final outVar = widget.node.params['output_variable'] as String? ?? widget.node.params['variable_name'] as String? ?? '';
     return Column(
       children: [
         _buildTextField('Robot Action Goal Name (Advanced)', 'action_name', '/navigate_to_pose'),
         const SizedBox(height: 12),
         _buildTextField('Action Message Type', 'action_type', 'nav2_msgs/action/NavigateToPose'),
         const SizedBox(height: 12),
-        _buildTextField('Goal Request Data (JSON)', 'payload', '{}', maxLines: 3),
+        _buildTextField('Goal Request Data (JSON, supports {variables})', 'payload', '{}', maxLines: 3),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: outVar,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Save Action Result to Variable (Optional)',
+            hintText: 'e.g. action_result',
+            prefixIcon: const Icon(Icons.data_object, size: 16),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: (v) {
+            final val = v.trim();
+            widget.node.params['output_variable'] = val;
+            widget.node.params['variable_name'] = val;
+            widget.onChanged();
+          },
+        ),
         const SizedBox(height: 12),
         _buildNumberSlider(
           label: 'Wait limit for action (seconds)',
@@ -2113,7 +2459,29 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         _buildTextField('Topic Message Type', 'message_type', 'geometry_msgs/msg/Twist'),
         const SizedBox(height: 12),
-        _buildTextField('Message Data to Broadcast (JSON)', 'payload', '{}', maxLines: 3),
+        _buildTextField('Message Data to Broadcast (JSON, supports {variables})', 'payload', '{}', maxLines: 3),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.lightbulb_outline, size: 14, color: AppColors.primary),
+              SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '💡 You can insert any previous variable into the topic message payload using {variable_name}.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.3),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
