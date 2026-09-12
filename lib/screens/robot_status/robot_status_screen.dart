@@ -443,8 +443,9 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
                                   onTap: () {
                                     setState(
                                         () => _showAdvanced = !_showAdvanced);
-                                    if (_showAdvanced && _health == null)
+                                    if (_showAdvanced && _health == null) {
                                       _loadAdvanced();
+                                    }
                                   },
                                 ),
                                 AnimatedSize(
@@ -495,8 +496,9 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
 
   String? _nearestLocation(RobotTelemetryProvider telemetry) {
     final locations = _locations;
-    if (locations == null || telemetry.poseX == null || telemetry.poseY == null)
+    if (locations == null || telemetry.poseX == null || telemetry.poseY == null) {
       return null;
+    }
     String? nearestName;
     double nearestDist = double.infinity;
     for (final loc in locations) {

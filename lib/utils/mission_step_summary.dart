@@ -5,6 +5,8 @@
 /// saved-location name or raw x/y), `wait`, `dock`, `undock`, and the two
 /// generic escape hatches `call_service`/`call_action` (see
 /// handlers/missions.py's own VALID_STEP_TYPES on the robot).
+library;
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';

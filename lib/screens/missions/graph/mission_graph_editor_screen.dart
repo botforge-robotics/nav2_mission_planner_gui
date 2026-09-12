@@ -27,6 +27,8 @@ class MissionGraphEditorScreen extends StatefulWidget {
 class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   late MissionGraph _graph;
   late final TextEditingController _nameController;
+  late final FocusNode _nameFocusNode;
+  bool _isEditingName = false;
 
   GraphNode? _selectedNode;
   String? _activeNodeId;
@@ -51,6 +53,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     super.initState();
     _initGraph();
     _nameController = TextEditingController(text: _graph.name);
+    _nameFocusNode = FocusNode();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadInitialData();
       _startExecutionPolling();
@@ -94,6 +97,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   void dispose() {
     _statusPoller?.cancel();
     _nameController.dispose();
+    _nameFocusNode.dispose();
     super.dispose();
   }
 
@@ -701,62 +705,174 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       title: Row(
         children: [
           const Icon(Icons.account_tree_outlined, color: AppColors.primary, size: 22),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 220,
-            child: TextField(
-              controller: _nameController,
-              style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Mission Name',
-                hintStyle: TextStyle(color: AppColors.textTertiary),
-                isDense: true,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 10),
 
-          // Map Selector
+          // Mission Name: Display as text with pen icon, enters edit mode on click
+          !_isEditingName
+              ? Tooltip(
+                  message: 'Click to edit mission name',
+                  child: InkWell(
+                    onTap: () {
+                      _nameController.text = _graph.name;
+                      setState(() => _isEditingName = true);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _nameFocusNode.requestFocus();
+                        _nameController.selection = TextSelection(
+                          baseOffset: 0,
+                          extentOffset: _nameController.text.length,
+                        );
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceElevated.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 240),
+                            child: Text(
+                              _graph.name.isNotEmpty ? _graph.name : 'Untitled Mission',
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.edit_outlined,
+                            size: 15,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 220,
+                      height: 36,
+                      child: TextField(
+                        controller: _nameController,
+                        focusNode: _nameFocusNode,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Mission Name',
+                          hintStyle: const TextStyle(color: AppColors.textTertiary),
+                          filled: true,
+                          fillColor: AppColors.surfaceSunken,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: const BorderSide(color: AppColors.primary),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: const BorderSide(color: AppColors.primary),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                          ),
+                        ),
+                        onSubmitted: (val) {
+                          setState(() {
+                            final name = val.trim();
+                            _graph.name = name.isNotEmpty ? name : 'Untitled Mission';
+                            _isEditingName = false;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 22),
+                      tooltip: 'Save Name',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      onPressed: () {
+                        setState(() {
+                          final name = _nameController.text.trim();
+                          _graph.name = name.isNotEmpty ? name : 'Untitled Mission';
+                          _isEditingName = false;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+          const SizedBox(width: 14),
+
+          // Map Selector (Explicitly labeled)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
             decoration: BoxDecoration(
               color: AppColors.surfaceSunken,
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
               border: Border.all(color: AppColors.border),
             ),
-            child: DropdownButtonHideUnderline(
-              child: Builder(
-                builder: (context) {
-                  final mapSet = <String>{
-                    ..._availableMaps,
-                    if (_currentMap != null && _currentMap!.isNotEmpty) _currentMap!,
-                    if (_graph.map != null && _graph.map!.isNotEmpty) _graph.map!,
-                  };
-                  final mapList = mapSet.toList();
-                  final selectedMap = mapSet.contains(_graph.map)
-                      ? _graph.map
-                      : (mapSet.contains(_currentMap)
-                          ? _currentMap
-                          : (mapList.isNotEmpty ? mapList.first : null));
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.map_outlined, size: 15, color: AppColors.textSecondary),
+                const SizedBox(width: 6),
+                const Text(
+                  'Map:',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                DropdownButtonHideUnderline(
+                  child: Builder(
+                    builder: (context) {
+                      final mapSet = <String>{
+                        ..._availableMaps,
+                        if (_currentMap != null && _currentMap!.isNotEmpty) _currentMap!,
+                        if (_graph.map != null && _graph.map!.isNotEmpty) _graph.map!,
+                      };
+                      final mapList = mapSet.toList();
+                      final selectedMap = mapSet.contains(_graph.map)
+                          ? _graph.map
+                          : (mapSet.contains(_currentMap)
+                              ? _currentMap
+                              : (mapList.isNotEmpty ? mapList.first : null));
 
-                  return DropdownButton<String>(
-                    value: selectedMap,
-                    dropdownColor: AppColors.surface,
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-                    hint: const Text('Select Map', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                    items: [
-                      for (final m in mapList)
-                        DropdownMenuItem(value: m, child: Text(m)),
-                    ],
-                    onChanged: (val) {
-                      setState(() {
-                        _graph.map = val;
-                      });
+                      return DropdownButton<String>(
+                        value: selectedMap,
+                        dropdownColor: AppColors.surface,
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                        hint: const Text('Select Map', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        items: [
+                          for (final m in mapList)
+                            DropdownMenuItem(value: m, child: Text(m)),
+                        ],
+                        onChanged: (val) {
+                          setState(() {
+                            _graph.map = val;
+                          });
+                        },
+                      );
                     },
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

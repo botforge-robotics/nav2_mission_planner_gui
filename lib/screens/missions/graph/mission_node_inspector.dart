@@ -3,10 +3,24 @@ import 'dart:typed_data' show Uint8List;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import '../../../services/locations_controller.dart';
 import '../../../services/sdk_api_service.dart';
 import '../../../theme/app_theme.dart';
 import 'mission_graph_models.dart';
+
+/// Representation of an available variable in the mission graph.
+class AvailableVariable {
+  const AvailableVariable({
+    required this.name,
+    required this.source,
+    this.isSystem = false,
+  });
+
+  final String name;
+  final String source;
+  final bool isSystem;
+}
 
 /// Contextual Properties Inspector & Dynamic Form Builder for the selected node.
 class MissionNodeInspector extends StatefulWidget {
@@ -14,6 +28,7 @@ class MissionNodeInspector extends StatefulWidget {
     super.key,
     required this.node,
     required this.onChanged,
+    this.graph,
     this.onDelete,
     this.readOnly = false,
     this.availableMissions = const [],
@@ -21,6 +36,7 @@ class MissionNodeInspector extends StatefulWidget {
   });
 
   final GraphNode node;
+  final MissionGraph? graph;
   final VoidCallback onChanged;
   final VoidCallback? onDelete;
   final bool readOnly;
@@ -35,12 +51,302 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late TextEditingController _labelController;
+  late FocusNode _labelFocusNode;
+
+  TextEditingController? _activeController;
+  FocusNode? _activeFocusNode;
+  ValueChanged<String>? _activeOnChanged;
+  TextSelection? _lastSelection;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _labelController = TextEditingController(text: widget.node.label);
+    _labelFocusNode = FocusNode();
+    _labelFocusNode.addListener(() {
+      if (_labelFocusNode.hasFocus) {
+        _setActiveField(
+          controller: _labelController,
+          focusNode: _labelFocusNode,
+          onChanged: (val) {
+            widget.node.label = val;
+            widget.onChanged();
+          },
+        );
+      }
+    });
+  }
+
+  void _setActiveField({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required ValueChanged<String> onChanged,
+  }) {
+    _activeController = controller;
+    _activeFocusNode = focusNode;
+    _activeOnChanged = onChanged;
+    _lastSelection = controller.selection;
+  }
+
+  void _insertVariableIntoActiveField(String varName) {
+    final token = '{$varName}';
+    final controller = _activeController;
+
+    if (controller != null) {
+      final text = controller.text;
+      int start = _lastSelection?.start ?? controller.selection.start;
+      int end = _lastSelection?.end ?? controller.selection.end;
+
+      if (start < 0 || end < 0 || start > text.length || end > text.length) {
+        start = text.length;
+        end = text.length;
+      }
+
+      final newText = text.replaceRange(start, end, token);
+      controller.text = newText;
+      final newOffset = start + token.length;
+      controller.selection = TextSelection.collapsed(offset: newOffset);
+      _lastSelection = controller.selection;
+
+      _activeOnChanged?.call(newText);
+      _activeFocusNode?.requestFocus();
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Inserted $token into active field'),
+          duration: const Duration(milliseconds: 1200),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      Clipboard.setData(ClipboardData(text: token));
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Copied $token to clipboard. Tap into any text field to insert.'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  List<AvailableVariable> _getAvailableVariables() {
+    final vars = <AvailableVariable>[];
+    final seen = <String>{};
+
+    void addVar(String name, String source, {bool isSystem = false}) {
+      final clean = name.trim();
+      if (clean.isNotEmpty && !seen.contains(clean)) {
+        seen.add(clean);
+        vars.add(AvailableVariable(name: clean, source: source, isSystem: isSystem));
+      }
+    }
+
+    final nodes = widget.graph?.nodes ?? [widget.node];
+    for (final node in nodes) {
+      switch (node.type) {
+        case 'set_variable':
+          final key = node.params['key'] as String? ?? node.params['name'] as String?;
+          if (key != null && key.trim().isNotEmpty) {
+            addVar(key, 'Set Variable ("${node.label.isNotEmpty ? node.label : node.id}")');
+          }
+          break;
+        case 'loop':
+        case 'loop_counter':
+          final varName = node.params['variable_name'] as String? ?? 'loop_index';
+          if (varName.trim().isNotEmpty) {
+            addVar(varName, 'Loop Counter ("${node.label.isNotEmpty ? node.label : node.id}")');
+          }
+          break;
+        case 'ui_interaction':
+          final rawFields = node.params['fields'] as List?;
+          if (rawFields != null) {
+            for (final f in rawFields) {
+              if (f is Map<String, dynamic>) {
+                final fid = f['key'] as String? ?? f['id'] as String? ?? f['name'] as String?;
+                if (fid != null && fid.trim().isNotEmpty) {
+                  final label = f['label'] as String? ?? fid;
+                  addVar(fid, 'Form Field "$label" ("${node.label.isNotEmpty ? node.label : node.id}")');
+                }
+              }
+            }
+          }
+          final outVar = node.params['output_variable'] as String? ?? node.params['variable_name'] as String?;
+          if (outVar != null && outVar.trim().isNotEmpty) {
+            addVar(outVar, 'Form Response ("${node.label.isNotEmpty ? node.label : node.id}")');
+          }
+          break;
+        case 'ui_choice':
+          final resultVar = node.params['result_variable'] as String? ?? node.params['variable_name'] as String? ?? 'choice_result';
+          if (resultVar.trim().isNotEmpty) {
+            addVar(resultVar, 'User Choice ("${node.label.isNotEmpty ? node.label : node.id}")');
+          }
+          break;
+        case 'call_api':
+          final apiOut = node.params['output_variable'] as String? ?? node.params['variable_name'] as String? ?? 'api_response';
+          if (apiOut.trim().isNotEmpty) {
+            addVar(apiOut, 'API Response ("${node.label.isNotEmpty ? node.label : node.id}")');
+          }
+          break;
+        case 'call_service':
+          final srvOut = node.params['output_variable'] as String? ?? node.params['variable_name'] as String? ?? 'service_response';
+          if (srvOut.trim().isNotEmpty) {
+            addVar(srvOut, 'Service Result ("${node.label.isNotEmpty ? node.label : node.id}")');
+          }
+          break;
+        case 'call_action':
+          final actOut = node.params['output_variable'] as String? ?? node.params['variable_name'] as String? ?? 'action_result';
+          if (actOut.trim().isNotEmpty) {
+            addVar(actOut, 'Action Result ("${node.label.isNotEmpty ? node.label : node.id}")');
+          }
+          break;
+      }
+    }
+
+    // System Built-in variables
+    addVar('battery_pct', 'System Battery Level (0-100)', isSystem: true);
+    addVar('current_map', 'Active Navigation Map Name', isSystem: true);
+    addVar('current_waypoint', 'Last Reached Waypoint', isSystem: true);
+    addVar('robot_name', 'Robot Display Name', isSystem: true);
+    addVar('robot_ip', 'Robot IP Address', isSystem: true);
+    addVar('timestamp', 'Current ISO Timestamp', isSystem: true);
+    addVar('status', 'Robot System Health Status', isSystem: true);
+
+    return vars;
+  }
+
+  Widget _buildAvailableVariablesBanner() {
+    final vars = _getAvailableVariables();
+    if (vars.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFF141923),
+        border: Border(
+          bottom: BorderSide(color: AppColors.border, width: 1),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.data_object_rounded, size: 14, color: AppColors.primary),
+              const SizedBox(width: 6),
+              const Text(
+                'AVAILABLE VARIABLES',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              const Text(
+                'Tap chip to insert',
+                style: TextStyle(
+                  color: AppColors.textTertiary,
+                  fontSize: 10,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 28,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: vars.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (context, index) {
+                final v = vars[index];
+                return Tooltip(
+                  message: '${v.isSystem ? "[System Variable]" : "[Mission Variable]"}\nSource: ${v.source}\nClick to insert {${v.name}} into active field',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: () => _insertVariableIntoActiveField(v.name),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: v.isSystem
+                            ? AppColors.surfaceElevated
+                            : AppColors.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: v.isSystem
+                              ? AppColors.border
+                              : AppColors.primary.withValues(alpha: 0.4),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            v.isSystem ? Icons.memory : Icons.data_array,
+                            size: 11,
+                            color: v.isSystem ? AppColors.textSecondary : AppColors.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '{${v.name}}',
+                            style: TextStyle(
+                              color: v.isSystem ? AppColors.textPrimary : AppColors.primary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVariableInputField({
+    required String label,
+    required String initialValue,
+    required ValueChanged<String> onChanged,
+    String? hintText,
+    String? helperText,
+    int maxLines = 1,
+    TextInputType? keyboardType,
+    Widget? prefixIcon,
+  }) {
+    return _VariableAwareTextField(
+      key: ValueKey('${widget.node.id}_$label'),
+      labelText: label,
+      initialValue: initialValue,
+      hintText: hintText,
+      helperText: helperText,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      prefixIcon: prefixIcon,
+      enabled: !widget.readOnly,
+      availableVariables: _getAvailableVariables(),
+      onFocus: (controller, focusNode, changeCb) {
+        _setActiveField(
+          controller: controller,
+          focusNode: focusNode,
+          onChanged: changeCb,
+        );
+      },
+      onChanged: onChanged,
+    );
   }
 
   @override
@@ -55,6 +361,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   void dispose() {
     _tabController.dispose();
     _labelController.dispose();
+    _labelFocusNode.dispose();
     super.dispose();
   }
 
@@ -114,6 +421,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               ],
             ),
           ),
+
+          // Available Variables Banner
+          _buildAvailableVariablesBanner(),
 
           // Tabs (Properties vs Preview for UI interaction)
           if (isUiInteraction)
@@ -307,8 +617,19 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         // Node Label
         TextField(
           controller: _labelController,
+          focusNode: _labelFocusNode,
           enabled: !widget.readOnly,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          onTap: () {
+            _setActiveField(
+              controller: _labelController,
+              focusNode: _labelFocusNode,
+              onChanged: (val) {
+                node.label = val;
+                widget.onChanged();
+              },
+            );
+          },
           decoration: InputDecoration(
             labelText: 'Step Name (Shown on Canvas)',
             hintText: 'e.g. Drive to Charging Station',
@@ -558,23 +879,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Rule to check',
           initialValue: expr,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Rule to check',
-            hintText: 'e.g. form.status == "Pass"',
-            helperText: 'If this rule is true, robot follows Yes path; otherwise No path',
-            helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
-            hintStyle: const TextStyle(color: AppColors.textTertiary),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-          ),
+          hintText: 'e.g. form.status == "Pass" or {battery_pct} < 20',
+          helperText: 'If this rule is true, robot follows Yes path; otherwise No path (supports {variables})',
           onChanged: (v) {
             widget.node.params['expression'] = v;
             widget.onChanged();
@@ -591,8 +900,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           runSpacing: 6,
           children: [
             _buildTokenChip('form.status == "Pass"'),
-            _buildTokenChip('system.battery_pct < 20'),
-            _buildTokenChip('form.damaged == True'),
+            _buildTokenChip('{battery_pct} < 20'),
+            _buildTokenChip('{choice_result} == "Yes"'),
           ],
         ),
       ],
@@ -692,19 +1001,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
         const SizedBox(height: 12),
 
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Screen Title (Header shown to user)',
           initialValue: title,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Screen Title (Header shown to user)',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-          ),
           onChanged: (v) {
             widget.node.params['title'] = v;
             widget.onChanged();
@@ -724,19 +1023,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           },
         ),
         const SizedBox(height: 12),
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Save Entire Form to Variable (Optional)',
           initialValue: widget.node.params['output_variable'] as String? ?? widget.node.params['variable_name'] as String? ?? '',
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Save Entire Form to Variable (Optional)',
-            hintText: 'e.g. user_form_data',
-            prefixIcon: const Icon(Icons.data_object, size: 16),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
-          ),
+          hintText: 'e.g. user_form_data',
+          prefixIcon: const Icon(Icons.data_object, size: 16),
           onChanged: (v) {
             final val = v.trim();
             widget.node.params['output_variable'] = val;
@@ -918,19 +1209,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Variable Name',
           initialValue: key,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Variable Name',
-            hintText: 'e.g. target_room or guest_count',
-            prefixIcon: const Icon(Icons.label_outline, size: 16),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
-          ),
+          hintText: 'e.g. target_room or guest_count',
+          prefixIcon: const Icon(Icons.label_outline, size: 16),
           onChanged: (v) {
             final trimmed = v.trim();
             widget.node.params['key'] = trimmed;
@@ -939,20 +1222,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           },
         ),
         const SizedBox(height: 12),
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Variable Value (supports text, numbers, or {variables})',
           initialValue: val,
           maxLines: 2,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Variable Value (supports text, numbers, or {variables})',
-            hintText: 'e.g. 302, "VIP", or {user_entered_room}',
-            prefixIcon: const Icon(Icons.edit_note, size: 16),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
-          ),
+          hintText: 'e.g. 302, "VIP", or {user_entered_room}',
+          prefixIcon: const Icon(Icons.edit_note, size: 16),
           onChanged: (v) {
             if (num.tryParse(v) != null && !v.contains('{')) {
               widget.node.params['value'] = num.parse(v);
@@ -1310,23 +1585,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   Widget _buildMediaUrlEditor() {
     final mediaUrl = widget.node.params['media_url'] as String? ?? '';
 
-    return TextFormField(
+    return _buildVariableInputField(
+      label: 'Link to Picture or Video (URL)',
       initialValue: mediaUrl,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-      decoration: InputDecoration(
-        labelText: 'Link to Picture or Video (URL)',
-        hintText: 'https://example.com/picture.png',
-        helperText: 'Direct web link to an image or MP4 video',
-        helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
-        hintStyle: const TextStyle(color: AppColors.textTertiary),
-        labelStyle: const TextStyle(color: AppColors.textSecondary),
-        filled: true,
-        fillColor: AppColors.surfaceSunken,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-      ),
+      hintText: 'https://example.com/picture.png',
+      helperText: 'Direct web link to an image or MP4 video (supports {variables})',
       onChanged: (v) {
         widget.node.params['media_url'] = v;
         widget.onChanged();
@@ -1374,83 +1637,43 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 },
         ),
         const SizedBox(height: 12),
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Web Address (URL)',
           initialValue: url,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Web Address (URL)',
-            hintText: 'https://api.example.com/webhook',
-            labelStyle: const TextStyle(color: AppColors.textSecondary),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-          ),
+          hintText: 'https://api.example.com/webhook',
           onChanged: (v) {
             widget.node.params['url'] = v;
             widget.onChanged();
           },
         ),
         const SizedBox(height: 12),
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Secret Key / Access Token (Optional)',
           initialValue: token,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Secret Key / Access Token (Optional)',
-            hintText: 'Bearer token or auth key',
-            prefixIcon: const Icon(Icons.key, size: 16),
-            labelStyle: const TextStyle(color: AppColors.textSecondary),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-          ),
+          hintText: 'Bearer token or auth key',
+          prefixIcon: const Icon(Icons.key, size: 16),
           onChanged: (v) {
             widget.node.params['bearer_token'] = v;
             widget.onChanged();
           },
         ),
         const SizedBox(height: 12),
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Custom Headers (JSON, optional)',
           initialValue: headers,
           maxLines: 2,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Custom Headers (JSON, optional)',
-            hintText: '{"Content-Type": "application/json"}',
-            labelStyle: const TextStyle(color: AppColors.textSecondary),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-          ),
+          hintText: '{"Content-Type": "application/json"}',
           onChanged: (v) {
             widget.node.params['headers'] = v;
             widget.onChanged();
           },
         ),
         const SizedBox(height: 12),
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Message Data to Send (JSON, optional)',
           initialValue: payload,
           maxLines: 3,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Message Data to Send (JSON, optional)',
-            hintText: '{"status": "completed"}',
-            labelStyle: const TextStyle(color: AppColors.textSecondary),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-          ),
+          hintText: '{"status": "completed"}',
           onChanged: (v) {
             widget.node.params['payload'] = v;
             widget.onChanged();
@@ -1469,19 +1692,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           },
         ),
         const SizedBox(height: 12),
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Save API Response to Variable (Optional)',
           initialValue: widget.node.params['output_variable'] as String? ?? widget.node.params['variable_name'] as String? ?? '',
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Save API Response to Variable (Optional)',
-            hintText: 'e.g. api_response or weather_info',
-            prefixIcon: const Icon(Icons.data_object, size: 16),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
-          ),
+          hintText: 'e.g. api_response or weather_info',
+          prefixIcon: const Icon(Icons.data_object, size: 16),
           onChanged: (v) {
             final val = v.trim();
             widget.node.params['output_variable'] = val;
@@ -1521,44 +1736,22 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
 
     return Column(
       children: [
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Robot Face Screen Text',
           initialValue: oled,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Robot Face Screen Text',
-            hintText: 'e.g. HELLO! or MISSION DONE',
-            helperText: 'Short text banner displayed on front display',
-            helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
-            labelStyle: const TextStyle(color: AppColors.textSecondary),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-          ),
+          hintText: 'e.g. HELLO! or MISSION DONE',
+          helperText: 'Short text banner displayed on front display (supports {variables})',
           onChanged: (v) {
             widget.node.params['oled_text'] = v;
             widget.onChanged();
           },
         ),
         const SizedBox(height: 12),
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Light Colors / Pattern',
           initialValue: led,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Light Colors / Pattern',
-            hintText: 'solid,0,200,40',
-            helperText: 'Changes light ring (format: solid,Red,Green,Blue)',
-            helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
-            labelStyle: const TextStyle(color: AppColors.textSecondary),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-          ),
+          hintText: 'solid,0,200,40',
+          helperText: 'Changes light ring (format: solid,Red,Green,Blue)',
           onChanged: (v) {
             widget.node.params['led_cmd'] = v;
             widget.onChanged();
@@ -2320,23 +2513,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextFormField(
+        _buildVariableInputField(
+          label: 'What should the robot say out loud?',
           initialValue: text,
           maxLines: 3,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'What should the robot say out loud?',
-            hintText: 'e.g. Hello! I have arrived with your delivery.',
-            helperText: 'The robot will use its speaker to speak these exact words',
-            helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-          ),
+          hintText: 'e.g. Hello {user_name}! I have arrived with your delivery.',
+          helperText: 'The robot will use its speaker to speak these exact words (supports {variables})',
           onChanged: (v) {
             widget.node.params['text'] = v;
             widget.onChanged();
@@ -2370,19 +2552,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         _buildTextField('Service Request Data (JSON, supports {variables})', 'payload', '{"data": true}', maxLines: 3),
         const SizedBox(height: 12),
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Save Service Response to Variable (Optional)',
           initialValue: outVar,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Save Service Response to Variable (Optional)',
-            hintText: 'e.g. service_result',
-            prefixIcon: const Icon(Icons.data_object, size: 16),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
-          ),
+          hintText: 'e.g. service_result',
+          prefixIcon: const Icon(Icons.data_object, size: 16),
           onChanged: (v) {
             final val = v.trim();
             widget.node.params['output_variable'] = val;
@@ -2416,19 +2590,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         _buildTextField('Goal Request Data (JSON, supports {variables})', 'payload', '{}', maxLines: 3),
         const SizedBox(height: 12),
-        TextFormField(
+        _buildVariableInputField(
+          label: 'Save Action Result to Variable (Optional)',
           initialValue: outVar,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Save Action Result to Variable (Optional)',
-            hintText: 'e.g. action_result',
-            prefixIcon: const Icon(Icons.data_object, size: 16),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
-          ),
+          hintText: 'e.g. action_result',
+          prefixIcon: const Icon(Icons.data_object, size: 16),
           onChanged: (v) {
             final val = v.trim();
             widget.node.params['output_variable'] = val;
@@ -2580,18 +2746,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   }
 
   Widget _buildTextField(String label, String paramKey, String defaultVal, {int maxLines = 1}) {
-    return TextFormField(
+    return _buildVariableInputField(
+      label: label,
       initialValue: widget.node.params[paramKey]?.toString() ?? defaultVal,
       maxLines: maxLines,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-        filled: true,
-        fillColor: AppColors.surfaceSunken,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
-      ),
       onChanged: (v) {
         if (double.tryParse(v) != null && !v.contains('{') && !v.contains('[')) {
           widget.node.params[paramKey] = double.parse(v);
@@ -2631,6 +2789,181 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           onChanged: widget.readOnly ? null : onChanged,
         ),
       ],
+    );
+  }
+}
+
+class _VariableAwareTextField extends StatefulWidget {
+  const _VariableAwareTextField({
+    super.key,
+    required this.initialValue,
+    required this.onChanged,
+    required this.labelText,
+    this.hintText,
+    this.helperText,
+    this.prefixIcon,
+    this.maxLines = 1,
+    this.keyboardType,
+    this.enabled = true,
+    this.availableVariables = const [],
+    this.onFocus,
+  });
+
+  final String initialValue;
+  final ValueChanged<String> onChanged;
+  final String labelText;
+  final String? hintText;
+  final String? helperText;
+  final Widget? prefixIcon;
+  final int maxLines;
+  final TextInputType? keyboardType;
+  final bool enabled;
+  final List<AvailableVariable> availableVariables;
+  final void Function(TextEditingController, FocusNode, ValueChanged<String>)? onFocus;
+
+  @override
+  State<_VariableAwareTextField> createState() => _VariableAwareTextFieldState();
+}
+
+class _VariableAwareTextFieldState extends State<_VariableAwareTextField> {
+  late TextEditingController _controller;
+  late FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      widget.onFocus?.call(_controller, _focusNode, widget.onChanged);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _VariableAwareTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialValue != widget.initialValue && widget.initialValue != _controller.text) {
+      _controller.text = widget.initialValue;
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _insertToken(String varName) {
+    final token = '{$varName}';
+    final text = _controller.text;
+    final selection = _controller.selection;
+    int start = selection.start;
+    int end = selection.end;
+    if (start < 0 || end < 0 || start > text.length || end > text.length) {
+      start = text.length;
+      end = text.length;
+    }
+    final newText = text.replaceRange(start, end, token);
+    _controller.text = newText;
+    final newPos = start + token.length;
+    _controller.selection = TextSelection.collapsed(offset: newPos);
+    widget.onChanged(newText);
+    _focusNode.requestFocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      enabled: widget.enabled,
+      maxLines: widget.maxLines,
+      keyboardType: widget.keyboardType,
+      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+      onTap: () {
+        widget.onFocus?.call(_controller, _focusNode, widget.onChanged);
+      },
+      decoration: InputDecoration(
+        labelText: widget.labelText,
+        hintText: widget.hintText,
+        helperText: widget.helperText,
+        prefixIcon: widget.prefixIcon,
+        suffixIcon: widget.availableVariables.isNotEmpty && widget.enabled
+            ? PopupMenuButton<String>(
+                tooltip: 'Insert Variable into ${widget.labelText}',
+                icon: const Icon(Icons.data_object, size: 16, color: AppColors.primary),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(maxHeight: 280, maxWidth: 260),
+                color: AppColors.surfaceElevated,
+                onSelected: (varName) => _insertToken(varName),
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem<String>(
+                    enabled: false,
+                    height: 24,
+                    child: Text(
+                      'INSERT VARIABLE',
+                      style: TextStyle(color: AppColors.textTertiary, fontSize: 9, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const PopupMenuDivider(height: 1),
+                  for (final v in widget.availableVariables)
+                    PopupMenuItem<String>(
+                      value: v.name,
+                      height: 32,
+                      child: Row(
+                        children: [
+                          Icon(
+                            v.isSystem ? Icons.memory : Icons.data_array,
+                            size: 13,
+                            color: v.isSystem ? AppColors.textSecondary : AppColors.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '{${v.name}}',
+                              style: TextStyle(
+                                color: v.isSystem ? AppColors.textPrimary : AppColors.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'monospace',
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (v.isSystem)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceSunken,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text('SYS', style: TextStyle(fontSize: 8, color: AppColors.textTertiary)),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+              )
+            : null,
+        helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
+        hintStyle: const TextStyle(color: AppColors.textTertiary),
+        labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        filled: true,
+        fillColor: AppColors.surfaceSunken,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+      ),
+      onChanged: (val) {
+        widget.onChanged(val);
+      },
     );
   }
 }
