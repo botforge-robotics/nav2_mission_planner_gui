@@ -14,6 +14,7 @@ import '../../utils/localize_at_dock.dart';
 import '../../widgets/design/hud_chip.dart';
 import '../../widgets/map/occupancy_grid_view.dart';
 import '../../widgets/teleop/drive_pad.dart';
+import '../setup/setup_complete_screen.dart';
 
 /// The "Import / Create Map" flow: starts a real SLAM mapping session
 /// (`POST /mode {mode: "mapping"}`), shows the map being built live off the
@@ -35,7 +36,12 @@ import '../../widgets/teleop/drive_pad.dart';
 /// live x/y/heading top-left, speed bottom-left — so the operator doesn't
 /// have to glance at a different screen while building the map.
 class CreateMapScreen extends StatefulWidget {
-  const CreateMapScreen({super.key});
+  const CreateMapScreen({
+    super.key,
+    this.fromSetup = false,
+  });
+
+  final bool fromSetup;
 
   @override
   State<CreateMapScreen> createState() => _CreateMapScreenState();
@@ -100,6 +106,13 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
     }
 
     if (!mounted) return;
+
+    // When launched from the onboarding setup flow, operator already reviewed
+    // dock instructions on the dedicated setup screen and chose "Create Map".
+    if (widget.fromSetup) {
+      await _startMapping();
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -279,7 +292,16 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Saved "$name" and switched navigation onto it.')));
-      Navigator.of(context).pop();
+      if (widget.fromSetup) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => SetupCompleteScreen(createdMapName: name),
+          ),
+          (route) => false,
+        );
+      } else {
+        Navigator.of(context).pop(name);
+      }
     } on SdkApiException catch (e) {
       if (!mounted) return;
       ModeTransitionTracker.instance.clear();

@@ -158,7 +158,7 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
     if (!wifiJoin.isSupported) {
       return SetupScaffold(
         step: 2,
-        totalSteps: 4,
+        totalSteps: 5,
         title: 'Set Up a New Robot',
         subtitle:
             'Hotspot setup needs a mobile device — join manually instead.',
@@ -188,7 +188,7 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
     final hasScanned = _foundHotspots.isNotEmpty;
     return SetupScaffold(
       step: 2,
-      totalSteps: 4,
+      totalSteps: 5,
       title: 'Find Your Robot\'s Hotspot',
       subtitle: hasScanned
           ? 'Select your robot below.'
@@ -286,7 +286,7 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
         _robotNameController.text.trim().isNotEmpty;
     return SetupScaffold(
       step: 3,
-      totalSteps: 4,
+      totalSteps: 5,
       title: 'Connect the Robot to Wi-Fi',
       subtitle: 'Enter your site Wi-Fi and a name for this robot.',
       primaryLabel: 'Save & Connect',
@@ -331,7 +331,7 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
   Widget _buildBusyStep(String label, {int step = 3}) {
     return SetupScaffold(
       step: step,
-      totalSteps: 4,
+      totalSteps: 5,
       title: 'Setting Up',
       child: Center(
         child: Column(
@@ -349,7 +349,7 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
   Widget _buildErrorStep(BuildContext context) {
     return SetupScaffold(
       step: 3,
-      totalSteps: 4,
+      totalSteps: 5,
       title: 'Setup Failed',
       primaryLabel: 'Try Again',
       onPrimary: () => setState(() => _step = _ApStep.enterSsid),

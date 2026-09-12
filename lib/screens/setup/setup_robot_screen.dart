@@ -6,7 +6,7 @@ import '../../providers/setup_flow_controller.dart';
 import '../../services/robot_connection_store.dart';
 import '../../services/rosbridge_probe.dart';
 import '../../theme/app_theme.dart';
-import 'setup_complete_screen.dart';
+import 'setup_dock_map_screen.dart';
 import 'setup_scaffold.dart';
 
 /// Opens the actual rosbridge WebSocket via ros2_api's Ros2 client (through
@@ -60,7 +60,7 @@ class _SetupRobotScreenState extends State<SetupRobotScreen> {
       }
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const SetupCompleteScreen()),
+        MaterialPageRoute(builder: (_) => const SetupDockMapScreen()),
       );
     } else {
       setState(() {
@@ -76,7 +76,7 @@ class _SetupRobotScreenState extends State<SetupRobotScreen> {
     final robot = context.watch<SetupFlowController>().selectedRobot;
     return SetupScaffold(
       step: 3,
-      totalSteps: 4,
+      totalSteps: 5,
       title: 'Robot Connection',
       subtitle:
           _connecting && robot != null ? 'Connecting to ${robot.name}…' : null,

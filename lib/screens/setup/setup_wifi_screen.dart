@@ -64,7 +64,7 @@ class _SetupWifiScreenState extends State<SetupWifiScreen> {
 
     return SetupScaffold(
       step: 2,
-      totalSteps: 4,
+      totalSteps: 5,
       title: 'Connect to Your Robot',
       subtitle: 'Robots found on your current network.',
       secondaryLabel: 'Set up a new robot',

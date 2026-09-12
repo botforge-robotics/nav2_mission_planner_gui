@@ -8,7 +8,12 @@ import '../../widgets/app_shell/app_shell.dart';
 import 'setup_scaffold.dart';
 
 class SetupCompleteScreen extends StatefulWidget {
-  const SetupCompleteScreen({super.key});
+  const SetupCompleteScreen({
+    super.key,
+    this.createdMapName,
+  });
+
+  final String? createdMapName;
 
   @override
   State<SetupCompleteScreen> createState() => _SetupCompleteScreenState();
@@ -32,11 +37,14 @@ class _SetupCompleteScreenState extends State<SetupCompleteScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hasMap = widget.createdMapName != null;
     return SetupScaffold(
-      step: 4,
-      totalSteps: 4,
+      step: 5,
+      totalSteps: 5,
       title: 'Setup Complete!',
-      subtitle: 'Your robot is ready to roll.',
+      subtitle: hasMap
+          ? 'Map "${widget.createdMapName}" is saved & active. Your robot is ready to navigate!'
+          : 'Your robot is ready to roll. You can create a map anytime from the Maps tab.',
       primaryLabel: 'Go to Dashboard',
       onPrimary: () {
         context.read<ConnectionProvider>().reconnect();
@@ -48,7 +56,48 @@ class _SetupCompleteScreenState extends State<SetupCompleteScreen> {
       child: Stack(
         alignment: Alignment.topCenter,
         children: [
-          const Center(child: _RobotBadge()),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _RobotBadge(),
+                if (widget.createdMapName != null) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.map_rounded,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
+                          'Active Map: ${widget.createdMapName}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
           Align(
             alignment: Alignment.topCenter,
             child: ConfettiWidget(

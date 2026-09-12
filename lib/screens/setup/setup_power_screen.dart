@@ -11,7 +11,7 @@ class SetupPowerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return SetupScaffold(
       step: 1,
-      totalSteps: 4,
+      totalSteps: 5,
       title: 'Power on Your Robot',
       subtitle:
           'Make sure your robot is powered on and its status light is lit.',
