@@ -194,6 +194,12 @@ class GraphNode {
           NodePort(id: 'cancelled', label: 'If Cancelled / Skipped', isInput: false, color: Color(0xFF9E9E9E)),
           NodePort(id: 'timeout', label: 'If Timed Out', isInput: false, color: Color(0xFFFF9800)),
         ];
+      case 'switch_mission':
+      case 'redirect_mission':
+        return const [
+          NodePort(id: 'out', label: 'When Switched', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'failed', label: 'If Mission Not Found', isInput: false, color: Color(0xFFF44336)),
+        ];
       default:
         return const [NodePort(id: 'next', label: 'Next Step', isInput: false, color: Color(0xFF4CAF50))];
     }

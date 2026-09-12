@@ -416,6 +416,11 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
         icon = Icons.podcasts;
         iconColor = const Color(0xFF4F46E5);
         break;
+      case 'switch_mission':
+      case 'redirect_mission':
+        icon = Icons.alt_route_rounded;
+        iconColor = const Color(0xFF009688);
+        break;
       default:
         icon = Icons.circle;
         iconColor = AppColors.textSecondary;
@@ -479,6 +484,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                   widget.graph.nodes.remove(node);
                   widget.graph.edges.removeWhere(
                       (e) => e.fromNode == node.id || e.toNode == node.id);
+                  if (widget.graph.entrypoint == node.id) {
+                    widget.graph.entrypoint =
+                        widget.graph.nodes.isNotEmpty ? widget.graph.nodes.first.id : null;
+                  }
                   if (widget.selectedNode?.id == node.id) {
                     widget.onSelectNode(null);
                   }
@@ -590,6 +599,11 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
       case 'ui_speech':
         final text = node.params['text'] ?? '';
         summary = text.isNotEmpty ? 'Say: "$text"' : 'Speak announcement aloud';
+        break;
+      case 'switch_mission':
+      case 'redirect_mission':
+        final target = (node.params['target_mission_id'] ?? node.params['mission_id'])?.toString() ?? '';
+        summary = target.isNotEmpty ? 'Switch to mission: $target' : 'Switch to another saved mission';
         break;
       case 'notify':
         summary = node.params['oled_text'] ?? 'Sound chime & flash lights';

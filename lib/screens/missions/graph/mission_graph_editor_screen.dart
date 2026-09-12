@@ -33,6 +33,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   String? _missionState; // idle, running, waiting_for_user, paused, completed, failed
   String? _currentMap;
   List<String> _availableMaps = [];
+  List<Map<String, dynamic>> _availableMissions = [];
   bool _saving = false;
   bool _running = false;
   bool _isModalShowing = false;
@@ -52,6 +53,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     _nameController = TextEditingController(text: _graph.name);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadInitialData();
+      _startExecutionPolling();
     });
   }
 
@@ -103,12 +105,14 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       final maps = await api.listMaps();
       final active = await api.getCurrentMap();
       final wps = await api.listWaypoints();
+      final missions = await api.listMissions();
       LocationsController.instance.value = wps;
 
       if (mounted) {
         setState(() {
           _availableMaps = maps;
           _currentMap = active;
+          _availableMissions = missions;
           _graph.map ??= active;
         });
       }
@@ -472,6 +476,11 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       case 'set_variable':
         defaultLabel = 'Remember a Value';
         defaultParams = {'key': 'inspected', 'value': true};
+        break;
+      case 'switch_mission':
+      case 'redirect_mission':
+        defaultLabel = 'Switch Mission';
+        defaultParams = {'target_mission_id': '', 'transfer_context': true};
         break;
       default:
         defaultLabel = type;
@@ -850,6 +859,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   _PaletteItem('wait', 'Pause & Wait', 'Wait a few seconds before next step', Icons.timer_outlined, const Color(0xFFD97706)),
                   _PaletteItem('battery_guard', 'Check Battery Level', 'Recharge if battery drops too low', Icons.battery_saver, const Color(0xFF059669)),
                   _PaletteItem('set_variable', 'Remember a Value', 'Save a number, text, or counter', Icons.data_object, const Color(0xFF9333EA)),
+                  _PaletteItem('switch_mission', 'Switch Mission', 'Hand off to another saved mission', Icons.alt_route_rounded, const Color(0xFF009688)),
                 ]),
                 _buildPaletteCategory('Screen, Voice & Signals', [
                   _PaletteItem('ui_interaction', 'Ask for Information', 'Show form on screen to fill out', Icons.touch_app_outlined, AppColors.primary),
@@ -940,6 +950,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     node: selectedNode,
                     onChanged: () => setState(() {}),
                     onDelete: () => _deleteNode(selectedNode),
+                    availableMissions: _availableMissions,
+                    api: _api,
                   ),
                 ),
                 Container(

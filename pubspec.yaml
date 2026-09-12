@@ -79,6 +79,7 @@ dependencies:
   # Fault Log). Already a transitive dep via ros2_api; declared explicitly
   # since app code imports it directly.
   web_socket_channel: ^3.0.1
+  file_picker: ^11.0.3
 dev_dependencies:
   flutter_test:
     sdk: flutter

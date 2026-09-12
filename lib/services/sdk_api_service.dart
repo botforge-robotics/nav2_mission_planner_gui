@@ -383,6 +383,29 @@ class SdkApiService {
   Future<void> cancelMission(String id) =>
       _send('POST', '/api/v1/missions/${Uri.encodeComponent(id)}/cancel');
 
+  /// Upload an image or video directly to the robot for on-screen mission display.
+  Future<Map<String, dynamic>> uploadMedia(List<int> bytes, String filename) async {
+    final uri = _uri('/api/v1/media/upload');
+    final request = http.MultipartRequest('POST', uri);
+    request.files.add(http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: filename,
+    ));
+    try {
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 30));
+      final resp = await http.Response.fromStream(streamedResponse);
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        return jsonDecode(resp.body) as Map<String, dynamic>;
+      } else {
+        throw SdkApiException('upload_failed', 'Failed to upload media: ${resp.body}', const {}, resp.statusCode);
+      }
+    } catch (e) {
+      if (e is SdkApiException) rethrow;
+      throw SdkApiException('unreachable', 'Failed to connect to robot for upload: $e');
+    }
+  }
+
   // -- schedules ---------------------------------------------------------------
 
   Future<List<Map<String, dynamic>>> listSchedules() async {

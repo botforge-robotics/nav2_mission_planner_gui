@@ -1,5 +1,10 @@
+import 'dart:io' show File;
+import 'dart:typed_data' show Uint8List;
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../../services/locations_controller.dart';
+import '../../../services/sdk_api_service.dart';
 import '../../../theme/app_theme.dart';
 import 'mission_graph_models.dart';
 
@@ -11,12 +16,16 @@ class MissionNodeInspector extends StatefulWidget {
     required this.onChanged,
     this.onDelete,
     this.readOnly = false,
+    this.availableMissions = const [],
+    this.api,
   });
 
   final GraphNode node;
   final VoidCallback onChanged;
   final VoidCallback? onDelete;
   final bool readOnly;
+  final List<Map<String, dynamic>> availableMissions;
+  final SdkApiService? api;
 
   @override
   State<MissionNodeInspector> createState() => _MissionNodeInspectorState();
@@ -191,6 +200,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         return 'Run Background Task';
       case 'publish_topic':
         return 'Broadcast Signal';
+      case 'switch_mission':
+      case 'redirect_mission':
+        return 'Switch Mission (Handoff)';
       default:
         return 'Step Settings';
     }
@@ -250,6 +262,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         return 'Starts a longer robot activity and waits for it to complete.';
       case 'publish_topic':
         return 'Broadcasts a live message to other parts of the robot system.';
+      case 'switch_mission':
+      case 'redirect_mission':
+        return 'Hands off execution to another mission on the same map.';
       default:
         return 'Configure the settings for this mission step.';
     }
@@ -353,6 +368,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           _buildEmergencyStopInspector()
         else if (node.type == 'cancel_navigation')
           _buildCancelNavigationInspector()
+        else if (node.type == 'switch_mission' || node.type == 'redirect_mission')
+          _buildSwitchMissionInspector()
         else
           Container(
             padding: const EdgeInsets.all(12),
@@ -606,7 +623,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         DropdownButtonFormField<String>(
           key: ValueKey('${widget.node.id}_subtype_$subtype'),
           isExpanded: true,
-          initialValue: ['dynamic_form', 'choice', 'media_display', 'speech', 'kiosk'].contains(subtype) ? subtype : 'dynamic_form',
+          initialValue: ['dynamic_form', 'kiosk'].contains(subtype) ? subtype : 'dynamic_form',
           dropdownColor: AppColors.surface,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
@@ -619,12 +636,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
-          items: const [
-            DropdownMenuItem(value: 'dynamic_form', child: Text('Form / Checklist (Questions to answer)', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'choice', child: Text('Touch Buttons (e.g. Yes / No options)', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'media_display', child: Text('Show Picture, Video or Web Page', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'speech', child: Text('Voice Announcement (Robot speaks)', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'kiosk', child: Text('Destination Picker (User picks room)', overflow: TextOverflow.ellipsis)),
+          items: [
+            const DropdownMenuItem(value: 'dynamic_form', child: Text('Form / Checklist (Questions to answer)', overflow: TextOverflow.ellipsis)),
+            const DropdownMenuItem(value: 'kiosk', child: Text('Destination Picker (User picks room)', overflow: TextOverflow.ellipsis)),
+            if (!['dynamic_form', 'kiosk'].contains(subtype))
+              DropdownMenuItem(value: subtype, child: Text('Legacy: $subtype', overflow: TextOverflow.ellipsis)),
           ],
           onChanged: widget.readOnly
               ? null
@@ -1655,6 +1671,75 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     );
   }
 
+  bool _isUploadingMedia = false;
+
+  Future<void> _handleUploadMedia() async {
+    final api = widget.api;
+    if (api == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Robot connection not available for upload')),
+      );
+      return;
+    }
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi', 'mkv', 'webm'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final picked = result.files.first;
+      Uint8List? bytes = picked.bytes;
+      if (bytes == null && !kIsWeb && picked.path != null) {
+        bytes = await File(picked.path!).readAsBytes();
+      }
+      if (bytes == null || bytes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not read media file content')),
+          );
+        }
+        return;
+      }
+
+      setState(() => _isUploadingMedia = true);
+      final res = await api.uploadMedia(bytes, picked.name);
+      final relUrl = res['url']?.toString() ?? '/media/${picked.name}';
+      final fullUrl = '${api.baseUrl}$relUrl';
+
+      setState(() {
+        _isUploadingMedia = false;
+        widget.node.params['url'] = fullUrl;
+        final ext = picked.name.split('.').last.toLowerCase();
+        if (['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext)) {
+          widget.node.params['media_type'] = 'video';
+        } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
+          widget.node.params['media_type'] = 'image';
+        }
+      });
+      widget.onChanged();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Uploaded ${picked.name} to robot successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploadingMedia = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Upload failed: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildUiMediaInspector() {
     final mediaType = widget.node.params['media_type'] as String? ?? 'image';
     final url = widget.node.params['url'] as String? ?? '';
@@ -1723,24 +1808,49 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 },
         ),
         const SizedBox(height: 12),
-        TextFormField(
-          initialValue: url,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-          decoration: InputDecoration(
-            labelText: 'Web Link to Image, Video, or Page',
-            hintText: 'https://example.com/asset.jpg',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            filled: true,
-            fillColor: AppColors.surfaceSunken,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-          ),
-          onChanged: (v) {
-            widget.node.params['url'] = v.trim();
-            widget.onChanged();
-          },
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: TextFormField(
+                key: ValueKey('${widget.node.id}_url_${widget.node.params['url']}'),
+                initialValue: url,
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                decoration: InputDecoration(
+                  labelText: 'Web Link or Robot File URL',
+                  hintText: 'https://... or http://robot:8080/media/...',
+                  labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  filled: true,
+                  fillColor: AppColors.surfaceSunken,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                ),
+                onChanged: (v) {
+                  widget.node.params['url'] = v.trim();
+                  widget.onChanged();
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 42,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+                ),
+                onPressed: (widget.readOnly || _isUploadingMedia) ? null : _handleUploadMedia,
+                icon: _isUploadingMedia
+                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                    : const Icon(Icons.cloud_upload_outlined, size: 18),
+                label: Text(_isUploadingMedia ? '...' : 'Upload'),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         _buildNumberSlider(
@@ -1767,6 +1877,135 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   setState(() => widget.node.params['show_skip'] = v);
                   widget.onChanged();
                 },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSwitchMissionInspector() {
+    final targetId = widget.node.params['target_mission_id'] as String?;
+    final transferContext = widget.node.params['transfer_context'] as bool? ?? true;
+    final missions = widget.availableMissions;
+    final targetExists = missions.any((m) => m['id'] == targetId);
+    final effectiveValue = targetExists ? targetId : (targetId != null && targetId.isNotEmpty ? '__deleted__' : null);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF009688).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+            border: Border.all(color: const Color(0xFF009688).withValues(alpha: 0.3)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.alt_route_rounded, size: 20, color: Color(0xFF009688)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Transfers autonomous control to another saved mission on this map.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          key: ValueKey('${widget.node.id}_target_mission_$targetId'),
+          isExpanded: true,
+          initialValue: effectiveValue,
+          dropdownColor: AppColors.surface,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Target Mission to Switch To',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          items: [
+            for (final m in missions)
+              DropdownMenuItem(
+                value: m['id'] as String,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        m['name'] as String? ?? m['id'] as String,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (m['map'] != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.border,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          m['map'].toString(),
+                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            if (!targetExists && targetId != null && targetId.isNotEmpty)
+              DropdownMenuItem(
+                value: '__deleted__',
+                child: Text(
+                  '⚠️ Missing / Deleted Mission ($targetId)',
+                  style: const TextStyle(color: AppColors.danger, fontStyle: FontStyle.italic),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  if (val == '__deleted__') return;
+                  setState(() => widget.node.params['target_mission_id'] = val);
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceSunken,
+            borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text('Pass Variables to Next Mission', style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+                    SizedBox(height: 2),
+                    Text('Forward current form responses, counters, and context', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                  ],
+                ),
+              ),
+              Switch(
+                value: transferContext,
+                activeThumbColor: AppColors.primary,
+                onChanged: widget.readOnly
+                    ? null
+                    : (val) {
+                        setState(() => widget.node.params['transfer_context'] = val);
+                        widget.onChanged();
+                      },
+              ),
+            ],
+          ),
         ),
       ],
     );

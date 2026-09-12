@@ -143,7 +143,64 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
   Future<void> _delete() async {
     final api = _api;
     if (api == null) return;
+
     try {
+      // Check if other missions link/redirect to this mission
+      final allMissions = await api.listMissions();
+      final referencingMissions = <String>[];
+
+      for (final m in allMissions) {
+        if (m['id'] == _id) continue;
+        final nodes = (m['nodes'] as List? ?? const []).cast<Map<String, dynamic>>();
+        for (final node in nodes) {
+          if (node['type'] == 'switch_mission' || node['type'] == 'redirect_mission') {
+            final target = node['params']?['target_mission_id'] ?? node['params']?['mission_id'];
+            if (target == _id) {
+              referencingMissions.add(m['name'] as String? ?? m['id'] as String);
+              break;
+            }
+          }
+        }
+      }
+
+      if (!mounted) return;
+
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(referencingMissions.isNotEmpty
+              ? 'Warning: Mission is Referenced'
+              : 'Delete Mission?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (referencingMissions.isNotEmpty) ...[
+                Text(
+                  'This mission is called by other missions via "Switch Mission" nodes:\n• ${referencingMissions.join("\n• ")}\n\nDeleting it will cause those missions to fail or branch to their error paths.',
+                  style: TextStyle(color: AppColors.danger, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+              ],
+              Text('Are you sure you want to permanently delete "${widget.mission['name'] ?? _id}"?'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+
       await api.deleteMission(_id);
       _changed = true;
       if (!mounted) return;
