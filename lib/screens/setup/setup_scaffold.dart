@@ -23,6 +23,7 @@ class SetupScaffold extends StatelessWidget {
     this.secondaryLabel,
     this.onSecondary,
     this.busy = false,
+    this.maxWidth,
   });
 
   final int step;
@@ -36,12 +37,14 @@ class SetupScaffold extends StatelessWidget {
   final String? secondaryLabel;
   final VoidCallback? onSecondary;
   final bool busy;
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: CenteredFormColumn(
+          maxWidth: maxWidth ?? 440,
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(

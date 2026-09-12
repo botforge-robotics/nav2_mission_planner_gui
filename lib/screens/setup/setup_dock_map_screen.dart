@@ -17,11 +17,15 @@ class SetupDockMapScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isDesktop = screenWidth >= 768;
+
     return SetupScaffold(
       step: 4,
       totalSteps: 5,
+      maxWidth: isDesktop ? 960 : 480,
       title: 'Place Dock & Create Map',
-      subtitle: 'Position your charging station and build your first map.',
+      subtitle: 'Position your charging station and build your first navigation map.',
       primaryLabel: 'Create Map',
       onPrimary: () {
         Navigator.of(context).push(
@@ -30,7 +34,7 @@ class SetupDockMapScreen extends StatelessWidget {
           ),
         );
       },
-      secondaryLabel: 'Skip Mapping (Set up later)',
+      secondaryLabel: 'Skip Mapping (Go to Home)',
       onSecondary: () {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -42,64 +46,100 @@ class SetupDockMapScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _DockPlacementDiagram(),
-            const SizedBox(height: AppSpacing.md),
-            const _InstructionCard(
-              icon: Icons.dock_rounded,
-              iconColor: AppColors.accent,
-              title: '1. Dock Stiff Against Wall',
-              description:
-                  'Place the charging dock flat and firmly against a straight wall with at least 0.5m open space on each side.',
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            const _InstructionCard(
-              icon: Icons.smart_toy_rounded,
-              iconColor: AppColors.primary,
-              title: '2. Place Robot Near Dock',
-              description:
-                  'Position your robot on or right in front of the dock facing outwards into the room. SLAM uses this as (0,0) origin.',
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            const _InstructionCard(
-              icon: Icons.explore_rounded,
-              iconColor: AppColors.success,
-              title: '3. Create First Navigation Map',
-              description:
-                  'Drive the robot to scan boundaries, rooms, and corridors. Saving the map automatically activates it for missions.',
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppColors.primary.withValues(alpha: 0.25),
+            // High-resolution visual instructional infographic (adaptive desktop/mobile)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Image.asset(
+                  isDesktop ? 'assets/desktopDock.png' : 'assets/mobilDockInstruction.png',
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  errorBuilder: (context, error, stackTrace) => const _DockPlacementDiagram(),
                 ),
               ),
-              child: Row(
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Pre-mapping checklist
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
-                    Icons.lightbulb_outline_rounded,
-                    size: 22,
-                    color: AppColors.primary,
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle_outline_rounded, size: 18, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'QUICK CHECKLIST BEFORE MAPPING',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              letterSpacing: 1.1,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textSecondary,
+                            ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      'Starting mapping from the dock ensures your robot knows the exact coordinates of its charger from day one for seamless auto-docking.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textPrimary,
-                            height: 1.4,
-                          ),
-                    ),
+                  const SizedBox(height: AppSpacing.xs),
+                  _buildCheckItem(
+                    context,
+                    'Charging dock placed firmly against a flat wall with side clearance (≥ 0.5m).',
+                  ),
+                  _buildCheckItem(
+                    context,
+                    'Robot positioned on or near charger facing outwards into the room.',
+                  ),
+                  _buildCheckItem(
+                    context,
+                    'Clear open corridor in front of the dock (≥ 1.0m) for smooth departure.',
                   ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCheckItem(BuildContext context, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(Icons.done_rounded, size: 14, color: AppColors.success),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textPrimary,
+                    height: 1.35,
+                  ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -273,64 +313,3 @@ class _DockPlacementDiagram extends StatelessWidget {
   }
 }
 
-class _InstructionCard extends StatelessWidget {
-  const _InstructionCard({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.description,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 20, color: iconColor),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  description,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                        height: 1.35,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
