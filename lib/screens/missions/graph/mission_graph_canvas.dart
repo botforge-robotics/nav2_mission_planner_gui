@@ -324,27 +324,84 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
         icon = Icons.play_circle_filled;
         iconColor = AppColors.success;
         break;
+      case 'end':
+      case 'mission_end':
+        icon = Icons.stop_circle;
+        iconColor = const Color(0xFFDC2626);
+        break;
       case 'navigate_waypoint':
       case 'navigate_coordinates':
         icon = Icons.navigation;
         iconColor = const Color(0xFF2563EB);
+        break;
+      case 'patrol_loop':
+        icon = Icons.sync_rounded;
+        iconColor = const Color(0xFF3B82F6);
+        break;
+      case 'relocalize':
+        icon = Icons.my_location;
+        iconColor = const Color(0xFF2563EB);
+        break;
+      case 'cancel_navigation':
+        icon = Icons.cancel;
+        iconColor = const Color(0xFFDC2626);
         break;
       case 'wait':
         icon = Icons.timer;
         iconColor = AppColors.warning;
         break;
       case 'dock':
-      case 'undock':
         icon = Icons.battery_charging_full;
         iconColor = const Color(0xFF16A34A);
+        break;
+      case 'undock':
+        icon = Icons.power_settings_new;
+        iconColor = const Color(0xFF059669);
+        break;
+      case 'jog_motion':
+        icon = Icons.gamepad_outlined;
+        iconColor = const Color(0xFFD97706);
+        break;
+      case 'emergency_stop':
+        icon = Icons.warning_amber_rounded;
+        iconColor = const Color(0xFFDC2626);
+        break;
+      case 'loop':
+      case 'loop_counter':
+        icon = Icons.loop_rounded;
+        iconColor = const Color(0xFF7C3AED);
+        break;
+      case 'condition':
+        icon = Icons.call_split;
+        iconColor = const Color(0xFFEA580C);
+        break;
+      case 'battery_guard':
+        icon = Icons.battery_saver;
+        iconColor = const Color(0xFF059669);
+        break;
+      case 'set_variable':
+        icon = Icons.data_object;
+        iconColor = const Color(0xFF9333EA);
         break;
       case 'ui_interaction':
         icon = Icons.touch_app;
         iconColor = AppColors.primary;
         break;
-      case 'condition':
-        icon = Icons.call_split;
-        iconColor = const Color(0xFFEA580C);
+      case 'ui_choice':
+        icon = Icons.ads_click;
+        iconColor = AppColors.primary;
+        break;
+      case 'ui_media':
+        icon = Icons.perm_media_outlined;
+        iconColor = const Color(0xFF0284C7);
+        break;
+      case 'ui_speech':
+        icon = Icons.record_voice_over_outlined;
+        iconColor = const Color(0xFF8B5CF6);
+        break;
+      case 'notify':
+        icon = Icons.notifications_active;
+        iconColor = const Color(0xFF0D9488);
         break;
       case 'call_api':
         icon = Icons.http;
@@ -355,9 +412,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
         icon = Icons.smart_toy;
         iconColor = const Color(0xFF4F46E5);
         break;
-      case 'notify':
-        icon = Icons.notifications_active;
-        iconColor = const Color(0xFF0D9488);
+      case 'publish_topic':
+        icon = Icons.podcasts;
+        iconColor = const Color(0xFF4F46E5);
         break;
       default:
         icon = Icons.circle;
@@ -439,39 +496,106 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
     String summary = '';
     switch (node.type) {
       case 'start':
-        summary = 'Entrypoint';
+        summary = 'Mission starts here';
+        break;
+      case 'end':
+      case 'mission_end':
+        summary = node.params['dock_on_end'] == true
+            ? 'Finish & return to charger'
+            : 'Finish mission safely';
         break;
       case 'navigate_waypoint':
-        summary = 'Target: ${node.params['waypoint'] ?? 'None'}';
+        final wp = node.params['waypoint']?.toString() ?? '';
+        summary = wp.isNotEmpty ? 'Drive to: $wp' : 'Pick a destination in settings';
         break;
       case 'navigate_coordinates':
-        summary = 'X: ${node.params['x'] ?? 0}, Y: ${node.params['y'] ?? 0}';
+        summary = 'Drive to X: ${node.params['x'] ?? 0}, Y: ${node.params['y'] ?? 0}';
+        break;
+      case 'patrol_loop':
+        final wps = (node.params['waypoints'] as List?)?.length ?? 0;
+        final laps = node.params['laps'] ?? 1;
+        summary = 'Visit $wps places in order ($laps laps)';
+        break;
+      case 'relocalize':
+        summary = 'Scan room with laser to find position';
+        break;
+      case 'cancel_navigation':
+        summary = 'Stop robot movement immediately';
         break;
       case 'wait':
-        summary = 'Duration: ${node.params['duration_sec'] ?? 5}s';
+        final sec = node.params['duration_sec'] ?? node.params['duration'] ?? 5;
+        summary = 'Pause and wait $sec seconds';
         break;
       case 'dock':
-        summary = 'Dock via AprilTag';
+        summary = 'Drive to charger and plug in';
         break;
       case 'undock':
-        summary = 'Back away from charger';
+        summary = 'Safely back away from charger';
+        break;
+      case 'jog_motion':
+        final dur = node.params['duration_sec'] ?? 1.0;
+        summary = 'Nudge / drive wheels for ${dur}s';
+        break;
+      case 'emergency_stop':
+        summary = 'Safety stop (cut motor power)';
+        break;
+      case 'loop':
+      case 'loop_counter':
+        final count = node.params['count'] ?? 3;
+        summary = 'Repeat connected steps $count times';
         break;
       case 'condition':
-        summary = 'If: ${node.params['expression'] ?? 'True'}';
+        final expr = node.params['expression'] ?? 'true';
+        summary = 'Check if: $expr';
+        break;
+      case 'battery_guard':
+        final minB = node.params['min_battery_pct'] ?? 20;
+        summary = 'Check if battery is at least $minB%';
+        break;
+      case 'set_variable':
+        final varName = node.params['variable_name'] ?? 'var';
+        final val = node.params['value'] ?? '';
+        summary = 'Remember: $varName = $val';
         break;
       case 'call_api':
-        summary = '${node.params['method'] ?? 'POST'} ${node.params['url'] ?? ''}';
+        final method = node.params['method'] ?? 'POST';
+        final url = node.params['url']?.toString() ?? '';
+        summary = '$method $url'.trim();
+        if (summary.isEmpty) summary = 'Send web notification';
+        break;
+      case 'call_service':
+        final srv = node.params['service_name']?.toString() ?? '';
+        summary = srv.isNotEmpty ? 'Run command: $srv' : 'Trigger robot command';
+        break;
+      case 'call_action':
+        final act = node.params['action_name']?.toString() ?? '';
+        summary = act.isNotEmpty ? 'Run task: $act' : 'Run background task';
+        break;
+      case 'publish_topic':
+        final top = node.params['topic_name']?.toString() ?? '';
+        summary = top.isNotEmpty ? 'Broadcast to: $top' : 'Broadcast live signal';
         break;
       case 'ui_interaction':
-        final subtype = node.params['subtype'] ?? 'dynamic_form';
         final title = node.params['title'] ?? 'Form';
-        summary = '[$subtype] $title';
+        summary = 'Show form on screen: $title';
+        break;
+      case 'ui_choice':
+        final title = node.params['title'] ?? 'Question';
+        summary = 'Ask buttons: $title';
+        break;
+      case 'ui_media':
+        final mtype = node.params['media_type'] ?? 'media';
+        summary = 'Show $mtype on robot screen';
+        break;
+      case 'ui_speech':
+        final text = node.params['text'] ?? '';
+        summary = text.isNotEmpty ? 'Say: "$text"' : 'Speak announcement aloud';
         break;
       case 'notify':
-        summary = node.params['oled_text'] ?? 'Notification';
+        summary = node.params['oled_text'] ?? 'Sound chime & flash lights';
         break;
       default:
-        summary = node.type;
+        summary = 'Execute step';
     }
 
     return Text(

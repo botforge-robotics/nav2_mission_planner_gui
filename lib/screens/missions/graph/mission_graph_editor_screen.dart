@@ -331,67 +331,67 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
     switch (type) {
       case 'start':
-        defaultLabel = 'Mission Start';
+        defaultLabel = 'Start Mission';
         break;
       case 'end':
       case 'mission_end':
-        defaultLabel = 'Mission End';
+        defaultLabel = 'Finish Mission';
         defaultParams = {'status': 'success', 'message': 'Mission completed successfully.', 'dock_on_end': false};
         break;
       case 'loop':
       case 'loop_counter':
-        defaultLabel = 'Loop / Repeat';
+        defaultLabel = 'Repeat Steps';
         defaultParams = {'count': 3, 'variable_name': 'loop_index', 'max_iterations': 50};
         break;
       case 'battery_guard':
-        defaultLabel = 'Battery Guard';
+        defaultLabel = 'Check Battery Level';
         defaultParams = {'min_battery_pct': 20.0, 'require_charging': false};
         break;
       case 'patrol_loop':
-        defaultLabel = 'Patrol Loop';
+        defaultLabel = 'Patrol Route';
         defaultParams = {'waypoints': <String>[], 'laps': 1, 'dwell_sec': 2.0};
         break;
       case 'navigate_waypoint':
-        defaultLabel = 'Go to Waypoint';
+        defaultLabel = 'Drive to Saved Place';
         defaultParams = {'waypoint': '', 'tolerance_m': 0.25};
         break;
       case 'navigate_coordinates':
-        defaultLabel = 'Go to Coordinates';
+        defaultLabel = 'Drive to Coordinates';
         defaultParams = {'x': 0.0, 'y': 0.0, 'theta': 0.0, 'tolerance_m': 0.25};
         break;
       case 'relocalize':
-        defaultLabel = 'Relocalize';
+        defaultLabel = 'Find My Position';
         defaultParams = {'mode': 'global_scan'};
         break;
       case 'cancel_navigation':
-        defaultLabel = 'Cancel Goal';
+        defaultLabel = 'Stop Driving';
         defaultParams = {'halt_type': 'abort_goal'};
         break;
       case 'dock':
-        defaultLabel = 'Dock to Charger';
+        defaultLabel = 'Go to Charger';
         defaultParams = {'timeout_sec': 60.0};
         break;
       case 'undock':
-        defaultLabel = 'Undock Robot';
+        defaultLabel = 'Leave Charger';
         break;
       case 'jog_motion':
-        defaultLabel = 'Jog / Move Base';
+        defaultLabel = 'Nudge / Turn Wheels';
         defaultParams = {'linear_vel': 0.0, 'angular_vel': 0.0, 'duration_sec': 1.0};
         break;
       case 'emergency_stop':
-        defaultLabel = 'Emergency Stop';
+        defaultLabel = 'Safety Stop';
         defaultParams = {'sound_alert': true};
         break;
       case 'wait':
-        defaultLabel = 'Wait / Delay';
+        defaultLabel = 'Pause & Wait';
         defaultParams = {'duration': 5.0};
         break;
       case 'condition':
-        defaultLabel = 'If Condition';
+        defaultLabel = 'Check / If-Else';
         defaultParams = {'expression': "form['status'] == 'Pass'"};
         break;
       case 'ui_interaction':
-        defaultLabel = 'Operator Form / UI';
+        defaultLabel = 'Ask for Information';
         defaultParams = {
           'target': 'robot_screen',
           'subtype': 'dynamic_form',
@@ -399,13 +399,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           'message': 'Please complete the field checklist before proceeding.',
           'timeout_sec': 60.0,
           'fields': [
-            {'key': 'inspector_name', 'label': 'Inspector Name', 'type': 'text', 'required': true},
-            {'key': 'status', 'label': 'Status', 'type': 'select', 'options': ['Pass', 'Fail']},
+            {'key': 'inspector_name', 'label': 'Your Name', 'type': 'text', 'required': true},
+            {'key': 'status', 'label': 'Checklist Status', 'type': 'select', 'options': ['Pass', 'Fail']},
           ],
         };
         break;
       case 'ui_choice':
-        defaultLabel = 'User Choice Dialog';
+        defaultLabel = 'Ask Choice (Buttons)';
         defaultParams = {
           'target': 'robot_screen',
           'subtype': 'choice',
@@ -415,7 +415,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         };
         break;
       case 'ui_media':
-        defaultLabel = 'Multimedia Player';
+        defaultLabel = 'Show Picture / Video';
         defaultParams = {
           'media_type': 'image',
           'url': 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e',
@@ -425,11 +425,11 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         };
         break;
       case 'ui_speech':
-        defaultLabel = 'Voice Announcement';
+        defaultLabel = 'Speak Aloud';
         defaultParams = {'text': 'NavPro Mini has arrived at your station.', 'wait_completion': true};
         break;
       case 'call_api':
-        defaultLabel = 'Webhook / HTTP';
+        defaultLabel = 'Send Web Notice';
         defaultParams = {
           'method': 'POST',
           'url': 'https://api.example.com/log',
@@ -440,7 +440,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         };
         break;
       case 'call_service':
-        defaultLabel = 'ROS 2 Service';
+        defaultLabel = 'Trigger Robot Tool';
         defaultParams = {
           'service_name': '/set_mode',
           'service_type': 'std_srvs/srv/SetBool',
@@ -449,7 +449,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         };
         break;
       case 'call_action':
-        defaultLabel = 'ROS 2 Action';
+        defaultLabel = 'Run Background Task';
         defaultParams = {
           'action_name': '/navigate_to_pose',
           'action_type': 'nav2_msgs/action/NavigateToPose',
@@ -458,7 +458,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         };
         break;
       case 'publish_topic':
-        defaultLabel = 'ROS 2 Publisher';
+        defaultLabel = 'Broadcast Signal';
         defaultParams = {
           'topic_name': '/cmd_vel',
           'message_type': 'geometry_msgs/msg/Twist',
@@ -466,11 +466,11 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         };
         break;
       case 'notify':
-        defaultLabel = 'OLED / LED Signal';
+        defaultLabel = 'Lights & Chime Signal';
         defaultParams = {'line1': 'Station Arrived', 'line2': 'Status OK', 'led_color': '#00E5FF'};
         break;
       case 'set_variable':
-        defaultLabel = 'Set Context Variable';
+        defaultLabel = 'Remember a Value';
         defaultParams = {'key': 'inspected', 'value': true};
         break;
       default:
@@ -829,40 +829,40 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
               children: [
-                _buildPaletteCategory('Navigation', [
-                  _PaletteItem('navigate_waypoint', 'Go to Waypoint', 'Go to named waypoint', Icons.place_outlined, const Color(0xFF2563EB)),
-                  _PaletteItem('navigate_coordinates', 'Go to Coordinates', 'Go to (x, y, theta)', Icons.navigation_outlined, const Color(0xFF0284C7)),
-                  _PaletteItem('patrol_loop', 'Patrol Loop', 'Waypoints sequence', Icons.sync_rounded, const Color(0xFF3B82F6)),
-                  _PaletteItem('relocalize', 'Relocalize', 'Global scan / AMCL reset', Icons.my_location, const Color(0xFF2563EB)),
-                  _PaletteItem('cancel_navigation', 'Cancel Goal', 'Cancel Goal / Halt', Icons.cancel_outlined, const Color(0xFFDC2626)),
+                _buildPaletteCategory('Where to Drive', [
+                  _PaletteItem('navigate_waypoint', 'Drive to Saved Place', 'Go to named room or spot', Icons.place_outlined, const Color(0xFF2563EB)),
+                  _PaletteItem('navigate_coordinates', 'Drive to Coordinates', 'Drive to exact (X, Y) map spot', Icons.navigation_outlined, const Color(0xFF0284C7)),
+                  _PaletteItem('patrol_loop', 'Patrol Route', 'Visit places in sequence (rounds)', Icons.sync_rounded, const Color(0xFF3B82F6)),
+                  _PaletteItem('relocalize', 'Find My Position', 'Scan room with laser to locate self', Icons.my_location, const Color(0xFF2563EB)),
+                  _PaletteItem('cancel_navigation', 'Stop Driving', 'Cancel current drive & halt', Icons.cancel_outlined, const Color(0xFFDC2626)),
                 ]),
-                _buildPaletteCategory('Motion & Hardware', [
-                  _PaletteItem('dock', 'Dock to Charger', 'Auto-align to dock', Icons.battery_charging_full, const Color(0xFF16A34A)),
-                  _PaletteItem('undock', 'Undock Robot', 'Back out of charger', Icons.power_settings_new, const Color(0xFF059669)),
-                  _PaletteItem('jog_motion', 'Jog / Move Base', 'Linear & angular vel', Icons.gamepad_outlined, const Color(0xFFD97706)),
-                  _PaletteItem('emergency_stop', 'Emergency Stop', 'Immediate halt', Icons.warning_amber_rounded, const Color(0xFFDC2626)),
+                _buildPaletteCategory('Charging & Movement', [
+                  _PaletteItem('dock', 'Go to Charger', 'Drive to dock and start charging', Icons.battery_charging_full, const Color(0xFF16A34A)),
+                  _PaletteItem('undock', 'Leave Charger', 'Safely back away from dock', Icons.power_settings_new, const Color(0xFF059669)),
+                  _PaletteItem('jog_motion', 'Nudge / Turn Wheels', 'Drive forward/back or turn briefly', Icons.gamepad_outlined, const Color(0xFFD97706)),
+                  _PaletteItem('emergency_stop', 'Safety Stop (E-Stop)', 'Immediately cut motor power', Icons.warning_amber_rounded, const Color(0xFFDC2626)),
                 ]),
-                _buildPaletteCategory('Control Flow & Logic', [
-                  _PaletteItem('start', 'Mission Start', 'Entrypoint', Icons.play_circle_outline, const Color(0xFF16A34A)),
-                  _PaletteItem('end', 'Mission End', 'Terminal sink', Icons.stop_circle_outlined, const Color(0xFFDC2626)),
-                  _PaletteItem('loop', 'Loop / Repeat', 'Iterate sub-branch N times', Icons.loop_rounded, const Color(0xFF7C3AED)),
-                  _PaletteItem('condition', 'Conditional Branch', 'If-else AST evaluation', Icons.alt_route, const Color(0xFFEA580C)),
-                  _PaletteItem('wait', 'Timer / Delay', 'Wait specified seconds', Icons.timer_outlined, const Color(0xFFD97706)),
-                  _PaletteItem('battery_guard', 'Battery Guard', 'Energy threshold check', Icons.battery_saver, const Color(0xFF059669)),
-                  _PaletteItem('set_variable', 'Set Context Var', 'Blackboard state store', Icons.data_object, const Color(0xFF9333EA)),
+                _buildPaletteCategory('Rules & Flow Control', [
+                  _PaletteItem('start', 'Start Mission', 'Where the mission begins', Icons.play_circle_outline, const Color(0xFF16A34A)),
+                  _PaletteItem('end', 'Finish Mission', 'Complete mission and stop safely', Icons.stop_circle_outlined, const Color(0xFFDC2626)),
+                  _PaletteItem('loop', 'Repeat Steps', 'Repeat connected steps multiple times', Icons.loop_rounded, const Color(0xFF7C3AED)),
+                  _PaletteItem('condition', 'Check / If-Else', 'Branch path based on condition', Icons.alt_route, const Color(0xFFEA580C)),
+                  _PaletteItem('wait', 'Pause & Wait', 'Wait a few seconds before next step', Icons.timer_outlined, const Color(0xFFD97706)),
+                  _PaletteItem('battery_guard', 'Check Battery Level', 'Recharge if battery drops too low', Icons.battery_saver, const Color(0xFF059669)),
+                  _PaletteItem('set_variable', 'Remember a Value', 'Save a number, text, or counter', Icons.data_object, const Color(0xFF9333EA)),
                 ]),
-                _buildPaletteCategory('HRI & Interaction', [
-                  _PaletteItem('ui_interaction', 'Operator Form / UI', 'Touchscreen Kiosk', Icons.touch_app_outlined, AppColors.primary),
-                  _PaletteItem('ui_choice', 'User Choice Dialog', 'Button choices', Icons.ads_click, AppColors.primary),
-                  _PaletteItem('ui_media', 'Multimedia Player', 'Image / Video display', Icons.perm_media_outlined, const Color(0xFF0284C7)),
-                  _PaletteItem('ui_speech', 'Voice Announcement', 'TTS Announcement', Icons.record_voice_over_outlined, const Color(0xFF8B5CF6)),
-                  _PaletteItem('notify', 'OLED & LED Signals', 'Show screen lines & LEDs', Icons.tv, const Color(0xFF0D9488)),
+                _buildPaletteCategory('Screen, Voice & Signals', [
+                  _PaletteItem('ui_interaction', 'Ask for Information', 'Show form on screen to fill out', Icons.touch_app_outlined, AppColors.primary),
+                  _PaletteItem('ui_choice', 'Ask Choice (Buttons)', 'Show tap buttons on robot screen', Icons.ads_click, AppColors.primary),
+                  _PaletteItem('ui_media', 'Show Picture or Video', 'Display image/video on robot screen', Icons.perm_media_outlined, const Color(0xFF0284C7)),
+                  _PaletteItem('ui_speech', 'Speak Aloud', 'Say message aloud via speakers', Icons.record_voice_over_outlined, const Color(0xFF8B5CF6)),
+                  _PaletteItem('notify', 'Lights & Chime Signal', 'Play chime or flash LED lights', Icons.tv, const Color(0xFF0D9488)),
                 ]),
-                _buildPaletteCategory('Integrations & ROS 2', [
-                  _PaletteItem('call_api', 'Webhook / HTTP', 'REST API trigger', Icons.http, const Color(0xFF7C3AED)),
-                  _PaletteItem('call_service', 'ROS 2 Service', 'Trigger service call', Icons.settings_remote, const Color(0xFF4F46E5)),
-                  _PaletteItem('call_action', 'ROS 2 Action', 'Trigger action client', Icons.bolt, const Color(0xFF0284C7)),
-                  _PaletteItem('publish_topic', 'ROS 2 Publisher', 'Publish ROS 2 topic', Icons.podcasts, const Color(0xFF4F46E5)),
+                _buildPaletteCategory('External Tools & Signals', [
+                  _PaletteItem('call_api', 'Send Web Notice', 'Send alert/data to a website or app', Icons.http, const Color(0xFF7C3AED)),
+                  _PaletteItem('call_service', 'Trigger Robot Tool', 'Run internal robot function/tool', Icons.settings_remote, const Color(0xFF4F46E5)),
+                  _PaletteItem('call_action', 'Run Background Task', 'Start long task and wait for it', Icons.bolt, const Color(0xFF0284C7)),
+                  _PaletteItem('publish_topic', 'Broadcast Signal', 'Send message to other robot parts', Icons.podcasts, const Color(0xFF4F46E5)),
                 ]),
               ],
             ),

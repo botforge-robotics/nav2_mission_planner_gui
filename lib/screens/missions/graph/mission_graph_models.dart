@@ -99,90 +99,85 @@ class GraphNode {
   List<NodePort> get outputPorts {
     switch (type) {
       case 'start':
+        return const [NodePort(id: 'next', label: 'Start First Step', isInput: false, color: Color(0xFF4CAF50))];
       case 'wait':
       case 'set_variable':
       case 'notify':
-        return const [NodePort(id: 'next', label: 'Next', isInput: false, color: Color(0xFF4CAF50))];
+      case 'publish_topic':
+      case 'cancel_navigation':
+      case 'emergency_stop':
+      case 'jog_motion':
+        return const [NodePort(id: 'next', label: 'Next Step', isInput: false, color: Color(0xFF4CAF50))];
       case 'end':
       case 'mission_end':
-        return const []; // Terminal node
+        return const []; // Terminal node (Mission finishes)
       case 'loop':
       case 'loop_counter':
         return const [
-          NodePort(id: 'loop_body', label: 'Loop Body', isInput: false, color: Color(0xFF2196F3)),
-          NodePort(id: 'completed', label: 'Completed', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'loop_body', label: 'Do These Steps', isInput: false, color: Color(0xFF2196F3)),
+          NodePort(id: 'completed', label: 'When Done Repeating', isInput: false, color: Color(0xFF4CAF50)),
         ];
       case 'battery_guard':
         return const [
-          NodePort(id: 'ok', label: 'Battery OK', isInput: false, color: Color(0xFF4CAF50)),
-          NodePort(id: 'low_battery', label: 'Low Battery', isInput: false, color: Color(0xFFF44336)),
+          NodePort(id: 'ok', label: 'If Battery OK', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'low_battery', label: 'If Battery Low', isInput: false, color: Color(0xFFF44336)),
         ];
       case 'patrol_loop':
         return const [
-          NodePort(id: 'completed', label: 'Completed', isInput: false, color: Color(0xFF4CAF50)),
-          NodePort(id: 'failed', label: 'Failed', isInput: false, color: Color(0xFFF44336)),
-          NodePort(id: 'interrupted', label: 'Interrupted', isInput: false, color: Color(0xFFFF9800)),
+          NodePort(id: 'completed', label: 'When Route Finished', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'failed', label: 'If Problem Occurred', isInput: false, color: Color(0xFFF44336)),
+          NodePort(id: 'interrupted', label: 'If Stopped', isInput: false, color: Color(0xFFFF9800)),
         ];
       case 'navigate_waypoint':
       case 'navigate_coordinates':
         return const [
-          NodePort(id: 'arrived', label: 'Arrived', isInput: false, color: Color(0xFF4CAF50)),
-          NodePort(id: 'failed', label: 'Failed', isInput: false, color: Color(0xFFF44336)),
-          NodePort(id: 'timeout', label: 'Timeout', isInput: false, color: Color(0xFFFF9800)),
+          NodePort(id: 'arrived', label: 'When Arrived', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'failed', label: 'If Cannot Reach', isInput: false, color: Color(0xFFF44336)),
+          NodePort(id: 'timeout', label: 'If Took Too Long', isInput: false, color: Color(0xFFFF9800)),
         ];
       case 'dock':
         return const [
-          NodePort(id: 'docked', label: 'Docked', isInput: false, color: Color(0xFF4CAF50)),
-          NodePort(id: 'failed', label: 'Failed', isInput: false, color: Color(0xFFF44336)),
+          NodePort(id: 'docked', label: 'When Plugged In', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'failed', label: 'If Cannot Dock', isInput: false, color: Color(0xFFF44336)),
         ];
       case 'undock':
         return const [
-          NodePort(id: 'undocked', label: 'Undocked', isInput: false, color: Color(0xFF4CAF50)),
-          NodePort(id: 'failed', label: 'Failed', isInput: false, color: Color(0xFFF44336)),
+          NodePort(id: 'undocked', label: 'When Cleared', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'failed', label: 'If Cannot Leave', isInput: false, color: Color(0xFFF44336)),
         ];
       case 'condition':
         return const [
-          NodePort(id: 'true', label: 'True', isInput: false, color: Color(0xFF4CAF50)),
-          NodePort(id: 'false', label: 'False', isInput: false, color: Color(0xFFF44336)),
+          NodePort(id: 'true', label: 'If Yes (True)', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'false', label: 'If No (False)', isInput: false, color: Color(0xFFF44336)),
         ];
       case 'call_api':
       case 'call_service':
+      case 'relocalize':
         return const [
-          NodePort(id: 'success', label: 'Success', isInput: false, color: Color(0xFF4CAF50)),
-          NodePort(id: 'failure', label: 'Failure', isInput: false, color: Color(0xFFF44336)),
+          NodePort(id: 'success', label: 'If Successful', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'failure', label: 'If Problem Occurred', isInput: false, color: Color(0xFFF44336)),
         ];
       case 'call_action':
         return const [
-          NodePort(id: 'succeeded', label: 'Succeeded', isInput: false, color: Color(0xFF4CAF50)),
-          NodePort(id: 'failed', label: 'Failed', isInput: false, color: Color(0xFFF44336)),
+          NodePort(id: 'succeeded', label: 'When Done', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'failed', label: 'If Failed', isInput: false, color: Color(0xFFF44336)),
         ];
-      case 'publish_topic':
-        return const [NodePort(id: 'next', label: 'Next', isInput: false, color: Color(0xFF4CAF50))];
-      case 'relocalize':
-        return const [
-          NodePort(id: 'success', label: 'Success', isInput: false, color: Color(0xFF4CAF50)),
-          NodePort(id: 'failed', label: 'Failed', isInput: false, color: Color(0xFFF44336)),
-        ];
-      case 'cancel_navigation':
-      case 'emergency_stop':
-      case 'jog_motion':
-        return const [NodePort(id: 'next', label: 'Next', isInput: false, color: Color(0xFF4CAF50))];
       case 'ui_media':
         return const [
-          NodePort(id: 'completed', label: 'Completed', isInput: false, color: Color(0xFF4CAF50)),
-          NodePort(id: 'skipped', label: 'Skipped', isInput: false, color: Color(0xFF9E9E9E)),
-          NodePort(id: 'timeout', label: 'Timeout', isInput: false, color: Color(0xFFFF9800)),
+          NodePort(id: 'completed', label: 'When Finished', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'skipped', label: 'If Person Skipped', isInput: false, color: Color(0xFF9E9E9E)),
+          NodePort(id: 'timeout', label: 'If Timed Out', isInput: false, color: Color(0xFFFF9800)),
         ];
       case 'ui_speech':
         return const [
-          NodePort(id: 'done', label: 'Done', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'done', label: 'When Done Speaking', isInput: false, color: Color(0xFF4CAF50)),
         ];
       case 'ui_choice':
         final opts = (params['options'] as List? ?? ['Yes', 'No']).map((e) => e.toString()).toList();
         return [
           for (final opt in opts)
-            NodePort(id: opt.toLowerCase(), label: opt, isInput: false, color: const Color(0xFF4CAF50)),
-          const NodePort(id: 'timeout', label: 'Timeout', isInput: false, color: Color(0xFFFF9800)),
+            NodePort(id: opt.toLowerCase(), label: 'If chose "$opt"', isInput: false, color: const Color(0xFF4CAF50)),
+          const NodePort(id: 'timeout', label: 'If Timed Out', isInput: false, color: Color(0xFFFF9800)),
         ];
       case 'ui_interaction':
         final subtype = params['subtype'] as String? ?? 'dynamic_form';
@@ -190,17 +185,17 @@ class GraphNode {
           final opts = (params['options'] as List? ?? ['Yes', 'No']).map((e) => e.toString()).toList();
           return [
             for (final opt in opts)
-              NodePort(id: opt.toLowerCase(), label: opt, isInput: false, color: const Color(0xFF4CAF50)),
-            const NodePort(id: 'timeout', label: 'Timeout', isInput: false, color: Color(0xFFFF9800)),
+              NodePort(id: opt.toLowerCase(), label: 'If chose "$opt"', isInput: false, color: const Color(0xFF4CAF50)),
+            const NodePort(id: 'timeout', label: 'If Timed Out', isInput: false, color: Color(0xFFFF9800)),
           ];
         }
         return const [
-          NodePort(id: 'submitted', label: 'Submitted', isInput: false, color: Color(0xFF4CAF50)),
-          NodePort(id: 'cancelled', label: 'Cancelled', isInput: false, color: Color(0xFF9E9E9E)),
-          NodePort(id: 'timeout', label: 'Timeout', isInput: false, color: Color(0xFFFF9800)),
+          NodePort(id: 'submitted', label: 'When Form Submitted', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'cancelled', label: 'If Cancelled / Skipped', isInput: false, color: Color(0xFF9E9E9E)),
+          NodePort(id: 'timeout', label: 'If Timed Out', isInput: false, color: Color(0xFFFF9800)),
         ];
       default:
-        return const [NodePort(id: 'next', label: 'Next', isInput: false, color: Color(0xFF4CAF50))];
+        return const [NodePort(id: 'next', label: 'Next Step', isInput: false, color: Color(0xFF4CAF50))];
     }
   }
 

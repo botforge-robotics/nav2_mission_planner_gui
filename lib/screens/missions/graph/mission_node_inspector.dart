@@ -69,21 +69,37 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             child: Row(
               children: [
                 const Icon(Icons.tune, size: 18, color: AppColors.primary),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    'Inspector: ${node.type}',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _getNodeFriendlyTitle(node),
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Step Settings',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (widget.onDelete != null && node.type != 'start' && !widget.readOnly)
                   IconButton(
                     icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 20),
-                    tooltip: 'Delete Node',
+                    tooltip: 'Delete this step',
                     onPressed: widget.onDelete,
                   ),
               ],
@@ -98,8 +114,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               labelColor: AppColors.primary,
               unselectedLabelColor: AppColors.textSecondary,
               tabs: const [
-                Tab(text: 'Properties'),
-                Tab(text: 'Live Preview'),
+                Tab(text: 'Settings'),
+                Tab(text: 'Screen Preview'),
               ],
             ),
 
@@ -120,19 +136,167 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     );
   }
 
+  String _getNodeFriendlyTitle(GraphNode node) {
+    if (node.label.isNotEmpty) return node.label;
+    switch (node.type) {
+      case 'start':
+        return 'Start Mission';
+      case 'end':
+      case 'mission_end':
+        return 'Finish Mission';
+      case 'navigate_waypoint':
+        return 'Drive to Saved Place';
+      case 'navigate_coordinates':
+        return 'Drive to Coordinates';
+      case 'patrol_loop':
+        return 'Patrol Route';
+      case 'relocalize':
+        return 'Find My Position';
+      case 'cancel_navigation':
+        return 'Stop Driving';
+      case 'dock':
+        return 'Go to Charger';
+      case 'undock':
+        return 'Leave Charger';
+      case 'jog_motion':
+        return 'Nudge / Turn Wheels';
+      case 'emergency_stop':
+        return 'Safety Emergency Stop';
+      case 'loop':
+      case 'loop_counter':
+        return 'Repeat Steps';
+      case 'condition':
+        return 'Check / If-Else';
+      case 'wait':
+        return 'Pause & Wait';
+      case 'battery_guard':
+        return 'Check Battery Level';
+      case 'set_variable':
+        return 'Remember a Value';
+      case 'ui_interaction':
+        return 'Ask for Information';
+      case 'ui_choice':
+        return 'Ask Choice (Buttons)';
+      case 'ui_media':
+        return 'Show Picture / Video';
+      case 'ui_speech':
+        return 'Speak Aloud';
+      case 'notify':
+        return 'Lights & Chime Signal';
+      case 'call_api':
+        return 'Send Web Notice';
+      case 'call_service':
+        return 'Trigger Robot Tool';
+      case 'call_action':
+        return 'Run Background Task';
+      case 'publish_topic':
+        return 'Broadcast Signal';
+      default:
+        return 'Step Settings';
+    }
+  }
+
+  String _getNodeFriendlyDescription(GraphNode node) {
+    switch (node.type) {
+      case 'start':
+        return 'This is where your mission begins. Connect this to the first step you want the robot to take.';
+      case 'end':
+      case 'mission_end':
+        return 'Safely finishes the mission. The robot stops and can optionally drive back to its charger.';
+      case 'navigate_waypoint':
+        return 'Tells the robot to safely drive across the room to a place saved on your map.';
+      case 'navigate_coordinates':
+        return 'Sends the robot to a precise X and Y position on the map, facing a specific direction.';
+      case 'patrol_loop':
+        return 'Guides the robot through multiple saved places in sequence, pausing at each stop.';
+      case 'relocalize':
+        return 'Performs a 360° laser scan to help the robot figure out exactly where it is in the building.';
+      case 'cancel_navigation':
+        return 'Immediately cancels current driving and brings the robot to a complete halt.';
+      case 'dock':
+        return 'Drives the robot onto its charging station and begins recharging.';
+      case 'undock':
+        return 'Safely backs out of the charging dock so the robot is ready to start driving.';
+      case 'jog_motion':
+        return 'Directly nudges the wheels forward, backward, or turns the robot for a brief duration.';
+      case 'emergency_stop':
+        return 'Immediately cuts power to all drive motors and sounds a safety alert.';
+      case 'loop':
+      case 'loop_counter':
+        return 'Repeats the connected steps multiple times (e.g. patrol a loop 3 times) before finishing.';
+      case 'condition':
+        return 'Makes a decision. If your rule is met, take the Yes path; otherwise take the No path.';
+      case 'wait':
+        return 'Pauses and waits for a few seconds before continuing to the next step.';
+      case 'battery_guard':
+        return 'Checks if the battery has enough charge. If it is low, you can route the robot to recharge.';
+      case 'set_variable':
+        return 'Saves a piece of information, number, or counter to use in later steps.';
+      case 'ui_interaction':
+        return 'Displays a friendly form or checklist on the robot screen for a person to fill out.';
+      case 'ui_choice':
+        return 'Shows large touch buttons on the robot screen (like Yes or No) for someone to tap.';
+      case 'ui_media':
+        return 'Shows an image, diagram, or video on the robot screen for people nearby.';
+      case 'ui_speech':
+        return 'Reads a message out loud through the robot speakers in clear voice.';
+      case 'notify':
+        return 'Flashes the LED lights and sounds a chime to get attention.';
+      case 'call_api':
+        return 'Sends a notification or data over the network to a website or app like Slack.';
+      case 'call_service':
+        return 'Triggers a built-in robot hardware tool or toggles an internal setting.';
+      case 'call_action':
+        return 'Starts a longer robot activity and waits for it to complete.';
+      case 'publish_topic':
+        return 'Broadcasts a live message to other parts of the robot system.';
+      default:
+        return 'Configure the settings for this mission step.';
+    }
+  }
+
   Widget _buildPropertiesList() {
     final node = widget.node;
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // Friendly Explanatory Tip Box for End-Users
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.lightbulb_outline, size: 16, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _getNodeFriendlyDescription(node),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
         // Node Label
         TextField(
           controller: _labelController,
           enabled: !widget.readOnly,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Node Label',
+            labelText: 'Step Name (Shown on Canvas)',
+            hintText: 'e.g. Drive to Charging Station',
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -190,9 +354,25 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         else if (node.type == 'cancel_navigation')
           _buildCancelNavigationInspector()
         else
-          Text(
-            'Node ID: ${node.id}\nNo extra parameters required.',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceSunken,
+              borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.check_circle_outline, size: 18, color: AppColors.primary),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'This step is ready! No extra settings needed.',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
           ),
       ],
     );
@@ -205,7 +385,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Target Waypoint', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+        const Text('Where should the robot drive?', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
           key: ValueKey('${widget.node.id}_wp_$currentWp'),
@@ -221,7 +401,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
-          hint: const Text('Select a waypoint', style: TextStyle(color: AppColors.textSecondary)),
+          hint: const Text('Choose a saved place on the map', style: TextStyle(color: AppColors.textSecondary)),
           items: [
             for (final wp in waypoints)
               DropdownMenuItem(
@@ -243,7 +423,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
         const SizedBox(height: 16),
         _buildNumberSlider(
-          label: 'Goal Tolerance (meters)',
+          label: 'Arrival accuracy (meters)',
           value: (widget.node.params['tolerance_m'] as num?)?.toDouble() ?? 0.25,
           min: 0.05,
           max: 1.0,
@@ -272,7 +452,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 keyboardType: TextInputType.number,
                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
                 decoration: InputDecoration(
-                  labelText: 'X (meters)',
+                  labelText: 'X Position on Map (meters)',
                   labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   filled: true,
                   fillColor: AppColors.surfaceSunken,
@@ -294,7 +474,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 keyboardType: TextInputType.number,
                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
                 decoration: InputDecoration(
-                  labelText: 'Y (meters)',
+                  labelText: 'Y Position on Map (meters)',
                   labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   filled: true,
                   fillColor: AppColors.surfaceSunken,
@@ -317,7 +497,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           keyboardType: TextInputType.number,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Orientation (Theta radians)',
+            labelText: 'Facing Direction (Radians, 0 = forward)',
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -339,7 +519,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     final dur = (widget.node.params['duration_sec'] as num?)?.toDouble() ?? 5.0;
 
     return _buildNumberSlider(
-      label: 'Duration (seconds)',
+      label: 'How many seconds to pause and wait',
       value: dur,
       min: 1.0,
       max: 60.0,
@@ -361,8 +541,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: expr,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Expression',
+            labelText: 'Rule to check',
             hintText: 'e.g. form.status == "Pass"',
+            helperText: 'If this rule is true, robot follows Yes path; otherwise No path',
+            helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
             hintStyle: const TextStyle(color: AppColors.textTertiary),
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
@@ -379,7 +561,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
         const SizedBox(height: 10),
         const Text(
-          'Quick Token Helpers:',
+          'Quick Rule Examples (tap to use):',
           style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
@@ -428,7 +610,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           dropdownColor: AppColors.surface,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'UI Presentation Subtype',
+            labelText: 'What kind of screen to show?',
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -438,11 +620,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           items: const [
-            DropdownMenuItem(value: 'dynamic_form', child: Text('Dynamic Multi-Field Form', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'choice', child: Text('Action Buttons / Choices', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'media_display', child: Text('Media Display (Image/Video)', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'speech', child: Text('Voice / TTS Announcement', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'kiosk', child: Text('Destination Kiosk Picker', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'dynamic_form', child: Text('Form / Checklist (Questions to answer)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'choice', child: Text('Touch Buttons (e.g. Yes / No options)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'media_display', child: Text('Show Picture, Video or Web Page', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'speech', child: Text('Voice Announcement (Robot speaks)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'kiosk', child: Text('Destination Picker (User picks room)', overflow: TextOverflow.ellipsis)),
           ],
           onChanged: widget.readOnly
               ? null
@@ -465,7 +647,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           dropdownColor: AppColors.surface,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Target Display Device',
+            labelText: 'Where should this screen appear?',
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -475,9 +657,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           items: const [
-            DropdownMenuItem(value: 'robot_screen', child: Text('Robot Touchscreen (Onboard)', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'operator_app', child: Text('Operator Console (Remote App)', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'both', child: Text('Both Displays (Robot + Operator)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'robot_screen', child: Text('Robot Screen (Touchscreen on robot)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'operator_app', child: Text('Your Screen (This app / controller)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'both', child: Text('Both Robot and Your App', overflow: TextOverflow.ellipsis)),
           ],
           onChanged: widget.readOnly
               ? null
@@ -494,7 +676,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: title,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Dialog Title',
+            labelText: 'Screen Title (Header shown to user)',
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -511,7 +693,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
 
         _buildNumberSlider(
-          label: 'Timeout (seconds)',
+          label: 'Time limit to respond (seconds)',
           value: timeout,
           min: 10.0,
           max: 300.0,
@@ -545,13 +727,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Form Fields',
+              'Questions & Input Fields',
               style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
             ),
             if (!widget.readOnly)
               TextButton.icon(
                 icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text('Add Field', style: TextStyle(fontSize: 12)),
+                label: const Text('+ Add Question', style: TextStyle(fontSize: 12)),
                 style: TextButton.styleFrom(foregroundColor: AppColors.primary),
                 onPressed: () {
                   setState(() {
@@ -590,7 +772,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
                           decoration: InputDecoration(
                             isDense: true,
-                            labelText: 'Field Label',
+                            labelText: 'Question or Field Title',
+                            hintText: 'e.g. What is the room temperature?',
                             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                             filled: true,
                             fillColor: AppColors.surfaceSunken,
@@ -608,6 +791,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.textTertiary),
+                        tooltip: 'Remove Question',
                         onPressed: widget.readOnly
                             ? null
                             : () {
@@ -633,7 +817,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           isDense: true,
                           decoration: InputDecoration(
                             isDense: true,
-                            labelText: 'Type',
+                            labelText: 'Answer Type',
                             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                             filled: true,
                             fillColor: AppColors.surfaceSunken,
@@ -643,12 +827,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                           ),
                           items: const [
-                            DropdownMenuItem(value: 'text', child: Text('Text', overflow: TextOverflow.ellipsis)),
-                            DropdownMenuItem(value: 'number', child: Text('Number', overflow: TextOverflow.ellipsis)),
-                            DropdownMenuItem(value: 'select', child: Text('Dropdown / Select', overflow: TextOverflow.ellipsis)),
-                            DropdownMenuItem(value: 'checkbox', child: Text('Checkbox', overflow: TextOverflow.ellipsis)),
-                            DropdownMenuItem(value: 'switch', child: Text('Switch', overflow: TextOverflow.ellipsis)),
-                            DropdownMenuItem(value: 'signature', child: Text('Signature', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'text', child: Text('Short Text (Type an answer)', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'number', child: Text('Number (Enter digits)', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'select', child: Text('Dropdown List (Choose one choice)', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'checkbox', child: Text('Checkmark Box', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'switch', child: Text('On / Off Toggle', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'signature', child: Text('Sign on Screen', overflow: TextOverflow.ellipsis)),
                           ],
                           onChanged: widget.readOnly
                               ? null
@@ -675,7 +859,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                                 widget.onChanged();
                               },
                       ),
-                      const Text('Req', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                      const Text('Required', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                     ],
                   ),
                   if (fields[i].type == 'select') ...[
@@ -690,7 +874,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Options', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
+                          const Text('List of Choices (Tap ✕ to remove):', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           Wrap(
                             spacing: 6,
@@ -719,7 +903,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                                 child: TextField(
                                   decoration: InputDecoration(
                                     isDense: true,
-                                    hintText: 'New option...',
+                                    hintText: 'Type choice & press Enter...',
                                     hintStyle: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
@@ -745,14 +929,14 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                             initialValue: fields[i].options.contains(fields[i].defaultValue) ? fields[i].defaultValue : null,
                             decoration: InputDecoration(
                               isDense: true,
-                              labelText: 'Default Value',
+                              labelText: 'Pre-selected Default Choice (Optional)',
                               labelStyle: const TextStyle(fontSize: 11),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
                             ),
                             style: const TextStyle(fontSize: 11, color: AppColors.textPrimary),
                             items: [
-                              const DropdownMenuItem<String>(value: null, child: Text('None')),
+                              const DropdownMenuItem<String>(value: null, child: Text('None (User must choose)')),
                               for (final opt in fields[i].options)
                                 DropdownMenuItem(value: opt, child: Text(opt)),
                             ],
@@ -785,15 +969,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Action Buttons', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+            const Text('Touch Buttons to Display', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
             if (!widget.readOnly)
               TextButton.icon(
                 icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text('Add Option', style: TextStyle(fontSize: 12)),
+                label: const Text('+ Add Button', style: TextStyle(fontSize: 12)),
                 style: TextButton.styleFrom(foregroundColor: AppColors.primary),
                 onPressed: () {
                   setState(() {
-                    options.add('Option ${options.length + 1}');
+                    options.add('Button ${options.length + 1}');
                     widget.node.params['options'] = options;
                   });
                   widget.onChanged();
@@ -813,6 +997,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
                     decoration: InputDecoration(
                       isDense: true,
+                      hintText: 'Button Text (e.g. Yes, No, Done)',
                       filled: true,
                       fillColor: AppColors.surfaceSunken,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -829,6 +1014,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.textTertiary),
+                  tooltip: 'Delete Button',
                   onPressed: widget.readOnly
                       ? null
                       : () {
@@ -853,8 +1039,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       initialValue: mediaUrl,
       style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
-        labelText: 'Media / Image URL',
-        hintText: 'https://...',
+        labelText: 'Link to Picture or Video (URL)',
+        hintText: 'https://example.com/picture.png',
+        helperText: 'Direct web link to an image or MP4 video',
+        helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
         hintStyle: const TextStyle(color: AppColors.textTertiary),
         labelStyle: const TextStyle(color: AppColors.textSecondary),
         filled: true,
@@ -887,7 +1075,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           dropdownColor: AppColors.surface,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'HTTP Method',
+            labelText: 'Web Request Type',
             labelStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -897,11 +1085,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           items: const [
-            DropdownMenuItem(value: 'GET', child: Text('GET')),
-            DropdownMenuItem(value: 'POST', child: Text('POST')),
-            DropdownMenuItem(value: 'PUT', child: Text('PUT')),
-            DropdownMenuItem(value: 'DELETE', child: Text('DELETE')),
-            DropdownMenuItem(value: 'PATCH', child: Text('PATCH')),
+            DropdownMenuItem(value: 'GET', child: Text('GET (Retrieve Data)')),
+            DropdownMenuItem(value: 'POST', child: Text('POST (Send Data / Trigger Event)')),
+            DropdownMenuItem(value: 'PUT', child: Text('PUT (Replace Data)')),
+            DropdownMenuItem(value: 'DELETE', child: Text('DELETE (Remove Data)')),
+            DropdownMenuItem(value: 'PATCH', child: Text('PATCH (Update Partial Data)')),
           ],
           onChanged: widget.readOnly
               ? null
@@ -915,7 +1103,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: url,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Endpoint URL',
+            labelText: 'Web Address (URL)',
+            hintText: 'https://api.example.com/webhook',
             labelStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -934,7 +1123,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: token,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Bearer Auth Token',
+            labelText: 'Secret Key / Access Token (Optional)',
+            hintText: 'Bearer token or auth key',
             prefixIcon: const Icon(Icons.key, size: 16),
             labelStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
@@ -955,7 +1145,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           maxLines: 2,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Headers (JSON)',
+            labelText: 'Custom Headers (JSON, optional)',
+            hintText: '{"Content-Type": "application/json"}',
             labelStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -975,7 +1166,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           maxLines: 3,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Request Payload / Body (JSON)',
+            labelText: 'Message Data to Send (JSON, optional)',
+            hintText: '{"status": "completed"}',
             labelStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -991,7 +1183,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
         const SizedBox(height: 12),
         _buildNumberSlider(
-          label: 'Timeout (seconds)',
+          label: 'Wait for response up to (seconds)',
           value: (widget.node.params['timeout_sec'] as num?)?.toDouble() ?? 10.0,
           min: 1.0,
           max: 120.0,
@@ -1015,8 +1207,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: oled,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'OLED Text Banner',
-            hintText: 'e.g. INSPECTION DONE',
+            labelText: 'Robot Face Screen Text',
+            hintText: 'e.g. HELLO! or MISSION DONE',
+            helperText: 'Short text banner displayed on front display',
+            helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
             labelStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -1035,8 +1229,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: led,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'LED Command',
+            labelText: 'Light Colors / Pattern',
             hintText: 'solid,0,200,40',
+            helperText: 'Changes light ring (format: solid,Red,Green,Blue)',
+            helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
             labelStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -1159,7 +1355,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           dropdownColor: AppColors.surface,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Terminal Mission Status',
+            labelText: 'Final Mission Outcome',
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -1169,9 +1365,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           items: const [
-            DropdownMenuItem(value: 'success', child: Text('Success (Clean Finish)', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'failed', child: Text('Failed (Error Termination)', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'aborted', child: Text('Aborted (Operator Exit)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'success', child: Text('Success (Mission finished well)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'failed', child: Text('Failed (Stopped because of a problem)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'aborted', child: Text('Cancelled (Stopped by operator)', overflow: TextOverflow.ellipsis)),
           ],
           onChanged: widget.readOnly
               ? null
@@ -1185,7 +1381,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: message,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Completion Message / Summary',
+            labelText: 'Farewell / Summary Note',
+            hintText: 'e.g. Mission completed successfully.',
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -1202,8 +1399,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Auto-Dock on End', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-          subtitle: const Text('Send robot to AprilTag charger upon mission completion', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          title: const Text('Drive to Charger Automatically', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+          subtitle: const Text('Robot will safely return to charging dock when this step finishes', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           value: dockOnEnd,
           activeThumbColor: AppColors.primary,
           onChanged: widget.readOnly
@@ -1226,7 +1423,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildNumberSlider(
-          label: 'Loop Iteration Count',
+          label: 'How many times to repeat?',
           value: count.toDouble(),
           min: 1.0,
           max: 50.0,
@@ -1241,9 +1438,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: varName,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Loop Index Variable Name',
+            labelText: 'Repetition Counter Name (Optional)',
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            helperText: 'Injected into context (0..N-1) for templates & conditions',
+            helperText: 'Stores current repetition count (0, 1, 2...) for rules or messages',
             helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -1262,10 +1459,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: condition,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'While Condition (Optional)',
+            labelText: 'Stop Early Rule (Optional)',
             hintText: 'e.g. form.keep_going == true',
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            helperText: 'If provided, loop exits if condition evaluates to false',
+            helperText: 'If this rule becomes false, repeat stops early',
             helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -1291,7 +1488,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildNumberSlider(
-          label: 'Minimum Battery Required (%)',
+          label: 'Minimum Battery Level Needed (%)',
           value: minPct,
           min: 5.0,
           max: 95.0,
@@ -1304,8 +1501,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Require Charger Contact', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-          subtitle: const Text('Robot must currently be docked/charging to pass "ok"', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          title: const Text('Must Be Plugged In to Charger', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+          subtitle: const Text('Robot must currently be docked and charging to pass this check', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           value: requireCharging,
           activeThumbColor: AppColors.primary,
           onChanged: widget.readOnly
@@ -1332,10 +1529,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Patrol Waypoints Order', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+            const Text('Saved Places to Visit in Order', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
             PopupMenuButton<String>(
               icon: const Icon(Icons.add_location_alt_outlined, size: 18, color: AppColors.primary),
-              tooltip: 'Add Waypoint to Patrol',
+              tooltip: 'Add Place to Route',
               onSelected: (wpName) {
                 setState(() {
                   waypoints.add(wpName);
@@ -1362,7 +1559,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
               border: Border.all(color: AppColors.border),
             ),
-            child: const Text('No waypoints added yet. Tap icon above to add patrol stops.', style: TextStyle(color: AppColors.textTertiary, fontSize: 11)),
+            child: const Text('No stops added yet. Tap the + location icon above to add stops to patrol.', style: TextStyle(color: AppColors.textTertiary, fontSize: 11)),
           )
         else
           Column(
@@ -1386,6 +1583,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         IconButton(
                           visualDensity: VisualDensity.compact,
                           padding: EdgeInsets.zero,
+                          tooltip: 'Move Up',
                           icon: const Icon(Icons.arrow_upward, size: 14, color: AppColors.textSecondary),
                           onPressed: () {
                             setState(() {
@@ -1400,6 +1598,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         IconButton(
                           visualDensity: VisualDensity.compact,
                           padding: EdgeInsets.zero,
+                          tooltip: 'Move Down',
                           icon: const Icon(Icons.arrow_downward, size: 14, color: AppColors.textSecondary),
                           onPressed: () {
                             setState(() {
@@ -1413,6 +1612,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         padding: EdgeInsets.zero,
+                        tooltip: 'Remove',
                         icon: const Icon(Icons.close, size: 16, color: AppColors.danger),
                         onPressed: () {
                           setState(() {
@@ -1429,7 +1629,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           ),
         const SizedBox(height: 12),
         _buildNumberSlider(
-          label: 'Patrol Laps (0 = Infinite)',
+          label: 'How many laps around the route? (0 = infinite)',
           value: laps.toDouble(),
           min: 0.0,
           max: 20.0,
@@ -1441,7 +1641,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
         const SizedBox(height: 12),
         _buildNumberSlider(
-          label: 'Dwell Time per Point (seconds)',
+          label: 'How many seconds to pause at each stop',
           value: dwell,
           min: 0.0,
           max: 30.0,
@@ -1472,7 +1672,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           dropdownColor: AppColors.surface,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Media Format',
+            labelText: 'What kind of media to show?',
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -1482,9 +1682,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           items: const [
-            DropdownMenuItem(value: 'image', child: Text('Image Poster (PNG/JPG)', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'video', child: Text('Video Stream / Clip (MP4)', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'web_url', child: Text('Interactive Web URL / Dashboard', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'image', child: Text('Photo / Image (PNG or JPG)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'video', child: Text('Video Clip (MP4)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'web_url', child: Text('Web Page / Live Dashboard', overflow: TextOverflow.ellipsis)),
           ],
           onChanged: widget.readOnly
               ? null
@@ -1501,7 +1701,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           dropdownColor: AppColors.surface,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Target Display Device',
+            labelText: 'Where should this appear?',
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
             fillColor: AppColors.surfaceSunken,
@@ -1511,9 +1711,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           items: const [
-            DropdownMenuItem(value: 'robot_screen', child: Text('Robot Touchscreen (Onboard)', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'operator_app', child: Text('Operator Console (Remote App)', overflow: TextOverflow.ellipsis)),
-            DropdownMenuItem(value: 'both', child: Text('Both Displays', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'robot_screen', child: Text('Robot Screen (Touchscreen)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'operator_app', child: Text('Your Computer Screen (This app)', overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: 'both', child: Text('Both Robot and Computer', overflow: TextOverflow.ellipsis)),
           ],
           onChanged: widget.readOnly
               ? null
@@ -1527,7 +1727,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: url,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Resource URL',
+            labelText: 'Web Link to Image, Video, or Page',
             hintText: 'https://example.com/asset.jpg',
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
@@ -1544,7 +1744,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
         const SizedBox(height: 12),
         _buildNumberSlider(
-          label: 'Display Duration (seconds)',
+          label: 'How long to display (seconds)',
           value: duration,
           min: 5.0,
           max: 120.0,
@@ -1557,8 +1757,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Show Skip Button', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-          subtitle: const Text('Allows user on screen to dismiss early', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          title: const Text('Show "Skip" or "Close" Button', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+          subtitle: const Text('Allows someone standing by the robot to dismiss the screen early', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           value: showSkip,
           activeThumbColor: AppColors.primary,
           onChanged: widget.readOnly
@@ -1584,11 +1784,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           maxLines: 3,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            labelText: 'Text to Speak (TTS)',
-            hintText: 'e.g. NavPro Mini has arrived. Please collect your items.',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            helperText: 'Supports variables e.g. {{context.form.inspector_name}}',
+            labelText: 'What should the robot say out loud?',
+            hintText: 'e.g. Hello! I have arrived with your delivery.',
+            helperText: 'The robot will use its speaker to speak these exact words',
             helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
             filled: true,
             fillColor: AppColors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1605,7 +1805,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Wait Until Finished Speaking', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-          subtitle: const Text('Pause mission execution until TTS audio finishes', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          subtitle: const Text('Pauses the mission until the robot completely finishes talking', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           value: wait,
           activeThumbColor: AppColors.primary,
           onChanged: widget.readOnly
@@ -1622,14 +1822,14 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   Widget _buildCallServiceInspector() {
     return Column(
       children: [
-        _buildTextField('Service Name', 'service_name', '/set_mode'),
+        _buildTextField('Robot Service Name (Advanced)', 'service_name', '/set_mode'),
         const SizedBox(height: 12),
-        _buildTextField('Service Type', 'service_type', 'std_srvs/srv/SetBool'),
+        _buildTextField('Service Message Type', 'service_type', 'std_srvs/srv/SetBool'),
         const SizedBox(height: 12),
-        _buildTextField('Request Payload (JSON)', 'payload', '{"data": true}', maxLines: 3),
+        _buildTextField('Service Request Data (JSON)', 'payload', '{"data": true}', maxLines: 3),
         const SizedBox(height: 12),
         _buildNumberSlider(
-          label: 'Timeout (seconds)',
+          label: 'Wait limit for response (seconds)',
           value: (widget.node.params['timeout_sec'] as num?)?.toDouble() ?? 5.0,
           min: 1.0,
           max: 60.0,
@@ -1646,14 +1846,14 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   Widget _buildCallActionInspector() {
     return Column(
       children: [
-        _buildTextField('Action Name', 'action_name', '/navigate_to_pose'),
+        _buildTextField('Robot Action Goal Name (Advanced)', 'action_name', '/navigate_to_pose'),
         const SizedBox(height: 12),
-        _buildTextField('Action Type', 'action_type', 'nav2_msgs/action/NavigateToPose'),
+        _buildTextField('Action Message Type', 'action_type', 'nav2_msgs/action/NavigateToPose'),
         const SizedBox(height: 12),
-        _buildTextField('Goal Payload (JSON)', 'payload', '{}', maxLines: 3),
+        _buildTextField('Goal Request Data (JSON)', 'payload', '{}', maxLines: 3),
         const SizedBox(height: 12),
         _buildNumberSlider(
-          label: 'Timeout (seconds)',
+          label: 'Wait limit for action (seconds)',
           value: (widget.node.params['timeout_sec'] as num?)?.toDouble() ?? 60.0,
           min: 1.0,
           max: 300.0,
@@ -1670,11 +1870,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   Widget _buildPublishTopicInspector() {
     return Column(
       children: [
-        _buildTextField('Topic Name', 'topic_name', '/cmd_vel'),
+        _buildTextField('Broadcast Topic Name (Advanced)', 'topic_name', '/cmd_vel'),
         const SizedBox(height: 12),
-        _buildTextField('Message Type', 'message_type', 'geometry_msgs/msg/Twist'),
+        _buildTextField('Topic Message Type', 'message_type', 'geometry_msgs/msg/Twist'),
         const SizedBox(height: 12),
-        _buildTextField('Message Payload (JSON)', 'payload', '{}', maxLines: 3),
+        _buildTextField('Message Data to Broadcast (JSON)', 'payload', '{}', maxLines: 3),
       ],
     );
   }
@@ -1687,7 +1887,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       initialValue: ['global_scan', 'dock_seed'].contains(mode) ? mode : 'global_scan',
       dropdownColor: AppColors.surface,
       decoration: InputDecoration(
-        labelText: 'Relocalization Mode',
+        labelText: 'How should the robot find its position?',
         labelStyle: const TextStyle(color: AppColors.textSecondary),
         filled: true,
         fillColor: AppColors.surfaceSunken,
@@ -1695,8 +1895,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
       ),
       items: const [
-        DropdownMenuItem(value: 'global_scan', child: Text('Global Scan')),
-        DropdownMenuItem(value: 'dock_seed', child: Text('Dock Seed')),
+        DropdownMenuItem(value: 'global_scan', child: Text('Laser Room Scan (Spin & find position)')),
+        DropdownMenuItem(value: 'dock_seed', child: Text('Assume At Charger (Reset to charging dock)')),
       ],
       onChanged: widget.readOnly ? null : (v) {
         widget.node.params['mode'] = v;
@@ -1710,14 +1910,14 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       children: [
         Row(
           children: [
-            Expanded(child: _buildTextField('Linear Vel (m/s)', 'linear_vel', '0.0')),
+            Expanded(child: _buildTextField('Drive Speed (m/s)', 'linear_vel', '0.0')),
             const SizedBox(width: 8),
-            Expanded(child: _buildTextField('Angular Vel (rad/s)', 'angular_vel', '0.0')),
+            Expanded(child: _buildTextField('Turn Speed (rad/s)', 'angular_vel', '0.0')),
           ],
         ),
         const SizedBox(height: 12),
         _buildNumberSlider(
-          label: 'Duration (seconds)',
+          label: 'How many seconds to drive',
           value: (widget.node.params['duration_sec'] as num?)?.toDouble() ?? 1.0,
           min: 0.1,
           max: 10.0,
@@ -1735,7 +1935,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     final sound = widget.node.params['sound_alert'] as bool? ?? true;
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      title: const Text('Play Sound Alert', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+      title: const Text('Sound Safety Alarm Buzzer', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+      subtitle: const Text('Beep the robot onboard alarm buzzer while emergency stop is active', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
       value: sound,
       activeThumbColor: AppColors.primary,
       onChanged: widget.readOnly ? null : (v) {
@@ -1753,7 +1954,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       initialValue: ['abort_goal', 'zero_vel'].contains(haltType) ? haltType : 'abort_goal',
       dropdownColor: AppColors.surface,
       decoration: InputDecoration(
-        labelText: 'Halt Type',
+        labelText: 'How to stop navigation',
         labelStyle: const TextStyle(color: AppColors.textSecondary),
         filled: true,
         fillColor: AppColors.surfaceSunken,
@@ -1761,8 +1962,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
       ),
       items: const [
-        DropdownMenuItem(value: 'abort_goal', child: Text('Abort Active Goal')),
-        DropdownMenuItem(value: 'zero_vel', child: Text('Send Zero Velocity')),
+        DropdownMenuItem(value: 'abort_goal', child: Text('Cancel current driving goal smoothly')),
+        DropdownMenuItem(value: 'zero_vel', child: Text('Instantly stop wheel motors immediately')),
       ],
       onChanged: widget.readOnly ? null : (v) {
         widget.node.params['halt_type'] = v;
