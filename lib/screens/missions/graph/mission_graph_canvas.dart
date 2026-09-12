@@ -13,6 +13,7 @@ class MissionGraphCanvas extends StatefulWidget {
     required this.onGraphChanged,
     this.activeNodeId,
     this.readOnly = false,
+    this.isRunning = false,
   });
 
   final MissionGraph graph;
@@ -21,6 +22,7 @@ class MissionGraphCanvas extends StatefulWidget {
   final VoidCallback onGraphChanged;
   final String? activeNodeId;
   final bool readOnly;
+  final bool isRunning;
 
   @override
   State<MissionGraphCanvas> createState() => _MissionGraphCanvasState();
@@ -461,7 +463,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (isActive)
+          if (isActive && widget.isRunning)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(

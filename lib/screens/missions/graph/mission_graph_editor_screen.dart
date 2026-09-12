@@ -128,13 +128,14 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       try {
         final status = await api.missionStatus();
         final state = status['state']?.toString() ?? 'idle';
-        final activeNode = status['active_node_id']?.toString();
+        final isMissionActive = (state == 'running' || state == 'waiting_for_user' || state == 'paused');
+        final activeNode = isMissionActive ? status['active_node_id']?.toString() : null;
 
         if (mounted) {
           setState(() {
             _missionState = state;
             _activeNodeId = activeNode;
-            _running = (state == 'running' || state == 'waiting_for_user' || state == 'paused');
+            _running = isMissionActive;
           });
         }
 
@@ -604,6 +605,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                       graph: _graph,
                       selectedNode: _selectedNode,
                       activeNodeId: _activeNodeId,
+                      isRunning: _running,
                       onSelectNode: (node) => setState(() => _selectedNode = node),
                       onGraphChanged: () => setState(() {}),
                     ),
