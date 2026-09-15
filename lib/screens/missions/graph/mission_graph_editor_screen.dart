@@ -43,6 +43,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
   Timer? _statusPoller;
 
+  int _leftTabIndex = 0; // 0 = Node Library, 1 = Variables
+  String _nodeSearchQuery = '';
+  String _variableSearchQuery = '';
+  late final TextEditingController _nodeSearchController;
+  late final TextEditingController _variableSearchController;
+
   SdkApiService? get _api {
     final ip = context.read<ConnectionProvider>().robot?.ip;
     return ip == null ? null : SdkApiService(ip);
@@ -54,6 +60,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     _initGraph();
     _nameController = TextEditingController(text: _graph.name);
     _nameFocusNode = FocusNode();
+    _nodeSearchController = TextEditingController();
+    _variableSearchController = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadInitialData();
       _startExecutionPolling();
@@ -98,6 +106,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     _statusPoller?.cancel();
     _nameController.dispose();
     _nameFocusNode.dispose();
+    _nodeSearchController.dispose();
+    _variableSearchController.dispose();
     super.dispose();
   }
 
@@ -647,8 +657,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       appBar: _buildAppBar(),
       body: Row(
         children: [
-          // Left Palette
-          _buildNodePalette(),
+          // Left Sidebar with Tabs (Node Library & Variables)
+          _buildLeftSidebar(),
 
           // Center Graph Canvas with robot interaction banner
           Expanded(
@@ -1000,9 +1010,64 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     );
   }
 
-  Widget _buildNodePalette() {
+  static const List<Map<String, dynamic>> _catalogCategories = [
+    {
+      'title': 'Where to Drive',
+      'items': [
+        _PaletteItem('navigate_waypoint', 'Drive to Saved Place', 'Go to named room or spot', Icons.place_outlined, Color(0xFF2563EB)),
+        _PaletteItem('navigate_coordinates', 'Drive to Coordinates', 'Drive to exact (X, Y) map spot', Icons.navigation_outlined, Color(0xFF0284C7)),
+        _PaletteItem('patrol_loop', 'Patrol Route', 'Visit places in sequence (rounds)', Icons.sync_rounded, Color(0xFF3B82F6)),
+        _PaletteItem('relocalize', 'Find My Position', 'Scan room with laser to locate self', Icons.my_location, Color(0xFF2563EB)),
+        _PaletteItem('cancel_navigation', 'Stop Driving', 'Cancel current drive & halt', Icons.cancel_outlined, Color(0xFFDC2626)),
+      ],
+    },
+    {
+      'title': 'Charging & Movement',
+      'items': [
+        _PaletteItem('dock', 'Go to Charger', 'Drive to dock and start charging', Icons.battery_charging_full, Color(0xFF16A34A)),
+        _PaletteItem('undock', 'Leave Charger', 'Safely back away from dock', Icons.power_settings_new, Color(0xFF059669)),
+        _PaletteItem('jog_motion', 'Nudge / Turn Wheels', 'Drive forward/back or turn briefly', Icons.gamepad_outlined, Color(0xFFD97706)),
+        _PaletteItem('emergency_stop', 'Safety Stop (E-Stop)', 'Immediately cut motor power', Icons.warning_amber_rounded, Color(0xFFDC2626)),
+      ],
+    },
+    {
+      'title': 'Rules & Flow Control',
+      'items': [
+        _PaletteItem('start', 'Start Mission', 'Where the mission begins', Icons.play_circle_outline, Color(0xFF16A34A)),
+        _PaletteItem('end', 'Finish Mission', 'Complete mission and stop safely', Icons.stop_circle_outlined, Color(0xFFDC2626)),
+        _PaletteItem('loop', 'Repeat Steps', 'Repeat connected steps multiple times', Icons.loop_rounded, Color(0xFF7C3AED)),
+        _PaletteItem('condition', 'Check / If-Else', 'Branch path based on condition', Icons.alt_route, Color(0xFFEA580C)),
+        _PaletteItem('wait', 'Pause & Wait', 'Wait a few seconds before next step', Icons.timer_outlined, Color(0xFFD97706)),
+        _PaletteItem('battery_guard', 'Check Battery Level', 'Recharge if battery drops too low', Icons.battery_saver, Color(0xFF059669)),
+        _PaletteItem('set_variable', 'Remember a Value', 'Save a number, text, or counter', Icons.data_object, Color(0xFF9333EA)),
+        _PaletteItem('switch_mission', 'Switch Mission', 'Hand off to another saved mission', Icons.alt_route_rounded, Color(0xFF009688)),
+      ],
+    },
+    {
+      'title': 'Screen, Voice & Signals',
+      'items': [
+        _PaletteItem('ui_interaction', 'Ask for Information', 'Show form on screen to fill out', Icons.touch_app_outlined, AppColors.primary),
+        _PaletteItem('ui_choice', 'Ask Choice (Buttons)', 'Show tap buttons on robot screen', Icons.ads_click, AppColors.primary),
+        _PaletteItem('ui_media', 'Show Picture or Video', 'Display image/video on robot screen', Icons.perm_media_outlined, Color(0xFF0284C7)),
+        _PaletteItem('ui_speech', 'Speak Aloud', 'Say message aloud via speakers', Icons.record_voice_over_outlined, Color(0xFF8B5CF6)),
+        _PaletteItem('notify', 'Lights & Chime Signal', 'Play chime or flash LED lights', Icons.tv, Color(0xFF0D9488)),
+      ],
+    },
+    {
+      'title': 'External Tools & Signals',
+      'items': [
+        _PaletteItem('call_api', 'Send Web Notice', 'Send alert/data to a website or app', Icons.http, Color(0xFF7C3AED)),
+        _PaletteItem('call_service', 'Trigger Robot Tool', 'Run internal robot function/tool', Icons.settings_remote, Color(0xFF4F46E5)),
+        _PaletteItem('call_action', 'Run Background Task', 'Start long task and wait for it', Icons.bolt, Color(0xFF0284C7)),
+        _PaletteItem('publish_topic', 'Broadcast Signal', 'Send message to other robot parts', Icons.podcasts, Color(0xFF4F46E5)),
+      ],
+    },
+  ];
+
+  Widget _buildLeftSidebar() {
+    final allVars = _graph.getAllVariables();
     return Container(
-      width: 250,
+      width: 320,
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(right: BorderSide(color: AppColors.border, width: 1.0)),
@@ -1010,72 +1075,242 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Segmented Tab Switcher (Node Library vs Variables)
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
             decoration: const BoxDecoration(
               border: Border(bottom: BorderSide(color: AppColors.border)),
             ),
-            child: const Row(
-              children: [
-                Icon(Icons.widgets_outlined, size: 18, color: AppColors.primary),
-                SizedBox(width: 8),
-                Text(
-                  'NODE LIBRARY',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                    letterSpacing: 0.8,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceSunken,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  // Tab 0: Node Library
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setState(() => _leftTabIndex = 0),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _leftTabIndex == 0 ? AppColors.surface : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: _leftTabIndex == 0
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.08),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.widgets_outlined,
+                              size: 16,
+                              color: _leftTabIndex == 0 ? AppColors.primary : AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Node Library',
+                              style: TextStyle(
+                                color: _leftTabIndex == 0 ? AppColors.textPrimary : AppColors.textSecondary,
+                                fontWeight: _leftTabIndex == 0 ? FontWeight.bold : FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+
+                  // Tab 1: Variables
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => setState(() => _leftTabIndex = 1),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _leftTabIndex == 1 ? AppColors.surface : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: _leftTabIndex == 1
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.08),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.data_object_rounded,
+                              size: 16,
+                              color: _leftTabIndex == 1 ? const Color(0xFF9333EA) : AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Variables',
+                              style: TextStyle(
+                                color: _leftTabIndex == 1 ? AppColors.textPrimary : AppColors.textSecondary,
+                                fontWeight: _leftTabIndex == 1 ? FontWeight.bold : FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: _leftTabIndex == 1
+                                    ? const Color(0xFF9333EA).withValues(alpha: 0.15)
+                                    : AppColors.surfaceElevated,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${allVars.length}',
+                                style: TextStyle(
+                                  color: _leftTabIndex == 1 ? const Color(0xFF9333EA) : AppColors.textTertiary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+
+          // Body: Tab 0 or Tab 1
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-              children: [
-                _buildPaletteCategory('Where to Drive', [
-                  _PaletteItem('navigate_waypoint', 'Drive to Saved Place', 'Go to named room or spot', Icons.place_outlined, const Color(0xFF2563EB)),
-                  _PaletteItem('navigate_coordinates', 'Drive to Coordinates', 'Drive to exact (X, Y) map spot', Icons.navigation_outlined, const Color(0xFF0284C7)),
-                  _PaletteItem('patrol_loop', 'Patrol Route', 'Visit places in sequence (rounds)', Icons.sync_rounded, const Color(0xFF3B82F6)),
-                  _PaletteItem('relocalize', 'Find My Position', 'Scan room with laser to locate self', Icons.my_location, const Color(0xFF2563EB)),
-                  _PaletteItem('cancel_navigation', 'Stop Driving', 'Cancel current drive & halt', Icons.cancel_outlined, const Color(0xFFDC2626)),
-                ]),
-                _buildPaletteCategory('Charging & Movement', [
-                  _PaletteItem('dock', 'Go to Charger', 'Drive to dock and start charging', Icons.battery_charging_full, const Color(0xFF16A34A)),
-                  _PaletteItem('undock', 'Leave Charger', 'Safely back away from dock', Icons.power_settings_new, const Color(0xFF059669)),
-                  _PaletteItem('jog_motion', 'Nudge / Turn Wheels', 'Drive forward/back or turn briefly', Icons.gamepad_outlined, const Color(0xFFD97706)),
-                  _PaletteItem('emergency_stop', 'Safety Stop (E-Stop)', 'Immediately cut motor power', Icons.warning_amber_rounded, const Color(0xFFDC2626)),
-                ]),
-                _buildPaletteCategory('Rules & Flow Control', [
-                  _PaletteItem('start', 'Start Mission', 'Where the mission begins', Icons.play_circle_outline, const Color(0xFF16A34A)),
-                  _PaletteItem('end', 'Finish Mission', 'Complete mission and stop safely', Icons.stop_circle_outlined, const Color(0xFFDC2626)),
-                  _PaletteItem('loop', 'Repeat Steps', 'Repeat connected steps multiple times', Icons.loop_rounded, const Color(0xFF7C3AED)),
-                  _PaletteItem('condition', 'Check / If-Else', 'Branch path based on condition', Icons.alt_route, const Color(0xFFEA580C)),
-                  _PaletteItem('wait', 'Pause & Wait', 'Wait a few seconds before next step', Icons.timer_outlined, const Color(0xFFD97706)),
-                  _PaletteItem('battery_guard', 'Check Battery Level', 'Recharge if battery drops too low', Icons.battery_saver, const Color(0xFF059669)),
-                  _PaletteItem('set_variable', 'Remember a Value', 'Save a number, text, or counter', Icons.data_object, const Color(0xFF9333EA)),
-                  _PaletteItem('switch_mission', 'Switch Mission', 'Hand off to another saved mission', Icons.alt_route_rounded, const Color(0xFF009688)),
-                ]),
-                _buildPaletteCategory('Screen, Voice & Signals', [
-                  _PaletteItem('ui_interaction', 'Ask for Information', 'Show form on screen to fill out', Icons.touch_app_outlined, AppColors.primary),
-                  _PaletteItem('ui_choice', 'Ask Choice (Buttons)', 'Show tap buttons on robot screen', Icons.ads_click, AppColors.primary),
-                  _PaletteItem('ui_media', 'Show Picture or Video', 'Display image/video on robot screen', Icons.perm_media_outlined, const Color(0xFF0284C7)),
-                  _PaletteItem('ui_speech', 'Speak Aloud', 'Say message aloud via speakers', Icons.record_voice_over_outlined, const Color(0xFF8B5CF6)),
-                  _PaletteItem('notify', 'Lights & Chime Signal', 'Play chime or flash LED lights', Icons.tv, const Color(0xFF0D9488)),
-                ]),
-                _buildPaletteCategory('External Tools & Signals', [
-                  _PaletteItem('call_api', 'Send Web Notice', 'Send alert/data to a website or app', Icons.http, const Color(0xFF7C3AED)),
-                  _PaletteItem('call_service', 'Trigger Robot Tool', 'Run internal robot function/tool', Icons.settings_remote, const Color(0xFF4F46E5)),
-                  _PaletteItem('call_action', 'Run Background Task', 'Start long task and wait for it', Icons.bolt, const Color(0xFF0284C7)),
-                  _PaletteItem('publish_topic', 'Broadcast Signal', 'Send message to other robot parts', Icons.podcasts, const Color(0xFF4F46E5)),
-                ]),
-              ],
-            ),
+            child: _leftTabIndex == 0 ? _buildNodeLibraryTab() : _buildVariablesTab(),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildNodeLibraryTab() {
+    final query = _nodeSearchQuery.trim().toLowerCase();
+
+    final allCategories = _catalogCategories;
+    final List<_PaletteItem> filteredItems = [];
+    if (query.isNotEmpty) {
+      for (final cat in allCategories) {
+        final items = cat['items'] as List<_PaletteItem>;
+        for (final item in items) {
+          if (item.title.toLowerCase().contains(query) ||
+              item.subtitle.toLowerCase().contains(query) ||
+              item.type.toLowerCase().contains(query)) {
+            filteredItems.add(item);
+          }
+        }
+      }
+    }
+
+    return Column(
+      children: [
+        // Search Input
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+          child: TextField(
+            controller: _nodeSearchController,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+            onChanged: (val) => setState(() => _nodeSearchQuery = val),
+            decoration: InputDecoration(
+              hintText: 'Search blocks...',
+              hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+              prefixIcon: const Icon(Icons.search, size: 16, color: AppColors.textSecondary),
+              suffixIcon: _nodeSearchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 16, color: AppColors.textTertiary),
+                      onPressed: () {
+                        _nodeSearchController.clear();
+                        setState(() => _nodeSearchQuery = '');
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: AppColors.surfaceSunken,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+              ),
+            ),
+          ),
+        ),
+
+        // Node Catalog List
+        Expanded(
+          child: query.isNotEmpty
+              ? (filteredItems.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.search_off_rounded, size: 36, color: AppColors.textTertiary),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No blocks matching "$query"',
+                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+                          child: Text(
+                            'SEARCH RESULTS (${filteredItems.length})',
+                            style: const TextStyle(color: AppColors.textTertiary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                          ),
+                        ),
+                        for (final item in filteredItems) _buildPaletteCard(item),
+                      ],
+                    ))
+              : ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                  children: [
+                    for (final cat in allCategories)
+                      _buildPaletteCategory(
+                        cat['title'] as String,
+                        cat['items'] as List<_PaletteItem>,
+                      ),
+                  ],
+                ),
+        ),
+      ],
     );
   }
 
@@ -1090,46 +1325,810 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             style: const TextStyle(color: AppColors.textTertiary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
           ),
         ),
-        for (final item in items)
-          InkWell(
-            onTap: () => _addNodeFromCatalog(item.type),
-            borderRadius: BorderRadius.circular(10),
-            hoverColor: AppColors.surfaceSunken,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-              margin: const EdgeInsets.symmetric(vertical: 2.5),
+        for (final item in items) _buildPaletteCard(item),
+      ],
+    );
+  }
+
+  Widget _buildPaletteCard(_PaletteItem item) {
+    return InkWell(
+      onTap: () => _addNodeFromCatalog(item.type),
+      borderRadius: BorderRadius.circular(10),
+      hoverColor: AppColors.surfaceSunken,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        margin: const EdgeInsets.symmetric(vertical: 2.5),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: AppColors.surfaceElevated,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
+                color: item.color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
               ),
-              child: Row(
+              child: Icon(item.icon, size: 16, color: item.color),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: item.color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(item.icon, size: 16, color: item.color),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item.title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
-                        Text(item.subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.add_rounded, size: 18, color: AppColors.textTertiary),
+                  Text(item.title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+                  Text(item.subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
                 ],
               ),
             ),
+            const Icon(Icons.add_rounded, size: 18, color: AppColors.textTertiary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVariablesTab() {
+    final query = _variableSearchQuery.trim().toLowerCase();
+
+    // 1. Initial Custom Variables
+    final rawInitVars = _graph.initialVariables;
+    final List<MapEntry<String, dynamic>> initVarEntries = rawInitVars.entries.where((e) {
+      if (query.isEmpty) return true;
+      return e.key.toLowerCase().contains(query);
+    }).toList();
+
+    // 2. Node Generated Variables
+    final allNodeVars = _graph.getAllVariables().where((v) => !v.isSystem && v.sourceNodeId != null).toList();
+    final filteredNodeVars = allNodeVars.where((v) {
+      if (query.isEmpty) return true;
+      return v.name.toLowerCase().contains(query) || v.source.toLowerCase().contains(query);
+    }).toList();
+
+    // 3. System Variables
+    final allSysVars = _graph.getAllVariables().where((v) => v.isSystem).toList();
+    final filteredSysVars = allSysVars.where((v) {
+      if (query.isEmpty) return true;
+      return v.name.toLowerCase().contains(query) || (v.description?.toLowerCase().contains(query) ?? false);
+    }).toList();
+
+    return Column(
+      children: [
+        // Action & Filter Bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _variableSearchController,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                  onChanged: (val) => setState(() => _variableSearchQuery = val),
+                  decoration: InputDecoration(
+                    hintText: 'Filter variables...',
+                    hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                    prefixIcon: const Icon(Icons.search, size: 16, color: AppColors.textSecondary),
+                    suffixIcon: _variableSearchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 16, color: AppColors.textTertiary),
+                            onPressed: () {
+                              _variableSearchController.clear();
+                              setState(() => _variableSearchQuery = '');
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: AppColors.surfaceSunken,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF9333EA),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  minimumSize: const Size(0, 36),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
+                ),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('New', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                onPressed: () => _showAddEditVariableDialog(),
+              ),
+            ],
           ),
+        ),
+
+        // Variables Scrollable List
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+            children: [
+              // SECTION 1: CUSTOM MISSION VARIABLES
+              _buildVariableSectionHeader(
+                icon: Icons.tune_rounded,
+                title: 'MISSION VARIABLES',
+                count: initVarEntries.length,
+                color: const Color(0xFF9333EA),
+                subtitle: 'Initial defaults configured for this mission',
+                trailingAction: IconButton(
+                  icon: const Icon(Icons.add_circle_outline, size: 18, color: Color(0xFF9333EA)),
+                  tooltip: 'Add Mission Variable',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                  onPressed: () => _showAddEditVariableDialog(),
+                ),
+              ),
+              if (initVarEntries.isEmpty)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceSunken,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'No custom variables defined yet.',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w500),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 6),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFF9333EA),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        ),
+                        icon: const Icon(Icons.add, size: 15),
+                        label: const Text('Add Variable', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                        onPressed: () => _showAddEditVariableDialog(),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                for (final entry in initVarEntries) _buildCustomVariableCard(entry),
+
+              const SizedBox(height: 8),
+
+              // SECTION 2: STEP OUTPUT VARIABLES
+              _buildVariableSectionHeader(
+                icon: Icons.alt_route_rounded,
+                title: 'STEP OUTPUT VARIABLES',
+                count: filteredNodeVars.length,
+                color: const Color(0xFF0284C7),
+                subtitle: 'Produced dynamically during execution',
+              ),
+              if (filteredNodeVars.isEmpty)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceSunken,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'No step variables detected in graph.',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w500),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 6),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF0284C7),
+                          side: const BorderSide(color: Color(0xFF0284C7)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        ),
+                        icon: const Icon(Icons.add_rounded, size: 14),
+                        label: const Text('Add "Remember a Value" Block', style: TextStyle(fontSize: 11)),
+                        onPressed: () => _addNodeFromCatalog('set_variable'),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                for (final v in filteredNodeVars) _buildNodeVariableCard(v),
+
+              const SizedBox(height: 8),
+
+              // SECTION 3: SYSTEM TELEMETRY VARIABLES
+              _buildVariableSectionHeader(
+                icon: Icons.sensors_rounded,
+                title: 'SYSTEM TELEMETRY',
+                count: filteredSysVars.length,
+                color: const Color(0xFF16A34A),
+                subtitle: 'Automatic live robot state variables',
+              ),
+              for (final v in filteredSysVars) _buildSystemVariableCard(v),
+
+              const SizedBox(height: 14),
+
+              // SECTION 4: USAGE TIPS CARD
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.lightbulb_outline_rounded, size: 16, color: Color(0xFFEAB308)),
+                        SizedBox(width: 6),
+                        Text(
+                          'HOW TO USE VARIABLES',
+                          style: TextStyle(color: AppColors.textPrimary, fontSize: 10.5, fontWeight: FontWeight.bold, letterSpacing: 0.6),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Wrap any variable name in curly braces to inject it into any field:\n'
+                      '• Voice Speech: "Hello {guest_name}!"\n'
+                      '• Screen Form: Room {target_room}\n'
+                      '• Web URL: /status?batt={battery_pct}\n'
+                      '• Condition: {battery_pct} < 20',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
       ],
     );
+  }
+
+  Widget _buildCustomVariableCard(MapEntry<String, dynamic> entry) {
+    final key = entry.key;
+    final val = entry.value;
+    dynamic actualVal = val;
+    String valType = 'string';
+    String? desc;
+    if (val is Map) {
+      actualVal = val['value'] ?? val['default_value'] ?? '';
+      valType = val['type']?.toString() ?? 'string';
+      desc = val['description']?.toString();
+    } else if (val is num) {
+      valType = 'number';
+    } else if (val is bool) {
+      valType = 'boolean';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceElevated,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF9333EA).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '{$key}',
+                  style: const TextStyle(
+                    color: Color(0xFF9333EA),
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceSunken,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  valType.toUpperCase(),
+                  style: const TextStyle(color: AppColors.textTertiary, fontSize: 9.5, fontWeight: FontWeight.w700),
+                ),
+              ),
+              const Spacer(),
+              // Copy Button
+              IconButton(
+                icon: const Icon(Icons.copy_rounded, size: 15, color: AppColors.textSecondary),
+                tooltip: 'Copy {$key}',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                onPressed: () => _copyVariableToClipboard(key),
+              ),
+              // Edit Button
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 15, color: AppColors.textSecondary),
+                tooltip: 'Edit Variable',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                onPressed: () => _showAddEditVariableDialog(
+                  initialKey: key,
+                  initialValue: actualVal,
+                  initialType: valType,
+                  initialDesc: desc,
+                ),
+              ),
+              // Delete Button
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, size: 15, color: AppColors.danger),
+                tooltip: 'Delete Variable',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                onPressed: () => _deleteVariable(key),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Text('Value: ', style: TextStyle(color: AppColors.textTertiary, fontSize: 11)),
+              Expanded(
+                child: Text(
+                  '$actualVal',
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 11.5, fontWeight: FontWeight.w600, fontFamily: 'monospace'),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          if (desc != null && desc.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(desc, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, fontStyle: FontStyle.italic)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNodeVariableCard(AvailableVariable v) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceElevated,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '{${v.name}}',
+                  style: const TextStyle(
+                    color: Color(0xFF0284C7),
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // Copy Button
+              IconButton(
+                icon: const Icon(Icons.copy_rounded, size: 15, color: AppColors.textSecondary),
+                tooltip: 'Copy {${v.name}}',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                onPressed: () => _copyVariableToClipboard(v.name),
+              ),
+              // Focus Node on Canvas Button
+              if (v.sourceNodeId != null)
+                IconButton(
+                  icon: const Icon(Icons.filter_center_focus_rounded, size: 15, color: AppColors.primary),
+                  tooltip: 'Focus step on canvas',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  onPressed: () => _focusNodeOnCanvas(v.sourceNodeId!),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.account_tree_outlined, size: 13, color: AppColors.textTertiary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  v.source,
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSystemVariableCard(AvailableVariable v) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceElevated,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '{${v.name}}',
+                    style: const TextStyle(
+                      color: Color(0xFF16A34A),
+                      fontSize: 11.5,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  v.description ?? v.source,
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.copy_rounded, size: 15, color: AppColors.textSecondary),
+            tooltip: 'Copy {${v.name}}',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            onPressed: () => _copyVariableToClipboard(v.name),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVariableSectionHeader({
+    required IconData icon,
+    required String title,
+    required int count,
+    required Color color,
+    required String subtitle,
+    Widget? trailingAction,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 10, 4, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: TextStyle(color: color, fontSize: 10.5, fontWeight: FontWeight.bold, letterSpacing: 0.7),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(color: color, fontSize: 9.5, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const Spacer(),
+              if (trailingAction != null) trailingAction,
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddEditVariableDialog({
+    String? initialKey,
+    dynamic initialValue,
+    String? initialType,
+    String? initialDesc,
+  }) {
+    final keyController = TextEditingController(text: initialKey ?? '');
+    final valController = TextEditingController(text: initialValue != null ? '$initialValue' : '');
+    final descController = TextEditingController(text: initialDesc ?? '');
+    String selectedType = initialType ?? (initialValue is num ? 'number' : (initialValue is bool ? 'boolean' : 'string'));
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) {
+          return AlertDialog(
+            backgroundColor: AppColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+              side: const BorderSide(color: AppColors.border),
+            ),
+            title: Row(
+              children: [
+                const Icon(Icons.data_object_rounded, color: Color(0xFF9333EA), size: 22),
+                const SizedBox(width: 10),
+                Text(
+                  initialKey != null ? 'Edit Variable' : 'New Mission Variable',
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 380,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Variable Name (Key)',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: keyController,
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontFamily: 'monospace'),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. guest_name, target_room, retry_count',
+                      hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                      filled: true,
+                      fillColor: AppColors.surfaceSunken,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  const Text(
+                    'Data Type',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceSunken,
+                      borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: selectedType,
+                        dropdownColor: AppColors.surface,
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                        items: const [
+                          DropdownMenuItem(value: 'string', child: Text('Text (String)')),
+                          DropdownMenuItem(value: 'number', child: Text('Number (Integer / Decimal)')),
+                          DropdownMenuItem(value: 'boolean', child: Text('Boolean (True / False)')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDlgState(() => selectedType = val);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  const Text(
+                    'Default / Initial Value',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: valController,
+                    keyboardType: selectedType == 'number' ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: selectedType == 'boolean' ? 'true or false' : (selectedType == 'number' ? '0' : 'Default text...'),
+                      hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                      filled: true,
+                      fillColor: AppColors.surfaceSunken,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  const Text(
+                    'Description / Note (Optional)',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: descController,
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'What is this variable used for?',
+                      hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                      filled: true,
+                      fillColor: AppColors.surfaceSunken,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF9333EA),
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  final key = keyController.text.trim().replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
+                  if (key.isEmpty) return;
+
+                  final rawVal = valController.text.trim();
+                  dynamic parsedVal = rawVal;
+                  if (selectedType == 'number') {
+                    parsedVal = num.tryParse(rawVal) ?? 0;
+                  } else if (selectedType == 'boolean') {
+                    parsedVal = rawVal.toLowerCase() == 'true';
+                  }
+
+                  final vars = Map<String, dynamic>.from(_graph.initialVariables);
+                  if (initialKey != null && initialKey != key) {
+                    vars.remove(initialKey);
+                  }
+                  vars[key] = {
+                    'value': parsedVal,
+                    'type': selectedType,
+                    'description': descController.text.trim(),
+                  };
+
+                  setState(() {
+                    _graph.initialVariables = vars;
+                  });
+                  Navigator.of(ctx).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Variable {$key} saved'),
+                      backgroundColor: AppColors.success,
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                child: const Text('Save Variable'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _copyVariableToClipboard(String varName) {
+    Clipboard.setData(ClipboardData(text: '{$varName}'));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Copied {$varName} to clipboard!'),
+        backgroundColor: AppColors.success,
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _deleteVariable(String key) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Delete Variable?', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+        content: Text('Are you sure you want to delete variable "{$key}"? Steps referencing this variable might fail.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              final vars = Map<String, dynamic>.from(_graph.initialVariables);
+              vars.remove(key);
+              setState(() {
+                _graph.initialVariables = vars;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Variable {$key} removed'), backgroundColor: AppColors.danger),
+              );
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _focusNodeOnCanvas(String nodeId) {
+    final target = _graph.nodes.where((n) => n.id == nodeId).firstOrNull;
+    if (target != null) {
+      setState(() {
+        _selectedNode = target;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Focused on "${target.label.isNotEmpty ? target.label : target.id}"'),
+          duration: const Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Widget _buildRightSidebar(GraphNode? selectedNode) {
@@ -1145,6 +2144,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 Expanded(
                   child: MissionNodeInspector(
                     node: selectedNode,
+                    graph: _graph,
                     onChanged: () => setState(() {}),
                     onDelete: () => _deleteNode(selectedNode),
                     availableMissions: _availableMissions,

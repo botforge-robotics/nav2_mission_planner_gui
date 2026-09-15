@@ -334,4 +334,175 @@ class MissionGraph {
     }
     return null;
   }
+
+  /// Initial / Global Mission Variables defined for the graph.
+  Map<String, dynamic> get initialVariables {
+    final vars = settings['variables'];
+    if (vars is Map<String, dynamic>) return vars;
+    if (vars is Map) return Map<String, dynamic>.from(vars);
+    return {};
+  }
+
+  set initialVariables(Map<String, dynamic> val) {
+    settings['variables'] = val;
+  }
+
+  /// Returns all available variables (Initial + Node Generated + System Built-in).
+  List<AvailableVariable> getAllVariables() {
+    final list = <AvailableVariable>[];
+    final seen = <String>{};
+
+    void addVar(
+      String name,
+      String source, {
+      bool isSystem = false,
+      String? sourceNodeId,
+      String valueType = 'string',
+      dynamic defaultValue,
+      String? description,
+    }) {
+      final clean = name.trim();
+      if (clean.isNotEmpty && !seen.contains(clean)) {
+        seen.add(clean);
+        list.add(AvailableVariable(
+          name: clean,
+          source: source,
+          isSystem: isSystem,
+          sourceNodeId: sourceNodeId,
+          valueType: valueType,
+          defaultValue: defaultValue,
+          description: description,
+        ));
+      }
+    }
+
+    // 1. Initial / Global Mission Variables
+    for (final entry in initialVariables.entries) {
+      final val = entry.value;
+      if (val is Map) {
+        addVar(
+          entry.key,
+          'Mission Variable',
+          valueType: val['type']?.toString() ?? 'string',
+          defaultValue: val['value'] ?? val['default_value'],
+          description: val['description']?.toString(),
+        );
+      } else {
+        addVar(
+          entry.key,
+          'Mission Variable',
+          valueType: val is num ? 'number' : (val is bool ? 'boolean' : 'string'),
+          defaultValue: val,
+        );
+      }
+    }
+
+    // 2. Node-Generated Variables
+    for (final node in nodes) {
+      final label = node.label.isNotEmpty ? node.label : node.id;
+      switch (node.type) {
+        case 'set_variable':
+          final key = node.params['key'] as String? ?? node.params['name'] as String?;
+          if (key != null && key.trim().isNotEmpty) {
+            final val = node.params['value'];
+            addVar(
+              key,
+              'Set Variable ("$label")',
+              sourceNodeId: node.id,
+              defaultValue: val,
+              valueType: val is num ? 'number' : (val is bool ? 'boolean' : 'string'),
+            );
+          }
+          break;
+        case 'loop':
+        case 'loop_counter':
+          final varName = node.params['variable_name'] as String? ?? 'loop_index';
+          if (varName.trim().isNotEmpty) {
+            addVar(varName, 'Loop Counter ("$label")', sourceNodeId: node.id, valueType: 'number', defaultValue: 0);
+          }
+          break;
+        case 'ui_interaction':
+          final rawFields = node.params['fields'] as List?;
+          if (rawFields != null) {
+            for (final f in rawFields) {
+              if (f is Map) {
+                final fid = f['key'] as String? ?? f['id'] as String? ?? f['name'] as String?;
+                if (fid != null && fid.trim().isNotEmpty) {
+                  final flabel = f['label'] as String? ?? fid;
+                  addVar(
+                    fid,
+                    'Form Field "$flabel" ("$label")',
+                    sourceNodeId: node.id,
+                    valueType: f['type']?.toString() ?? 'string',
+                    defaultValue: f['default_value'] ?? f['defaultValue'],
+                  );
+                }
+              }
+            }
+          }
+          final outVar = node.params['output_variable'] as String? ?? node.params['variable_name'] as String?;
+          if (outVar != null && outVar.trim().isNotEmpty) {
+            addVar(outVar, 'Form Response ("$label")', sourceNodeId: node.id, valueType: 'object');
+          }
+          break;
+        case 'ui_choice':
+          final resultVar = node.params['result_variable'] as String? ?? node.params['variable_name'] as String? ?? 'choice_result';
+          if (resultVar.trim().isNotEmpty) {
+            addVar(resultVar, 'User Choice ("$label")', sourceNodeId: node.id, valueType: 'string');
+          }
+          break;
+        case 'call_api':
+          final apiOut = node.params['output_variable'] as String? ?? node.params['variable_name'] as String? ?? 'api_response';
+          if (apiOut.trim().isNotEmpty) {
+            addVar(apiOut, 'API Response ("$label")', sourceNodeId: node.id, valueType: 'object');
+          }
+          break;
+        case 'call_service':
+          final srvOut = node.params['output_variable'] as String? ?? node.params['variable_name'] as String? ?? 'service_response';
+          if (srvOut.trim().isNotEmpty) {
+            addVar(srvOut, 'Service Result ("$label")', sourceNodeId: node.id, valueType: 'object');
+          }
+          break;
+        case 'call_action':
+          final actOut = node.params['output_variable'] as String? ?? node.params['variable_name'] as String? ?? 'action_result';
+          if (actOut.trim().isNotEmpty) {
+            addVar(actOut, 'Action Result ("$label")', sourceNodeId: node.id, valueType: 'object');
+          }
+          break;
+      }
+    }
+
+    // 3. System Built-in variables
+    addVar('battery_pct', 'System Battery Level (0-100)', isSystem: true, valueType: 'number', description: 'Real-time robot battery charge percentage');
+    addVar('current_map', 'Active Navigation Map Name', isSystem: true, valueType: 'string', description: 'Name of the currently loaded Nav2 map');
+    addVar('current_waypoint', 'Last Reached Waypoint', isSystem: true, valueType: 'string', description: 'Name of the station or waypoint the robot last reached');
+    addVar('robot_name', 'Robot Display Name', isSystem: true, valueType: 'string', description: 'Hostname or friendly display name of the robot');
+    addVar('robot_ip', 'Robot IP Address', isSystem: true, valueType: 'string', description: 'Current network IP address of the robot');
+    addVar('timestamp', 'Current ISO Timestamp', isSystem: true, valueType: 'string', description: 'Formatted date and time of execution');
+    addVar('status', 'Robot System Health Status', isSystem: true, valueType: 'string', description: 'General health status (OK, WARN, ERROR)');
+
+    return list;
+  }
 }
+
+/// Representation of an available variable in the mission graph.
+class AvailableVariable {
+  const AvailableVariable({
+    required this.name,
+    required this.source,
+    this.isSystem = false,
+    this.sourceNodeId,
+    this.valueType = 'string',
+    this.defaultValue,
+    this.description,
+  });
+
+  final String name;
+  final String source;
+  final bool isSystem;
+  final String? sourceNodeId;
+  final String valueType; // 'string', 'number', 'boolean', 'object'
+  final dynamic defaultValue;
+  final String? description;
+}
+

@@ -9,19 +9,6 @@ import '../../../services/sdk_api_service.dart';
 import '../../../theme/app_theme.dart';
 import 'mission_graph_models.dart';
 
-/// Representation of an available variable in the mission graph.
-class AvailableVariable {
-  const AvailableVariable({
-    required this.name,
-    required this.source,
-    this.isSystem = false,
-  });
-
-  final String name;
-  final String source;
-  final bool isSystem;
-}
-
 /// Contextual Properties Inspector & Dynamic Form Builder for the selected node.
 class MissionNodeInspector extends StatefulWidget {
   const MissionNodeInspector({
@@ -134,88 +121,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   }
 
   List<AvailableVariable> _getAvailableVariables() {
-    final vars = <AvailableVariable>[];
-    final seen = <String>{};
-
-    void addVar(String name, String source, {bool isSystem = false}) {
-      final clean = name.trim();
-      if (clean.isNotEmpty && !seen.contains(clean)) {
-        seen.add(clean);
-        vars.add(AvailableVariable(name: clean, source: source, isSystem: isSystem));
-      }
+    if (widget.graph != null) {
+      return widget.graph!.getAllVariables();
     }
-
-    final nodes = widget.graph?.nodes ?? [widget.node];
-    for (final node in nodes) {
-      switch (node.type) {
-        case 'set_variable':
-          final key = node.params['key'] as String? ?? node.params['name'] as String?;
-          if (key != null && key.trim().isNotEmpty) {
-            addVar(key, 'Set Variable ("${node.label.isNotEmpty ? node.label : node.id}")');
-          }
-          break;
-        case 'loop':
-        case 'loop_counter':
-          final varName = node.params['variable_name'] as String? ?? 'loop_index';
-          if (varName.trim().isNotEmpty) {
-            addVar(varName, 'Loop Counter ("${node.label.isNotEmpty ? node.label : node.id}")');
-          }
-          break;
-        case 'ui_interaction':
-          final rawFields = node.params['fields'] as List?;
-          if (rawFields != null) {
-            for (final f in rawFields) {
-              if (f is Map<String, dynamic>) {
-                final fid = f['key'] as String? ?? f['id'] as String? ?? f['name'] as String?;
-                if (fid != null && fid.trim().isNotEmpty) {
-                  final label = f['label'] as String? ?? fid;
-                  addVar(fid, 'Form Field "$label" ("${node.label.isNotEmpty ? node.label : node.id}")');
-                }
-              }
-            }
-          }
-          final outVar = node.params['output_variable'] as String? ?? node.params['variable_name'] as String?;
-          if (outVar != null && outVar.trim().isNotEmpty) {
-            addVar(outVar, 'Form Response ("${node.label.isNotEmpty ? node.label : node.id}")');
-          }
-          break;
-        case 'ui_choice':
-          final resultVar = node.params['result_variable'] as String? ?? node.params['variable_name'] as String? ?? 'choice_result';
-          if (resultVar.trim().isNotEmpty) {
-            addVar(resultVar, 'User Choice ("${node.label.isNotEmpty ? node.label : node.id}")');
-          }
-          break;
-        case 'call_api':
-          final apiOut = node.params['output_variable'] as String? ?? node.params['variable_name'] as String? ?? 'api_response';
-          if (apiOut.trim().isNotEmpty) {
-            addVar(apiOut, 'API Response ("${node.label.isNotEmpty ? node.label : node.id}")');
-          }
-          break;
-        case 'call_service':
-          final srvOut = node.params['output_variable'] as String? ?? node.params['variable_name'] as String? ?? 'service_response';
-          if (srvOut.trim().isNotEmpty) {
-            addVar(srvOut, 'Service Result ("${node.label.isNotEmpty ? node.label : node.id}")');
-          }
-          break;
-        case 'call_action':
-          final actOut = node.params['output_variable'] as String? ?? node.params['variable_name'] as String? ?? 'action_result';
-          if (actOut.trim().isNotEmpty) {
-            addVar(actOut, 'Action Result ("${node.label.isNotEmpty ? node.label : node.id}")');
-          }
-          break;
-      }
-    }
-
-    // System Built-in variables
-    addVar('battery_pct', 'System Battery Level (0-100)', isSystem: true);
-    addVar('current_map', 'Active Navigation Map Name', isSystem: true);
-    addVar('current_waypoint', 'Last Reached Waypoint', isSystem: true);
-    addVar('robot_name', 'Robot Display Name', isSystem: true);
-    addVar('robot_ip', 'Robot IP Address', isSystem: true);
-    addVar('timestamp', 'Current ISO Timestamp', isSystem: true);
-    addVar('status', 'Robot System Health Status', isSystem: true);
-
-    return vars;
+    // Fallback if graph instance not provided
+    final mockGraph = MissionGraph(id: 'temp', name: 'temp', nodes: [widget.node]);
+    return mockGraph.getAllVariables();
   }
 
   Widget _buildAvailableVariablesBanner() {
