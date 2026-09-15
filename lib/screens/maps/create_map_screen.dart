@@ -113,24 +113,13 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       await _startMapping();
       return;
     }
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Start Mapping?'),
-        content: Text(
-          '${_previousMap != null ? 'This stops navigation on "$_previousMap" and starts a new mapping session. You can cancel later to go back to navigation on that map.\n\n' : 'This starts a new mapping session.\n\n'}'
-          'Place the robot at its dock before starting — wherever mapping '
-          "begins is encoded as this map's dock position.",
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Start Mapping')),
-        ],
+      builder: (dialogContext) => _DockInstructionDialog(
+        previousMap: _previousMap,
+        isDesktop: isDesktop,
       ),
     );
 
@@ -550,3 +539,179 @@ class _NameMapDialogState extends State<_NameMapDialog> {
     );
   }
 }
+
+class _DockInstructionDialog extends StatelessWidget {
+  const _DockInstructionDialog({
+    required this.previousMap,
+    required this.isDesktop,
+  });
+
+  final String? previousMap;
+  final bool isDesktop;
+
+  Widget _buildTip(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: AppColors.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: AppColors.textSecondary,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: AppColors.surface,
+      surfaceTintColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: isDesktop ? 540 : 420,
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.charging_station_rounded,
+                        color: AppColors.primary, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Place Robot at Dock',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        Text(
+                          'Position robot before creating map',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceElevated,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Image.asset(
+                            isDesktop
+                                ? 'assets/desktopDock.png'
+                                : 'assets/mobilDockInstruction.png',
+                            fit: BoxFit.contain,
+                            filterQuality: FilterQuality.high,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceElevated,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'CHECKLIST BEFORE STARTING:',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            _buildTip(Icons.check_circle_outline_rounded,
+                                'Charging dock placed flat against a rigid wall.'),
+                            _buildTip(Icons.check_circle_outline_rounded,
+                                'Robot positioned on/near dock facing outward into the room.'),
+                            _buildTip(Icons.check_circle_outline_rounded,
+                                'Leave ≥ 0.5m clearance on sides and 1.0m in front.'),
+                          ],
+                        ),
+                      ),
+                      if (previousMap != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          'Starting SLAM pauses navigation on "$previousMap". You can cancel later to restore it.',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: AppColors.textTertiary,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  FilledButton.icon(
+                    onPressed: () => Navigator.pop(context, true),
+                    icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                    label: const Text('Start Mapping'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
