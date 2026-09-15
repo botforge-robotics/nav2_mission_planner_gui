@@ -113,7 +113,8 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       await _startMapping();
       return;
     }
-    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
+    final isDesktop = MediaQuery.sizeOf(context).width >= 800 ||
+        Breakpoints.of(context) == DeviceClass.desktop;
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -580,8 +581,8 @@ class _DockInstructionDialog extends StatelessWidget {
       surfaceTintColor: Colors.transparent,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: isDesktop ? 540 : 420,
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
+          maxWidth: isDesktop ? 900 : 480,
+          maxHeight: MediaQuery.of(context).size.height * 0.90,
         ),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
