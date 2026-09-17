@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:ros2_api/ros2_api.dart';
+import 'package:std_msgs/msg.dart' as std_msgs;
 
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../screens/dashboard_screen.dart';
+import '../../screens/maps/create_map_screen.dart';
 import '../../screens/maps/maps_list_screen.dart';
 import '../../screens/missions/missions_list_screen.dart';
 import '../../screens/settings/settings_home_screen.dart';
 import '../../screens/teleop/teleop_screen.dart';
+import '../../services/mode_transition_tracker.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../connecting_scaffold.dart';
@@ -55,6 +59,10 @@ class _ShellNav extends StatefulWidget {
 
 class _ShellNavState extends State<_ShellNav> {
   int _index = 0;
+  Subscriber? _modeSubscriber;
+  Ros2? _subscribedRos2;
+  String? _lastMode;
+  bool _isCreateMapScreenOpen = false;
 
   static const _destinations = [
     _Destination('Dashboard', Icons.dashboard_outlined, Icons.dashboard_rounded,
@@ -68,6 +76,68 @@ class _ShellNavState extends State<_ShellNav> {
     _Destination('Settings', Icons.settings_outlined, Icons.settings_rounded,
         SettingsHomeScreen()),
   ];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureModeSubscription();
+  }
+
+  void _ensureModeSubscription() {
+    final ros2 = context.read<ConnectionProvider>().ros2;
+    if (ros2 == _subscribedRos2) return;
+    _modeSubscriber?.unsubscribe();
+    _subscribedRos2 = ros2;
+    if (ros2 == null) return;
+
+    _modeSubscriber = Subscriber<std_msgs.StringMessage>(
+      name: '/robot_mode',
+      type: std_msgs.StringMessage().fullType,
+      ros2: ros2,
+      prototype: std_msgs.StringMessage(),
+      qos: const {'durability': 'transient_local'},
+      callback: _onRobotModeChanged,
+    );
+  }
+
+  void _onRobotModeChanged(std_msgs.StringMessage msg) {
+    final newMode = msg.data;
+    if (newMode == _lastMode) return;
+    final previousMode = _lastMode;
+    _lastMode = newMode;
+
+    // Feed the mode transition tracker for immediate UI feedback
+    ModeTransitionTracker.instance.onSdkModeUpdated(newMode);
+
+    // Auto-navigate to CreateMapScreen when mapping starts externally
+    if (newMode == 'mapping' && previousMode != null && !_isCreateMapScreenOpen) {
+      _isCreateMapScreenOpen = true;
+      // Give telemetry provider mapping mode
+      if (mounted) {
+        context.read<RobotTelemetryProvider>().resetForMapping();
+      }
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const CreateMapScreen(alreadyMapping: true),
+        ),
+      ).then((_) {
+        _isCreateMapScreenOpen = false;
+      });
+    }
+
+    // When mapping stops, update telemetry provider
+    if (previousMode == 'mapping' && newMode != 'mapping') {
+      if (mounted) {
+        context.read<RobotTelemetryProvider>().exitMappingMode();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _modeSubscriber?.unsubscribe();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

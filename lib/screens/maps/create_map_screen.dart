@@ -41,9 +41,16 @@ class CreateMapScreen extends StatefulWidget {
   const CreateMapScreen({
     super.key,
     this.fromSetup = false,
+    this.alreadyMapping = false,
   });
 
   final bool fromSetup;
+
+  /// When true, mapping is already running on the robot — skip the
+  /// `setMode('mapping')` call and go straight to the live mapping view.
+  /// Used when the screen is auto-opened by the `/robot_mode` topic
+  /// subscription detecting that mapping started externally.
+  final bool alreadyMapping;
 
   @override
   State<CreateMapScreen> createState() => _CreateMapScreenState();
@@ -106,8 +113,17 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
 
     // When launched from the onboarding setup flow, operator already reviewed
     // dock instructions on the dedicated setup screen and chose "Create Map".
-    if (widget.fromSetup) {
-      await _startMapping();
+    // When alreadyMapping, mapping was started externally — just show the view.
+    if (widget.fromSetup || widget.alreadyMapping) {
+      if (widget.alreadyMapping) {
+        // Mapping is already running on the robot — skip setMode, just
+        // show the live mapping view immediately.
+        setState(() {
+          _phase = _Phase.mapping;
+        });
+      } else {
+        await _startMapping();
+      }
       return;
     }
     final isDesktop = MediaQuery.sizeOf(context).width >= 800 ||
@@ -348,6 +364,11 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       if (!mounted) return;
       ModeTransitionTracker.instance.clear();
       if (e.code == 'map_exists') {
+        // finishMapping already stopped SLAM (mode → idle) and the map data
+        // was physically saved by map_saver — only the "is it new?" check
+        // failed. Re-calling finishMapping would fail with "not_mapping"
+        // because SLAM is already down. Instead, re-save via the standalone
+        // maps endpoint with overwrite, then activate the map.
         setState(() => _busyMessage = null);
         final overwriteConfirmed = await showDialog<bool>(
           context: context,
@@ -364,9 +385,59 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
             ],
           ),
         );
-        if (overwriteConfirmed == true) await _save(name, overwrite: true);
+        if (overwriteConfirmed == true && mounted) {
+          await _saveOverwriteAndActivate(name);
+        }
         return;
       }
+      setState(() {
+        _busyMessage = null;
+        _error = e.message;
+      });
+    }
+  }
+
+  /// Called after finishMapping returned map_exists and the user confirmed
+  /// overwrite. SLAM is already stopped at this point, so we just re-save
+  /// the map (which the saver already wrote to disk) via POST /maps with
+  /// overwrite=true, then activate it for navigation.
+  Future<void> _saveOverwriteAndActivate(String name) async {
+    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final api = _apiFor(ip);
+    if (api == null) return;
+    setState(() {
+      _busyMessage = 'Replacing "$name" and switching navigation onto it…';
+      _error = null;
+    });
+    try {
+      ModeTransitionTracker.instance.startStoppingMapping(
+        targetMode: 'navigation',
+      );
+
+      // POST /maps with overwrite — map_saver already wrote the files,
+      // this just clears the "already exists" gate.
+      await api.saveMapFile(name, overwrite: true);
+
+      // Now activate navigation on this map
+      await api.activateMap(name);
+
+      if (!mounted) return;
+      context.read<RobotTelemetryProvider>().exitMappingMode();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Saved "$name" and switched navigation onto it.')));
+      if (widget.fromSetup) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => SetupCompleteScreen(createdMapName: name),
+          ),
+          (route) => false,
+        );
+      } else {
+        Navigator.of(context).pop(name);
+      }
+    } on SdkApiException catch (e) {
+      if (!mounted) return;
+      ModeTransitionTracker.instance.clear();
       setState(() {
         _busyMessage = null;
         _error = e.message;
@@ -414,7 +485,10 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
     return PopScope(
       canPop: _phase != _Phase.mapping,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Create Map')),
+        appBar: AppBar(
+          title: const Text('Create Map'),
+          automaticallyImplyLeading: _phase != _Phase.mapping,
+        ),
         body: SafeArea(
           child: switch (_phase) {
             _Phase.confirming => Center(

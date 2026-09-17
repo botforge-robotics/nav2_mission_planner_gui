@@ -280,6 +280,19 @@ class SdkApiService {
   Future<void> deleteMap(String name) =>
       _send('DELETE', '/api/v1/maps/${Uri.encodeComponent(name)}');
 
+  /// Re-saves a map file via `POST /maps` — used when finishMapping returned
+  /// `map_exists` and the user confirmed the overwrite. The map data is
+  /// already on disk (map_saver ran inside finishMapping before the error),
+  /// this call just clears launch_manager's "already exists" gate.
+  Future<Map<String, dynamic>> saveMapFile(String name,
+          {bool overwrite = false}) =>
+      _send(
+        'POST',
+        '/api/v1/maps',
+        body: {'name': name, 'overwrite': overwrite},
+        timeout: const Duration(seconds: 120),
+      );
+
   /// Atomic "finish mapping": stops SLAM (switch_mode('idle'), up to 90s),
   /// saves the map (up to 120s, the robot's own save_map timeout), then
   /// switches navigation onto it (switch_mode('navigation'), up to 150s) —
