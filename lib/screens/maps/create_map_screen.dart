@@ -526,6 +526,9 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                           DrivePad(
                             onVelocity: _onVelocity,
                             onStop: _stopMotion,
+                            maxLinear: 0.20,
+                            maxAngular: 0.45,
+                            rotateAngular: 0.35,
                           ),
                           if (_error != null) ...[
                             const SizedBox(height: AppSpacing.sm),
