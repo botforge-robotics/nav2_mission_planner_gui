@@ -174,6 +174,9 @@ class _TeleopScreenState extends State<TeleopScreen> {
     setState(() => _dockPose = dock);
   }
 
+  bool _velocitySending = false;
+  ({double linear, double angular})? _pendingVelocity;
+
   Future<void> _onVelocity(double linear, double angular) async {
     final pub = _getCmdVelPublisher();
     final ros2 = _cmdVelRos2;
@@ -187,15 +190,25 @@ class _TeleopScreenState extends State<TeleopScreen> {
       return;
     }
 
-    try {
-      await _api?.setVelocity(linear, angular);
-      if (_motionError != null && mounted) setState(() => _motionError = null);
-    } on SdkApiException catch (e) {
-      if (mounted) setState(() => _motionError = e.message);
+    _pendingVelocity = (linear: linear, angular: angular);
+    if (_velocitySending) return;
+    _velocitySending = true;
+
+    while (_pendingVelocity != null) {
+      final cmd = _pendingVelocity!;
+      _pendingVelocity = null;
+      try {
+        await _api?.setVelocity(cmd.linear, cmd.angular);
+        if (_motionError != null && mounted) setState(() => _motionError = null);
+      } on SdkApiException catch (e) {
+        if (mounted) setState(() => _motionError = e.message);
+      }
     }
+    _velocitySending = false;
   }
 
   Future<void> _stop() async {
+    _pendingVelocity = null;
     final pub = _getCmdVelPublisher();
     final ros2 = _cmdVelRos2;
     if (pub != null && ros2 != null && ros2.status == Status.connected) {

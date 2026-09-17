@@ -62,14 +62,11 @@ class _DrivePadState extends State<DrivePad> {
   Timer? _timer;
   Offset _stick = Offset.zero; // -1..1 on both axes
   _RotateDir? _rotating;
-  DateTime _lastStickSend = DateTime.fromMillisecondsSinceEpoch(0);
 
   void _onStickPanStart(DragStartDetails d, Offset center, double radius) {
-    // onDragActiveChanged already fired from the joystick's own
-    // Listener.onPointerDown, ahead of gesture-arena resolution — see the
-    // field doc on DrivePad.onDragActiveChanged for why that's necessary.
     _timer?.cancel();
-    _updateStick(d.localPosition, center, radius, forceSend: true);
+    _updateStick(d.localPosition, center, radius);
+    _sendStick();
     _timer =
         Timer.periodic(const Duration(milliseconds: 100), (_) => _sendStick());
   }
@@ -77,36 +74,26 @@ class _DrivePadState extends State<DrivePad> {
   void _onStickPanUpdate(DragUpdateDetails d, Offset center, double radius) =>
       _updateStick(d.localPosition, center, radius);
 
-  // [center]/[radius] describe the *visual* track, not the larger invisible
-  // touch target around it (see _Joystick's own doc comment) — so the knob
-  // still clamps to the drawn circle and the stick fraction is still
-  // relative to the track's true radius even when the finger was accepted
-  // slightly outside it.
-  void _updateStick(Offset local, Offset center, double radius,
-      {bool forceSend = false}) {
+  void _updateStick(Offset local, Offset center, double radius) {
     var delta = local - center;
     if (delta.distance > radius) {
       delta = Offset.fromDirection(delta.direction, radius);
     }
-    setState(() => _stick = Offset(delta.dx / radius, delta.dy / radius));
-    final now = DateTime.now();
-    if (forceSend || now.difference(_lastStickSend).inMilliseconds >= 50) {
-      _lastStickSend = now;
-      _sendStick();
-    }
+    final rawStick = Offset(delta.dx / radius, delta.dy / radius);
+    // Apply 5% deadzone around center to avoid micro-jerking
+    final stick = rawStick.distance < 0.05 ? Offset.zero : rawStick;
+    setState(() => _stick = stick);
   }
 
   void _sendStick() {
-    _lastStickSend = DateTime.now();
     final linear = (-_stick.dy) * widget.maxLinear;
     final angular = (-_stick.dx) * widget.maxAngular;
     widget.onVelocity(linear, angular);
   }
 
   void _onStickPanEnd(DragEndDetails d) {
-    // onDragActiveChanged(false) fires from the joystick's own
-    // Listener.onPointerUp/onPointerCancel instead — see above.
     _timer?.cancel();
+    _timer = null;
     setState(() => _stick = Offset.zero);
     widget.onStop();
   }

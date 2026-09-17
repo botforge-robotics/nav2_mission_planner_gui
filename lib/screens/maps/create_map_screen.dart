@@ -187,6 +187,9 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
     super.dispose();
   }
 
+  bool _velocitySending = false;
+  ({double linear, double angular})? _pendingVelocity;
+
   Future<void> _onVelocity(double linear, double angular) async {
     final pub = _getCmdVelPublisher();
     final ros2 = _cmdVelRos2;
@@ -199,17 +202,27 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       return;
     }
 
+    _pendingVelocity = (linear: linear, angular: angular);
+    if (_velocitySending) return;
+    _velocitySending = true;
+
     final ip = context.read<ConnectionProvider>().robot?.ip;
     final api = _apiFor(ip);
-    try {
-      await api?.setVelocity(linear, angular);
-    } on SdkApiException {
-      // Best-effort, same as Teleop's own drive pad — no need to interrupt
-      // an active mapping session over one dropped velocity tick.
+
+    while (_pendingVelocity != null) {
+      final cmd = _pendingVelocity!;
+      _pendingVelocity = null;
+      try {
+        await api?.setVelocity(cmd.linear, cmd.angular);
+      } on SdkApiException {
+        // Best-effort
+      }
     }
+    _velocitySending = false;
   }
 
   Future<void> _stopMotion() async {
+    _pendingVelocity = null;
     final pub = _getCmdVelPublisher();
     final ros2 = _cmdVelRos2;
     if (pub != null && ros2 != null && ros2.status == Status.connected) {
@@ -223,8 +236,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
     try {
       await _apiFor(ip)?.stopMotion();
     } on SdkApiException {
-      // Best-effort — cmd_vel_teleop's own ~0.5s expiry already stops the
-      // robot even if this explicit stop doesn't land.
+      // Best-effort
     }
   }
 
@@ -406,6 +418,8 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                                                 showLocalCostmap:
                                                     visibleLayers.contains(
                                                         MapLayer.localCostmap),
+                                                showLaserScan: true,
+                                                laserScanTopic: '/scan_filtered',
                                                 dockPoseOverride: _dockPose,
                                               ),
                                             ),
