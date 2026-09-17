@@ -627,9 +627,10 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
 
   /// True when Nav2 navigation is actively running with an active map.
   bool get _isNavigating =>
-      widget.sdkMode == 'navigation' &&
-      widget.mapName != null &&
-      widget.mapName != 'default';
+      widget.sdkMode == 'navigation' ||
+      (widget.mapName != null &&
+          widget.mapName!.isNotEmpty &&
+          widget.mapName != 'default');
 
   @override
   Widget build(BuildContext context) {
@@ -650,7 +651,11 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
             ? 'Stopping mapping…'
             : (isCurrentlyMapping
                 ? 'Mapping in progress…'
-                : (hasActiveNav ? widget.mapName! : 'Map'));
+                : (hasActiveNav
+                    ? (widget.mapName != null && widget.mapName!.isNotEmpty
+                        ? widget.mapName!
+                        : 'Active Map')
+                    : 'Map'));
 
         return Card(
           child: Padding(

@@ -40,18 +40,25 @@ class _Destination {
 class AppShell extends StatelessWidget {
   const AppShell({super.key});
 
+  static final GlobalKey<_ShellNavState> _shellNavKey =
+      GlobalKey<_ShellNavState>();
+
+  static void selectTab(int index) {
+    _shellNavKey.currentState?.setIndex(index);
+  }
+
   @override
   Widget build(BuildContext context) {
     final connection = context.watch<ConnectionProvider>();
     if (!connection.isConnected) {
       return ConnectingScaffold(connection: connection);
     }
-    return const _ShellNav();
+    return _ShellNav(key: _shellNavKey);
   }
 }
 
 class _ShellNav extends StatefulWidget {
-  const _ShellNav();
+  const _ShellNav({super.key});
 
   @override
   State<_ShellNav> createState() => _ShellNavState();
@@ -62,7 +69,10 @@ class _ShellNavState extends State<_ShellNav> {
   Subscriber? _modeSubscriber;
   Ros2? _subscribedRos2;
   String? _lastMode;
-  bool _isCreateMapScreenOpen = false;
+
+  void setIndex(int index) {
+    if (mounted) setState(() => _index = index);
+  }
 
   static const _destinations = [
     _Destination('Dashboard', Icons.dashboard_outlined, Icons.dashboard_rounded,
@@ -109,10 +119,8 @@ class _ShellNavState extends State<_ShellNav> {
     // Feed the mode transition tracker for immediate UI feedback
     ModeTransitionTracker.instance.onSdkModeUpdated(newMode);
 
-    // Auto-navigate to CreateMapScreen when mapping starts externally
-    if (newMode == 'mapping' && previousMode != null && !_isCreateMapScreenOpen) {
-      _isCreateMapScreenOpen = true;
-      // Give telemetry provider mapping mode
+    // Auto-navigate to CreateMapScreen when mapping starts externally and not already opened
+    if (newMode == 'mapping' && !CreateMapScreen.isOpen) {
       if (mounted) {
         context.read<RobotTelemetryProvider>().resetForMapping();
       }
@@ -120,15 +128,17 @@ class _ShellNavState extends State<_ShellNav> {
         MaterialPageRoute(
           builder: (_) => const CreateMapScreen(alreadyMapping: true),
         ),
-      ).then((_) {
-        _isCreateMapScreenOpen = false;
-      });
+      );
     }
 
-    // When mapping stops, update telemetry provider
+    // When mapping stops, auto-pop CreateMapScreen if it is open and return to Dashboard
     if (previousMode == 'mapping' && newMode != 'mapping') {
       if (mounted) {
         context.read<RobotTelemetryProvider>().exitMappingMode();
+      }
+      if (CreateMapScreen.isOpen && mounted) {
+        AppShell.selectTab(0);
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     }
   }

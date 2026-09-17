@@ -13,6 +13,7 @@ import '../../services/mode_transition_tracker.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
+import '../../widgets/app_shell/app_shell.dart';
 import '../../widgets/design/hud_chip.dart';
 import '../../widgets/map/occupancy_grid_view.dart';
 import '../../widgets/teleop/drive_pad.dart';
@@ -43,6 +44,8 @@ class CreateMapScreen extends StatefulWidget {
     this.fromSetup = false,
     this.alreadyMapping = false,
   });
+
+  static bool isOpen = false;
 
   final bool fromSetup;
 
@@ -91,6 +94,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   @override
   void initState() {
     super.initState();
+    CreateMapScreen.isOpen = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _confirmStart();
     });
@@ -139,7 +143,8 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
 
     if (!mounted) return;
     if (confirmed != true) {
-      Navigator.of(context).pop();
+      AppShell.selectTab(0);
+      Navigator.of(context).popUntil((route) => route.isFirst);
       return;
     }
     await _startMapping();
@@ -202,6 +207,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
 
   @override
   void dispose() {
+    CreateMapScreen.isOpen = false;
     _cmdVelPub?.shutdown();
     super.dispose();
   }
@@ -288,13 +294,17 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       } else {
         await api.setMode('idle').timeout(const Duration(seconds: 15));
       }
+      ModeTransitionTracker.instance.clear();
       if (!mounted) return;
       context.read<RobotTelemetryProvider>().exitMappingMode();
-      Navigator.of(context).pop();
+      AppShell.selectTab(0);
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } on TimeoutException {
+      ModeTransitionTracker.instance.clear();
       if (!mounted) return;
       context.read<RobotTelemetryProvider>().exitMappingMode();
-      Navigator.of(context).pop();
+      AppShell.selectTab(0);
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } on SdkApiException catch (e) {
       if (!mounted) return;
       ModeTransitionTracker.instance.clear();
@@ -346,6 +356,10 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       } catch (_) {}
 
       await api.finishMapping(name, overwrite: overwrite);
+      try {
+        await api.activateMap(name);
+      } catch (_) {}
+      ModeTransitionTracker.instance.clear();
       if (!mounted) return;
       context.read<RobotTelemetryProvider>().exitMappingMode();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -358,8 +372,15 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
           (route) => false,
         );
       } else {
-        Navigator.of(context).pop(name);
+        AppShell.selectTab(0);
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
+    } on TimeoutException {
+      ModeTransitionTracker.instance.clear();
+      if (!mounted) return;
+      context.read<RobotTelemetryProvider>().exitMappingMode();
+      AppShell.selectTab(0);
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } on SdkApiException catch (e) {
       if (!mounted) return;
       ModeTransitionTracker.instance.clear();
