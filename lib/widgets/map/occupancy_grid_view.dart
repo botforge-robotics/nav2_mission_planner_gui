@@ -1518,34 +1518,23 @@ class _OccupancyGridPainter extends CustomPainter {
         final standoffPixel = _worldToPixel(grid, standoffPt.x, standoffPt.y);
         final dx = standoffPt.x - dockPt.x;
         final dy = standoffPt.y - dockPt.y;
-        final dist = sqrt(dx * dx + dy * dy);
         final dockHeading = atan2(dy, dx);
         final standoffHeading = atan2(-dy, -dx);
 
         // Connecting guide line
         final linePaint = Paint()
-          ..color = AppColors.stateDocking
-          ..strokeWidth = 2.0 * markerScale
+          ..color = AppColors.stateDocking.withValues(alpha: 0.60)
+          ..strokeWidth = 1.5 * markerScale
           ..style = PaintingStyle.stroke;
         canvas.drawLine(dockPixel, standoffPixel, linePaint);
 
-        // Distance badge pill in middle of line
-        final midPixel = Offset(
-          (dockPixel.dx + standoffPixel.dx) / 2,
-          (dockPixel.dy + standoffPixel.dy) / 2,
-        );
-        final distText =
-            '${(dist * 100).toStringAsFixed(1)} cm (${dist.toStringAsFixed(2)} m)';
-        _drawPillLabel(canvas, midPixel, distText, AppColors.stateDocking,
-            sizeScale: markerScale);
-
-        // Dock Marker (⚡) with orientation pointing towards standoff
+        // Dock Marker (⚡) with orientation pointing towards standoff (icons only in mapping mode)
         _drawDockStationMarker(canvas, dockPixel, dockHeading,
-            isSelected: false, sizeScale: markerScale);
+            isSelected: false, sizeScale: markerScale, showLabel: false);
 
-        // Standoff Marker (🎯) with orientation pointing towards dock
+        // Standoff Marker (🎯) with orientation pointing towards dock (icons only in mapping mode)
         _drawStandoffPointMarker(canvas, standoffPixel, standoffHeading,
-            isSelected: false, sizeScale: markerScale);
+            isSelected: false, sizeScale: markerScale, showLabel: false);
       } else {
         final center =
             _worldToPixel(grid, dock.pose.position.x, dock.pose.position.y);
@@ -1659,7 +1648,7 @@ class _OccupancyGridPainter extends CustomPainter {
     }
   }
 
-  void _drawDockStationMarker(Canvas canvas, Offset center, double heading, {required bool isSelected, double sizeScale = 1.0}) {
+  void _drawDockStationMarker(Canvas canvas, Offset center, double heading, {required bool isSelected, double sizeScale = 1.0, bool showLabel = true}) {
     final radius = 14 * sizeScale;
     if (isSelected) {
       canvas.drawCircle(center, radius + 8 * sizeScale, Paint()..color = AppColors.stateDocking.withValues(alpha: 0.25));
@@ -1674,10 +1663,12 @@ class _OccupancyGridPainter extends CustomPainter {
     canvas.drawPath(arrowPath, Paint()..color = AppColors.stateDocking);
 
     _drawPin(canvas, center, AppColors.stateDocking, Icons.ev_station_rounded, sizeScale: sizeScale);
-    _drawPinLabel(canvas, center, '1. Dock Station (⚡)', sizeScale: sizeScale);
+    if (showLabel) {
+      _drawPinLabel(canvas, center, '1. Dock Station (⚡)', sizeScale: sizeScale);
+    }
   }
 
-  void _drawStandoffPointMarker(Canvas canvas, Offset center, double heading, {required bool isSelected, double sizeScale = 1.0}) {
+  void _drawStandoffPointMarker(Canvas canvas, Offset center, double heading, {required bool isSelected, double sizeScale = 1.0, bool showLabel = true}) {
     final radius = 14 * sizeScale;
     if (isSelected) {
       canvas.drawCircle(center, radius + 8 * sizeScale, Paint()..color = AppColors.primary.withValues(alpha: 0.25));
@@ -1692,7 +1683,9 @@ class _OccupancyGridPainter extends CustomPainter {
     canvas.drawPath(arrowPath, Paint()..color = AppColors.primary);
 
     _drawPin(canvas, center, AppColors.primary, Icons.my_location_rounded, sizeScale: sizeScale);
-    _drawPinLabel(canvas, center, '2. Standoff Point (🎯)', sizeScale: sizeScale);
+    if (showLabel) {
+      _drawPinLabel(canvas, center, '2. Standoff Point (🎯)', sizeScale: sizeScale);
+    }
   }
 
   void _drawPillLabel(Canvas canvas, Offset center, String text, Color color, {double sizeScale = 1.0}) {
