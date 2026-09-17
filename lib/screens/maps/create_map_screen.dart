@@ -64,11 +64,11 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   bool get _busy => _busyMessage != null;
 
   /// When creating a new map, mapping begins at the charging dock facing
-  /// outwards. The origin (0,0) in the SLAM map frame is the dock position.
-  /// As the robot drives away, the departure heading sets the dock angle
-  /// and the standoff point (0.7m in front of dock).
-  ({double x, double y, double theta})? _dockPose = (x: 0.0, y: 0.0, theta: 0.0);
-  ({double x, double y, double theta})? _standoffPose = (x: 0.70, y: 0.0, theta: 0.0);
+  /// outwards. The initial position of the robot in the map frame defines
+  /// the dock position. As the robot drives away, the departure heading sets
+  /// the dock angle and the standoff point (0.7m in front of dock).
+  ({double x, double y, double theta})? _dockPose;
+  ({double x, double y, double theta})? _standoffPose;
   bool _hasMovedAwayFromDock = false;
   double? _mappingStartRx;
   double? _mappingStartRy;
@@ -141,8 +141,8 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       await api.setMode('mapping');
       if (!mounted) return;
       context.read<RobotTelemetryProvider>().resetForMapping();
-      _dockPose = (x: 0.0, y: 0.0, theta: 0.0);
-      _standoffPose = (x: 0.70, y: 0.0, theta: 0.0);
+      _dockPose = null;
+      _standoffPose = null;
       _hasMovedAwayFromDock = false;
       _mappingStartRx = null;
       _mappingStartRy = null;
@@ -245,8 +245,8 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   }
 
   Future<void> _cancel() async {
-    _dockPose = (x: 0.0, y: 0.0, theta: 0.0);
-    _standoffPose = (x: 0.70, y: 0.0, theta: 0.0);
+    _dockPose = null;
+    _standoffPose = null;
     _hasMovedAwayFromDock = false;
     _mappingStartRx = null;
     _mappingStartRy = null;
@@ -319,12 +319,14 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
         y: dp.y + 0.70 * sin(dp.theta),
         theta: dp.theta,
       );
+      final dockAngle = atan2(sp.y - dp.y, sp.x - dp.x);
+      final standoffAngle = atan2(dp.y - sp.y, dp.x - sp.x);
       try {
-        await api.setDockPose(x: dp.x, y: dp.y, theta: dp.theta);
+        await api.setDockPose(x: dp.x, y: dp.y, theta: dockAngle);
         await api.saveWaypoint('Charging Dock',
-            x: dp.x, y: dp.y, theta: dp.theta, type: 'dock');
+            x: dp.x, y: dp.y, theta: dockAngle, type: 'dock');
         await api.saveWaypoint('Dock Standoff',
-            x: sp.x, y: sp.y, theta: sp.theta, type: 'dock');
+            x: sp.x, y: sp.y, theta: standoffAngle, type: 'dock');
       } catch (_) {}
 
       await api.finishMapping(name, overwrite: overwrite);
@@ -379,10 +381,18 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
 
     final rx = telemetry.poseX;
     final ry = telemetry.poseY;
+    final rTheta = telemetry.poseTheta ?? 0.0;
     if (rx != null && ry != null) {
-      _mappingStartRx ??= rx;
-      _mappingStartRy ??= ry;
-      if (!_hasMovedAwayFromDock) {
+      if (_mappingStartRx == null || _mappingStartRy == null) {
+        _mappingStartRx = rx;
+        _mappingStartRy = ry;
+        _dockPose = (x: rx, y: ry, theta: rTheta);
+        _standoffPose = (
+          x: rx + 0.70 * cos(rTheta),
+          y: ry + 0.70 * sin(rTheta),
+          theta: rTheta,
+        );
+      } else if (!_hasMovedAwayFromDock) {
         final dx = rx - _mappingStartRx!;
         final dy = ry - _mappingStartRy!;
         final dist = sqrt(dx * dx + dy * dy);
@@ -469,8 +479,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                                                 showLocalizationBadge: false,
                                                 isMapping: true,
                                                 initialPose: null,
-                                                showDock: visibleLayers
-                                                    .contains(MapLayer.dock),
+                                                showDock: true,
                                                 showPath: visibleLayers
                                                     .contains(MapLayer.path),
                                                 showGlobalCostmap:
@@ -482,6 +491,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                                                 showLaserScan: true,
                                                 laserScanTopic: '/scan_filtered',
                                                 dockPoseOverride: _dockPose,
+                                                standoffPoseOverride: _standoffPose,
                                               ),
                                             ),
                                           ),

@@ -170,6 +170,7 @@ class OccupancyGridView extends StatefulWidget {
     this.showLocalizationBadge = true,
     this.isMapping = false,
     this.dockPoseOverride,
+    this.standoffPoseOverride,
     this.fitWholeMap = false,
     this.initialPose,
     this.initialPath,
@@ -279,6 +280,7 @@ class OccupancyGridView extends StatefulWidget {
   /// passed in by the caller" treatment [locations] already gets. Ignored
   /// once the topic itself delivers a message — that's always fresher.
   final ({double x, double y, double theta})? dockPoseOverride;
+  final ({double x, double y, double theta})? standoffPoseOverride;
   final geometry_msgs.PoseWithCovarianceStamped? initialPose;
   final nav_msgs.Path? initialPath;
   final bool showLaserScan;
@@ -373,13 +375,64 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   /// (only its position is used — the pin doesn't draw orientation) —
   /// see the class doc on [OccupancyGridView.dockPoseOverride] for why the
   /// topic alone isn't reliable enough on its own.
+  /// The resolved dock pose: uses dockPoseOverride if provided (crucial for
+  /// mapping mode where the old /dock_pose topic is from a different map),
+  /// otherwise live /dock_pose topic in navigation mode.
   geometry_msgs.PoseStamped? get _resolvedDockPose {
-    if (_dockPose != null) return _dockPose;
-    final override = widget.dockPoseOverride;
-    if (override == null) return null;
-    return geometry_msgs.PoseStamped(
-      pose: geometry_msgs.Pose(
-          position: geometry_msgs.Point(x: override.x, y: override.y)),
+    if (widget.dockPoseOverride != null) {
+      final override = widget.dockPoseOverride!;
+      return geometry_msgs.PoseStamped(
+        pose: geometry_msgs.Pose(
+          position: geometry_msgs.Point(x: override.x, y: override.y),
+          orientation: _quaternionFromYaw(override.theta),
+        ),
+      );
+    }
+    if (widget.isMapping) return null;
+    return _dockPose;
+  }
+
+  bool _isPlaceholderGrid = false;
+
+  void _initMappingPlaceholderGrid() {
+    if (!widget.isMapping || _grid != null) return;
+    const width = 240;
+    const height = 240;
+    const resolution = 0.05;
+    final grid = nav_msgs.OccupancyGrid()
+      ..header.frame_id = 'map'
+      ..info.resolution = resolution
+      ..info.width = width
+      ..info.height = height
+      ..info.origin.position.x = -(width * resolution) / 2.0
+      ..info.origin.position.y = -(height * resolution) / 2.0
+      ..info.origin.position.z = 0.0
+      ..info.origin.orientation.w = 1.0;
+    grid.data.addAll(List<int>.filled(width * height, -1));
+
+    final pixels = Uint8List(width * height * 4);
+    for (var i = 0; i < width * height; i++) {
+      final pi = i * 4;
+      pixels[pi] = 200; // neutral gray for unexplored map canvas
+      pixels[pi + 1] = 200;
+      pixels[pi + 2] = 200;
+      pixels[pi + 3] = 255;
+    }
+
+    _isPlaceholderGrid = true;
+    ui.decodeImageFromPixels(
+      pixels,
+      width,
+      height,
+      ui.PixelFormat.rgba8888,
+      (image) {
+        if (mounted && (_grid == null || _isPlaceholderGrid)) {
+          setState(() {
+            _grid = grid;
+            _image = image;
+          });
+        }
+      },
     );
   }
 
@@ -428,6 +481,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     super.initState();
     _pose = widget.initialPose;
     _path = widget.initialPath;
+    if (widget.isMapping) {
+      _initMappingPlaceholderGrid();
+    }
     // Listened to so the robot marker can counter-scale against the current
     // zoom (see _onViewTransformChanged) — a marker drawn at a fixed size in
     // the image's own pixel space would otherwise grow right along with the
@@ -734,6 +790,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         _mapOdomTransform = null;
       }
     }
+    if (widget.isMapping && _grid == null) {
+      _initMappingPlaceholderGrid();
+    }
     if (widget.showLaserScan != oldWidget.showLaserScan ||
         widget.laserScanTopic != oldWidget.laserScanTopic) {
       if (widget.showLaserScan) {
@@ -778,9 +837,14 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       final image = await completer.future;
       if (!mounted) return;
 
+      final wasPlaceholder = _isPlaceholderGrid;
+      _isPlaceholderGrid = false;
       final oldGrid = _grid;
       final oldImage = _image;
-      if (oldGrid != null && oldImage != null && (widget.interactive || widget.isMapping)) {
+      if (!wasPlaceholder &&
+          oldGrid != null &&
+          oldImage != null &&
+          (widget.interactive || widget.isMapping)) {
         final sizeOrOriginChanged = oldGrid.info.width != width ||
             oldGrid.info.height != height ||
             oldGrid.info.origin.position.x != grid.info.origin.position.x ||
@@ -1098,6 +1162,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
             pose: widget.showRobot ? (_effectivePose ?? widget.initialPose) : null,
             dockPose:
                 (widget.showDock && showOverlays && !widget.dockEditorMode) ? _resolvedDockPose : null,
+            standoffPose:
+                (widget.showDock && showOverlays && !widget.dockEditorMode) ? widget.standoffPoseOverride : null,
             path: (widget.showPath && showOverlays)
                 ? (_path ?? widget.initialPath)
                 : null,
@@ -1380,6 +1446,7 @@ class _OccupancyGridPainter extends CustomPainter {
     required this.grid,
     required this.pose,
     required this.dockPose,
+    this.standoffPose,
     required this.path,
     required this.globalCostmap,
     required this.localCostmap,
@@ -1400,6 +1467,7 @@ class _OccupancyGridPainter extends CustomPainter {
   final nav_msgs.OccupancyGrid grid;
   final geometry_msgs.PoseWithCovarianceStamped? pose;
   final geometry_msgs.PoseStamped? dockPose;
+  final ({double x, double y, double theta})? standoffPose;
   final nav_msgs.Path? path;
   final _CostmapLayer? globalCostmap;
   final _CostmapLayer? localCostmap;
@@ -1445,10 +1513,48 @@ class _OccupancyGridPainter extends CustomPainter {
 
     final dock = dockPose;
     if (dock != null) {
-      final center =
-          _worldToPixel(grid, dock.pose.position.x, dock.pose.position.y);
-      _drawPin(canvas, center, AppColors.stateDocking, Icons.ev_station_rounded,
-          sizeScale: markerScale);
+      if (standoffPose != null) {
+        final dockPt = (x: dock.pose.position.x, y: dock.pose.position.y);
+        final standoffPt = (x: standoffPose!.x, y: standoffPose!.y);
+        final dockPixel = _worldToPixel(grid, dockPt.x, dockPt.y);
+        final standoffPixel = _worldToPixel(grid, standoffPt.x, standoffPt.y);
+        final dx = standoffPt.x - dockPt.x;
+        final dy = standoffPt.y - dockPt.y;
+        final dist = sqrt(dx * dx + dy * dy);
+        final dockHeading = atan2(dy, dx);
+        final standoffHeading = atan2(-dy, -dx);
+
+        // Connecting guide line
+        final linePaint = Paint()
+          ..color = AppColors.stateDocking
+          ..strokeWidth = 2.0 * markerScale
+          ..style = PaintingStyle.stroke;
+        canvas.drawLine(dockPixel, standoffPixel, linePaint);
+
+        // Distance badge pill in middle of line
+        final midPixel = Offset(
+          (dockPixel.dx + standoffPixel.dx) / 2,
+          (dockPixel.dy + standoffPixel.dy) / 2,
+        );
+        final distText =
+            '${(dist * 100).toStringAsFixed(1)} cm (${dist.toStringAsFixed(2)} m)';
+        _drawPillLabel(canvas, midPixel, distText, AppColors.stateDocking,
+            sizeScale: markerScale);
+
+        // Dock Marker (⚡) with orientation pointing towards standoff
+        _drawDockStationMarker(canvas, dockPixel, dockHeading,
+            isSelected: false, sizeScale: markerScale);
+
+        // Standoff Marker (🎯) with orientation pointing towards dock
+        _drawStandoffPointMarker(canvas, standoffPixel, standoffHeading,
+            isSelected: false, sizeScale: markerScale);
+      } else {
+        final center =
+            _worldToPixel(grid, dock.pose.position.x, dock.pose.position.y);
+        _drawPin(canvas, center, AppColors.stateDocking,
+            Icons.ev_station_rounded,
+            sizeScale: markerScale);
+      }
     }
 
     final p = pose;
@@ -2041,6 +2147,7 @@ class _OccupancyGridPainter extends CustomPainter {
       oldDelegate.image != image ||
       oldDelegate.pose != pose ||
       oldDelegate.dockPose != dockPose ||
+      oldDelegate.standoffPose != standoffPose ||
       oldDelegate.path != path ||
       oldDelegate.globalCostmap != globalCostmap ||
       oldDelegate.localCostmap != localCostmap ||
