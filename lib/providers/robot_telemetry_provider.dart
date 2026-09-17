@@ -62,9 +62,6 @@ class RobotTelemetryProvider extends ChangeNotifier {
   nav_msgs.Odometry? rawOdom;
 
   bool isMappingMode = false;
-  double _mappingStartOdomX = 0.0;
-  double _mappingStartOdomY = 0.0;
-  double _mappingStartOdomTheta = 0.0;
   ({double x, double y, double theta})? _mapOdomTransform;
 
   void resetForMapping() {
@@ -72,12 +69,9 @@ class RobotTelemetryProvider extends ChangeNotifier {
     localized = false;
     rawPose = null;
     _mapOdomTransform = null;
-    _mappingStartOdomX = odomX ?? 0.0;
-    _mappingStartOdomY = odomY ?? 0.0;
-    _mappingStartOdomTheta = odomTheta ?? 0.0;
-    poseX = 0.0;
-    poseY = 0.0;
-    poseTheta = 0.0;
+    poseX = odomX;
+    poseY = odomY;
+    poseTheta = odomTheta;
     notifyListeners();
   }
 
@@ -98,12 +92,9 @@ class RobotTelemetryProvider extends ChangeNotifier {
         poseY = tf.y + s * ox + c * oy;
         poseTheta = tf.theta + (odomTheta ?? 0.0);
       } else {
-        final relX = ox - _mappingStartOdomX;
-        final relY = oy - _mappingStartOdomY;
-        final c = cos(-_mappingStartOdomTheta), s = sin(-_mappingStartOdomTheta);
-        poseX = c * relX - s * relY;
-        poseY = s * relX + c * relY;
-        poseTheta = (odomTheta ?? 0.0) - _mappingStartOdomTheta;
+        poseX = ox;
+        poseY = oy;
+        poseTheta = odomTheta;
       }
       notifyListeners();
       return;

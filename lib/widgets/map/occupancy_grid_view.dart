@@ -308,7 +308,6 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   sensor_msgs.LaserScan? _scan;
   Subscriber<nav_msgs.Odometry>? _odomSub;
   geometry_msgs.PoseWithCovarianceStamped? _odomPose;
-  geometry_msgs.PoseWithCovarianceStamped? _startOdomPose;
 
   /// The live `map` -> `odom` transform, tracked only while the local
   /// costmap is shown (it's the only thing here that needs it — see the
@@ -352,22 +351,6 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         ..pose.pose.orientation = _quaternionFromYaw(mapYaw);
       return transformed;
     }
-    if (widget.isMapping && _startOdomPose != null) {
-      final ox = odom.pose.pose.position.x - _startOdomPose!.pose.pose.position.x;
-      final oy = odom.pose.pose.position.y - _startOdomPose!.pose.pose.position.y;
-      final startYaw = _yawOf(_startOdomPose!.pose.pose.orientation);
-      final odomYaw = _yawOf(odom.pose.pose.orientation);
-      final dyaw = odomYaw - startYaw;
-      final c = cos(-startYaw), s = sin(-startYaw);
-      final mapX = c * ox - s * oy;
-      final mapY = s * ox + c * oy;
-      return geometry_msgs.PoseWithCovarianceStamped()
-        ..header = odom.header
-        ..pose.pose.position.x = mapX
-        ..pose.pose.position.y = mapY
-        ..pose.pose.position.z = 0.0
-        ..pose.pose.orientation = _quaternionFromYaw(dyaw);
-    }
     return odom;
   }
 
@@ -399,6 +382,12 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     const width = 240;
     const height = 240;
     const resolution = 0.05;
+    final initialX = _odomPose?.pose.pose.position.x ??
+        widget.dockPoseOverride?.x ??
+        0.0;
+    final initialY = _odomPose?.pose.pose.position.y ??
+        widget.dockPoseOverride?.y ??
+        0.0;
     final grid = nav_msgs.OccupancyGrid(
       data: List<int>.filled(width * height, -1),
     )
@@ -406,8 +395,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       ..info.resolution = resolution
       ..info.width = width
       ..info.height = height
-      ..info.origin.position.x = -(width * resolution) / 2.0
-      ..info.origin.position.y = -(height * resolution) / 2.0
+      ..info.origin.position.x = initialX - (width * resolution) / 2.0
+      ..info.origin.position.y = initialY - (height * resolution) / 2.0
       ..info.origin.position.z = 0.0
       ..info.origin.orientation.w = 1.0;
 
@@ -587,8 +576,13 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           final converted = geometry_msgs.PoseWithCovarianceStamped()
             ..header = msg.header
             ..pose = msg.pose;
-          if (widget.isMapping && _startOdomPose == null) {
-            _startOdomPose = converted;
+          if (widget.isMapping && _isPlaceholderGrid && _grid != null) {
+            final ox = converted.pose.pose.position.x;
+            final oy = converted.pose.pose.position.y;
+            _grid!.info.origin.position.x =
+                ox - (_grid!.info.width * _grid!.info.resolution) / 2.0;
+            _grid!.info.origin.position.y =
+                oy - (_grid!.info.height * _grid!.info.resolution) / 2.0;
           }
           setState(() => _odomPose = converted);
         }
@@ -837,13 +831,10 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           pixels, width, height, ui.PixelFormat.rgba8888, completer.complete);
       final image = await completer.future;
       if (!mounted) return;
-
-      final wasPlaceholder = _isPlaceholderGrid;
       _isPlaceholderGrid = false;
       final oldGrid = _grid;
       final oldImage = _image;
-      if (!wasPlaceholder &&
-          oldGrid != null &&
+      if (oldGrid != null &&
           oldImage != null &&
           (widget.interactive || widget.isMapping)) {
         final sizeOrOriginChanged = oldGrid.info.width != width ||
@@ -851,10 +842,16 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
             oldGrid.info.origin.position.x != grid.info.origin.position.x ||
             oldGrid.info.origin.position.y != grid.info.origin.position.y;
         if (sizeOrOriginChanged) {
-          // Anchor world point (0.0, 0.0) so exploring and expanding unknown areas
-          // does not cause the map or robot to jump around on screen.
-          final oldPx = _worldToPixel(oldGrid, 0.0, 0.0);
-          final newPx = _worldToPixel(grid, 0.0, 0.0);
+          // Anchor the dock position or robot starting position so exploring and
+          // expanding unknown areas does not cause the map or robot to jump around on screen.
+          final anchorX = widget.dockPoseOverride?.x ??
+              (oldGrid.info.origin.position.x +
+                  oldGrid.info.width * oldGrid.info.resolution / 2.0);
+          final anchorY = widget.dockPoseOverride?.y ??
+              (oldGrid.info.origin.position.y +
+                  oldGrid.info.height * oldGrid.info.resolution / 2.0);
+          final oldPx = _worldToPixel(oldGrid, anchorX, anchorY);
+          final newPx = _worldToPixel(grid, anchorX, anchorY);
 
           final oldCenterX = oldGrid.info.width / 2.0;
           final oldCenterY = oldGrid.info.height / 2.0;
