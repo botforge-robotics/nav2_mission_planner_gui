@@ -386,58 +386,10 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
           ),
         );
         if (overwriteConfirmed == true && mounted) {
-          await _saveOverwriteAndActivate(name);
+          await _save(name, overwrite: true);
         }
         return;
       }
-      setState(() {
-        _busyMessage = null;
-        _error = e.message;
-      });
-    }
-  }
-
-  /// Called after finishMapping returned map_exists and the user confirmed
-  /// overwrite. SLAM is already stopped at this point, so we just re-save
-  /// the map (which the saver already wrote to disk) via POST /maps with
-  /// overwrite=true, then activate it for navigation.
-  Future<void> _saveOverwriteAndActivate(String name) async {
-    final ip = context.read<ConnectionProvider>().robot?.ip;
-    final api = _apiFor(ip);
-    if (api == null) return;
-    setState(() {
-      _busyMessage = 'Replacing "$name" and switching navigation onto it…';
-      _error = null;
-    });
-    try {
-      ModeTransitionTracker.instance.startStoppingMapping(
-        targetMode: 'navigation',
-      );
-
-      // POST /maps with overwrite — map_saver already wrote the files,
-      // this just clears the "already exists" gate.
-      await api.saveMapFile(name, overwrite: true);
-
-      // Now activate navigation on this map
-      await api.activateMap(name);
-
-      if (!mounted) return;
-      context.read<RobotTelemetryProvider>().exitMappingMode();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Saved "$name" and switched navigation onto it.')));
-      if (widget.fromSetup) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (_) => SetupCompleteScreen(createdMapName: name),
-          ),
-          (route) => false,
-        );
-      } else {
-        Navigator.of(context).pop(name);
-      }
-    } on SdkApiException catch (e) {
-      if (!mounted) return;
-      ModeTransitionTracker.instance.clear();
       setState(() {
         _busyMessage = null;
         _error = e.message;
@@ -487,7 +439,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Create Map'),
-          automaticallyImplyLeading: _phase != _Phase.mapping,
+          automaticallyImplyLeading: false,
         ),
         body: SafeArea(
           child: switch (_phase) {
