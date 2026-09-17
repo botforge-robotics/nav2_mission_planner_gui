@@ -57,7 +57,7 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
   void initState() {
     super.initState();
     _refresh();
-    _poll = Timer.periodic(const Duration(seconds: 3), (_) => _refresh());
+    _poll = Timer.periodic(const Duration(seconds: 8), (_) => _refresh());
   }
 
   @override
@@ -91,7 +91,8 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
   /// charge curve tapers near full, so this reads as "roughly" rather than
   /// exact, same honesty as the route ETA elsewhere in this app.
   Duration? get _estimatedTimeToFull {
-    final detail = _batteryDetail;
+    final telemetry = context.read<RobotTelemetryProvider>();
+    final detail = telemetry.batteryDetail ?? _batteryDetail;
     if (detail == null) return null;
     final soc = (detail['soc_percent'] as num?)?.toDouble();
     final remainAh = (detail['remain_capacity_ah'] as num?)?.toDouble();
@@ -130,6 +131,7 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
     final telemetry = context.watch<RobotTelemetryProvider>();
     final battery = telemetry.batteryPercentage;
     final charging = telemetry.chargeStatus == ChargeStatus.charging;
+    final activeDetail = telemetry.batteryDetail ?? _batteryDetail;
     final operation = _dockStatus?['operation'] as String?;
     final busy = _busy || operation == 'docking' || operation == 'undocking';
     final tagVisible = _dockStatus?['tag_visible'] == true;
@@ -256,13 +258,13 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
                       child: _BatteryStatsRow(
                         timeToFull: _estimatedTimeToFull,
                         charging: charging,
-                        voltage: (_batteryDetail?['pack_voltage_v'] as num?)
+                        voltage: (activeDetail?['pack_voltage_v'] as num?)
                             ?.toDouble(),
-                        current: (_batteryDetail?['pack_current_a'] as num?)
+                        current: (activeDetail?['pack_current_a'] as num?)
                             ?.toDouble(),
-                        healthy: _batteryDetail?['failure_bits'] == null
+                        healthy: activeDetail?['failure_bits'] == null
                             ? null
-                            : (_batteryDetail!['failure_bits'] as num) == 0,
+                            : (activeDetail!['failure_bits'] as num) == 0,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.lg),

@@ -75,8 +75,9 @@ class _TeleopScreenState extends State<TeleopScreen> {
   @override
   void initState() {
     super.initState();
+    _pollNavigationStatus();
     _navStatusTimer = Timer.periodic(
-        const Duration(milliseconds: 900), (_) => _pollNavigationStatus());
+        const Duration(seconds: 3), (_) => _pollNavigationStatus());
   }
 
   Publisher<geometry_msgs.Twist>? _cmdVelPub;
@@ -217,12 +218,12 @@ class _TeleopScreenState extends State<TeleopScreen> {
         angular: geometry_msgs.Vector3(x: 0.0, y: 0.0, z: 0.0),
       );
       pub.publish(stopTwist);
+      return;
     }
     try {
       await _api?.stopMotion();
     } on SdkApiException {
-      // Best-effort — the ~0.5s cmd_vel_teleop expiry (see motion.py) already
-      // stops the robot even if this explicit stop doesn't land.
+      // Best-effort
     }
   }
 

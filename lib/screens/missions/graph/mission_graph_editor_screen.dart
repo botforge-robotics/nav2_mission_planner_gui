@@ -133,9 +133,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     } catch (_) {}
   }
 
-  void _startExecutionPolling() {
+  void _startExecutionPolling({bool fast = false}) {
     _statusPoller?.cancel();
-    _statusPoller = Timer.periodic(const Duration(milliseconds: 600), (t) async {
+    final interval = fast
+        ? const Duration(milliseconds: 600)
+        : const Duration(seconds: 4);
+    _statusPoller = Timer.periodic(interval, (t) async {
       final api = _api;
       if (api == null || !mounted) return;
 
@@ -146,11 +149,21 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         final activeNode = isMissionActive ? status['active_node_id']?.toString() : null;
 
         if (mounted) {
+          final wasRunning = _running;
           setState(() {
             _missionState = state;
             _activeNodeId = activeNode;
             _running = isMissionActive;
           });
+
+          // Adapt polling speed dynamically: fast while running, relaxed while idle
+          if (isMissionActive && !wasRunning) {
+            _startExecutionPolling(fast: true);
+            return;
+          } else if (!isMissionActive && wasRunning) {
+            _startExecutionPolling(fast: false);
+            return;
+          }
         }
 
         // Check if there's an active UI interaction prompt
@@ -239,7 +252,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         _running = true;
         _missionState = 'running';
       });
-      _startExecutionPolling();
+      _startExecutionPolling(fast: true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

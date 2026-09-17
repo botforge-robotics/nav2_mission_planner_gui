@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -40,6 +41,7 @@ class RobotTelemetryProvider extends ChangeNotifier {
   double? linearSpeedMps;
   bool localized = false;
   String? dockStatus;
+  Map<String, dynamic>? batteryDetail;
   double? poseX;
   double? poseY;
 
@@ -161,6 +163,18 @@ class RobotTelemetryProvider extends ChangeNotifier {
         callback: (msg) {
           dockStatus = msg.data;
           notifyListeners();
+        },
+      ),
+      Subscriber<std_msgs.StringMessage>(
+        name: '/battery/info',
+        type: std_msgs.StringMessage().fullType,
+        ros2: ros2,
+        prototype: std_msgs.StringMessage(),
+        callback: (msg) {
+          try {
+            batteryDetail = jsonDecode(msg.data) as Map<String, dynamic>?;
+            notifyListeners();
+          } catch (_) {}
         },
       ),
     ]);

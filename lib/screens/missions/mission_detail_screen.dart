@@ -53,8 +53,14 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
   void initState() {
     super.initState();
     _refresh();
-    _poll = Timer.periodic(const Duration(seconds: 2), (_) => _refresh());
+    _startPoll(fast: false);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadMapData());
+  }
+
+  void _startPoll({bool fast = false}) {
+    _poll?.cancel();
+    final interval = fast ? const Duration(seconds: 2) : const Duration(seconds: 5);
+    _poll = Timer.periodic(interval, (_) => _refresh());
   }
 
   /// Saved locations + dock pose, used only to plot the route preview card
@@ -93,7 +99,12 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
     try {
       final status = await api.missionStatus();
       if (!mounted) return;
+      final wasRunning = _isThisMission && (_state == 'running' || _state == 'paused');
       setState(() => _status = status);
+      final isRunning = _isThisMission && (_state == 'running' || _state == 'paused');
+      if (isRunning != wasRunning) {
+        _startPoll(fast: isRunning);
+      }
     } on SdkApiException {
       // Transient poll failure — keep showing the last known status rather
       // than flashing an error every 2s.
