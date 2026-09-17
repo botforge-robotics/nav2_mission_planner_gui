@@ -1,9 +1,10 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
-
-import 'dart:math';
 
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
@@ -69,6 +70,8 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   ({double x, double y, double theta})? _dockPose = (x: 0.0, y: 0.0, theta: 0.0);
   ({double x, double y, double theta})? _standoffPose = (x: 0.70, y: 0.0, theta: 0.0);
   bool _hasMovedAwayFromDock = false;
+  double? _mappingStartRx;
+  double? _mappingStartRy;
 
   SdkApiService? _api;
 
@@ -137,6 +140,12 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
     try {
       await api.setMode('mapping');
       if (!mounted) return;
+      context.read<RobotTelemetryProvider>().resetForMapping();
+      _dockPose = (x: 0.0, y: 0.0, theta: 0.0);
+      _standoffPose = (x: 0.70, y: 0.0, theta: 0.0);
+      _hasMovedAwayFromDock = false;
+      _mappingStartRx = null;
+      _mappingStartRy = null;
       setState(() {
         _phase = _Phase.mapping;
         _busyMessage = null;
@@ -239,22 +248,36 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
     _dockPose = (x: 0.0, y: 0.0, theta: 0.0);
     _standoffPose = (x: 0.70, y: 0.0, theta: 0.0);
     _hasMovedAwayFromDock = false;
+    _mappingStartRx = null;
+    _mappingStartRy = null;
     final ip = context.read<ConnectionProvider>().robot?.ip;
     final api = _apiFor(ip);
     if (api == null) return;
-    setState(() => _busyMessage = _previousMap != null
-        ? 'Restoring "$_previousMap" — this can take up to a minute…'
+    final prevMap = (_previousMap != null &&
+            _previousMap != 'default' &&
+            _previousMap!.trim().isNotEmpty)
+        ? _previousMap
+        : null;
+    setState(() => _busyMessage = prevMap != null
+        ? 'Restoring "$prevMap"…'
         : 'Stopping mapping…');
     try {
       ModeTransitionTracker.instance.startStoppingMapping(
-        targetMode: _previousMap != null ? 'navigation' : 'idle',
+        targetMode: prevMap != null ? 'navigation' : 'idle',
       );
-      if (_previousMap != null) {
-        await api.setMode('navigation', map: _previousMap);
+      if (prevMap != null) {
+        await api
+            .setMode('navigation', map: prevMap)
+            .timeout(const Duration(seconds: 25));
       } else {
-        await api.setMode('idle');
+        await api.setMode('idle').timeout(const Duration(seconds: 15));
       }
       if (!mounted) return;
+      context.read<RobotTelemetryProvider>().exitMappingMode();
+      Navigator.of(context).pop();
+    } on TimeoutException {
+      if (!mounted) return;
+      context.read<RobotTelemetryProvider>().exitMappingMode();
       Navigator.of(context).pop();
     } on SdkApiException catch (e) {
       if (!mounted) return;
@@ -306,6 +329,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
 
       await api.finishMapping(name, overwrite: overwrite);
       if (!mounted) return;
+      context.read<RobotTelemetryProvider>().exitMappingMode();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Saved "$name" and switched navigation onto it.')));
       if (widget.fromSetup) {
@@ -355,17 +379,25 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
 
     final rx = telemetry.poseX;
     final ry = telemetry.poseY;
-    if (rx != null && ry != null && !_hasMovedAwayFromDock) {
-      final dist = sqrt(rx * rx + ry * ry);
-      if (dist >= 0.20) {
-        final depAngle = atan2(ry, rx);
-        _dockPose = (x: 0.0, y: 0.0, theta: depAngle);
-        _standoffPose = (
-          x: 0.70 * cos(depAngle),
-          y: 0.70 * sin(depAngle),
-          theta: depAngle,
-        );
-        _hasMovedAwayFromDock = true;
+    if (rx != null && ry != null) {
+      _mappingStartRx ??= rx;
+      _mappingStartRy ??= ry;
+      if (!_hasMovedAwayFromDock) {
+        final dx = rx - _mappingStartRx!;
+        final dy = ry - _mappingStartRy!;
+        final dist = sqrt(dx * dx + dy * dy);
+        if (dist >= 0.25) {
+          final depAngle = atan2(dy, dx);
+          final dockX = _mappingStartRx!;
+          final dockY = _mappingStartRy!;
+          _dockPose = (x: dockX, y: dockY, theta: depAngle);
+          _standoffPose = (
+            x: dockX + 0.70 * cos(depAngle),
+            y: dockY + 0.70 * sin(depAngle),
+            theta: depAngle,
+          );
+          _hasMovedAwayFromDock = true;
+        }
       }
     }
 
@@ -436,8 +468,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                                                 showRobot: true,
                                                 showLocalizationBadge: false,
                                                 isMapping: true,
-                                                initialPose: telemetry.rawPose ??
-                                                    telemetry.rawOdomPose,
+                                                initialPose: null,
                                                 showDock: visibleLayers
                                                     .contains(MapLayer.dock),
                                                 showPath: visibleLayers

@@ -306,6 +306,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   sensor_msgs.LaserScan? _scan;
   Subscriber<nav_msgs.Odometry>? _odomSub;
   geometry_msgs.PoseWithCovarianceStamped? _odomPose;
+  geometry_msgs.PoseWithCovarianceStamped? _startOdomPose;
 
   /// The live `map` -> `odom` transform, tracked only while the local
   /// costmap is shown (it's the only thing here that needs it — see the
@@ -322,14 +323,16 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   geometry_msgs.PoseWithCovarianceStamped? _pose;
   geometry_msgs.PoseStamped? _dockPose;
 
-  /// Effective pose: uses /amcl_pose when available, otherwise falls back
-  /// to /odom (transformed by map->odom if available), guaranteeing the
-  /// robot marker is drawn live during SLAM mapping without AMCL.
+  /// Effective pose: uses /amcl_pose when available in navigation mode,
+  /// otherwise uses /odom transformed by map->odom from SLAM / EKF,
+  /// ensuring the robot marker and lidar track smoothly at 50Hz.
   geometry_msgs.PoseWithCovarianceStamped? get _effectivePose {
-    final amcl = _pose;
-    if (amcl != null) return amcl;
-    final odom = _odomPose ?? widget.initialPose;
-    if (odom == null) return null;
+    if (!widget.isMapping) {
+      final amcl = _pose;
+      if (amcl != null) return amcl;
+    }
+    final odom = _odomPose ?? (widget.isMapping ? null : widget.initialPose);
+    if (odom == null) return widget.isMapping ? null : _pose;
     final tf = _mapOdomTransform;
     if (tf != null) {
       final ox = odom.pose.pose.position.x;
@@ -346,6 +349,22 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         ..pose.pose.position.z = odom.pose.pose.position.z
         ..pose.pose.orientation = _quaternionFromYaw(mapYaw);
       return transformed;
+    }
+    if (widget.isMapping && _startOdomPose != null) {
+      final ox = odom.pose.pose.position.x - _startOdomPose!.pose.pose.position.x;
+      final oy = odom.pose.pose.position.y - _startOdomPose!.pose.pose.position.y;
+      final startYaw = _yawOf(_startOdomPose!.pose.pose.orientation);
+      final odomYaw = _yawOf(odom.pose.pose.orientation);
+      final dyaw = odomYaw - startYaw;
+      final c = cos(-startYaw), s = sin(-startYaw);
+      final mapX = c * ox - s * oy;
+      final mapY = s * ox + c * oy;
+      return geometry_msgs.PoseWithCovarianceStamped()
+        ..header = odom.header
+        ..pose.pose.position.x = mapX
+        ..pose.pose.position.y = mapY
+        ..pose.pose.position.z = 0.0
+        ..pose.pose.orientation = _quaternionFromYaw(dyaw);
     }
     return odom;
   }
@@ -511,6 +530,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           final converted = geometry_msgs.PoseWithCovarianceStamped()
             ..header = msg.header
             ..pose = msg.pose;
+          if (widget.isMapping && _startOdomPose == null) {
+            _startOdomPose = converted;
+          }
           setState(() => _odomPose = converted);
         }
       },
@@ -601,6 +623,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           y: tr.translation.y,
           theta: _yawOf(tr.rotation),
         );
+        if (mounted && (widget.isMapping || widget.showLocalCostmap)) {
+          setState(() {});
+        }
         return; // /tf carries many other edges; map->odom is the key transform
       }
     }
@@ -752,6 +777,39 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           pixels, width, height, ui.PixelFormat.rgba8888, completer.complete);
       final image = await completer.future;
       if (!mounted) return;
+
+      final oldGrid = _grid;
+      final oldImage = _image;
+      if (oldGrid != null && oldImage != null && (widget.interactive || widget.isMapping)) {
+        final sizeOrOriginChanged = oldGrid.info.width != width ||
+            oldGrid.info.height != height ||
+            oldGrid.info.origin.position.x != grid.info.origin.position.x ||
+            oldGrid.info.origin.position.y != grid.info.origin.position.y;
+        if (sizeOrOriginChanged) {
+          // Anchor world point (0.0, 0.0) so exploring and expanding unknown areas
+          // does not cause the map or robot to jump around on screen.
+          final oldPx = _worldToPixel(oldGrid, 0.0, 0.0);
+          final newPx = _worldToPixel(grid, 0.0, 0.0);
+
+          final oldCenterX = oldGrid.info.width / 2.0;
+          final oldCenterY = oldGrid.info.height / 2.0;
+          final newCenterX = width / 2.0;
+          final newCenterY = height / 2.0;
+
+          final oldRelX = oldPx.dx - oldCenterX;
+          final oldRelY = oldPx.dy - oldCenterY;
+          final newRelX = newPx.dx - newCenterX;
+          final newRelY = newPx.dy - newCenterY;
+
+          final deltaX = newRelX - oldRelX;
+          final deltaY = newRelY - oldRelY;
+
+          final matrix = _controller.value.clone();
+          matrix.translateByDouble(-deltaX, -deltaY, 0.0, 1.0);
+          _controller.value = matrix;
+        }
+      }
+
       setState(() {
         _grid = grid;
         _image = image;
@@ -1187,8 +1245,11 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     // rather than snapping in over the skeleton. Threads a key through to
     // contentFor for the same reason posePicking's branch passes one —
     // [_handleMapTap] below needs it.
-    Widget revealedFor(double markerScale, {Key? key}) =>
-        FadeSlideIn(offset: 0, child: contentFor(markerScale, key: key));
+    Widget revealedFor(double markerScale, {Key? key}) {
+      final child = contentFor(markerScale, key: key);
+      if (widget.isMapping) return child;
+      return FadeSlideIn(offset: 0, child: child);
+    }
 
     if (widget.interactive) {
       // The InteractiveViewer branch has a live, user-driven zoom worth
@@ -1420,6 +1481,10 @@ class _OccupancyGridPainter extends CustomPainter {
     final robotY = p.pose.pose.position.y;
     final robotYaw = _yawOf(p.pose.pose.orientation);
 
+    // RPLiDAR physical mount offset along forward axis
+    final lidarX = robotX + 0.0325 * cos(robotYaw);
+    final lidarY = robotY + 0.0325 * sin(robotYaw);
+
     final dotRadius = 1.6 * markerScale;
     final paint = Paint()
       ..color = const Color(0xFFFF2B3C).withValues(alpha: 0.90)
@@ -1433,8 +1498,8 @@ class _OccupancyGridPainter extends CustomPainter {
       }
       final beamAngle = s.angle_min + i * s.angle_increment;
       final worldAngle = robotYaw + beamAngle;
-      final wx = robotX + r * cos(worldAngle);
-      final wy = robotY + r * sin(worldAngle);
+      final wx = lidarX + r * cos(worldAngle);
+      final wy = lidarY + r * sin(worldAngle);
       final px = _worldToPixel(grid, wx, wy);
       canvas.drawCircle(px, dotRadius, paint);
     }

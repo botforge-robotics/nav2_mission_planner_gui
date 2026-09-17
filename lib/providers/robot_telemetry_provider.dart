@@ -8,6 +8,8 @@ import 'package:ros2_api/ros2_api.dart';
 import 'package:sensor_msgs/msg.dart' as sensor_msgs;
 import 'package:std_msgs/msg.dart' as std_msgs;
 
+import 'package:tf2_msgs/msg.dart' as tf2_msgs;
+
 /// power_supply_status values, straight off the ROS2 sensor_msgs/BatteryState
 /// standard — same mapping navpromini_sdk's ros_bridge.py._CHARGE already
 /// uses on the robot side, mirrored here rather than reinvented.
@@ -59,6 +61,72 @@ class RobotTelemetryProvider extends ChangeNotifier {
   double? odomTheta;
   nav_msgs.Odometry? rawOdom;
 
+  bool isMappingMode = false;
+  double _mappingStartOdomX = 0.0;
+  double _mappingStartOdomY = 0.0;
+  double _mappingStartOdomTheta = 0.0;
+  ({double x, double y, double theta})? _mapOdomTransform;
+
+  void resetForMapping() {
+    isMappingMode = true;
+    localized = false;
+    rawPose = null;
+    _mapOdomTransform = null;
+    _mappingStartOdomX = odomX ?? 0.0;
+    _mappingStartOdomY = odomY ?? 0.0;
+    _mappingStartOdomTheta = odomTheta ?? 0.0;
+    poseX = 0.0;
+    poseY = 0.0;
+    poseTheta = 0.0;
+    notifyListeners();
+  }
+
+  void exitMappingMode() {
+    isMappingMode = false;
+    notifyListeners();
+  }
+
+  void _updateCalculatedPose() {
+    if (isMappingMode) {
+      final ox = odomX;
+      final oy = odomY;
+      if (ox == null || oy == null) return;
+      final tf = _mapOdomTransform;
+      if (tf != null) {
+        final c = cos(tf.theta), s = sin(tf.theta);
+        poseX = tf.x + c * ox - s * oy;
+        poseY = tf.y + s * ox + c * oy;
+        poseTheta = tf.theta + (odomTheta ?? 0.0);
+      } else {
+        final relX = ox - _mappingStartOdomX;
+        final relY = oy - _mappingStartOdomY;
+        final c = cos(-_mappingStartOdomTheta), s = sin(-_mappingStartOdomTheta);
+        poseX = c * relX - s * relY;
+        poseY = s * relX + c * relY;
+        poseTheta = (odomTheta ?? 0.0) - _mappingStartOdomTheta;
+      }
+      notifyListeners();
+      return;
+    }
+    if (!localized && rawPose == null) {
+      final ox = odomX;
+      final oy = odomY;
+      if (ox == null || oy == null) return;
+      final tf = _mapOdomTransform;
+      if (tf != null) {
+        final c = cos(tf.theta), s = sin(tf.theta);
+        poseX = tf.x + c * ox - s * oy;
+        poseY = tf.y + s * ox + c * oy;
+        poseTheta = tf.theta + (odomTheta ?? 0.0);
+      } else {
+        poseX = ox;
+        poseY = oy;
+        poseTheta = odomTheta;
+      }
+      notifyListeners();
+    }
+  }
+
   geometry_msgs.PoseWithCovarianceStamped? get rawOdomPose {
     final o = rawOdom;
     if (o == null) return null;
@@ -71,6 +139,31 @@ class RobotTelemetryProvider extends ChangeNotifier {
     final ros2 = _ros2;
     if (ros2 == null) return;
     _subscribers.addAll([
+      Subscriber<tf2_msgs.TFMessage>(
+        name: '/tf',
+        type: tf2_msgs.TFMessage().fullType,
+        ros2: ros2,
+        prototype: tf2_msgs.TFMessage(),
+        callback: (msg) {
+          for (final t in msg.transforms) {
+            final parent = t.header.frame_id.replaceAll('/', '');
+            final child = t.child_frame_id.replaceAll('/', '');
+            if (parent == 'map' && child == 'odom') {
+              final tr = t.transform;
+              final q = tr.rotation;
+              final yaw = atan2(
+                  2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
+              _mapOdomTransform = (
+                x: tr.translation.x,
+                y: tr.translation.y,
+                theta: yaw,
+              );
+              _updateCalculatedPose();
+              return;
+            }
+          }
+        },
+      ),
       Subscriber<sensor_msgs.BatteryState>(
         name: '/battery/state',
         type: sensor_msgs.BatteryState().fullType,
@@ -102,12 +195,7 @@ class RobotTelemetryProvider extends ChangeNotifier {
           final q = msg.pose.pose.orientation;
           odomTheta = atan2(
               2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
-          if (!localized && rawPose == null) {
-            poseX = odomX;
-            poseY = odomY;
-            poseTheta = odomTheta;
-          }
-          notifyListeners();
+          _updateCalculatedPose();
         },
       ),
       Subscriber<geometry_msgs.PoseWithCovarianceStamped>(

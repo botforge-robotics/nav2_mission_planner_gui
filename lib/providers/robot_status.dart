@@ -25,11 +25,11 @@ RobotStatus deriveRobotStatus({
       sdkState.missionStatus == 'paused') {
     return RobotStatus.missionInProgress;
   }
-  if (sdkState.mode == 'mapping') return RobotStatus.mapping;
   if (telemetry.chargeStatus == ChargeStatus.charging) {
     return RobotStatus.charging;
   }
   if (telemetry.chargeStatus == ChargeStatus.full) return RobotStatus.charged;
+  if (sdkState.mode == 'mapping') return RobotStatus.mapping;
   final speed = telemetry.linearSpeedMps;
   if (speed != null && speed.abs() > _movingThresholdMps) {
     return RobotStatus.moving;
