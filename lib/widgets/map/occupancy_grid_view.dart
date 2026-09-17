@@ -596,15 +596,12 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       final child = t.child_frame_id.replaceAll('/', '');
       if (parent == 'map' && child == 'odom') {
         final tr = t.transform;
-        if (mounted) {
-          setState(() => _mapOdomTransform = (
-                x: tr.translation.x,
-                y: tr.translation.y,
-                theta: _yawOf(tr.rotation),
-              ));
-        }
-        return; // /tf carries many other edges (odom->base_link at a much
-        // higher rate in particular) — nothing else here is relevant.
+        _mapOdomTransform = (
+          x: tr.translation.x,
+          y: tr.translation.y,
+          theta: _yawOf(tr.rotation),
+        );
+        return; // /tf carries many other edges; map->odom is the key transform
       }
     }
   }
@@ -690,10 +687,23 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     if (widget.showLocalCostmap != oldWidget.showLocalCostmap) {
       if (widget.showLocalCostmap) {
         _subscribeLocalCostmap();
+        _subscribeTf();
       } else {
         _localCostmapSub?.unsubscribe();
         _localCostmapSub = null;
         _localCostmap = null;
+        if (!widget.showRobot && !widget.isMapping) {
+          _tfSub?.unsubscribe();
+          _tfSub = null;
+          _mapOdomTransform = null;
+        }
+      }
+    }
+    if ((widget.showRobot != oldWidget.showRobot) ||
+        (widget.isMapping != oldWidget.isMapping)) {
+      if (widget.showRobot || widget.isMapping) {
+        _subscribeTf();
+      } else if (!widget.showLocalCostmap) {
         _tfSub?.unsubscribe();
         _tfSub = null;
         _mapOdomTransform = null;

@@ -3,6 +3,8 @@ import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 
+import 'dart:math';
+
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../services/map_layers_controller.dart';
@@ -10,7 +12,6 @@ import '../../services/mode_transition_tracker.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
-import '../../utils/localize_at_dock.dart';
 import '../../widgets/design/hud_chip.dart';
 import '../../widgets/map/occupancy_grid_view.dart';
 import '../../widgets/teleop/drive_pad.dart';
@@ -61,7 +62,13 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   String? _busyMessage;
   bool get _busy => _busyMessage != null;
 
-  ({double x, double y, double theta})? _dockPose;
+  /// When creating a new map, mapping begins at the charging dock facing
+  /// outwards. The origin (0,0) in the SLAM map frame is the dock position.
+  /// As the robot drives away, the departure heading sets the dock angle
+  /// and the standoff point (0.7m in front of dock).
+  ({double x, double y, double theta})? _dockPose = (x: 0.0, y: 0.0, theta: 0.0);
+  ({double x, double y, double theta})? _standoffPose = (x: 0.70, y: 0.0, theta: 0.0);
+  bool _hasMovedAwayFromDock = false;
 
   SdkApiService? _api;
 
@@ -76,20 +83,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _confirmStart();
-      _loadDockPose();
     });
-  }
-
-  /// Same fallback Map View's own live view uses — see the doc on
-  /// [OccupancyGridView.dockPoseOverride] for why the live `/dock_pose`
-  /// topic alone isn't reliable enough to draw the dock pin from.
-  Future<void> _loadDockPose() async {
-    final ip = context.read<ConnectionProvider>().robot?.ip;
-    final api = _apiFor(ip);
-    if (api == null) return;
-    final dock = await fetchDockPose(api);
-    if (!mounted || dock == null) return;
-    setState(() => _dockPose = dock);
   }
 
   Future<void> _confirmStart() async {
@@ -231,6 +225,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
         angular: geometry_msgs.Vector3(x: 0.0, y: 0.0, z: 0.0),
       );
       pub.publish(stopTwist);
+      return;
     }
     final ip = context.read<ConnectionProvider>().robot?.ip;
     try {
@@ -241,6 +236,9 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   }
 
   Future<void> _cancel() async {
+    _dockPose = (x: 0.0, y: 0.0, theta: 0.0);
+    _standoffPose = (x: 0.70, y: 0.0, theta: 0.0);
+    _hasMovedAwayFromDock = false;
     final ip = context.read<ConnectionProvider>().robot?.ip;
     final api = _apiFor(ip);
     if (api == null) return;
@@ -290,6 +288,22 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       ModeTransitionTracker.instance.startStoppingMapping(
         targetMode: 'navigation',
       );
+
+      // Persist dock pose and waypoints for the newly created map
+      final dp = _dockPose ?? (x: 0.0, y: 0.0, theta: 0.0);
+      final sp = _standoffPose ?? (
+        x: dp.x + 0.70 * cos(dp.theta),
+        y: dp.y + 0.70 * sin(dp.theta),
+        theta: dp.theta,
+      );
+      try {
+        await api.setDockPose(x: dp.x, y: dp.y, theta: dp.theta);
+        await api.saveWaypoint('Charging Dock',
+            x: dp.x, y: dp.y, theta: dp.theta, type: 'dock');
+        await api.saveWaypoint('Dock Standoff',
+            x: sp.x, y: sp.y, theta: sp.theta, type: 'dock');
+      } catch (_) {}
+
       await api.finishMapping(name, overwrite: overwrite);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -338,6 +352,22 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   Widget build(BuildContext context) {
     final ros2 = context.watch<ConnectionProvider>().ros2;
     final telemetry = context.watch<RobotTelemetryProvider>();
+
+    final rx = telemetry.poseX;
+    final ry = telemetry.poseY;
+    if (rx != null && ry != null && !_hasMovedAwayFromDock) {
+      final dist = sqrt(rx * rx + ry * ry);
+      if (dist >= 0.20) {
+        final depAngle = atan2(ry, rx);
+        _dockPose = (x: 0.0, y: 0.0, theta: depAngle);
+        _standoffPose = (
+          x: 0.70 * cos(depAngle),
+          y: 0.70 * sin(depAngle),
+          theta: depAngle,
+        );
+        _hasMovedAwayFromDock = true;
+      }
+    }
 
     return PopScope(
       canPop: _phase != _Phase.mapping,
