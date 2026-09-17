@@ -136,7 +136,7 @@ class _DashboardContent extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    '${telemetry.batteryPercentage?.round() ?? '--'}%',
+                    telemetry.formatBatteryPercent(),
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                   ),
                 ],
@@ -393,7 +393,7 @@ class _RobotCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 AnimatedMetricText(
                   value: battery,
-                  formatter: (v) => '${v.round()}%',
+                  formatter: (v) => telemetry.formatBatteryPercent(),
                   style: AppTextStyles.metricSmall,
                 ),
               ],

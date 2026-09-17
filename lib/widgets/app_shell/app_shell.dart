@@ -364,7 +364,7 @@ class _DesktopSidebar extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         telemetry.batteryPercentage != null
-                            ? '${telemetry.batteryPercentage!.round()}%'
+                            ? telemetry.formatBatteryPercent()
                             : '—',
                         style: const TextStyle(
                           fontSize: 11,

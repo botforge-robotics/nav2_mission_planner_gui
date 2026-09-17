@@ -28,7 +28,13 @@ RobotStatus deriveRobotStatus({
   if (telemetry.chargeStatus == ChargeStatus.charging) {
     return RobotStatus.charging;
   }
-  if (telemetry.chargeStatus == ChargeStatus.full) return RobotStatus.charged;
+  if (telemetry.chargeStatus == ChargeStatus.full) {
+    if (telemetry.batteryPercentage != null &&
+        telemetry.batteryPercentage! < 99.95) {
+      return RobotStatus.charging;
+    }
+    return RobotStatus.charged;
+  }
   if (sdkState.mode == 'mapping') return RobotStatus.mapping;
   final speed = telemetry.linearSpeedMps;
   if (speed != null && speed.abs() > _movingThresholdMps) {

@@ -203,7 +203,7 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
                                       children: [
                                         Text(
                                           battery != null
-                                              ? '${battery.round()}%'
+                                              ? telemetry.formatBatteryPercent()
                                               : '—',
                                           style: AppTextStyles.metricLarge,
                                         ),

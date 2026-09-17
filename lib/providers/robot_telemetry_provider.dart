@@ -39,6 +39,21 @@ class RobotTelemetryProvider extends ChangeNotifier {
   final List<Subscriber> _subscribers = [];
 
   double? batteryPercentage;
+
+  /// Formats battery percentage with up to 2 decimal places:
+  /// e.g. '99.8%' or '99.85%', avoiding premature rounding to '100%' unless >= 99.95%.
+  String formatBatteryPercent({bool withSymbol = true}) {
+    final b = batteryPercentage;
+    if (b == null) return '--${withSymbol ? '%' : ''}';
+    final sym = withSymbol ? '%' : '';
+    if (b >= 99.95) return '100$sym';
+    if (b.truncateToDouble() == b) return '${b.toInt()}$sym';
+    final fixed2 = b.toStringAsFixed(2);
+    if (fixed2.endsWith('0')) {
+      return '${b.toStringAsFixed(1)}$sym';
+    }
+    return '$fixed2$sym';
+  }
   ChargeStatus? chargeStatus;
   double? linearSpeedMps;
   bool localized = false;
