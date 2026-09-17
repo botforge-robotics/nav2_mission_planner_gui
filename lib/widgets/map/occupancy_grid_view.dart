@@ -399,7 +399,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     const width = 240;
     const height = 240;
     const resolution = 0.05;
-    final grid = nav_msgs.OccupancyGrid()
+    final grid = nav_msgs.OccupancyGrid(
+      data: List<int>.filled(width * height, -1),
+    )
       ..header.frame_id = 'map'
       ..info.resolution = resolution
       ..info.width = width
@@ -408,7 +410,6 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       ..info.origin.position.y = -(height * resolution) / 2.0
       ..info.origin.position.z = 0.0
       ..info.origin.orientation.w = 1.0;
-    grid.data.addAll(List<int>.filled(width * height, -1));
 
     final pixels = Uint8List(width * height * 4);
     for (var i = 0; i < width * height; i++) {
