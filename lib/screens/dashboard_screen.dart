@@ -609,6 +609,7 @@ class _MapPreviewCard extends StatefulWidget {
 
 class _MapPreviewCardState extends State<_MapPreviewCard> {
   ({double x, double y, double theta})? _dockPose;
+  bool _gridLoaded = false;
 
   @override
   void initState() {
@@ -625,8 +626,9 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
   /// True when SLAM is active — map publishes live even without a saved map name.
   bool get _isMappingActive => widget.sdkMode == 'mapping';
 
-  /// True when Nav2 navigation is actively running with an active map.
+  /// True when Nav2 navigation is actively running with an active map or when a grid has been received.
   bool get _isNavigating =>
+      _gridLoaded ||
       widget.sdkMode == 'navigation' ||
       (widget.mapName != null &&
           widget.mapName!.isNotEmpty &&
@@ -737,39 +739,49 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                               ),
                             ),
                           )
-                        : (showNoActiveMap
-                            ? _NoActiveMapPrompt(robotIp: widget.robotIp)
-                            : Stack(
-                                children: [
-                                  Positioned.fill(
-                                    child: ValueListenableBuilder<
-                                        Set<MapLayer>>(
-                                      valueListenable:
-                                          MapLayersController.instance,
-                                      builder: (context, visibleLayers, _) =>
-                                          OccupancyGridView(
-                                        ros2: widget.ros2,
-                                        interactive: widget.interactive,
-                                        isMapping: isCurrentlyMapping,
-                                        showDock: visibleLayers
-                                            .contains(MapLayer.dock),
-                                        showPath: visibleLayers
-                                            .contains(MapLayer.path),
-                                        showLaserScan: visibleLayers
-                                            .contains(MapLayer.laserScan),
-                                        initialPose: telemetry.rawPose ??
-                                            telemetry.rawOdomPose,
-                                        initialPath: telemetry.currentPath,
-                                        showGlobalCostmap: visibleLayers
-                                            .contains(MapLayer.globalCostmap),
-                                        showLocalCostmap: visibleLayers
-                                            .contains(MapLayer.localCostmap),
-                                        dockPoseOverride: _dockPose,
-                                        showLocalizationBadge: false,
-                                      ),
-                                    ),
+                        : Stack(
+                            children: [
+                              Positioned.fill(
+                                child: ValueListenableBuilder<
+                                    Set<MapLayer>>(
+                                  valueListenable:
+                                      MapLayersController.instance,
+                                  builder: (context, visibleLayers, _) =>
+                                      OccupancyGridView(
+                                    ros2: widget.ros2,
+                                    interactive: widget.interactive,
+                                    isMapping: isCurrentlyMapping,
+                                    showDock: visibleLayers
+                                        .contains(MapLayer.dock),
+                                    showPath: visibleLayers
+                                        .contains(MapLayer.path),
+                                    showLaserScan: visibleLayers
+                                        .contains(MapLayer.laserScan),
+                                    initialPose: telemetry.rawPose ??
+                                        telemetry.rawOdomPose,
+                                    initialPath: telemetry.currentPath,
+                                    showGlobalCostmap: visibleLayers
+                                        .contains(MapLayer.globalCostmap),
+                                    showLocalCostmap: visibleLayers
+                                        .contains(MapLayer.localCostmap),
+                                    dockPoseOverride: _dockPose,
+                                    showLocalizationBadge: false,
+                                    onMapLoaded: (_) {
+                                      if (mounted && !_gridLoaded) {
+                                        setState(() => _gridLoaded = true);
+                                      }
+                                    },
                                   ),
-                                  if (!telemetry.localized && hasActiveNav)
+                                ),
+                              ),
+                              if (showNoActiveMap && !_gridLoaded)
+                                Positioned.fill(
+                                  child: Container(
+                                    color: Theme.of(context).cardColor,
+                                    child: _NoActiveMapPrompt(robotIp: widget.robotIp),
+                                  ),
+                                ),
+                              if (!telemetry.localized && hasActiveNav && !showNoActiveMap)
                                     Positioned(
                                       left: AppSpacing.xs,
                                       right: AppSpacing.xs,
@@ -800,7 +812,7 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                                       ),
                                     ),
                                 ],
-                              )),
+                              ),
                   ),
                 ),
               ],

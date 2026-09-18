@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:nav_msgs/msg.dart' as nav_msgs;
+import 'package:nav_msgs/srv.dart' as nav_msgs_srv;
 import 'package:ros2_api/ros2_api.dart';
 import 'package:sensor_msgs/msg.dart' as sensor_msgs;
 import 'package:tf2_msgs/msg.dart' as tf2_msgs;
@@ -182,6 +183,7 @@ class OccupancyGridView extends StatefulWidget {
     this.dockEditorStandoffPoint,
     this.dockEditorActiveIndex = 0,
     this.onDockEditorTap,
+    this.onMapLoaded,
   });
 
   final Ros2 ros2;
@@ -258,6 +260,10 @@ class OccupancyGridView extends StatefulWidget {
   /// Lets a parent screen (Map View) offer "go to dock" / "Dock" / "Undock"
   /// straight from the map.
   final VoidCallback? onDockTap;
+
+  /// Called when an occupancy grid map is successfully received and decoded
+  /// (either from `/map` topic or `/map_server/map` service call).
+  final void Function(nav_msgs.OccupancyGrid grid)? onMapLoaded;
 
   /// Whether the small built-in "Not localized" badge shows itself when
   /// [showRobot] is on but there's no pose yet. Screens that show their own
@@ -494,6 +500,63 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       qos: const {'durability': 'transient_local'},
       callback: _onGrid,
     );
+
+    // Actively query the Nav2 map service immediately on subscription.
+    // This solves the common rosbridge issue where late-connecting WebSocket
+    // clients do not receive latched transient_local DDS topics after cold restart.
+    _fetchMapViaService();
+
+    // Secondary safety retry in case rosbridge was still establishing channel connection
+    Future.delayed(const Duration(milliseconds: 1400), () {
+      if (mounted && (_grid == null || _isPlaceholderGrid)) {
+        _fetchMapViaService();
+      }
+    });
+  }
+
+  Future<void> _fetchMapViaService() async {
+    if (_grid != null && !_isPlaceholderGrid) return;
+    try {
+      // 1. First query standard Nav2 map server service /map_server/map
+      var client = ServiceClient<nav_msgs_srv.GetMap, nav_msgs_srv.GetMapRequest,
+          nav_msgs_srv.GetMapResponse>(
+        ros2: widget.ros2,
+        name: '/map_server/map',
+        type: nav_msgs_srv.GetMap().fullType,
+        serviceType: nav_msgs_srv.GetMap(),
+        timeout: 5,
+      );
+      nav_msgs_srv.GetMapResponse? resp;
+      try {
+        resp = await client.call(nav_msgs_srv.GetMapRequest());
+      } catch (_) {
+        // Fallback to /map service if /map_server/map was unavailable
+        client.dispose();
+        client = ServiceClient<nav_msgs_srv.GetMap, nav_msgs_srv.GetMapRequest,
+            nav_msgs_srv.GetMapResponse>(
+          ros2: widget.ros2,
+          name: '/map',
+          type: nav_msgs_srv.GetMap().fullType,
+          serviceType: nav_msgs_srv.GetMap(),
+          timeout: 5,
+        );
+        try {
+          resp = await client.call(nav_msgs_srv.GetMapRequest());
+        } catch (_) {}
+      } finally {
+        client.dispose();
+      }
+
+      if (resp != null && mounted && (_grid == null || _isPlaceholderGrid)) {
+        if (resp.map.info.width > 0 &&
+            resp.map.info.height > 0 &&
+            resp.map.data.isNotEmpty) {
+          _onGrid(resp.map);
+        }
+      }
+    } catch (e) {
+      debugPrint('GetMap service call skipped/failed: $e');
+    }
   }
 
   void _subscribeAll() {
@@ -876,6 +939,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         _grid = grid;
         _image = image;
       });
+      widget.onMapLoaded?.call(grid);
     } catch (e) {
       debugPrint('Error decoding map grid: $e');
     } finally {
