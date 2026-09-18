@@ -714,12 +714,7 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
                   child: Container(
-                    height: (showNoActiveMap || isStoppingMapping)
-                        ? null
-                        : widget.height,
-                    constraints: (showNoActiveMap || isStoppingMapping)
-                        ? BoxConstraints(minHeight: widget.height)
-                        : null,
+                    height: widget.height,
                     width: double.infinity,
                     color: AppColors.surfaceSunken,
                     child: isStoppingMapping
