@@ -535,37 +535,10 @@ class _MapViewScreenState extends State<MapViewScreen> {
     final api = _apiFor(ip);
     if (draft == null || api == null) return;
 
-    final nameController = TextEditingController();
     final name = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Save Location'),
-        content: TextField(
-          controller: nameController,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'e.g. Kitchen'),
-          onSubmitted: (v) => Navigator.pop(dialogContext, v.trim()),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () =>
-                  Navigator.pop(dialogContext, nameController.text.trim()),
-              child: const Text('Save')),
-        ],
-      ),
+      builder: (_) => const _SaveLocationDialog(),
     );
-    // Deferred, not disposed right here: the dialog's TextField was
-    // autofocused, so its selection/keyboard overlay is often still
-    // mid-teardown the instant showDialog's Future resolves (Navigator.pop
-    // completes the Future before the exit transition finishes). Disposing
-    // the controller out from under that in-flight teardown is what threw
-    // the framework's "_dependents.isEmpty" assertion (harmless in release
-    // builds, but worth avoiding) — waiting a frame lets it finish first.
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => nameController.dispose());
     if (name == null || name.isEmpty || !mounted) return;
 
     setState(() => _savingLocation = true);
@@ -1381,6 +1354,61 @@ class _DesktopStudioSidebar extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SaveLocationDialog extends StatefulWidget {
+  const _SaveLocationDialog();
+
+  @override
+  State<_SaveLocationDialog> createState() => _SaveLocationDialogState();
+}
+
+class _SaveLocationDialogState extends State<_SaveLocationDialog> {
+  final _controller = TextEditingController();
+  bool _submitted = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_submitted) return;
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    _submitted = true;
+    Navigator.of(context).pop(text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Save Location'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(hintText: 'e.g. Kitchen'),
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            if (!_submitted) {
+              _submitted = true;
+              Navigator.of(context).pop();
+            }
+          },
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }
