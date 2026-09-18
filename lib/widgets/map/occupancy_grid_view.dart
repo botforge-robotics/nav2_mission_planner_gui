@@ -939,7 +939,13 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         _grid = grid;
         _image = image;
       });
-      widget.onMapLoaded?.call(grid);
+      if (widget.onMapLoaded != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            widget.onMapLoaded?.call(grid);
+          }
+        });
+      }
     } catch (e) {
       debugPrint('Error decoding map grid: $e');
     } finally {

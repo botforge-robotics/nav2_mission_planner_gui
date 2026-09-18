@@ -24,31 +24,22 @@ class NavProMiniApp extends StatelessWidget {
         // never pays for a connection it doesn't use. First real reader is
         // DashboardScreen.
         ChangeNotifierProvider(create: (_) => ConnectionProvider()),
+        // Provides RobotTelemetryProvider globally across the entire app and all routes
+        // (including Navigator.push targets) without rebuilding/tearing down the provider
+        // element when the connection status changes.
+        ChangeNotifierProxyProvider<ConnectionProvider, RobotTelemetryProvider>(
+          create: (_) => RobotTelemetryProvider(null),
+          update: (_, connection, telemetry) {
+            final ros2 = connection.isConnected ? connection.ros2 : null;
+            return (telemetry ?? RobotTelemetryProvider(null))..updateRos2(ros2);
+          },
+        ),
       ],
       child: MaterialApp(
         title: 'NavPro Mini',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         home: const SplashScreen(),
-        // Wraps the Navigator itself (via `child`), not just AppShell's own
-        // returned subtree — RobotTelemetryProvider used to be provided
-        // inside AppShell.build(), which only covers AppShell's own
-        // IndexedStack tabs. Any screen reached via Navigator.push (Map
-        // View, Create Map, ...) is a *sibling* OverlayEntry to AppShell's
-        // route, not a descendant of it, so it could never see a provider
-        // scoped that way — a real "Provider<RobotTelemetryProvider> not
-        // found" crash the moment such a screen tried to read it. Building
-        // it here instead, above the Navigator, makes it visible to every
-        // route, pushed or not.
-        builder: (context, child) {
-          final connection = context.watch<ConnectionProvider>();
-          final ros2 = connection.isConnected ? connection.ros2 : null;
-          return ChangeNotifierProvider<RobotTelemetryProvider>(
-            key: ValueKey(ros2),
-            create: (_) => RobotTelemetryProvider(ros2),
-            child: child!,
-          );
-        },
       ),
     );
   }

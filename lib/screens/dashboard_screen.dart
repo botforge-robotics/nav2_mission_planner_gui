@@ -52,19 +52,37 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final connection = context.watch<ConnectionProvider>();
-    return _DashboardContent(connection: connection);
+    final robot = connection.robot;
+    final ros2 = connection.ros2;
+    if (!connection.isConnected || robot == null || ros2 == null) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    return _DashboardContent(
+      connection: connection,
+      robot: robot,
+      ros2: ros2,
+    );
   }
 }
 
 class _DashboardContent extends StatelessWidget {
-  const _DashboardContent({required this.connection});
+  const _DashboardContent({
+    required this.connection,
+    required this.robot,
+    required this.ros2,
+  });
 
   final ConnectionProvider connection;
+  final SavedRobot robot;
+  final Ros2 ros2;
 
   @override
   Widget build(BuildContext context) {
     final telemetry = context.watch<RobotTelemetryProvider>();
-    final robot = connection.robot!;
     final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
 
     return Scaffold(
@@ -130,7 +148,7 @@ class _DashboardContent extends StatelessWidget {
                         ? Icons.bolt_rounded
                         : Icons.battery_full_rounded,
                     size: 14,
-                    color: telemetry.batteryPercentage != null && telemetry.batteryPercentage! < 20
+                    color: (telemetry.batteryPercentage ?? 100) < 20
                         ? AppColors.danger
                         : AppColors.success,
                   ),
@@ -178,7 +196,7 @@ class _DashboardContent extends StatelessWidget {
                                   sdkState: sdkState),
                               const SizedBox(height: AppSpacing.lg),
                               _MapPreviewCard(
-                                ros2: connection.ros2!,
+                                ros2: ros2,
                                 mapName: sdkState.mapName,
                                 sdkMode: sdkState.mode,
                                 robotIp: robot.ip,
@@ -247,7 +265,7 @@ class _DashboardContent extends StatelessWidget {
                         FadeSlideIn(
                           delay: nextDelay(),
                           child: _MapPreviewCard(
-                              ros2: connection.ros2!,
+                              ros2: ros2,
                               mapName: sdkState.mapName,
                               sdkMode: sdkState.mode,
                               robotIp: robot.ip),
@@ -768,7 +786,11 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                                     showLocalizationBadge: false,
                                     onMapLoaded: (_) {
                                       if (mounted && !_gridLoaded) {
-                                        setState(() => _gridLoaded = true);
+                                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                                          if (mounted && !_gridLoaded) {
+                                            setState(() => _gridLoaded = true);
+                                          }
+                                        });
                                       }
                                     },
                                   ),

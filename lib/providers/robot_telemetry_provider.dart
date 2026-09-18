@@ -31,12 +31,26 @@ ChargeStatus _chargeStatusOf(int value) => switch (value) {
 /// mistaken for a real reading, the same convention RosBridge's own cache
 /// uses on the robot side.
 class RobotTelemetryProvider extends ChangeNotifier {
-  RobotTelemetryProvider(this._ros2) {
+  RobotTelemetryProvider([this._ros2]) {
     if (_ros2 != null) _subscribe();
   }
 
-  final Ros2? _ros2;
+  Ros2? _ros2;
+  Ros2? get ros2 => _ros2;
   final List<Subscriber> _subscribers = [];
+
+  void updateRos2(Ros2? newRos2) {
+    if (_ros2 == newRos2) return;
+    for (final s in _subscribers) {
+      s.unsubscribe();
+    }
+    _subscribers.clear();
+    _ros2 = newRos2;
+    if (_ros2 != null) {
+      _subscribe();
+    }
+    notifyListeners();
+  }
 
   double? batteryPercentage;
 
