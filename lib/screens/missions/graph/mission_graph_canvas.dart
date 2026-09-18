@@ -706,6 +706,11 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
         icon = Icons.call_split;
         iconColor = const Color(0xFFEA580C);
         break;
+      case 'parallel':
+      case 'parallel_fork':
+        icon = Icons.call_split_rounded;
+        iconColor = const Color(0xFF00ACC1);
+        break;
       case 'battery_guard':
         icon = Icons.battery_saver;
         iconColor = const Color(0xFF059669);
@@ -891,6 +896,11 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
       case 'condition':
         final expr = node.params['expression'] ?? 'true';
         summary = 'Check if: $expr';
+        break;
+      case 'parallel':
+      case 'parallel_fork':
+        final bc = (node.params['branch_count'] as num?)?.toInt() ?? 2;
+        summary = 'Run $bc steps at the same time';
         break;
       case 'battery_guard':
         final minB = node.params['min_battery_pct'] ?? 20;
@@ -1195,9 +1205,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
         toPortId = _drawingFromPort!.id;
       }
 
-      // Remove any existing edge from this output port (each output port typically has 1 edge)
+      // Allow multiple outgoing connections for parallel execution.
+      // Only remove if an exact duplicate edge already exists between these two ports.
       widget.graph.edges.removeWhere(
-        (e) => e.fromNode == fromNodeId && e.fromPort == fromPortId,
+        (e) => e.fromNode == fromNodeId && e.fromPort == fromPortId && e.toNode == toNodeId && e.toPort == toPortId,
       );
 
       final newEdge = GraphEdge(

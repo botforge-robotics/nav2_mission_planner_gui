@@ -375,6 +375,24 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       }
     }
 
+    // Safety validation: Prevent simultaneous conflicting drive/motion actions in parallel branches
+    const motionTypes = {'navigate_waypoint', 'navigate_coordinates', 'patrol_loop', 'dock', 'undock', 'jog_motion'};
+    for (final node in _graph.nodes) {
+      final outgoing = _graph.edges.where((e) => e.fromNode == node.id).toList();
+      if (outgoing.length > 1) {
+        final targetNodes = outgoing
+            .map((e) => _graph.nodes.firstWhere((n) => n.id == e.toNode, orElse: () => node))
+            .where((n) => n.id != node.id)
+            .toList();
+        final motionTargets = targetNodes.where((n) => motionTypes.contains(n.type)).toList();
+        if (motionTargets.length > 1) {
+          final names = motionTargets.map((n) => n.label.isNotEmpty ? n.label : n.id).join(', ');
+          final nodeName = node.label.isNotEmpty ? node.label : node.id;
+          errors.add('Safety Conflict: Step "$nodeName" starts multiple simultaneous driving movements ($names). Robot can only drive in one direction at a time.');
+        }
+      }
+    }
+
     return errors;
   }
 
@@ -437,6 +455,11 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       case 'loop_counter':
         defaultLabel = 'Repeat Steps';
         defaultParams = {'count': 3, 'variable_name': 'loop_index', 'max_iterations': 50};
+        break;
+      case 'parallel':
+      case 'parallel_fork':
+        defaultLabel = 'Run in Parallel';
+        defaultParams = {'branch_count': 2};
         break;
       case 'battery_guard':
         defaultLabel = 'Check Battery Level';
@@ -1061,6 +1084,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         _PaletteItem('start', 'Start Mission', 'Where the mission begins', Icons.play_circle_outline, Color(0xFF16A34A)),
         _PaletteItem('end', 'Finish Mission', 'Complete mission and stop safely', Icons.stop_circle_outlined, Color(0xFFDC2626)),
         _PaletteItem('loop', 'Repeat Steps', 'Repeat connected steps multiple times', Icons.loop_rounded, Color(0xFF7C3AED)),
+        _PaletteItem('parallel', 'Run in Parallel', 'Execute multiple steps simultaneously', Icons.call_split_rounded, Color(0xFF00ACC1)),
         _PaletteItem('condition', 'Check / If-Else', 'Branch path based on condition', Icons.alt_route, Color(0xFFEA580C)),
         _PaletteItem('wait', 'Pause & Wait', 'Wait a few seconds before next step', Icons.timer_outlined, Color(0xFFD97706)),
         _PaletteItem('battery_guard', 'Check Battery Level', 'Recharge if battery drops too low', Icons.battery_saver, Color(0xFF059669)),

@@ -395,6 +395,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       case 'loop':
       case 'loop_counter':
         return 'Repeat Steps';
+      case 'parallel':
+      case 'parallel_fork':
+        return 'Run in Parallel';
       case 'condition':
         return 'Check / If-Else';
       case 'wait':
@@ -459,6 +462,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       case 'loop':
       case 'loop_counter':
         return 'Repeats the connected steps multiple times (e.g. patrol a loop 3 times) before finishing.';
+      case 'parallel':
+      case 'parallel_fork':
+        return 'Splits the workflow into concurrent branches that execute simultaneously (e.g. speak speech while presenting screen form).';
       case 'condition':
         return 'Makes a decision. If your rule is met, take the Yes path; otherwise take the No path.';
       case 'wait':
@@ -588,6 +594,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           _buildEndMissionInspector()
         else if (node.type == 'loop' || node.type == 'loop_counter')
           _buildLoopInspector()
+        else if (node.type == 'parallel' || node.type == 'parallel_fork')
+          _buildParallelInspector()
         else if (node.type == 'battery_guard')
           _buildBatteryGuardInspector()
         else if (node.type == 'patrol_loop')
@@ -2063,6 +2071,82 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.node.params['condition'] = v.trim();
             widget.onChanged();
           },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildParallelInspector() {
+    final node = widget.node;
+    final count = (node.params['branch_count'] as num?)?.toInt() ?? 2;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF00ACC1).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.3)),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.call_split_rounded, size: 20, color: Color(0xFF00ACC1)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Executes all connected branch paths at the same time. For example, the robot can speak aloud while displaying an interactive form on screen.',
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 12, height: 1.35),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Number of Concurrent Branches',
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            for (int i = 2; i <= 5; i++) ...[
+              Expanded(
+                child: InkWell(
+                  onTap: widget.readOnly
+                      ? null
+                      : () {
+                          setState(() {
+                            node.params['branch_count'] = i;
+                          });
+                          widget.onChanged();
+                        },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: count == i ? const Color(0xFF00ACC1) : AppColors.surfaceSunken,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: count == i ? const Color(0xFF00ACC1) : AppColors.border,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '$i Branches',
+                      style: TextStyle(
+                        color: count == i ? Colors.white : AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (i < 5) const SizedBox(width: 8),
+            ],
+          ],
         ),
       ],
     );

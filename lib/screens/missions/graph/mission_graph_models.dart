@@ -150,6 +150,18 @@ class GraphNode {
           NodePort(id: 'true', label: 'If Yes (True)', isInput: false, color: Color(0xFF4CAF50)),
           NodePort(id: 'false', label: 'If No (False)', isInput: false, color: Color(0xFFF44336)),
         ];
+      case 'parallel':
+      case 'parallel_fork':
+        final branchCount = (params['branch_count'] as num?)?.toInt() ?? 2;
+        return [
+          for (int i = 1; i <= branchCount; i++)
+            NodePort(
+              id: 'branch_$i',
+              label: 'Branch $i',
+              isInput: false,
+              color: const Color(0xFF00ACC1),
+            ),
+        ];
       case 'call_api':
       case 'call_service':
       case 'relocalize':
