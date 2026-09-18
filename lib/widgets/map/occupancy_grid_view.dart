@@ -1268,7 +1268,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       // regardless of zoom, the same reasoning as the painter's own
       // markerScale keeps drawn marker sizes constant.
       final draft = effectiveDraftPixel;
-      const handleScreenDistance = 44.0;
+      const handleScreenDistance = 28.0;
       final handleContentPos = draft == null
           ? null
           : draft +
@@ -1334,31 +1334,31 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
                   behavior: HitTestBehavior.opaque,
                   onPanStart: (d) => _updateDraftYaw(d.globalPosition),
                   onPanUpdate: (d) => _updateDraftYaw(d.globalPosition),
-                  // A generous 48px hit area for touch/mouse accuracy, with
-                  // an intuitive rotation grab ring.
+                  // A generous 36px hit area for touch/mouse accuracy, with
+                  // a compact, sleek rotation grab ring.
                   child: Container(
-                    width: 48,
-                    height: 48,
+                    width: 36,
+                    height: 36,
                     color: Colors.transparent,
                     alignment: Alignment.center,
                     child: Container(
-                      width: 22,
-                      height: 22,
+                      width: 15,
+                      height: 15,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: AppColors.accent,
-                        border: Border.all(color: Colors.white, width: 2.5),
+                        border: Border.all(color: Colors.white, width: 1.8),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.35),
-                            blurRadius: 4,
-                            spreadRadius: 1,
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 3,
+                            spreadRadius: 0.5,
                           ),
                         ],
                       ),
                       child: const Center(
                         child: Icon(Icons.sync_rounded,
-                            size: 13, color: Colors.white),
+                            size: 9, color: Colors.white),
                       ),
                     ),
                   ),
@@ -2003,7 +2003,7 @@ class _OccupancyGridPainter extends CustomPainter {
   }) {
     final r = 12.0 * sizeScale;
     final strokeW = 2.0 * sizeScale;
-    final anchorDist = 44.0 * sizeScale;
+    final anchorDist = 28.0 * sizeScale;
     final anchorPoint =
         center + Offset(anchorDist * cos(yaw), -anchorDist * sin(yaw));
 
@@ -2012,34 +2012,26 @@ class _OccupancyGridPainter extends CustomPainter {
       center,
       anchorPoint,
       Paint()
-        ..color = Colors.black.withValues(alpha: 0.35)
-        ..strokeWidth = 3.5 * sizeScale
-        ..style = PaintingStyle.stroke,
-    );
-    canvas.drawLine(
-      center,
-      anchorPoint,
-      Paint()
-        ..color = color
-        ..strokeWidth = 2.0 * sizeScale
+        ..color = color.withValues(alpha: 0.75)
+        ..strokeWidth = 1.6 * sizeScale
         ..style = PaintingStyle.stroke,
     );
 
     // Anchor node base ring tied at the tip
     canvas.drawCircle(
       anchorPoint,
-      7.0 * sizeScale,
+      3.5 * sizeScale,
       Paint()
         ..color = color.withValues(alpha: 0.25)
         ..style = PaintingStyle.fill,
     );
     canvas.drawCircle(
       anchorPoint,
-      4.5 * sizeScale,
+      2.2 * sizeScale,
       Paint()
         ..color = color
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5 * sizeScale,
+        ..strokeWidth = 1.0 * sizeScale,
     );
 
     // 2. Robot-style Chassis Body Marker
