@@ -499,6 +499,18 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           ],
         };
         break;
+      case 'ui_notification':
+        defaultLabel = 'Show Notification';
+        defaultParams = {
+          'target': 'robot_screen',
+          'subtype': 'notification',
+          'title': 'Notice',
+          'message': 'Robot arrived at destination. Please confirm to proceed.',
+          'button_text': 'OK',
+          'timeout_sec': 30.0,
+          'sound_alert': true,
+        };
+        break;
       case 'ui_choice':
         defaultLabel = 'Ask Choice (Buttons)';
         defaultParams = {
@@ -1059,6 +1071,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     {
       'title': 'Screen, Voice & Signals',
       'items': [
+        _PaletteItem('ui_notification', 'Show Notification', 'Show notice banner with OK button', Icons.notification_important_outlined, Color(0xFF0284C7)),
         _PaletteItem('ui_interaction', 'Ask for Information', 'Show form on screen to fill out', Icons.touch_app_outlined, AppColors.primary),
         _PaletteItem('ui_choice', 'Ask Choice (Buttons)', 'Show tap buttons on robot screen', Icons.ads_click, AppColors.primary),
         _PaletteItem('ui_media', 'Show Picture or Video', 'Display image/video on robot screen', Icons.perm_media_outlined, Color(0xFF0284C7)),

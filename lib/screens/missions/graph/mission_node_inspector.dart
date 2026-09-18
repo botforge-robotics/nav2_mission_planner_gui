@@ -405,6 +405,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         return 'Remember a Value';
       case 'ui_interaction':
         return 'Ask for Information';
+      case 'ui_notification':
+        return 'Show Notification';
       case 'ui_choice':
         return 'Ask Choice (Buttons)';
       case 'ui_media':
@@ -465,6 +467,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         return 'Checks if the battery has enough charge. If it is low, you can route the robot to recharge.';
       case 'set_variable':
         return 'Saves a piece of information, number, or counter to use in later steps.';
+      case 'ui_notification':
+        return 'Displays a notification card with Title, Description, and an OK button on the robot screen.';
       case 'ui_interaction':
         return 'Displays a friendly form or checklist on the robot screen for a person to fill out.';
       case 'ui_choice':
@@ -572,6 +576,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           _buildCallApiInspector()
         else if (node.type == 'ui_interaction')
           _buildUiInteractionInspector()
+        else if (node.type == 'ui_notification')
+          _buildUiNotificationInspector()
         else if (node.type == 'ui_choice')
           _buildUiChoiceInspector()
         else if (node.type == 'set_variable')
@@ -974,6 +980,166 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         if (subtype == 'dynamic_form') _buildDynamicFormFieldsEditor(),
         if (subtype == 'choice') _buildChoiceOptionsEditor(),
         if (subtype == 'media_display') _buildMediaUrlEditor(),
+      ],
+    );
+  }
+
+  Widget _buildUiNotificationInspector() {
+    final title = widget.node.params['title'] as String? ?? 'Notice';
+    final message = widget.node.params['message'] as String? ?? '';
+    final buttonText = widget.node.params['button_text'] as String? ?? 'OK';
+    final timeout = (widget.node.params['timeout_sec'] as num?)?.toDouble() ?? 30.0;
+    final soundAlert = widget.node.params['sound_alert'] != false;
+    final speechText = widget.node.params['speech_text'] as String? ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          key: ValueKey('${widget.node.id}_target_${widget.node.params['target']}'),
+          isExpanded: true,
+          initialValue: ['robot_screen', 'operator_app', 'both'].contains(widget.node.params['target'])
+              ? widget.node.params['target']
+              : 'robot_screen',
+          dropdownColor: AppColors.surface,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Where should notification appear?',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          items: const [
+            DropdownMenuItem(value: 'robot_screen', child: Text('Robot Screen (Touchscreen)')),
+            DropdownMenuItem(value: 'operator_app', child: Text('Operator App (This screen)')),
+            DropdownMenuItem(value: 'both', child: Text('Both Robot and App')),
+          ],
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  setState(() => widget.node.params['target'] = val);
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: title,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Notification Title',
+            hintText: 'e.g. Delivery Arrived',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  widget.node.params['title'] = val;
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: message,
+          maxLines: 3,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Description / Message',
+            hintText: 'e.g. The robot has arrived. Tap OK to acknowledge.',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  widget.node.params['message'] = val;
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: buttonText,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Confirmation Button Label',
+            hintText: 'e.g. OK or Got It',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  widget.node.params['button_text'] = val.trim().isNotEmpty ? val.trim() : 'OK';
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: timeout.toString(),
+          keyboardType: TextInputType.number,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Auto-Dismiss Timeout (Seconds)',
+            hintText: '30 (0 for indefinite until tapped)',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  widget.node.params['timeout_sec'] = double.tryParse(val) ?? 30.0;
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: speechText,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            labelText: 'Spoken Voice Announcement (Optional TTS)',
+            hintText: 'e.g. Robot has arrived. Please tap OK.',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  widget.node.params['speech_text'] = val;
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          title: const Text('Play Alert Chime', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          subtitle: const Text('Sound chime tone when notification appears', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          value: soundAlert,
+          activeThumbColor: AppColors.primary,
+          activeTrackColor: AppColors.primary.withValues(alpha: 0.4),
+          contentPadding: EdgeInsets.zero,
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  setState(() => widget.node.params['sound_alert'] = val);
+                  widget.onChanged();
+                },
+        ),
       ],
     );
   }

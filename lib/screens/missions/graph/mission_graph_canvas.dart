@@ -718,6 +718,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
         icon = Icons.touch_app;
         iconColor = AppColors.primary;
         break;
+      case 'ui_notification':
+        icon = Icons.notification_important_outlined;
+        iconColor = const Color(0xFF0284C7);
+        break;
       case 'ui_choice':
         icon = Icons.ads_click;
         iconColor = AppColors.primary;
@@ -918,6 +922,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
       case 'ui_interaction':
         final title = node.params['title'] ?? 'Form';
         summary = 'Show form on screen: $title';
+        break;
+      case 'ui_notification':
+        final title = node.params['title'] ?? 'Notice';
+        summary = 'Show notice: $title';
         break;
       case 'ui_choice':
         final title = node.params['title'] ?? 'Question';
@@ -1302,7 +1310,7 @@ class _EdgesPainter extends CustomPainter {
         edgeColor = AppColors.primary;
       }
 
-      _drawCubicBezier(canvas, p1, p2, edgeColor, isSelected ? 3.0 : (isActive ? 2.8 : 2.0));
+      _drawOrthogonalEdge(canvas, p1, p2, edgeColor, isSelected ? 3.0 : (isActive ? 2.8 : 2.0));
     }
 
     // 2. Draw live wire in progress
@@ -1324,9 +1332,9 @@ class _EdgesPainter extends CustomPainter {
       }
 
       if (isDashed) {
-        _drawDashedCubicBezier(canvas, p1, p2, wireColor, wireWidth);
+        _drawDashedOrthogonalEdge(canvas, p1, p2, wireColor, wireWidth);
       } else {
-        _drawCubicBezier(canvas, p1, p2, wireColor, wireWidth);
+        _drawOrthogonalEdge(canvas, p1, p2, wireColor, wireWidth);
       }
     }
   }
@@ -1348,44 +1356,108 @@ class _EdgesPainter extends CustomPainter {
     }
   }
 
-  void _drawCubicBezier(Canvas canvas, Offset p1, Offset p2, Color color, double width) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = width
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final dx = (p2.dx - p1.dx).abs() * 0.5;
-    final cp1 = Offset(p1.dx + math.max(dx, 40), p1.dy);
-    final cp2 = Offset(p2.dx - math.max(dx, 40), p2.dy);
-
-    final path = Path()
-      ..moveTo(p1.dx, p1.dy)
-      ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
-
-    canvas.drawPath(path, paint);
-
-    // Draw small directional circle at center
-    final midX = 0.5 * (p1.dx + p2.dx);
-    final midY = 0.5 * (p1.dy + p2.dy);
-    final arrowPaint = Paint()..color = color..style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(midX, midY), width + 1.5, arrowPaint);
+  Path _buildOrthogonalPath(Offset p1, Offset p2) {
+    List<Offset> points;
+    if (p2.dx >= p1.dx + 48.0) {
+      final midX = (p1.dx + p2.dx) / 2.0;
+      points = [
+        p1,
+        Offset(midX, p1.dy),
+        Offset(midX, p2.dy),
+        p2,
+      ];
+    } else {
+      final exitX = p1.dx + 28.0;
+      final enterX = p2.dx - 28.0;
+      final double midY;
+      if ((p2.dy - p1.dy).abs() > 30.0) {
+        midY = (p1.dy + p2.dy) / 2.0;
+      } else {
+        midY = p1.dy + 80.0;
+      }
+      points = [
+        p1,
+        Offset(exitX, p1.dy),
+        Offset(exitX, midY),
+        Offset(enterX, midY),
+        Offset(enterX, p2.dy),
+        p2,
+      ];
+    }
+    return _buildSmoothPath(points, 14.0);
   }
 
-  void _drawDashedCubicBezier(Canvas canvas, Offset p1, Offset p2, Color color, double width) {
+  Path _buildSmoothPath(List<Offset> points, double radius) {
+    final path = Path();
+    if (points.isEmpty) return path;
+    path.moveTo(points.first.dx, points.first.dy);
+    if (points.length <= 2) {
+      if (points.length == 2) path.lineTo(points[1].dx, points[1].dy);
+      return path;
+    }
+
+    for (int i = 1; i < points.length - 1; i++) {
+      final pPrev = points[i - 1];
+      final pCurr = points[i];
+      final pNext = points[i + 1];
+
+      final v1 = pCurr - pPrev;
+      final v2 = pNext - pCurr;
+      final len1 = v1.distance;
+      final len2 = v2.distance;
+
+      if (len1 < 0.001 || len2 < 0.001) {
+        path.lineTo(pCurr.dx, pCurr.dy);
+        continue;
+      }
+
+      final r = math.min(radius, math.min(len1 / 2.0, len2 / 2.0));
+      final u1 = v1 / len1;
+      final u2 = v2 / len2;
+
+      final startCurve = pCurr - (u1 * r);
+      final endCurve = pCurr + (u2 * r);
+
+      path.lineTo(startCurve.dx, startCurve.dy);
+      path.quadraticBezierTo(pCurr.dx, pCurr.dy, endCurve.dx, endCurve.dy);
+    }
+
+    path.lineTo(points.last.dx, points.last.dy);
+    return path;
+  }
+
+  void _drawOrthogonalEdge(Canvas canvas, Offset p1, Offset p2, Color color, double width) {
     final paint = Paint()
       ..color = color
       ..strokeWidth = width
       ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
 
-    final dx = (p2.dx - p1.dx).abs() * 0.5;
-    final cp1 = Offset(p1.dx + math.max(dx, 40), p1.dy);
-    final cp2 = Offset(p2.dx - math.max(dx, 40), p2.dy);
+    final path = _buildOrthogonalPath(p1, p2);
+    canvas.drawPath(path, paint);
 
-    final path = Path()
-      ..moveTo(p1.dx, p1.dy)
-      ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
+    // Draw directional indicator circle at exact center along path
+    final metrics = path.computeMetrics().toList();
+    if (metrics.isNotEmpty) {
+      final metric = metrics.first;
+      final midTangent = metric.getTangentForOffset(metric.length * 0.5);
+      if (midTangent != null) {
+        final arrowPaint = Paint()..color = color..style = PaintingStyle.fill;
+        canvas.drawCircle(midTangent.position, width + 1.2, arrowPaint);
+      }
+    }
+  }
+
+  void _drawDashedOrthogonalEdge(Canvas canvas, Offset p1, Offset p2, Color color, double width) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = width
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = _buildOrthogonalPath(p1, p2);
 
     for (final metric in path.computeMetrics()) {
       double distance = 0.0;

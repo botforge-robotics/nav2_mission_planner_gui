@@ -172,6 +172,11 @@ class GraphNode {
         return const [
           NodePort(id: 'done', label: 'When Done Speaking', isInput: false, color: Color(0xFF4CAF50)),
         ];
+      case 'ui_notification':
+        return const [
+          NodePort(id: 'confirmed', label: 'When OK Tapped', isInput: false, color: Color(0xFF4CAF50)),
+          NodePort(id: 'timeout', label: 'If Timed Out', isInput: false, color: Color(0xFFFF9800)),
+        ];
       case 'ui_choice':
         final opts = (params['options'] as List? ?? ['Yes', 'No']).map((e) => e.toString()).toList();
         return [
