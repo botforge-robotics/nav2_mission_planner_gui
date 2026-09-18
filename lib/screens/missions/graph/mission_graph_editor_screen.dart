@@ -31,6 +31,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   bool _isEditingName = false;
 
   GraphNode? _selectedNode;
+  GraphEdge? _selectedEdge;
   String? _activeNodeId;
   String? _missionState; // idle, running, waiting_for_user, paused, completed, failed
   String? _currentMap;
@@ -713,10 +714,19 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             child: Focus(
               autofocus: true,
               onKeyEvent: (node, event) {
-                if (event is KeyDownEvent && _selectedNode != null && _selectedNode!.type != 'start') {
+                if (event is KeyDownEvent) {
                   if (event.logicalKey == LogicalKeyboardKey.delete || event.logicalKey == LogicalKeyboardKey.backspace) {
-                    _deleteNode(_selectedNode!);
-                    return KeyEventResult.handled;
+                    if (_selectedEdge != null && !_running) {
+                      setState(() {
+                        _graph.edges.remove(_selectedEdge);
+                        _selectedEdge = null;
+                      });
+                      return KeyEventResult.handled;
+                    }
+                    if (_selectedNode != null && _selectedNode!.type != 'start' && !_running) {
+                      _deleteNode(_selectedNode!);
+                      return KeyEventResult.handled;
+                    }
                   }
                 }
                 return KeyEventResult.ignored;
@@ -729,10 +739,24 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     child: MissionGraphCanvas(
                       graph: _graph,
                       selectedNode: _selectedNode,
+                      selectedEdge: _selectedEdge,
                       activeNodeId: _activeNodeId,
                       isRunning: _running,
-                      onSelectNode: (node) => setState(() => _selectedNode = node),
-                      onGraphChanged: () => setState(() {}),
+                      onSelectNode: (node) => setState(() {
+                        _selectedNode = node;
+                        if (node != null) _selectedEdge = null;
+                      }),
+                      onSelectEdge: (edge) => setState(() {
+                        _selectedEdge = edge;
+                        if (edge != null) _selectedNode = null;
+                      }),
+                      onDeleteEdge: (edge) => setState(() {
+                        _graph.edges.remove(edge);
+                        _selectedEdge = null;
+                      }),
+                      onGraphChanged: () {
+                        setState(() {});
+                      },
                     ),
                   ),
                 ],
@@ -2241,7 +2265,114 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 ),
               ],
             )
-          : _buildGraphOverview(),
+          : (_selectedEdge != null ? _buildEdgeInspector(_selectedEdge!) : _buildGraphOverview()),
+    );
+  }
+
+  Widget _buildEdgeInspector(GraphEdge edge) {
+    final fromNode = _graph.nodes.firstWhere(
+      (n) => n.id == edge.fromNode,
+      orElse: () => GraphNode(id: edge.fromNode, type: 'unknown', position: Offset.zero),
+    );
+    final toNode = _graph.nodes.firstWhere(
+      (n) => n.id == edge.toNode,
+      orElse: () => GraphNode(id: edge.toNode, type: 'unknown', position: Offset.zero),
+    );
+    final fromName = fromNode.label.isNotEmpty ? fromNode.label : fromNode.id;
+    final toName = toNode.label.isNotEmpty ? toNode.label : toNode.id;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.alt_route, size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
+              const Text(
+                'Connection Line',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18, color: AppColors.textSecondary),
+                tooltip: 'Deselect line',
+                onPressed: () => setState(() => _selectedEdge = null),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceSunken,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'SOURCE STEP (OUT)',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  fromName,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  'Port: ${edge.fromPort}',
+                  style: const TextStyle(color: AppColors.primary, fontSize: 11),
+                ),
+                const SizedBox(height: 12),
+                const Center(
+                  child: Icon(Icons.south, size: 18, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'TARGET STEP (IN)',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  toName,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  'Port: ${edge.toPort}',
+                  style: const TextStyle(color: AppColors.success, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (!_running)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
+                ),
+                icon: const Icon(Icons.delete_forever, size: 18),
+                label: const Text('Delete Connection Line'),
+                onPressed: () {
+                  setState(() {
+                    _graph.edges.remove(edge);
+                    _selectedEdge = null;
+                  });
+                },
+              ),
+            ),
+        ],
+      ),
     );
   }
 

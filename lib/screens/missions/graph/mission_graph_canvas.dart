@@ -26,6 +26,9 @@ class MissionGraphCanvas extends StatefulWidget {
     required this.selectedNode,
     required this.onSelectNode,
     required this.onGraphChanged,
+    this.selectedEdge,
+    this.onSelectEdge,
+    this.onDeleteEdge,
     this.activeNodeId,
     this.readOnly = false,
     this.isRunning = false,
@@ -33,7 +36,10 @@ class MissionGraphCanvas extends StatefulWidget {
 
   final MissionGraph graph;
   final GraphNode? selectedNode;
+  final GraphEdge? selectedEdge;
   final ValueChanged<GraphNode?> onSelectNode;
+  final ValueChanged<GraphEdge?>? onSelectEdge;
+  final ValueChanged<GraphEdge>? onDeleteEdge;
   final VoidCallback onGraphChanged;
   final String? activeNodeId;
   final bool readOnly;
@@ -54,7 +60,26 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
   Offset? _drawingCurrentPos;
 
   // Selected edge for deletion
-  GraphEdge? _selectedEdge;
+  GraphEdge? _internalSelectedEdge;
+  GraphEdge? get _selectedEdge => widget.selectedEdge ?? _internalSelectedEdge;
+
+  void _setSelectedEdge(GraphEdge? edge) {
+    setState(() {
+      _internalSelectedEdge = edge;
+    });
+    widget.onSelectEdge?.call(edge);
+  }
+
+  void _deleteEdge(GraphEdge edge) {
+    setState(() {
+      widget.graph.edges.remove(edge);
+      if (_internalSelectedEdge?.id == edge.id) {
+        _internalSelectedEdge = null;
+      }
+    });
+    widget.onDeleteEdge?.call(edge);
+    widget.onGraphChanged();
+  }
 
   // Port keys for exact layout measurement
   final Map<String, GlobalKey> _portKeys = {};
@@ -241,30 +266,129 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
     return ConnectionValidationResult.valid('Connect "$fromTitle" (${outPort.label}) → "$toTitle"');
   }
 
-  bool _isPointNearBezier(Offset pt, Offset p1, Offset p2, double threshold) {
-    final rect = Rect.fromPoints(p1, p2).inflate(threshold + 20);
-    if (!rect.contains(pt)) return false;
+  static List<Offset> _getOrthogonalPoints(Offset p1, Offset p2) {
+    if (p2.dx >= p1.dx + 48.0) {
+      final midX = (p1.dx + p2.dx) / 2.0;
+      return [
+        p1,
+        Offset(midX, p1.dy),
+        Offset(midX, p2.dy),
+        p2,
+      ];
+    } else {
+      final exitX = p1.dx + 28.0;
+      final enterX = p2.dx - 28.0;
+      final double midY;
+      if ((p2.dy - p1.dy).abs() > 30.0) {
+        midY = (p1.dy + p2.dy) / 2.0;
+      } else {
+        midY = p1.dy + 80.0;
+      }
+      return [
+        p1,
+        Offset(exitX, p1.dy),
+        Offset(exitX, midY),
+        Offset(enterX, midY),
+        Offset(enterX, p2.dy),
+        p2,
+      ];
+    }
+  }
 
-    final dx = (p2.dx - p1.dx).abs() * 0.5;
-    final cp1 = Offset(p1.dx + math.max(dx, 40), p1.dy);
-    final cp2 = Offset(p2.dx - math.max(dx, 40), p2.dy);
+  static double _distToSegment(Offset p, Offset a, Offset b) {
+    final l2 = (b - a).distanceSquared;
+    if (l2 == 0.0) return (p - a).distance;
+    final t = math.max(0.0, math.min(1.0, ((p.dx - a.dx) * (b.dx - a.dx) + (p.dy - a.dy) * (b.dy - a.dy)) / l2));
+    final projection = Offset(a.dx + t * (b.dx - a.dx), a.dy + t * (b.dy - a.dy));
+    return (p - projection).distance;
+  }
 
-    for (int i = 0; i <= 20; i++) {
-      final t = i / 20.0;
-      final u = 1.0 - t;
-      final x = u * u * u * p1.dx +
-          3 * u * u * t * cp1.dx +
-          3 * u * t * t * cp2.dx +
-          t * t * t * p2.dx;
-      final y = u * u * u * p1.dy +
-          3 * u * u * t * cp1.dy +
-          3 * u * t * t * cp2.dy +
-          t * t * t * p2.dy;
-      if ((Offset(x, y) - pt).distanceSquared <= threshold * threshold) {
+  static bool _isPointNearOrthogonal(Offset pt, Offset p1, Offset p2, double threshold) {
+    final points = _getOrthogonalPoints(p1, p2);
+    for (int i = 0; i < points.length - 1; i++) {
+      if (_distToSegment(pt, points[i], points[i + 1]) <= threshold) {
         return true;
       }
     }
     return false;
+  }
+
+  static Offset _getOrthogonalMidpoint(Offset p1, Offset p2) {
+    final points = _getOrthogonalPoints(p1, p2);
+    double totalLen = 0.0;
+    for (int i = 0; i < points.length - 1; i++) {
+      totalLen += (points[i + 1] - points[i]).distance;
+    }
+    if (totalLen == 0.0) return (p1 + p2) / 2.0;
+    final targetLen = totalLen / 2.0;
+    double accum = 0.0;
+    for (int i = 0; i < points.length - 1; i++) {
+      final segLen = (points[i + 1] - points[i]).distance;
+      if (accum + segLen >= targetLen) {
+        final fraction = segLen > 0 ? (targetLen - accum) / segLen : 0.0;
+        return Offset(
+          points[i].dx + fraction * (points[i + 1].dx - points[i].dx),
+          points[i].dy + fraction * (points[i + 1].dy - points[i].dy),
+        );
+      }
+      accum += segLen;
+    }
+    return (p1 + p2) / 2.0;
+  }
+
+  Widget _buildSelectedEdgeBadge(GraphEdge edge) {
+    final fromKey = '${edge.fromNode}_out_${edge.fromPort}';
+    final toKey = '${edge.toNode}_in_${edge.toPort}';
+    final fromNode = widget.graph.nodes.firstWhere(
+      (n) => n.id == edge.fromNode,
+      orElse: () => GraphNode(id: '', type: '', position: Offset.zero),
+    );
+    final toNode = widget.graph.nodes.firstWhere(
+      (n) => n.id == edge.toNode,
+      orElse: () => GraphNode(id: '', type: '', position: Offset.zero),
+    );
+    final p1 = _portOffsets[fromKey] ?? _estimatePortOffset(fromNode, edge.fromPort, false);
+    final p2 = _portOffsets[toKey] ?? _estimatePortOffset(toNode, edge.toPort, true);
+    final mid = _getOrthogonalMidpoint(p1, p2);
+
+    return Positioned(
+      left: mid.dx - 18,
+      top: mid.dy - 18,
+      child: Tooltip(
+        message: 'Delete Connection Line (Del / Backspace)',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _deleteEdge(edge),
+            borderRadius: BorderRadius.circular(18),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.danger,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.danger.withValues(alpha: 0.5),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildWireValidationBanner() {
@@ -345,31 +469,32 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
             minScale: 0.2,
             maxScale: 2.5,
             child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedEdge = null;
-                });
-                widget.onSelectNode(null);
-              },
               onTapUp: (details) {
                 final tapPos = details.localPosition;
                 GraphEdge? clickedEdge;
                 for (final edge in widget.graph.edges) {
                   final fromKey = '${edge.fromNode}_out_${edge.fromPort}';
                   final toKey = '${edge.toNode}_in_${edge.toPort}';
-                  final fromNode = widget.graph.nodes.firstWhere((n) => n.id == edge.fromNode, orElse: () => GraphNode(id: '', type: '', position: Offset.zero));
-                  final toNode = widget.graph.nodes.firstWhere((n) => n.id == edge.toNode, orElse: () => GraphNode(id: '', type: '', position: Offset.zero));
+                  final fromNode = widget.graph.nodes.firstWhere(
+                    (n) => n.id == edge.fromNode,
+                    orElse: () => GraphNode(id: '', type: '', position: Offset.zero),
+                  );
+                  final toNode = widget.graph.nodes.firstWhere(
+                    (n) => n.id == edge.toNode,
+                    orElse: () => GraphNode(id: '', type: '', position: Offset.zero),
+                  );
                   final p1 = _portOffsets[fromKey] ?? _estimatePortOffset(fromNode, edge.fromPort, false);
                   final p2 = _portOffsets[toKey] ?? _estimatePortOffset(toNode, edge.toPort, true);
-                  if (_isPointNearBezier(tapPos, p1, p2, 16.0)) {
+                  if (_isPointNearOrthogonal(tapPos, p1, p2, 22.0)) {
                     clickedEdge = edge;
                     break;
                   }
                 }
                 if (clickedEdge != null) {
-                  setState(() {
-                    _selectedEdge = clickedEdge;
-                  });
+                  _setSelectedEdge(clickedEdge);
+                  widget.onSelectNode(null);
+                } else {
+                  _setSelectedEdge(null);
                   widget.onSelectNode(null);
                 }
               },
@@ -410,6 +535,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                     // Node Widgets
                     for (final node in widget.graph.nodes)
                       _buildNodeWidget(node),
+
+                    // Floating Delete Badge on Selected Edge
+                    if (_selectedEdge != null && !widget.readOnly)
+                      _buildSelectedEdgeBadge(_selectedEdge!),
                   ],
                 ),
               ),
@@ -450,18 +579,16 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                           visualDensity: VisualDensity.compact,
                         ),
                         onPressed: () {
-                          setState(() {
-                            widget.graph.edges.remove(_selectedEdge);
-                            _selectedEdge = null;
-                          });
-                          widget.onGraphChanged();
+                          if (_selectedEdge != null) {
+                            _deleteEdge(_selectedEdge!);
+                          }
                         },
                         icon: const Icon(Icons.delete_outline, size: 14),
                         label: const Text('Delete Edge'),
                       ),
                       IconButton(
                         icon: const Icon(Icons.close, size: 16, color: AppColors.textSecondary),
-                        onPressed: () => setState(() => _selectedEdge = null),
+                        onPressed: () => _setSelectedEdge(null),
                       ),
                     ],
                   ),
@@ -551,9 +678,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
               },
         onTap: () {
           widget.onSelectNode(node);
-          setState(() {
-            _selectedEdge = null;
-          });
+          _setSelectedEdge(null);
         },
         child: Container(
           width: nodeWidth,
@@ -1316,12 +1441,11 @@ class _EdgesPainter extends CustomPainter {
       }
 
       if (isSelected) {
-        edgeColor = AppColors.danger;
-      } else if (isActive) {
-        edgeColor = AppColors.primary;
+        _drawOrthogonalEdge(canvas, p1, p2, AppColors.danger.withValues(alpha: 0.35), 8.0);
+        _drawOrthogonalEdge(canvas, p1, p2, AppColors.danger, 3.2);
+      } else {
+        _drawOrthogonalEdge(canvas, p1, p2, edgeColor, isActive ? 2.8 : 2.0);
       }
-
-      _drawOrthogonalEdge(canvas, p1, p2, edgeColor, isSelected ? 3.0 : (isActive ? 2.8 : 2.0));
     }
 
     // 2. Draw live wire in progress

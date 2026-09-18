@@ -641,7 +641,173 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               ],
             ),
           ),
+
+        // Connected Lines Section
+        _buildConnectedLinesSection(node),
       ],
+    );
+  }
+
+  Widget _buildConnectedLinesSection(GraphNode node) {
+    if (widget.graph == null) return const SizedBox.shrink();
+
+    final incoming = widget.graph!.edges.where((e) => e.toNode == node.id).toList();
+    final outgoing = widget.graph!.edges.where((e) => e.fromNode == node.id).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        const Divider(color: AppColors.border),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Icon(Icons.hub_outlined, size: 16, color: AppColors.primary),
+            const SizedBox(width: 8),
+            const Text(
+              'Connected Lines',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Text(
+                '${incoming.length + outgoing.length}',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (incoming.isEmpty && outgoing.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceSunken,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.link_off, size: 16, color: AppColors.textTertiary),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'No lines connected to this step. Drag from an output port or tap a line to connect.',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else ...[
+          if (incoming.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.only(top: 4, bottom: 6),
+              child: Text(
+                'INCOMING (Inputs)',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+              ),
+            ),
+            for (final edge in incoming)
+              _buildEdgeTile(edge, isIncoming: true),
+          ],
+          if (outgoing.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            const Padding(
+              padding: EdgeInsets.only(top: 4, bottom: 6),
+              child: Text(
+                'OUTGOING (Outputs)',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+              ),
+            ),
+            for (final edge in outgoing)
+              _buildEdgeTile(edge, isIncoming: false),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Widget _buildEdgeTile(GraphEdge edge, {required bool isIncoming}) {
+    final otherNodeId = isIncoming ? edge.fromNode : edge.toNode;
+    final otherNode = widget.graph?.nodes.firstWhere(
+      (n) => n.id == otherNodeId,
+      orElse: () => GraphNode(id: otherNodeId, type: 'unknown', position: Offset.zero),
+    );
+    final otherName = (otherNode != null && otherNode.label.isNotEmpty)
+        ? otherNode.label
+        : (otherNode != null ? _getNodeFriendlyTitle(otherNode) : otherNodeId);
+
+    final portName = isIncoming ? edge.toPort : edge.fromPort;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSunken,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isIncoming ? Icons.arrow_back_rounded : Icons.arrow_forward_rounded,
+            size: 15,
+            color: isIncoming ? AppColors.primary : AppColors.success,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isIncoming ? 'From "$otherName"' : 'To "$otherName"',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  isIncoming ? 'Port: $portName (In)' : 'Port: $portName (Out)',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 10.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!widget.readOnly)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.danger),
+              tooltip: 'Delete connection line',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              onPressed: () {
+                setState(() {
+                  widget.graph?.edges.remove(edge);
+                });
+                widget.onChanged();
+              },
+            ),
+        ],
+      ),
     );
   }
 
