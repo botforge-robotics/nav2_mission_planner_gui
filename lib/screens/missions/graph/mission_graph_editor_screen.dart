@@ -11,6 +11,21 @@ import 'mission_graph_models.dart';
 import 'mission_node_inspector.dart';
 import 'ui_interaction_dialog.dart';
 
+/// Validation outcome containing blocking errors and ignorable warnings.
+class GraphValidationOutcome {
+  const GraphValidationOutcome({
+    this.errors = const [],
+    this.warnings = const [],
+  });
+
+  final List<String> errors;
+  final List<String> warnings;
+
+  bool get hasErrors => errors.isNotEmpty;
+  bool get hasWarnings => warnings.isNotEmpty;
+  bool get isValid => !hasErrors && !hasWarnings;
+}
+
 /// Full-featured Visual Node-Based Mission Editor & Execution Shell.
 class MissionGraphEditorScreen extends StatefulWidget {
   const MissionGraphEditorScreen({
@@ -238,10 +253,23 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     if (api == null) return;
 
     // Validate graph first
-    final errors = _validateGraph();
-    if (errors.isNotEmpty) {
-      _showValidationDialog(errors);
+    final validation = _validateGraph();
+    if (validation.hasErrors) {
+      await _showValidationDialog(
+        errors: validation.errors,
+        warnings: validation.warnings,
+        canProceed: false,
+      );
       return;
+    }
+
+    if (validation.hasWarnings) {
+      final proceed = await _showValidationDialog(
+        errors: const [],
+        warnings: validation.warnings,
+        canProceed: true,
+      );
+      if (proceed != true) return;
     }
 
     // Save first then execute
@@ -345,11 +373,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     }
   }
 
-  List<String> _validateGraph() {
+  GraphValidationOutcome _validateGraph() {
     final errors = <String>[];
+    final warnings = <String>[];
+
     if (_graph.nodes.isEmpty) {
       errors.add('The graph contains no nodes.');
-      return errors;
+      return GraphValidationOutcome(errors: errors, warnings: warnings);
     }
 
     // Check entrypoint
@@ -376,55 +406,142 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       }
     }
 
-    // Safety validation: Prevent simultaneous conflicting drive/motion actions in parallel branches
+    // Safety validation: Prevent simultaneous conflicting drive/motion actions ONLY in parallel branches
     const motionTypes = {'navigate_waypoint', 'navigate_coordinates', 'patrol_loop', 'dock', 'undock', 'jog_motion'};
     for (final node in _graph.nodes) {
+      // NOTE: UI forms (ui_interaction), choices (ui_choice), conditions (condition), etc.
+      // execute mutually exclusive branches (user taps ONE button/choice).
+      // Motion conflict can ONLY occur if the step is an actual parallel fork!
+      final isParallelFork = node.type == 'parallel' || node.type == 'parallel_fork';
+      if (!isParallelFork) {
+        continue;
+      }
+
       final outgoing = _graph.edges.where((e) => e.fromNode == node.id).toList();
       if (outgoing.length > 1) {
-        final targetNodes = outgoing
-            .map((e) => _graph.nodes.firstWhere((n) => n.id == e.toNode, orElse: () => node))
+        // Deduplicate target node IDs (in case multiple edges point to the same destination)
+        final targetNodeIds = outgoing.map((e) => e.toNode).toSet();
+        final targetNodes = targetNodeIds
+            .map((id) => _graph.nodes.firstWhere((n) => n.id == id, orElse: () => node))
             .where((n) => n.id != node.id)
             .toList();
         final motionTargets = targetNodes.where((n) => motionTypes.contains(n.type)).toList();
         if (motionTargets.length > 1) {
           final names = motionTargets.map((n) => n.label.isNotEmpty ? n.label : n.id).join(', ');
           final nodeName = node.label.isNotEmpty ? node.label : node.id;
-          errors.add('Safety Conflict: Step "$nodeName" starts multiple simultaneous driving movements ($names). Robot can only drive in one direction at a time.');
+          warnings.add('Parallel Conflict Warning: Step "$nodeName" branches into multiple driving actions ($names) simultaneously. Robot can only drive in one direction at a time.');
         }
       }
     }
 
-    return errors;
+    return GraphValidationOutcome(errors: errors, warnings: warnings);
   }
 
-  void _showValidationDialog(List<String> errors) {
-    showDialog(
+  Future<bool?> _showValidationDialog({
+    required List<String> errors,
+    required List<String> warnings,
+    bool canProceed = false,
+  }) {
+    return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1B202C),
-        title: const Row(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: errors.isNotEmpty ? AppColors.danger : AppColors.warning,
+            width: 1.5,
+          ),
+        ),
+        title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent),
-            SizedBox(width: 8),
-            Text('Validation Warnings', style: TextStyle(color: Colors.white, fontSize: 16)),
+            Icon(
+              errors.isNotEmpty ? Icons.error_outline : Icons.warning_amber_rounded,
+              color: errors.isNotEmpty ? AppColors.danger : AppColors.warning,
+              size: 24,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              errors.isNotEmpty ? 'Validation Errors' : 'Validation Warnings',
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final err in errors)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text('• $err', style: const TextStyle(color: Color(0xFFCFD8DC), fontSize: 13)),
-              ),
-          ],
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (errors.isNotEmpty) ...[
+                const Text(
+                  'The following critical issues must be resolved before running:',
+                  style: TextStyle(color: AppColors.danger, fontSize: 12.5, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                for (final err in errors)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('• ', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
+                        Expanded(
+                          child: Text(err, style: const TextStyle(color: Color(0xFFCFD8DC), fontSize: 12.5)),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (warnings.isNotEmpty) const SizedBox(height: 12),
+              ],
+              if (warnings.isNotEmpty) ...[
+                Text(
+                  errors.isEmpty
+                      ? 'The mission planner detected potential warnings. You can safely ignore these warnings if this behavior is intentional (e.g. mutually exclusive buttons or choices):'
+                      : 'Additional warnings:',
+                  style: TextStyle(
+                    color: errors.isEmpty ? AppColors.warning : AppColors.textSecondary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                for (final warn in warnings)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('• ', style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold)),
+                        Expanded(
+                          child: Text(warn, style: const TextStyle(color: Color(0xFFCFD8DC), fontSize: 12.5)),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK', style: TextStyle(color: Color(0xFF00E5FF))),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              canProceed ? 'Cancel' : 'OK',
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
           ),
+          if (canProceed && errors.isEmpty)
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.warning,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              ),
+              icon: const Icon(Icons.play_arrow_rounded, size: 18),
+              label: const Text('Proceed Anyway / Ignore Warning', style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
         ],
       ),
     );
@@ -1024,13 +1141,17 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           icon: const Icon(Icons.verified_outlined, size: 18),
           label: const Text('Validate'),
           onPressed: () {
-            final errs = _validateGraph();
-            if (errs.isEmpty) {
+            final validation = _validateGraph();
+            if (validation.isValid) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Graph structure is valid!'), backgroundColor: AppColors.success),
               );
             } else {
-              _showValidationDialog(errs);
+              _showValidationDialog(
+                errors: validation.errors,
+                warnings: validation.warnings,
+                canProceed: !validation.hasErrors,
+              );
             }
           },
         ),
