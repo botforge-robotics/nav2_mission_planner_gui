@@ -2436,6 +2436,38 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           },
         ),
         const SizedBox(height: 12),
+        if (widget.api != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.volume_up_rounded, size: 16),
+              label: const Text('Test Voice on Robot Speaker', style: TextStyle(fontSize: 12)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF8B5CF6),
+                side: const BorderSide(color: Color(0xFF8B5CF6)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              onPressed: text.trim().isEmpty
+                  ? null
+                  : () async {
+                      try {
+                        await widget.api!.speak(text.trim());
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Speaking aloud via robot speaker...'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to play voice: $e')),
+                        );
+                      }
+                    },
+            ),
+          ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Wait Until Finished Speaking', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),

@@ -498,4 +498,15 @@ class SdkApiService {
 
   Future<Map<String, dynamic>> getRobotUpdateStatus() =>
       _send('GET', '/api/v1/system/updates/status');
+
+  // -- Audio & Speech (TTS) --------------------------------------------------
+
+  Future<void> speak(String text) =>
+      _send('POST', '/api/v1/system/speak', body: {'text': text});
+
+  Future<void> playSound(String sound, {String? speech}) =>
+      _send('POST', '/api/v1/system/play_sound', body: {
+        'sound': sound,
+        if (speech != null && speech.isNotEmpty) 'speech': speech,
+      });
 }
