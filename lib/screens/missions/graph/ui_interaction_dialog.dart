@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../services/locations_controller.dart';
 import '../../../services/sdk_api_service.dart';
 import '../../../theme/app_theme.dart';
 import 'mission_graph_models.dart';
@@ -375,42 +376,58 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                 },
                 onSaved: (v) => _formData[field.key] = v?.trim(),
               )
-            else if (field.type == 'select')
-              DropdownButtonFormField<String>(
-                key: ValueKey('field_${field.key}_${_formData[field.key]}'),
-                isExpanded: true,
-                initialValue: field.options.contains(_formData[field.key])
-                    ? _formData[field.key]
-                    : (field.options.isNotEmpty ? field.options.first : null),
-                dropdownColor: AppColors.surfaceElevated,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AppColors.surfaceSunken,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-                  ),
-                ),
-                items: [
-                  for (final opt in field.options)
-                    DropdownMenuItem(
-                      value: opt,
-                      child: Text(opt, overflow: TextOverflow.ellipsis),
+            else if (field.type == 'select' || field.type == 'location')
+              Builder(builder: (context) {
+                final locOptions = field.options.isNotEmpty
+                    ? field.options
+                    : (LocationsController.instance.value ?? const [])
+                        .map((l) => l['name']?.toString() ?? '')
+                        .where((s) => s.isNotEmpty)
+                        .toList();
+                return DropdownButtonFormField<String>(
+                  key: ValueKey('field_${field.key}_${_formData[field.key]}'),
+                  isExpanded: true,
+                  initialValue: locOptions.contains(_formData[field.key])
+                      ? _formData[field.key]
+                      : (locOptions.isNotEmpty ? locOptions.first : null),
+                  dropdownColor: AppColors.surfaceElevated,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: AppColors.surfaceSunken,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                      borderSide: const BorderSide(color: AppColors.border),
                     ),
-                ],
-                onChanged: (v) => _formData[field.key] = v,
-                onSaved: (v) => _formData[field.key] = v,
-              )
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    ),
+                  ),
+                  items: [
+                    for (final opt in locOptions)
+                      DropdownMenuItem(
+                        value: opt,
+                        child: Row(
+                          children: [
+                            if (field.type == 'location') ...[
+                              const Icon(Icons.place_rounded, size: 14, color: AppColors.primary),
+                              const SizedBox(width: 6),
+                            ],
+                            Expanded(child: Text(opt, overflow: TextOverflow.ellipsis)),
+                          ],
+                        ),
+                      ),
+                  ],
+                  onChanged: (v) => _formData[field.key] = v,
+                  onSaved: (v) => _formData[field.key] = v,
+                );
+              })
             else if (field.type == 'checkbox' || field.type == 'switch')
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,

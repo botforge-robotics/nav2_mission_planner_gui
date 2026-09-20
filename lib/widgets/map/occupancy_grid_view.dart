@@ -1581,37 +1581,54 @@ class _OccupancyGridPainter extends CustomPainter {
 
     final dock = dockPose;
     if (dock != null) {
-      if (standoffPose != null) {
-        final dockPt = (x: dock.pose.position.x, y: dock.pose.position.y);
-        final standoffPt = (x: standoffPose!.x, y: standoffPose!.y);
-        final dockPixel = _worldToPixel(grid, dockPt.x, dockPt.y);
-        final standoffPixel = _worldToPixel(grid, standoffPt.x, standoffPt.y);
-        final dx = standoffPt.x - dockPt.x;
-        final dy = standoffPt.y - dockPt.y;
-        final dockHeading = atan2(dy, dx);
-        final standoffHeading = atan2(-dy, -dx);
-
-        // Connecting guide line
-        final linePaint = Paint()
-          ..color = AppColors.stateDocking.withValues(alpha: 0.60)
-          ..strokeWidth = 1.5 * markerScale
-          ..style = PaintingStyle.stroke;
-        canvas.drawLine(dockPixel, standoffPixel, linePaint);
-
-        // Dock Marker (⚡) with orientation pointing towards standoff (icons only in mapping mode)
-        _drawDockStationMarker(canvas, dockPixel, dockHeading,
-            isSelected: false, sizeScale: markerScale, showLabel: false);
-
-        // Standoff Marker (🎯) with orientation pointing towards dock (icons only in mapping mode)
-        _drawStandoffPointMarker(canvas, standoffPixel, standoffHeading,
-            isSelected: false, sizeScale: markerScale, showLabel: false);
-      } else {
-        final center =
-            _worldToPixel(grid, dock.pose.position.x, dock.pose.position.y);
-        _drawPin(canvas, center, AppColors.stateDocking,
-            Icons.ev_station_rounded,
-            sizeScale: markerScale);
+      // Resolve standoff pose: either explicit override, or from "Dock Standoff" location, or 0.70m forward along dock heading
+      ({double x, double y, double theta})? effectiveStandoff = standoffPose;
+      if (effectiveStandoff == null) {
+        for (final loc in locations) {
+          final name = loc['name'] as String?;
+          if (name == 'Dock Standoff') {
+            final x = (loc['x'] as num?)?.toDouble();
+            final y = (loc['y'] as num?)?.toDouble();
+            final theta = (loc['theta'] as num?)?.toDouble() ?? 0.0;
+            if (x != null && y != null) {
+              effectiveStandoff = (x: x, y: y, theta: theta);
+              break;
+            }
+          }
+        }
       }
+      if (effectiveStandoff == null) {
+        final dockYaw = _yawOf(dock.pose.orientation);
+        effectiveStandoff = (
+          x: dock.pose.position.x + 0.70 * cos(dockYaw),
+          y: dock.pose.position.y + 0.70 * sin(dockYaw),
+          theta: dockYaw,
+        );
+      }
+
+      final dockPt = (x: dock.pose.position.x, y: dock.pose.position.y);
+      final standoffPt = (x: effectiveStandoff.x, y: effectiveStandoff.y);
+      final dockPixel = _worldToPixel(grid, dockPt.x, dockPt.y);
+      final standoffPixel = _worldToPixel(grid, standoffPt.x, standoffPt.y);
+      final dx = standoffPt.x - dockPt.x;
+      final dy = standoffPt.y - dockPt.y;
+      final dockHeading = atan2(dy, dx);
+      final standoffHeading = atan2(-dy, -dx);
+
+      // Connecting guide line
+      final linePaint = Paint()
+        ..color = AppColors.stateDocking.withValues(alpha: 0.70)
+        ..strokeWidth = 2.0 * markerScale
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(dockPixel, standoffPixel, linePaint);
+
+      // Dock Marker (⚡) with orientation pointing towards standoff
+      _drawDockStationMarker(canvas, dockPixel, dockHeading,
+          isSelected: false, sizeScale: markerScale, showLabel: false);
+
+      // Standoff Marker (🎯) with orientation pointing towards dock
+      _drawStandoffPointMarker(canvas, standoffPixel, standoffHeading,
+          isSelected: false, sizeScale: markerScale, showLabel: false);
     }
 
     final p = pose;

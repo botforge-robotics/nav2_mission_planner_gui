@@ -557,45 +557,85 @@ class _Body extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
-                      if (status != null) ...[
-                        Chip(
-                          avatar: status == 'running'
-                              ? StatusPulseDot(
+                      const SizedBox(width: AppSpacing.xs),
+                      if (status != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _statusColor(status).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (status == 'running')
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 4),
+                                  child: StatusPulseDot(
+                                    color: _statusColor(status),
+                                    live: true,
+                                    size: 6,
+                                  ),
+                                ),
+                              Text(
+                                isActive && isLowBatteryPaused
+                                    ? '⚡ CHARGING'
+                                    : status.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
                                   color: _statusColor(status),
-                                  live: true,
-                                  size: 6)
-                              : (isActive && isLowBatteryPaused
-                                  ? const Icon(Icons.bolt_rounded,
-                                      size: 12, color: AppColors.warning)
-                                  : null),
-                          label: Text(
-                              isActive && isLowBatteryPaused
-                                  ? 'CHARGING'
-                                  : status.toUpperCase(),
-                              style: const TextStyle(fontSize: 11)),
-                          backgroundColor:
-                              _statusColor(status).withValues(alpha: 0.12),
-                          labelStyle:
-                              TextStyle(color: _statusColor(status)),
-                          side: BorderSide.none,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(width: 4),
-                      ],
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined,
-                            size: 20, color: AppColors.primary),
-                        tooltip: 'Edit mission',
-                        onPressed: () => onEdit(mission),
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert_rounded,
+                            size: 20, color: AppColors.textSecondary),
+                        tooltip: 'Mission actions',
+                        onSelected: (action) {
+                          if (action == 'open') onOpen(mission);
+                          if (action == 'edit') onEdit(mission);
+                          if (action == 'delete') onDelete(mission);
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'open',
+                            child: Row(
+                              children: [
+                                Icon(Icons.play_arrow_rounded,
+                                    size: 18, color: AppColors.success),
+                                SizedBox(width: 8),
+                                Text('View / Run'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit_outlined,
+                                    size: 18, color: AppColors.primary),
+                                SizedBox(width: 8),
+                                Text('Edit Mission'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_outline_rounded,
+                                    size: 18, color: AppColors.danger),
+                                SizedBox(width: 8),
+                                Text('Delete Mission',
+                                    style: TextStyle(color: AppColors.danger)),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded,
-                            size: 20, color: AppColors.danger),
-                        tooltip: 'Delete mission',
-                        onPressed: () => onDelete(mission),
-                      ),
-                      const Icon(Icons.chevron_right_rounded,
-                          color: AppColors.textTertiary),
                     ],
                   ),
                 ),
@@ -982,23 +1022,27 @@ class _StepPreviewRow extends StatelessWidget {
 
   final List<Map<String, dynamic>> steps;
 
-  static const _maxShown = 8;
+  static const _maxShown = 6;
 
   @override
   Widget build(BuildContext context) {
     final shown = steps.take(_maxShown).toList();
     final overflow = steps.length - shown.length;
-    return Row(
-      children: [
-        for (final step in shown) ...[
-          Icon(missionStepIcon(step), size: 13, color: missionStepColor(step)),
-          const SizedBox(width: 4),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final step in shown) ...[
+            Icon(missionStepIcon(step), size: 13, color: missionStepColor(step)),
+            const SizedBox(width: 4),
+          ],
+          if (overflow > 0)
+            Text('+$overflow',
+                style:
+                    const TextStyle(color: AppColors.textTertiary, fontSize: 11)),
         ],
-        if (overflow > 0)
-          Text('+$overflow',
-              style:
-                  const TextStyle(color: AppColors.textTertiary, fontSize: 11)),
-      ],
+      ),
     );
   }
 }

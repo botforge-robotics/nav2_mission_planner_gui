@@ -1431,20 +1431,21 @@ class _EdgesPainter extends CustomPainter {
       final isSelected = selectedEdge?.id == edge.id;
       final isActive = activeNodeId == edge.fromNode;
 
-      Color edgeColor = const Color(0xFF94A3B8);
-      if (edge.fromPort == 'failed' || edge.fromPort == 'false') {
+      Color edgeColor = const Color(0xFF475569);
+      final pLow = edge.fromPort.toLowerCase();
+      if (pLow == 'failed' || pLow == 'false' || pLow == 'no') {
         edgeColor = AppColors.danger;
-      } else if (edge.fromPort == 'timeout') {
+      } else if (pLow == 'timeout' || pLow == 'interrupted') {
         edgeColor = AppColors.warning;
-      } else if (edge.fromPort == 'submitted' || edge.fromPort == 'true' || edge.fromPort == 'arrived') {
+      } else if (pLow == 'submitted' || pLow == 'true' || pLow == 'yes' || pLow == 'arrived' || pLow == 'completed' || pLow == 'docked' || pLow == 'undocked' || pLow == 'done' || pLow == 'confirmed' || pLow == 'next') {
         edgeColor = AppColors.success;
       }
 
       if (isSelected) {
         _drawOrthogonalEdge(canvas, p1, p2, AppColors.danger.withValues(alpha: 0.35), 8.0);
-        _drawOrthogonalEdge(canvas, p1, p2, AppColors.danger, 3.2);
+        _drawOrthogonalEdge(canvas, p1, p2, AppColors.danger, 4.0);
       } else {
-        _drawOrthogonalEdge(canvas, p1, p2, edgeColor, isActive ? 2.8 : 2.0);
+        _drawOrthogonalEdge(canvas, p1, p2, edgeColor, isActive ? 4.0 : 3.2);
       }
     }
 
@@ -1562,24 +1563,53 @@ class _EdgesPainter extends CustomPainter {
   }
 
   void _drawOrthogonalEdge(Canvas canvas, Offset p1, Offset p2, Color color, double width) {
+    final path = _buildOrthogonalPath(p1, p2);
+
+    // 1. Subtle outline / shadow for clear visibility against any canvas background
+    final shadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.12)
+      ..strokeWidth = width + 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(path, shadowPaint);
+
+    // 2. Main edge wire
     final paint = Paint()
       ..color = color
       ..strokeWidth = width
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-
-    final path = _buildOrthogonalPath(p1, p2);
     canvas.drawPath(path, paint);
 
-    // Draw directional indicator circle at exact center along path
+    // 3. Directional arrow pointing from fromNode to toNode along the path
     final metrics = path.computeMetrics().toList();
     if (metrics.isNotEmpty) {
       final metric = metrics.first;
-      final midTangent = metric.getTangentForOffset(metric.length * 0.5);
+      final midTangent = metric.getTangentForOffset(metric.length * 0.55);
       if (midTangent != null) {
-        final arrowPaint = Paint()..color = color..style = PaintingStyle.fill;
-        canvas.drawCircle(midTangent.position, width + 1.2, arrowPaint);
+        final angle = midTangent.angle;
+        final pos = midTangent.position;
+        final arrowSize = math.max(width * 2.8, 10.0);
+
+        final arrowPaint = Paint()
+          ..color = color
+          ..style = PaintingStyle.fill;
+
+        canvas.save();
+        canvas.translate(pos.dx, pos.dy);
+        canvas.rotate(angle);
+
+        final arrowPath = Path()
+          ..moveTo(arrowSize * 0.55, 0)
+          ..lineTo(-arrowSize * 0.45, -arrowSize * 0.4)
+          ..lineTo(-arrowSize * 0.2, 0)
+          ..lineTo(-arrowSize * 0.45, arrowSize * 0.4)
+          ..close();
+
+        canvas.drawPath(arrowPath, arrowPaint);
+        canvas.restore();
       }
     }
   }

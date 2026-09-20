@@ -815,6 +815,31 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     final waypoints = LocationsController.instance.value ?? const <Map<String, dynamic>>[];
     final currentWp = widget.node.params['waypoint'] as String?;
 
+    // Collect all dynamic variables from UI form nodes and variable nodes in this mission graph
+    final dynamicVariables = <String>{};
+    for (final n in widget.graph?.nodes ?? const <GraphNode>[]) {
+      if (n.type == 'ui_interaction') {
+        final fields = n.params['fields'] as List? ?? [];
+        for (final f in fields) {
+          if (f is Map && f['key'] != null && f['key'].toString().isNotEmpty) {
+            dynamicVariables.add('{${f['key']}}');
+          }
+        }
+      } else if (n.type == 'set_variable') {
+        final key = n.params['key'] ?? n.params['name'] ?? n.params['variable'];
+        if (key != null && key.toString().isNotEmpty) {
+          dynamicVariables.add('{$key}');
+        }
+      }
+    }
+
+    final isCustomVariable = currentWp != null && currentWp.startsWith('{') && currentWp.endsWith('}');
+    final allKnownValues = {
+      for (final wp in waypoints) wp['name']?.toString() ?? '',
+      ...dynamicVariables,
+      if (currentWp != null && currentWp.isNotEmpty) currentWp,
+    }..remove('');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -823,8 +848,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         DropdownButtonFormField<String>(
           key: ValueKey('${widget.node.id}_wp_$currentWp'),
           isExpanded: true,
-          initialValue: waypoints.any((w) => w['name'] == currentWp) ? currentWp : null,
-          dropdownColor: AppColors.surface,
+          initialValue: allKnownValues.contains(currentWp) ? currentWp : null,
+          dropdownColor: AppColors.surfaceElevated,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             filled: true,
@@ -834,14 +859,60 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
-          hint: const Text('Choose a saved place on the map', style: TextStyle(color: AppColors.textSecondary)),
+          hint: const Text('Choose a saved place or form variable', style: TextStyle(color: AppColors.textSecondary)),
           items: [
-            for (final wp in waypoints)
+            if (waypoints.isNotEmpty) ...[
+              for (final wp in waypoints)
+                DropdownMenuItem(
+                  value: wp['name']?.toString() ?? '',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.place_rounded, size: 14, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${wp['name']} (x: ${(wp['x'] as num?)?.toStringAsFixed(1) ?? '0.0'}, y: ${(wp['y'] as num?)?.toStringAsFixed(1) ?? '0.0'})',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+            if (dynamicVariables.isNotEmpty) ...[
+              for (final v in dynamicVariables)
+                DropdownMenuItem(
+                  value: v,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.input_rounded, size: 14, color: Color(0xFF8B5CF6)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'User Selected: $v (From Form)',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8B5CF6)),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+            if (isCustomVariable && !dynamicVariables.contains(currentWp))
               DropdownMenuItem(
-                value: wp['name']?.toString() ?? '',
-                child: Text(
-                  '${wp['name']} (x: ${(wp['x'] as num?)?.toStringAsFixed(1) ?? '0.0'}, y: ${(wp['y'] as num?)?.toStringAsFixed(1) ?? '0.0'})',
-                  overflow: TextOverflow.ellipsis,
+                value: currentWp,
+                child: Row(
+                  children: [
+                    const Icon(Icons.code_rounded, size: 14, color: Color(0xFF8B5CF6)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Variable: $currentWp',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8B5CF6)),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],
@@ -853,6 +924,35 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   });
                   widget.onChanged();
                 },
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          initialValue: currentWp ?? '',
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+          decoration: InputDecoration(
+            isDense: true,
+            labelText: 'Or type custom location / variable name',
+            hintText: 'e.g. Kitchen or {field_1}',
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+            prefixIcon: const Icon(Icons.edit_note_rounded, size: 16),
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+          ),
+          onChanged: widget.readOnly
+              ? null
+              : (v) {
+                  widget.node.params['waypoint'] = v.trim();
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          '💡 Tip: Type a variable like {field_1} to navigate to the location chosen by the user in an earlier form step.',
+          style: TextStyle(fontSize: 10, color: AppColors.textTertiary),
         ),
         const SizedBox(height: 16),
         _buildNumberSlider(
@@ -1612,7 +1712,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         child: DropdownButtonFormField<String>(
                           key: ValueKey('${widget.node.id}_field_${i}_${fields[i].type}'),
                           isExpanded: true,
-                          initialValue: ['text', 'number', 'select', 'checkbox', 'switch', 'signature'].contains(fields[i].type) ? fields[i].type : 'text',
+                          initialValue: ['text', 'number', 'select', 'location', 'checkbox', 'switch', 'signature'].contains(fields[i].type) ? fields[i].type : 'text',
                           dropdownColor: AppColors.surface,
                           style: const TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w500),
                           isDense: true,
@@ -1630,7 +1730,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           items: const [
                             DropdownMenuItem(value: 'text', child: Text('Short Text (Type an answer)', overflow: TextOverflow.ellipsis)),
                             DropdownMenuItem(value: 'number', child: Text('Number (Enter digits)', overflow: TextOverflow.ellipsis)),
-                            DropdownMenuItem(value: 'select', child: Text('Dropdown List (Choose one choice)', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'select', child: Text('Dropdown List (Choose custom choices)', overflow: TextOverflow.ellipsis)),
+                            DropdownMenuItem(value: 'location', child: Text('📍 Saved Locations (Pick place from map)', overflow: TextOverflow.ellipsis)),
                             DropdownMenuItem(value: 'checkbox', child: Text('Checkmark Box', overflow: TextOverflow.ellipsis)),
                             DropdownMenuItem(value: 'switch', child: Text('On / Off Toggle', overflow: TextOverflow.ellipsis)),
                             DropdownMenuItem(value: 'signature', child: Text('Sign on Screen', overflow: TextOverflow.ellipsis)),

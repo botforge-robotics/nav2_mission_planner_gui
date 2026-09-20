@@ -53,6 +53,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
   bool _savingLocation = false;
 
   ({double x, double y, double theta})? _dockPose;
+  ({double x, double y, double theta})? _standoffPose;
 
   SdkApiService? _api;
 
@@ -90,7 +91,31 @@ class _MapViewScreenState extends State<MapViewScreen> {
     if (api == null) return;
     final dock = await fetchDockPose(api);
     if (!mounted || dock == null) return;
-    setState(() => _dockPose = dock);
+
+    // Resolve standoff from locations if available, else 0.70m forward along dock
+    ({double x, double y, double theta})? standoff;
+    final locs = LocationsController.instance.value ?? [];
+    for (final loc in locs) {
+      if (loc['name'] == 'Dock Standoff') {
+        final x = (loc['x'] as num?)?.toDouble();
+        final y = (loc['y'] as num?)?.toDouble();
+        final theta = (loc['theta'] as num?)?.toDouble() ?? 0.0;
+        if (x != null && y != null) {
+          standoff = (x: x, y: y, theta: theta);
+          break;
+        }
+      }
+    }
+    standoff ??= (
+      x: dock.x + 0.70 * cos(dock.theta),
+      y: dock.y + 0.70 * sin(dock.theta),
+      theta: dock.theta,
+    );
+
+    setState(() {
+      _dockPose = dock;
+      _standoffPose = standoff;
+    });
   }
 
   @override
@@ -699,6 +724,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                           : null,
                                   showLocalizationBadge: false,
                                   dockPoseOverride: _dockPose,
+                                  standoffPoseOverride: _standoffPose,
                                 ),
                               );
                             },
@@ -815,6 +841,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                 : null,
                             showLocalizationBadge: false,
                             dockPoseOverride: _dockPose,
+                            standoffPoseOverride: _standoffPose,
                           ),
                         );
                       },
