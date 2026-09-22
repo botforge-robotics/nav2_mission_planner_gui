@@ -9,6 +9,7 @@ import 'package:sensor_msgs/msg.dart' as sensor_msgs;
 import 'package:std_msgs/msg.dart' as std_msgs;
 
 import 'package:tf2_msgs/msg.dart' as tf2_msgs;
+import '../widgets/map/not_localized_banner.dart';
 
 /// power_supply_status values, straight off the ROS2 sensor_msgs/BatteryState
 /// standard — same mapping navpromini_sdk's ros_bridge.py._CHARGE already
@@ -243,7 +244,19 @@ class RobotTelemetryProvider extends ChangeNotifier {
         // receives the latched pose until the robot physically moves.
         qos: const {'durability': 'transient_local'},
         callback: (msg) {
-          localized = true;
+          final cov = msg.pose.covariance;
+          final covX = (cov.isNotEmpty) ? cov[0] : 0.0;
+          final covY = (cov.length > 7) ? cov[7] : 0.0;
+          // When particle dispersion/drift happens, variance rises (> 0.35 m^2)
+          final isAccurate = (covX <= 0.35 && covY <= 0.35);
+
+          if (localized != isAccurate) {
+            localized = isAccurate;
+            if (!isAccurate) {
+              // Immediately reset dismissal so operator is alerted to relocalize
+              dockLocalizeDismissed.value = false;
+            }
+          }
           rawPose = msg;
           poseX = msg.pose.pose.position.x;
           poseY = msg.pose.pose.position.y;

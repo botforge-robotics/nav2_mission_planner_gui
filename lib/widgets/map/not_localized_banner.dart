@@ -56,6 +56,29 @@ class _NotLocalizedBannerState extends State<NotLocalizedBanner> {
     if (ok) dockLocalizeDismissed.value = true;
   }
 
+  Future<void> _globalRelocalize() async {
+    setState(() => _busy = true);
+    try {
+      await widget.api.reinitializeGlobalLocalization();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              '360° global relocalization initiated. Rotate or drive robot to let particles converge.'),
+          duration: Duration(seconds: 4),
+        ),
+      );
+      dockLocalizeDismissed.value = true;
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Global relocalization failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   void _decline() {
     dockLocalizeDismissed.value = true;
     widget.onDecline();
@@ -81,41 +104,68 @@ class _NotLocalizedBannerState extends State<NotLocalizedBanner> {
                   offset: const Offset(0, 2)),
             ],
           ),
-          child: Row(
-            children: [
-              const Icon(Icons.location_off_rounded,
-                  color: AppColors.warning, size: 16),
-              const SizedBox(width: AppSpacing.sm),
-              const Expanded(
-                child: Text('Not localized. Is the robot at its dock?',
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.location_off_rounded,
+                    color: AppColors.warning, size: 16),
+                const SizedBox(width: AppSpacing.sm),
+                const Text('Robot not localized:',
                     style:
                         TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-              ),
-              if (_busy)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                  child: SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2)),
-                )
-              else ...[
-                TextButton(
-                  style: TextButton.styleFrom(
-                      minimumSize: Size.zero,
-                      padding: const EdgeInsets.symmetric(horizontal: 10)),
-                  onPressed: _decline,
-                  child: const Text('No'),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                      minimumSize: Size.zero,
-                      padding: const EdgeInsets.symmetric(horizontal: 12)),
-                  onPressed: _confirmAtDock,
-                  child: const Text('Yes'),
-                ),
+                const SizedBox(width: AppSpacing.sm),
+                if (_busy)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                    child: SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  )
+                else ...[
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                        minimumSize: Size.zero,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6)),
+                    onPressed: _confirmAtDock,
+                    child: const Text('At Dock',
+                        style: TextStyle(fontSize: 11)),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                        minimumSize: Size.zero,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6)),
+                    onPressed: _decline,
+                    child: const Text('Select on Map',
+                        style: TextStyle(fontSize: 11)),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                        minimumSize: Size.zero,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6)),
+                    onPressed: _globalRelocalize,
+                    child: const Text('Global Relocalize',
+                        style: TextStyle(fontSize: 11)),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 14),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    splashRadius: 12,
+                    onPressed: () => dockLocalizeDismissed.value = true,
+                    tooltip: 'Dismiss for now',
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         );
       },
