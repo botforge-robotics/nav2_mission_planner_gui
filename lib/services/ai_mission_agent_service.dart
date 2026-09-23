@@ -515,7 +515,12 @@ Your task is to convert human natural language workflow instructions into a comp
    - NEVER start a destination feedback form before the robot arrives at that destination!
 5. User interactions: If asking questions or choices, handle the negative / cancelled / timeout branches gracefully (e.g. return to dock or end).
 6. All branches must terminate at an "end" node or "dock" node.
-7. Return ONLY valid JSON conforming to the output schema. No conversational filler, no markdown quotes outside the JSON block.
+7. ROUTE & DISPATCH OPTIMIZATION (BATCH PICKUPS & SEQUENTIAL DELIVERIES):
+   - When multiple deliveries require items from the same source (e.g. Store Room, Warehouse, Kitchen, Pharmacy):
+     The AMR MUST smartly optimize travel! Visit the source hub ONCE to batch and collect/load all items for the different destinations.
+   - Then navigate and deliver sequentially one stop after another (e.g. Source -> Stop A -> Stop B -> Dock).
+   - NEVER make the robot travel back and forth repeatedly to the source (e.g. do NOT do: Source -> Stop A -> Source -> Stop B) when items can be collected together in a single trip!
+8. Return ONLY valid JSON conforming to the output schema. No conversational filler, no markdown quotes outside the JSON block.
 
 ### JSON OUTPUT SCHEMA:
 {
