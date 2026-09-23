@@ -274,9 +274,14 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
     return ConnectionValidationResult.valid('Connect "$fromTitle" (${outPort.label}) → "$toTitle"');
   }
 
-  static List<Offset> _getOrthogonalPoints(Offset p1, Offset p2) {
+  static List<Offset> _getOrthogonalPoints(
+    Offset p1,
+    Offset p2, {
+    double corridorOffset = 0.0,
+    double loopLaneOffset = 0.0,
+  }) {
     if (p2.dx >= p1.dx + 48.0) {
-      final midX = (p1.dx + p2.dx) / 2.0;
+      final midX = ((p1.dx + p2.dx) / 2.0) + corridorOffset;
       return [
         p1,
         Offset(midX, p1.dy),
@@ -284,13 +289,13 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
         p2,
       ];
     } else {
-      final exitX = p1.dx + 28.0;
-      final enterX = p2.dx - 28.0;
+      final exitX = p1.dx + 30.0 + (loopLaneOffset > 0 ? loopLaneOffset : 0.0);
+      final enterX = p2.dx - 30.0 - (loopLaneOffset < 0 ? -loopLaneOffset : loopLaneOffset);
       final double midY;
       if ((p2.dy - p1.dy).abs() > 30.0) {
-        midY = (p1.dy + p2.dy) / 2.0;
+        midY = ((p1.dy + p2.dy) / 2.0) + loopLaneOffset;
       } else {
-        midY = p1.dy + 80.0;
+        midY = p1.dy + 80.0 + loopLaneOffset;
       }
       return [
         p1,
@@ -311,8 +316,20 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
     return (p - projection).distance;
   }
 
-  static bool _isPointNearOrthogonal(Offset pt, Offset p1, Offset p2, double threshold) {
-    final points = _getOrthogonalPoints(p1, p2);
+  static bool _isPointNearOrthogonal(
+    Offset pt,
+    Offset p1,
+    Offset p2,
+    double threshold, {
+    double corridorOffset = 0.0,
+    double loopLaneOffset = 0.0,
+  }) {
+    final points = _getOrthogonalPoints(
+      p1,
+      p2,
+      corridorOffset: corridorOffset,
+      loopLaneOffset: loopLaneOffset,
+    );
     for (int i = 0; i < points.length - 1; i++) {
       if (_distToSegment(pt, points[i], points[i + 1]) <= threshold) {
         return true;
@@ -321,8 +338,18 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
     return false;
   }
 
-  static Offset _getOrthogonalMidpoint(Offset p1, Offset p2) {
-    final points = _getOrthogonalPoints(p1, p2);
+  static Offset _getOrthogonalMidpoint(
+    Offset p1,
+    Offset p2, {
+    double corridorOffset = 0.0,
+    double loopLaneOffset = 0.0,
+  }) {
+    final points = _getOrthogonalPoints(
+      p1,
+      p2,
+      corridorOffset: corridorOffset,
+      loopLaneOffset: loopLaneOffset,
+    );
     double totalLen = 0.0;
     for (int i = 0; i < points.length - 1; i++) {
       totalLen += (points[i + 1] - points[i]).distance;
@@ -344,7 +371,147 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
     return (p1 + p2) / 2.0;
   }
 
+  static Path _buildSmoothPath(List<Offset> points, double radius) {
+    final path = Path();
+    if (points.isEmpty) return path;
+    path.moveTo(points.first.dx, points.first.dy);
+    if (points.length <= 2) {
+      if (points.length == 2) path.lineTo(points[1].dx, points[1].dy);
+      return path;
+    }
+
+    for (int i = 1; i < points.length - 1; i++) {
+      final pPrev = points[i - 1];
+      final pCurr = points[i];
+      final pNext = points[i + 1];
+
+      final v1 = pCurr - pPrev;
+      final v2 = pNext - pCurr;
+      final len1 = v1.distance;
+      final len2 = v2.distance;
+
+      if (len1 < 0.001 || len2 < 0.001) {
+        path.lineTo(pCurr.dx, pCurr.dy);
+        continue;
+      }
+
+      final r = math.min(radius, math.min(len1 / 2.0, len2 / 2.0));
+      final u1 = v1 / len1;
+      final u2 = v2 / len2;
+
+      final startCurve = pCurr - (u1 * r);
+      final endCurve = pCurr + (u2 * r);
+
+      path.lineTo(startCurve.dx, startCurve.dy);
+      path.quadraticBezierTo(pCurr.dx, pCurr.dy, endCurve.dx, endCurve.dy);
+    }
+
+    path.lineTo(points.last.dx, points.last.dy);
+    return path;
+  }
+
+  Map<String, _EdgeRouteLayout> _calculateEdgeLayouts() {
+    final sourceGroups = <String, List<GraphEdge>>{};
+    final targetGroups = <String, List<GraphEdge>>{};
+
+    for (final edge in widget.graph.edges) {
+      final fromKey = '${edge.fromNode}_out_${edge.fromPort}';
+      final toKey = '${edge.toNode}_in_${edge.toPort}';
+      sourceGroups.putIfAbsent(fromKey, () => []).add(edge);
+      targetGroups.putIfAbsent(toKey, () => []).add(edge);
+    }
+
+    final forwardCorridors = <String, List<GraphEdge>>{};
+    final loopbackEdges = <GraphEdge>[];
+    final nominalP1 = <String, Offset>{};
+    final nominalP2 = <String, Offset>{};
+
+    for (final edge in widget.graph.edges) {
+      final fromKey = '${edge.fromNode}_out_${edge.fromPort}';
+      final toKey = '${edge.toNode}_in_${edge.toPort}';
+
+      final fromNode = widget.graph.nodes.firstWhere(
+        (n) => n.id == edge.fromNode,
+        orElse: () => GraphNode(id: '', type: '', position: Offset.zero),
+      );
+      final toNode = widget.graph.nodes.firstWhere(
+        (n) => n.id == edge.toNode,
+        orElse: () => GraphNode(id: '', type: '', position: Offset.zero),
+      );
+
+      final baseP1 = _portOffsets[fromKey] ?? _estimatePortOffset(fromNode, edge.fromPort, false);
+      final baseP2 = _portOffsets[toKey] ?? _estimatePortOffset(toNode, edge.toPort, true);
+
+      final outList = sourceGroups[fromKey] ?? [edge];
+      final inList = targetGroups[toKey] ?? [edge];
+
+      final sourceSlotOffset = outList.length > 1
+          ? (outList.indexOf(edge) - (outList.length - 1) / 2.0) * 12.0
+          : 0.0;
+      final targetSlotOffset = inList.length > 1
+          ? (inList.indexOf(edge) - (inList.length - 1) / 2.0) * 14.0
+          : 0.0;
+
+      final p1 = Offset(baseP1.dx, baseP1.dy + sourceSlotOffset);
+      final p2 = Offset(baseP2.dx, baseP2.dy + targetSlotOffset);
+      nominalP1[edge.id] = p1;
+      nominalP2[edge.id] = p2;
+
+      if (p2.dx >= p1.dx + 48.0) {
+        final fromCol = (p1.dx / 200.0).round();
+        final toCol = (p2.dx / 200.0).round();
+        final corridorKey = '$fromCol->$toCol';
+        forwardCorridors.putIfAbsent(corridorKey, () => []).add(edge);
+      } else {
+        loopbackEdges.add(edge);
+      }
+    }
+
+    final layouts = <String, _EdgeRouteLayout>{};
+    for (final edge in widget.graph.edges) {
+      final p1 = nominalP1[edge.id] ?? Offset.zero;
+      final p2 = nominalP2[edge.id] ?? Offset.zero;
+      final fromKey = '${edge.fromNode}_out_${edge.fromPort}';
+      final toKey = '${edge.toNode}_in_${edge.toPort}';
+
+      final totalInSource = sourceGroups[fromKey]?.length ?? 1;
+      final totalInTarget = targetGroups[toKey]?.length ?? 1;
+
+      double corridorOffset = 0.0;
+      double loopLaneOffset = 0.0;
+
+      if (p2.dx >= p1.dx + 48.0) {
+        final fromCol = (p1.dx / 200.0).round();
+        final toCol = (p2.dx / 200.0).round();
+        final corridorKey = '$fromCol->$toCol';
+        final cList = forwardCorridors[corridorKey] ?? [edge];
+        if (cList.length > 1) {
+          final idx = cList.indexOf(edge);
+          corridorOffset = (idx - (cList.length - 1) / 2.0) * 16.0;
+        }
+      } else {
+        if (loopbackEdges.length > 1) {
+          final idx = loopbackEdges.indexOf(edge);
+          loopLaneOffset = (idx - (loopbackEdges.length - 1) / 2.0) * 18.0;
+        }
+      }
+
+      layouts[edge.id] = _EdgeRouteLayout(
+        p1: p1,
+        p2: p2,
+        corridorOffset: corridorOffset,
+        loopLaneOffset: loopLaneOffset,
+        totalInSource: totalInSource,
+        totalInTarget: totalInTarget,
+      );
+    }
+
+    return layouts;
+  }
+
   Widget _buildSelectedEdgeBadge(GraphEdge edge) {
+    final layouts = _calculateEdgeLayouts();
+    final layout = layouts[edge.id];
     final fromKey = '${edge.fromNode}_out_${edge.fromPort}';
     final toKey = '${edge.toNode}_in_${edge.toPort}';
     final fromNode = widget.graph.nodes.firstWhere(
@@ -355,9 +522,14 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
       (n) => n.id == edge.toNode,
       orElse: () => GraphNode(id: '', type: '', position: Offset.zero),
     );
-    final p1 = _portOffsets[fromKey] ?? _estimatePortOffset(fromNode, edge.fromPort, false);
-    final p2 = _portOffsets[toKey] ?? _estimatePortOffset(toNode, edge.toPort, true);
-    final mid = _getOrthogonalMidpoint(p1, p2);
+    final p1 = layout?.p1 ?? (_portOffsets[fromKey] ?? _estimatePortOffset(fromNode, edge.fromPort, false));
+    final p2 = layout?.p2 ?? (_portOffsets[toKey] ?? _estimatePortOffset(toNode, edge.toPort, true));
+    final mid = _getOrthogonalMidpoint(
+      p1,
+      p2,
+      corridorOffset: layout?.corridorOffset ?? 0.0,
+      loopLaneOffset: layout?.loopLaneOffset ?? 0.0,
+    );
 
     return Positioned(
       left: mid.dx - 18,
@@ -480,20 +652,18 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
               onTapUp: (details) {
                 final tapPos = details.localPosition;
                 GraphEdge? clickedEdge;
+                final layouts = _calculateEdgeLayouts();
                 for (final edge in widget.graph.edges) {
-                  final fromKey = '${edge.fromNode}_out_${edge.fromPort}';
-                  final toKey = '${edge.toNode}_in_${edge.toPort}';
-                  final fromNode = widget.graph.nodes.firstWhere(
-                    (n) => n.id == edge.fromNode,
-                    orElse: () => GraphNode(id: '', type: '', position: Offset.zero),
-                  );
-                  final toNode = widget.graph.nodes.firstWhere(
-                    (n) => n.id == edge.toNode,
-                    orElse: () => GraphNode(id: '', type: '', position: Offset.zero),
-                  );
-                  final p1 = _portOffsets[fromKey] ?? _estimatePortOffset(fromNode, edge.fromPort, false);
-                  final p2 = _portOffsets[toKey] ?? _estimatePortOffset(toNode, edge.toPort, true);
-                  if (_isPointNearOrthogonal(tapPos, p1, p2, 22.0)) {
+                  final layout = layouts[edge.id];
+                  if (layout == null) continue;
+                  if (_isPointNearOrthogonal(
+                    tapPos,
+                    layout.p1,
+                    layout.p2,
+                    22.0,
+                    corridorOffset: layout.corridorOffset,
+                    loopLaneOffset: layout.loopLaneOffset,
+                  )) {
                     clickedEdge = edge;
                     break;
                   }
@@ -523,6 +693,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                         painter: _EdgesPainter(
                           graph: widget.graph,
                           portOffsets: _portOffsets,
+                          edgeLayouts: _calculateEdgeLayouts(),
                           selectedEdge: _selectedEdge,
                           activeNodeId: widget.activeNodeId,
                           drawingFromOffset: _drawingFromPort != null
@@ -1406,11 +1577,31 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
   }
 }
 
+/// Route layout metadata for an edge on the graph canvas.
+class _EdgeRouteLayout {
+  final Offset p1;
+  final Offset p2;
+  final double corridorOffset;
+  final double loopLaneOffset;
+  final int totalInSource;
+  final int totalInTarget;
+
+  const _EdgeRouteLayout({
+    required this.p1,
+    required this.p2,
+    required this.corridorOffset,
+    required this.loopLaneOffset,
+    required this.totalInSource,
+    required this.totalInTarget,
+  });
+}
+
 /// Custom Painter for Bézier Edges and In-Progress Cable.
 class _EdgesPainter extends CustomPainter {
   _EdgesPainter({
     required this.graph,
     required this.portOffsets,
+    required this.edgeLayouts,
     this.selectedEdge,
     this.activeNodeId,
     this.drawingFromOffset,
@@ -1422,6 +1613,7 @@ class _EdgesPainter extends CustomPainter {
 
   final MissionGraph graph;
   final Map<String, Offset> portOffsets;
+  final Map<String, _EdgeRouteLayout> edgeLayouts;
   final GraphEdge? selectedEdge;
   final String? activeNodeId;
   final Offset? drawingFromOffset;
@@ -1432,33 +1624,18 @@ class _EdgesPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 1. Group incoming edges by destination input port to separate overlapping wires
-    final targetIncoming = <String, List<GraphEdge>>{};
+    // 1. Draw saved edges
     for (final edge in graph.edges) {
-      final toKey = '${edge.toNode}_in_${edge.toPort}';
-      targetIncoming.putIfAbsent(toKey, () => []).add(edge);
-    }
-
-    // 2. Draw saved edges
-    for (final edge in graph.edges) {
+      final layout = edgeLayouts[edge.id];
       final fromKey = '${edge.fromNode}_out_${edge.fromPort}';
       final toKey = '${edge.toNode}_in_${edge.toPort}';
 
-      final p1 = portOffsets[fromKey] ??
-          _estimateNodePortOffset(edge.fromNode, edge.fromPort, false);
-      final baseP2 = portOffsets[toKey] ??
-          _estimateNodePortOffset(edge.toNode, edge.toPort, true);
-
-      final incomingList = targetIncoming[toKey] ?? [edge];
-      final totalInTarget = incomingList.length;
-      final indexInTarget = incomingList.indexOf(edge);
-
-      // When multiple edges arrive at the same input port, spread them vertically
-      // into visually distinct sub-slots so lines NEVER overlap on top of each other.
-      final double slotOffset = totalInTarget > 1
-          ? (indexInTarget - (totalInTarget - 1) / 2.0) * 14.0
-          : 0.0;
-      final p2 = Offset(baseP2.dx, baseP2.dy + slotOffset);
+      final p1 = layout?.p1 ?? (portOffsets[fromKey] ?? _estimateNodePortOffset(edge.fromNode, edge.fromPort, false));
+      final p2 = layout?.p2 ?? (portOffsets[toKey] ?? _estimateNodePortOffset(edge.toNode, edge.toPort, true));
+      final corridorOffset = layout?.corridorOffset ?? 0.0;
+      final loopLaneOffset = layout?.loopLaneOffset ?? 0.0;
+      final totalInSource = layout?.totalInSource ?? 1;
+      final totalInTarget = layout?.totalInTarget ?? 1;
 
       final isSelected = selectedEdge?.id == edge.id;
       final isActive = activeNodeId == edge.fromNode;
@@ -1474,20 +1651,72 @@ class _EdgesPainter extends CustomPainter {
       }
 
       if (isSelected) {
-        _drawOrthogonalEdge(canvas, p1, p2, AppColors.danger.withValues(alpha: 0.35), 8.0, laneIndex: indexInTarget);
-        _drawOrthogonalEdge(canvas, p1, p2, AppColors.danger, 4.0, laneIndex: indexInTarget);
+        _drawOrthogonalEdge(
+          canvas,
+          p1,
+          p2,
+          AppColors.danger.withValues(alpha: 0.35),
+          8.0,
+          corridorOffset: corridorOffset,
+          loopLaneOffset: loopLaneOffset,
+          isSelected: true,
+          drawHalo: true,
+        );
+        _drawOrthogonalEdge(
+          canvas,
+          p1,
+          p2,
+          AppColors.danger,
+          4.0,
+          corridorOffset: corridorOffset,
+          loopLaneOffset: loopLaneOffset,
+          isSelected: true,
+          drawHalo: false,
+        );
       } else {
-        _drawOrthogonalEdge(canvas, p1, p2, edgeColor, isActive ? 4.0 : 3.2, laneIndex: indexInTarget);
+        _drawOrthogonalEdge(
+          canvas,
+          p1,
+          p2,
+          edgeColor,
+          isActive ? 4.0 : 3.2,
+          corridorOffset: corridorOffset,
+          loopLaneOffset: loopLaneOffset,
+          isSelected: false,
+          drawHalo: true,
+        );
       }
 
-      // If multiple incoming edges share this input, draw a dedicated visual connector pin at p2
-      if (totalInTarget > 1) {
+      // If multiple outgoing edges share this source port, draw a connector pin at p1
+      if (totalInSource > 1) {
+        final pinHalo = Paint()
+          ..color = AppColors.background
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.0;
         final pinPaint = Paint()
           ..color = edgeColor
           ..style = PaintingStyle.fill;
         final innerPaint = Paint()
           ..color = Colors.white
           ..style = PaintingStyle.fill;
+        canvas.drawCircle(p1, 5.0, pinHalo);
+        canvas.drawCircle(p1, 4.0, pinPaint);
+        canvas.drawCircle(p1, 2.0, innerPaint);
+      }
+
+      // If multiple incoming edges share this input port, draw a connector pin at p2
+      if (totalInTarget > 1) {
+        final pinHalo = Paint()
+          ..color = AppColors.background
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.0;
+        final pinPaint = Paint()
+          ..color = edgeColor
+          ..style = PaintingStyle.fill;
+        final innerPaint = Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(p2, 5.5, pinHalo);
         canvas.drawCircle(p2, 4.5, pinPaint);
         canvas.drawCircle(p2, 2.2, innerPaint);
       }
@@ -1499,15 +1728,15 @@ class _EdgesPainter extends CustomPainter {
       final p2 = drawingFromIsInput ? drawingFromOffset! : drawingCurrentOffset!;
 
       Color wireColor = drawingColor.withValues(alpha: 0.9);
-      double wireWidth = 2.2;
+      double wireWidth = 2.6;
       bool isDashed = false;
 
       if (isValidTarget == true) {
         wireColor = AppColors.success;
-        wireWidth = 3.2;
+        wireWidth = 3.6;
       } else if (isValidTarget == false) {
         wireColor = AppColors.danger;
-        wireWidth = 2.4;
+        wireWidth = 2.6;
         isDashed = true;
       }
 
@@ -1536,90 +1765,62 @@ class _EdgesPainter extends CustomPainter {
     }
   }
 
-  Path _buildOrthogonalPath(Offset p1, Offset p2, {int laneIndex = 0}) {
-    List<Offset> points;
-    if (p2.dx >= p1.dx + 48.0) {
-      final double midXOffset = laneIndex != 0 ? (laneIndex * 8.0) : 0.0;
-      final midX = ((p1.dx + p2.dx) / 2.0) + midXOffset;
-      points = [
-        p1,
-        Offset(midX, p1.dy),
-        Offset(midX, p2.dy),
-        p2,
-      ];
-    } else {
-      final exitX = p1.dx + 28.0;
-      final enterX = p2.dx - 28.0 - (laneIndex * 8.0);
-      final double midY;
-      if ((p2.dy - p1.dy).abs() > 30.0) {
-        midY = (p1.dy + p2.dy) / 2.0;
-      } else {
-        midY = p1.dy + 80.0 + (laneIndex * 14.0);
-      }
-      points = [
-        p1,
-        Offset(exitX, p1.dy),
-        Offset(exitX, midY),
-        Offset(enterX, midY),
-        Offset(enterX, p2.dy),
-        p2,
-      ];
-    }
-    return _buildSmoothPath(points, 14.0);
+  Path _buildOrthogonalPath(
+    Offset p1,
+    Offset p2, {
+    double corridorOffset = 0.0,
+    double loopLaneOffset = 0.0,
+  }) {
+    final points = _MissionGraphCanvasState._getOrthogonalPoints(
+      p1,
+      p2,
+      corridorOffset: corridorOffset,
+      loopLaneOffset: loopLaneOffset,
+    );
+    return _MissionGraphCanvasState._buildSmoothPath(points, 14.0);
   }
 
-  Path _buildSmoothPath(List<Offset> points, double radius) {
-    final path = Path();
-    if (points.isEmpty) return path;
-    path.moveTo(points.first.dx, points.first.dy);
-    if (points.length <= 2) {
-      if (points.length == 2) path.lineTo(points[1].dx, points[1].dy);
-      return path;
+  void _drawOrthogonalEdge(
+    Canvas canvas,
+    Offset p1,
+    Offset p2,
+    Color color,
+    double width, {
+    double corridorOffset = 0.0,
+    double loopLaneOffset = 0.0,
+    bool isSelected = false,
+    bool drawHalo = true,
+  }) {
+    final path = _buildOrthogonalPath(
+      p1,
+      p2,
+      corridorOffset: corridorOffset,
+      loopLaneOffset: loopLaneOffset,
+    );
+
+    // 1. Casing / Halo stroke matching canvas background
+    // Creates an automatic visual "bridge" / gap whenever wires cross or overlap,
+    // ensuring underlaying wires are NEVER obscured into an indistinguishable mass.
+    if (drawHalo) {
+      final haloPaint = Paint()
+        ..color = AppColors.background
+        ..strokeWidth = width + 4.0
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      canvas.drawPath(path, haloPaint);
+
+      // 2. Subtle drop shadow
+      final shadowPaint = Paint()
+        ..color = Colors.black.withValues(alpha: isSelected ? 0.22 : 0.08)
+        ..strokeWidth = width + 1.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      canvas.drawPath(path, shadowPaint);
     }
 
-    for (int i = 1; i < points.length - 1; i++) {
-      final pPrev = points[i - 1];
-      final pCurr = points[i];
-      final pNext = points[i + 1];
-
-      final v1 = pCurr - pPrev;
-      final v2 = pNext - pCurr;
-      final len1 = v1.distance;
-      final len2 = v2.distance;
-
-      if (len1 < 0.001 || len2 < 0.001) {
-        path.lineTo(pCurr.dx, pCurr.dy);
-        continue;
-      }
-
-      final r = math.min(radius, math.min(len1 / 2.0, len2 / 2.0));
-      final u1 = v1 / len1;
-      final u2 = v2 / len2;
-
-      final startCurve = pCurr - (u1 * r);
-      final endCurve = pCurr + (u2 * r);
-
-      path.lineTo(startCurve.dx, startCurve.dy);
-      path.quadraticBezierTo(pCurr.dx, pCurr.dy, endCurve.dx, endCurve.dy);
-    }
-
-    path.lineTo(points.last.dx, points.last.dy);
-    return path;
-  }
-
-  void _drawOrthogonalEdge(Canvas canvas, Offset p1, Offset p2, Color color, double width, {int laneIndex = 0}) {
-    final path = _buildOrthogonalPath(p1, p2, laneIndex: laneIndex);
-
-    // 1. Subtle outline / shadow for clear visibility against any canvas background
-    final shadowPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.12)
-      ..strokeWidth = width + 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    canvas.drawPath(path, shadowPaint);
-
-    // 2. Main edge wire
+    // 3. Main colored edge wire
     final paint = Paint()
       ..color = color
       ..strokeWidth = width
@@ -1628,46 +1829,97 @@ class _EdgesPainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round;
     canvas.drawPath(path, paint);
 
-    // 3. Directional arrow pointing from fromNode to toNode along the path
+    // 4. Directional arrowheads
     final metrics = path.computeMetrics().toList();
     if (metrics.isNotEmpty) {
       final metric = metrics.first;
-      final midTangent = metric.getTangentForOffset(metric.length * 0.55);
-      if (midTangent != null) {
-        final angle = midTangent.angle;
-        final pos = midTangent.position;
-        final arrowSize = math.max(width * 2.8, 10.0);
+      final totalLen = metric.length;
 
-        final arrowPaint = Paint()
-          ..color = color
-          ..style = PaintingStyle.fill;
+      // Primary: Destination Entry Arrowhead
+      // Placed right before destination port entering horizontally from the left.
+      // At this location (metric.length - 12.0), the wire is strictly traveling
+      // forward (+X) into the input pin. This arrowhead is ALWAYS pointing forward (> [Port]),
+      // eliminating any reverse or backwards pointing arrows!
+      if (totalLen >= 18.0) {
+        final endOffset = math.max(4.0, totalLen - 12.0);
+        final endTangent = metric.getTangentForOffset(endOffset);
+        if (endTangent != null) {
+          final arrowSize = math.max(width * 2.6, 9.5);
+          _drawArrowHead(canvas, endTangent.position, endTangent.angle, color, arrowSize);
+        }
+      }
 
-        canvas.save();
-        canvas.translate(pos.dx, pos.dy);
-        canvas.rotate(angle);
-
-        final arrowPath = Path()
-          ..moveTo(arrowSize * 0.55, 0)
-          ..lineTo(-arrowSize * 0.45, -arrowSize * 0.4)
-          ..lineTo(-arrowSize * 0.2, 0)
-          ..lineTo(-arrowSize * 0.45, arrowSize * 0.4)
-          ..close();
-
-        canvas.drawPath(arrowPath, arrowPaint);
-        canvas.restore();
+      // Secondary: Mid-span directional arrow (for long forward wires only)
+      // Only draw mid-arrow if the path is sufficiently long, forward-directed (p2.dx >= p1.dx + 60.0),
+      // and the tangent vector is pointing strictly in the forward (+X) direction (> 0.3).
+      // NEVER draw mid-arrows on reverse loopback bridges where tangent dx is negative!
+      if (totalLen > 180.0 && p2.dx >= p1.dx + 60.0) {
+        final midTangent = metric.getTangentForOffset(totalLen * 0.5);
+        if (midTangent != null && midTangent.vector.dx > 0.3) {
+          final midArrowSize = math.max(width * 2.3, 8.5);
+          _drawArrowHead(canvas, midTangent.position, midTangent.angle, color, midArrowSize);
+        }
       }
     }
   }
 
-  void _drawDashedOrthogonalEdge(Canvas canvas, Offset p1, Offset p2, Color color, double width) {
+  void _drawArrowHead(Canvas canvas, Offset pos, double angle, Color color, double arrowSize) {
+    final arrowPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    // Halo casing border on arrowhead to prevent blending with background or crossing lines
+    final haloBorderPaint = Paint()
+      ..color = AppColors.background
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    canvas.save();
+    canvas.translate(pos.dx, pos.dy);
+    canvas.rotate(angle);
+
+    final arrowPath = Path()
+      ..moveTo(arrowSize * 0.45, 0)
+      ..lineTo(-arrowSize * 0.45, -arrowSize * 0.4)
+      ..lineTo(-arrowSize * 0.18, 0)
+      ..lineTo(-arrowSize * 0.45, arrowSize * 0.4)
+      ..close();
+
+    canvas.drawPath(arrowPath, haloBorderPaint);
+    canvas.drawPath(arrowPath, arrowPaint);
+    canvas.restore();
+  }
+
+  void _drawDashedOrthogonalEdge(
+    Canvas canvas,
+    Offset p1,
+    Offset p2,
+    Color color,
+    double width, {
+    double corridorOffset = 0.0,
+    double loopLaneOffset = 0.0,
+  }) {
+    final path = _buildOrthogonalPath(
+      p1,
+      p2,
+      corridorOffset: corridorOffset,
+      loopLaneOffset: loopLaneOffset,
+    );
+
+    final haloPaint = Paint()
+      ..color = AppColors.background
+      ..strokeWidth = width + 3.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(path, haloPaint);
+
     final paint = Paint()
       ..color = color
       ..strokeWidth = width
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-
-    final path = _buildOrthogonalPath(p1, p2);
 
     for (final metric in path.computeMetrics()) {
       double distance = 0.0;
