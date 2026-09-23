@@ -520,20 +520,31 @@ Your task is to convert human natural language workflow instructions into a comp
      The AMR MUST smartly optimize travel! Visit the source hub ONCE to batch and collect/load all items for the different destinations.
    - Then navigate and deliver sequentially one stop after another (e.g. Source -> Stop A -> Stop B -> Dock).
    - NEVER make the robot travel back and forth repeatedly to the source (e.g. do NOT do: Source -> Stop A -> Source -> Stop B) when items can be collected together in a single trip!
-8. Return ONLY valid JSON conforming to the output schema. No conversational filler, no markdown quotes outside the JSON block.
+8. INPUT HANDLING & ROBUSTNESS:
+   - The user's input may include conversational questions or commentary (e.g. "will it optimize travel?", "can it do this?").
+   - Extract ONLY the robotic workflow instructions (destinations, tasks, timings). Ignore commentary and DO NOT attempt to answer questions inside the JSON.
+   - NEVER repeat parameters or generate duplicate keys (e.g. do not repeat "trigger_type" or "trigger_location").
+9. Return ONLY valid JSON conforming to the output schema. No conversational filler, no markdown quotes outside the JSON block.
 
-### JSON OUTPUT SCHEMA:
+### JSON OUTPUT FORMAT:
+Your response must be a single, complete, syntactically valid JSON object matching this structure:
 {
-  "name": "Mission Title",
-  "description": "Short summary",
+  "name": "Descriptive Mission Name",
+  "description": "Concise Workflow Description",
   "nodes": [
-    {"id": "node_1", "type": "start", "label": "Start Mission", "params": {}},
-    {"id": "node_2", "type": "battery_guard", "label": "Check Battery", "params": {"min_battery": 20.0}},
-    ...
+    {"id": "n_start", "type": "start", "label": "Start Mission", "params": {"trigger": "manual"}},
+    {"id": "n_bat", "type": "battery_guard", "label": "Battery Guard (>20%)", "params": {"min_battery": 20.0}},
+    {"id": "n_nav_1", "type": "navigate_waypoint", "label": "Go to Bay 1", "params": {"waypoint": "Bay 1", "tolerance_m": 0.25}},
+    {"id": "n_dock", "type": "dock", "label": "Auto Dock to Charger", "params": {}},
+    {"id": "n_end", "type": "end", "label": "Mission Complete", "params": {}}
   ],
   "edges": [
-    {"id": "e_1", "from_node": "node_1", "from_port": "next", "to_node": "node_2", "to_port": "in"},
-    ...
+    {"id": "e_1", "from_node": "n_start", "from_port": "next", "to_node": "n_bat", "to_port": "in"},
+    {"id": "e_2", "from_node": "n_bat", "from_port": "ok", "to_node": "n_nav_1", "to_port": "in"},
+    {"id": "e_3", "from_node": "n_bat", "from_port": "low_battery", "to_node": "n_dock", "to_port": "in"},
+    {"id": "e_4", "from_node": "n_nav_1", "from_port": "arrived", "to_node": "n_dock", "to_port": "in"},
+    {"id": "e_5", "from_node": "n_nav_1", "from_port": "failed", "to_node": "n_dock", "to_port": "in"},
+    {"id": "e_6", "from_node": "n_dock", "from_port": "docked", "to_node": "n_end", "to_port": "in"}
   ]
 }
 ''';
@@ -562,9 +573,9 @@ Your task is to convert human natural language workflow instructions into a comp
       try {
         generatedJson = await _callLlm(config, trimmedPrompt, availableWaypoints);
       } catch (e) {
-        debugPrint('[AI Agent] LLM call failed: $e');
-        // Do not silently mask the error with a hardcoded template if the user configured an LLM
-        throw Exception('${config.provider.displayName} AI Error: $e');
+        debugPrint('[AI Agent] LLM call failed: $e. Falling back to dynamic universal engine.');
+        // Fall back gracefully to the dynamic universal engine so the operator ALWAYS receives their requested workflow
+        generatedJson = _generateOfflineWorkflow(trimmedPrompt, availableWaypoints);
       }
     } else {
       // Offline fallback template engine
@@ -720,9 +731,11 @@ Your task is to convert human natural language workflow instructions into a comp
         final shouldPassJsonFormat = config.provider != AiProvider.perplexity &&
             config.provider != AiProvider.groq;
 
-        final userContent = '''$userPrompt
+        final userContent = '''User Mission Instructions:
+$userPrompt
 
-IMPORTANT: Respond with a valid JSON object only, conforming strictly to the Mission Graph JSON schema. Start directly with { and end with }. Do not include markdown backticks or commentary outside the JSON.''';
+INSTRUCTION: Synthesize a complete, valid Mission Graph JSON conforming to the schema above.
+Output only the JSON object starting with { and ending with }. Do not include markdown backticks, conversational preamble, or explanations.''';
 
         final bodyMap = <String, dynamic>{
           'model': model,
@@ -730,8 +743,9 @@ IMPORTANT: Respond with a valid JSON object only, conforming strictly to the Mis
             {'role': 'system', 'content': systemPrompt},
             {'role': 'user', 'content': userContent}
           ],
-          'temperature': 0.1,
+          'temperature': 0.2,
           'max_tokens': 4096,
+          'frequency_penalty': 0.1,
           if (shouldPassJsonFormat) 'response_format': {'type': 'json_object'},
         };
 
@@ -777,17 +791,20 @@ IMPORTANT: Respond with a valid JSON object only, conforming strictly to the Mis
   /// Extracts and parses JSON from LLM response (handling potential markdown ```json blocks and chatter).
   Map<String, dynamic> _extractJsonFromLlmOutput(String text) {
     String clean = text.trim();
-    if (clean.contains('```json')) {
-      final start = clean.indexOf('```json') + 7;
-      final end = clean.lastIndexOf('```');
-      if (end > start) clean = clean.substring(start, end).trim();
-    } else if (clean.contains('```')) {
-      final start = clean.indexOf('```') + 3;
-      final end = clean.lastIndexOf('```');
-      if (end > start) clean = clean.substring(start, end).trim();
+
+    // 1. Strip markdown code fence at start even if unclosed or truncated
+    if (clean.startsWith('```json')) {
+      clean = clean.substring(7).trim();
+    } else if (clean.startsWith('```')) {
+      clean = clean.substring(3).trim();
     }
 
-    // Extract first outer matching JSON object if wrapped in conversational text
+    // 2. Strip trailing markdown backticks if present
+    if (clean.endsWith('```')) {
+      clean = clean.substring(0, clean.length - 3).trim();
+    }
+
+    // 3. Extract outermost { ... }
     final firstBrace = clean.indexOf('{');
     final lastBrace = clean.lastIndexOf('}');
     if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {

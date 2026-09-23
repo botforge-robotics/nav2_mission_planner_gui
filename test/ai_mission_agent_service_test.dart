@@ -260,5 +260,25 @@ void main() {
       expect(waitNode.params['seconds'], 15);
       expect(graph.nodes.any((n) => n.type == 'dock'), true);
     });
+
+    test('Gracefully handles prompt containing conversational question without failing', () async {
+      final service = AiMissionAgentService.instance;
+      final prompt = 'go to bay1 ask if any raw material is out of stock collect informaton procure it from store room and deliver to bay1 along with collect 10 units raspbeery pi5 and deliver to workstation. at end return to dock in this example i said collect raspi and deliver to another station also willl it smartly optimise travellign as it went for store room for both deliveries it will collect material deliver ona feter another?';
+      
+      final graph = await service.generateMissionGraph(
+        userPrompt: prompt,
+        availableWaypoints: ['Dock', 'Bay 1', 'Store Room', 'Workstation'],
+      );
+
+      expect(graph.nodes.isNotEmpty, true);
+      expect(graph.nodes.any((n) => n.type == 'dock'), true);
+      final navWaypoints = graph.nodes
+          .where((n) => n.type == 'navigate_waypoint')
+          .map((n) => n.params['waypoint']?.toString().toLowerCase() ?? '')
+          .toList();
+      expect(navWaypoints.any((w) => w.contains('bay 1') || w.contains('bay1')), true);
+      expect(navWaypoints.any((w) => w.contains('store room')), true);
+      expect(navWaypoints.any((w) => w.contains('workstation')), true);
+    });
   });
 }
