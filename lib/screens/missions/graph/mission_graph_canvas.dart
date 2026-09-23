@@ -129,10 +129,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       final portBox = portContext.findRenderObject() as RenderBox?;
       if (portBox == null || !portBox.hasSize) continue;
 
-      final isInput = entry.key.contains('_in_');
       final localAnchor = Offset(
-        isInput ? 9.0 : (portBox.size.width - 9.0),
-        portBox.size.height / 2,
+        portBox.size.width / 2.0,
+        portBox.size.height / 2.0,
       );
 
       final globalPos = portBox.localToGlobal(localAnchor);
@@ -148,17 +147,42 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     }
   }
 
-  Offset _estimatePortOffset(GraphNode node, String portId, bool isInput) {
-    double y = node.position.dy + 82.0;
+  static double _getNodeHeight(GraphNode node) {
+    final outCount = node.outputPorts.length;
+    if (outCount <= 1) return 66.0;
+    if (outCount == 2) return 80.0;
+    return 66.0 + (outCount - 1) * 26.0;
+  }
+
+  static double _getPortY(GraphNode node, int index, bool isInput) {
+    final nodeHeight = _getNodeHeight(node);
     if (isInput) {
-      final portIndex = node.inputPorts.indexWhere((p) => p.id == portId);
-      if (portIndex > 0) y += portIndex * 26.0;
-      return Offset(node.position.dx + 16.0, y);
-    } else {
-      final portIndex = node.outputPorts.indexWhere((p) => p.id == portId);
-      if (portIndex > 0) y += portIndex * 26.0;
-      return Offset(node.position.dx + 224.0, y);
+      return nodeHeight / 2.0;
     }
+    final outCount = node.outputPorts.length;
+    if (outCount <= 1) {
+      return nodeHeight / 2.0;
+    }
+    const topPad = 20.0;
+    final available = nodeHeight - 2 * topPad;
+    final step = available / (outCount - 1);
+    return topPad + index * step;
+  }
+
+  static Offset _estimatePortOffsetStatic(GraphNode node, String portId, bool isInput) {
+    const nodeWidth = 230.0;
+    final nodeHeight = _getNodeHeight(node);
+    if (isInput) {
+      return Offset(node.position.dx, node.position.dy + nodeHeight / 2.0);
+    } else {
+      final idx = node.outputPorts.indexWhere((p) => p.id == portId);
+      final pinY = _getPortY(node, idx >= 0 ? idx : 0, false);
+      return Offset(node.position.dx + nodeWidth, node.position.dy + pinY);
+    }
+  }
+
+  Offset _estimatePortOffset(GraphNode node, String portId, bool isInput) {
+    return _estimatePortOffsetStatic(node, portId, isInput);
   }
 
   (GraphNode, NodePort, bool)? _findHoveredPort(Offset canvasPos) {
@@ -194,7 +218,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
 
     // 2. If not snapping directly to a port, check if cursor is over any node card
     for (final node in widget.graph.nodes) {
-      final nodeRect = Rect.fromLTWH(node.position.dx, node.position.dy, 240, 160);
+      final nodeHeight = _getNodeHeight(node);
+      final nodeRect = Rect.fromLTWH(node.position.dx - 12, node.position.dy - 6, 230.0 + 24, nodeHeight + 12);
       if (nodeRect.contains(canvasPos)) {
         if (!(_drawingFromIsInput ?? false)) {
           // Dragging from output -> target this node's input port
@@ -287,67 +312,47 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     return ConnectionValidationResult.valid('Connect "$fromTitle" (${outPort.label}) → "$toTitle"');
   }
 
-  static List<Offset> _getOrthogonalPoints(
+  static Path _buildBezierPath(
     Offset p1,
     Offset p2, {
     double corridorOffset = 0.0,
     double loopLaneOffset = 0.0,
   }) {
+    final path = Path();
+    path.moveTo(p1.dx, p1.dy);
+
     final dx = p2.dx - p1.dx;
+    final dy = p2.dy - p1.dy;
 
-    // 1. Long-span forward jump (spans across 2 or more columns)
-    // Route via an obstacle-free bottom gutter channel so it NEVER slices through intermediate node cards!
-    if (dx >= 380.0) {
-      final gutterY = math.max(p1.dy, p2.dy) + 95.0 + loopLaneOffset + (corridorOffset * 0.5);
-      final exitX = p1.dx + 26.0;
-      final enterX = p2.dx - 26.0;
-      return [
-        p1,
-        Offset(exitX, p1.dy),
-        Offset(exitX, gutterY),
-        Offset(enterX, gutterY),
-        Offset(enterX, p2.dy),
-        p2,
-      ];
-    } else if (dx >= 48.0) {
-      // 2. Adjacent or near column: clean vertical step in the inter-column corridor
-      final midX = ((p1.dx + p2.dx) / 2.0) + corridorOffset;
-      return [
-        p1,
-        Offset(midX, p1.dy),
-        Offset(midX, p2.dy),
-        p2,
-      ];
+    if (dx >= 20.0) {
+      // Forward horizontal cubic Bézier curve
+      final curvature = math.max(dx * 0.45, 45.0);
+      final cp1 = Offset(p1.dx + curvature, p1.dy + corridorOffset);
+      final cp2 = Offset(p2.dx - curvature, p2.dy + corridorOffset);
+      path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
     } else {
-      // 3. Loopback / reverse edge
-      final exitX = p1.dx + 30.0 + (loopLaneOffset > 0 ? loopLaneOffset : 0.0);
-      final enterX = p2.dx - 30.0 - (loopLaneOffset < 0 ? -loopLaneOffset : loopLaneOffset);
-      final double midY;
-      if ((p2.dy - p1.dy).abs() > 30.0) {
-        midY = ((p1.dy + p2.dy) / 2.0) + loopLaneOffset;
-      } else {
-        midY = p1.dy + 80.0 + loopLaneOffset;
-      }
-      return [
-        p1,
-        Offset(exitX, p1.dy),
-        Offset(exitX, midY),
-        Offset(enterX, midY),
-        Offset(enterX, p2.dy),
-        p2,
-      ];
+      // Reverse / loopback edge
+      final loopOut = math.max(55.0, (p1.dx - p2.dx) * 0.28);
+      final midX = (p1.dx + p2.dx) / 2.0;
+      final arcHeight = (dy < 0 ? -75.0 : 75.0) + loopLaneOffset;
+      final midY = (p1.dy + p2.dy) / 2.0 + arcHeight;
+
+      path.cubicTo(
+        p1.dx + loopOut, p1.dy,
+        midX + loopOut, midY,
+        midX, midY,
+      );
+      path.cubicTo(
+        midX - loopOut, midY,
+        p2.dx - loopOut, p2.dy,
+        p2.dx, p2.dy,
+      );
     }
+
+    return path;
   }
 
-  static double _distToSegment(Offset p, Offset a, Offset b) {
-    final l2 = (b - a).distanceSquared;
-    if (l2 == 0.0) return (p - a).distance;
-    final t = math.max(0.0, math.min(1.0, ((p.dx - a.dx) * (b.dx - a.dx) + (p.dy - a.dy) * (b.dy - a.dy)) / l2));
-    final projection = Offset(a.dx + t * (b.dx - a.dx), a.dy + t * (b.dy - a.dy));
-    return (p - projection).distance;
-  }
-
-  static bool _isPointNearOrthogonal(
+  static bool _isPointNearBezier(
     Offset pt,
     Offset p1,
     Offset p2,
@@ -355,90 +360,45 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     double corridorOffset = 0.0,
     double loopLaneOffset = 0.0,
   }) {
-    final points = _getOrthogonalPoints(
+    final path = _buildBezierPath(
       p1,
       p2,
       corridorOffset: corridorOffset,
       loopLaneOffset: loopLaneOffset,
     );
-    for (int i = 0; i < points.length - 1; i++) {
-      if (_distToSegment(pt, points[i], points[i + 1]) <= threshold) {
+    final metrics = path.computeMetrics().toList();
+    if (metrics.isEmpty) return false;
+    final metric = metrics.first;
+    final totalLen = metric.length;
+    if (totalLen <= 0) return false;
+
+    final steps = math.max(12, (totalLen / 16.0).round());
+    for (int i = 0; i <= steps; i++) {
+      final t = i / steps;
+      final pos = metric.getTangentForOffset(t * totalLen)?.position;
+      if (pos != null && (pos - pt).distance <= threshold) {
         return true;
       }
     }
     return false;
   }
 
-  static Offset _getOrthogonalMidpoint(
+  static Offset _getBezierMidpoint(
     Offset p1,
     Offset p2, {
     double corridorOffset = 0.0,
     double loopLaneOffset = 0.0,
   }) {
-    final points = _getOrthogonalPoints(
+    final path = _buildBezierPath(
       p1,
       p2,
       corridorOffset: corridorOffset,
       loopLaneOffset: loopLaneOffset,
     );
-    double totalLen = 0.0;
-    for (int i = 0; i < points.length - 1; i++) {
-      totalLen += (points[i + 1] - points[i]).distance;
-    }
-    if (totalLen == 0.0) return (p1 + p2) / 2.0;
-    final targetLen = totalLen / 2.0;
-    double accum = 0.0;
-    for (int i = 0; i < points.length - 1; i++) {
-      final segLen = (points[i + 1] - points[i]).distance;
-      if (accum + segLen >= targetLen) {
-        final fraction = segLen > 0 ? (targetLen - accum) / segLen : 0.0;
-        return Offset(
-          points[i].dx + fraction * (points[i + 1].dx - points[i].dx),
-          points[i].dy + fraction * (points[i + 1].dy - points[i].dy),
-        );
-      }
-      accum += segLen;
-    }
-    return (p1 + p2) / 2.0;
-  }
-
-  static Path _buildSmoothPath(List<Offset> points, double radius) {
-    final path = Path();
-    if (points.isEmpty) return path;
-    path.moveTo(points.first.dx, points.first.dy);
-    if (points.length <= 2) {
-      if (points.length == 2) path.lineTo(points[1].dx, points[1].dy);
-      return path;
-    }
-
-    for (int i = 1; i < points.length - 1; i++) {
-      final pPrev = points[i - 1];
-      final pCurr = points[i];
-      final pNext = points[i + 1];
-
-      final v1 = pCurr - pPrev;
-      final v2 = pNext - pCurr;
-      final len1 = v1.distance;
-      final len2 = v2.distance;
-
-      if (len1 < 0.001 || len2 < 0.001) {
-        path.lineTo(pCurr.dx, pCurr.dy);
-        continue;
-      }
-
-      final r = math.min(radius, math.min(len1 / 2.0, len2 / 2.0));
-      final u1 = v1 / len1;
-      final u2 = v2 / len2;
-
-      final startCurve = pCurr - (u1 * r);
-      final endCurve = pCurr + (u2 * r);
-
-      path.lineTo(startCurve.dx, startCurve.dy);
-      path.quadraticBezierTo(pCurr.dx, pCurr.dy, endCurve.dx, endCurve.dy);
-    }
-
-    path.lineTo(points.last.dx, points.last.dy);
-    return path;
+    final metrics = path.computeMetrics().toList();
+    if (metrics.isEmpty) return (p1 + p2) / 2.0;
+    final metric = metrics.first;
+    return metric.getTangentForOffset(metric.length * 0.5)?.position ?? (p1 + p2) / 2.0;
   }
 
   Map<String, _EdgeRouteLayout> _calculateEdgeLayouts() {
@@ -555,7 +515,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     );
     final p1 = layout?.p1 ?? (_portOffsets[fromKey] ?? _estimatePortOffset(fromNode, edge.fromPort, false));
     final p2 = layout?.p2 ?? (_portOffsets[toKey] ?? _estimatePortOffset(toNode, edge.toPort, true));
-    final mid = _getOrthogonalMidpoint(
+    final mid = _getBezierMidpoint(
       p1,
       p2,
       corridorOffset: layout?.corridorOffset ?? 0.0,
@@ -687,7 +647,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                 for (final edge in widget.graph.edges) {
                   final layout = layouts[edge.id];
                   if (layout == null) continue;
-                  if (_isPointNearOrthogonal(
+                  if (_isPointNearBezier(
                     tapPos,
                     layout.p1,
                     layout.p2,
@@ -872,38 +832,69 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     final isSelected = widget.selectedNode?.id == node.id;
     final isActive = widget.activeNodeId == node.id;
 
-    // Node Dimension Constants
-    const double nodeWidth = 260.0;
-
-    if (isActive) {
-      return Positioned(
-        left: node.position.dx,
-        top: node.position.dy,
-        child: AnimatedBuilder(
-          animation: _flowAnimController,
-          builder: (context, _) {
-            final pulse = (math.sin(_flowAnimController.value * 2 * math.pi) + 1.0) / 2.0;
-            return _buildNodeCard(
-              node,
-              isSelected: isSelected,
-              isActive: true,
-              pulse: pulse,
-              nodeWidth: nodeWidth,
-            );
-          },
-        ),
-      );
-    }
+    const double nodeWidth = 230.0;
+    final double nodeHeight = _getNodeHeight(node);
 
     return Positioned(
       left: node.position.dx,
       top: node.position.dy,
-      child: _buildNodeCard(
-        node,
-        isSelected: isSelected,
-        isActive: false,
-        pulse: 0.0,
-        nodeWidth: nodeWidth,
+      child: SizedBox(
+        width: nodeWidth,
+        height: nodeHeight,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // 1. Sleek n8n Node Tile
+            if (isActive)
+              AnimatedBuilder(
+                animation: _flowAnimController,
+                builder: (context, _) {
+                  final pulse = (math.sin(_flowAnimController.value * 2 * math.pi) + 1.0) / 2.0;
+                  return _buildNodeCard(
+                    node,
+                    isSelected: isSelected,
+                    isActive: true,
+                    pulse: pulse,
+                    nodeWidth: nodeWidth,
+                    nodeHeight: nodeHeight,
+                  );
+                },
+              )
+            else
+              _buildNodeCard(
+                node,
+                isSelected: isSelected,
+                isActive: false,
+                pulse: 0.0,
+                nodeWidth: nodeWidth,
+                nodeHeight: nodeHeight,
+              ),
+
+            // 2. Magnetic Outer Input Pin on Left Border
+            if (node.inputPorts.isNotEmpty)
+              Positioned(
+                left: -8.0,
+                top: (nodeHeight - 16.0) / 2.0,
+                child: _buildPortPin(
+                  node: node,
+                  port: node.inputPorts.first,
+                  isInput: true,
+                ),
+              ),
+
+            // 3. Magnetic Outer Output Pin(s) on Right Border
+            for (int i = 0; i < node.outputPorts.length; i++)
+              Positioned(
+                right: -8.0,
+                top: _getPortY(node, i, false) - 8.0,
+                child: _buildPortPin(
+                  node: node,
+                  port: node.outputPorts[i],
+                  isInput: false,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -914,10 +905,15 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     required bool isActive,
     required double pulse,
     required double nodeWidth,
+    required double nodeHeight,
   }) {
     final glowAlpha = 0.25 + 0.35 * pulse;
     final glowBlur = 12.0 + 8.0 * pulse;
     final glowSpread = 1.0 + 2.0 * pulse;
+
+    final (categoryTitle, icon, categoryColor) = _getNodeCategoryMeta(node.type);
+    final subtitle = _getNodeShortSummary(node);
+    final hasMultipleOutputs = node.outputPorts.length > 1;
 
     return GestureDetector(
       onPanUpdate: widget.readOnly
@@ -946,16 +942,18 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       },
       child: Container(
         width: nodeWidth,
+        height: nodeHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isActive
                 ? Color.lerp(AppColors.primary, AppColors.primaryLight, pulse)!
                 : isSelected
                     ? AppColors.primary
                     : AppColors.border,
-            width: isActive ? 2.5 : isSelected ? 2.0 : 1.2,
+            width: isActive ? 2.2 : isSelected ? 2.0 : 1.2,
           ),
           boxShadow: [
             if (isActive) ...[
@@ -983,514 +981,160 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
               ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
+        child: Stack(
           children: [
-            // Node Header
-            _buildNodeHeader(node, isActive),
-
-            // Node Body / Summary
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: _buildNodeSummary(node),
-            ),
-
-            const Divider(height: 1, color: AppColors.border),
-
-            // Ports Row
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Input Port
-                  if (node.inputPorts.isNotEmpty)
-                    _buildPortWidget(
-                      node: node,
-                      port: node.inputPorts.first,
-                      isInput: true,
-                    )
-                  else
-                    const SizedBox(width: 12),
-
-                  const SizedBox(width: 6),
-
-                  // Output Ports Column (flexible to prevent RenderFlex overflow on long port labels)
-                  Flexible(
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Squircle Category Icon Box
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: categoryColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(
+                      color: categoryColor.withValues(alpha: 0.25),
+                      width: 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Icon(icon, size: 19, color: categoryColor),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                // Category tag, Node title, 1-line parameter summary
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(right: hasMultipleOutputs ? 44.0 : 8.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        for (final outPort in node.outputPorts)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: _buildPortWidget(
-                              node: node,
-                              port: outPort,
-                              isInput: false,
-                            ),
+                        Text(
+                          categoryTitle.toUpperCase(),
+                          style: TextStyle(
+                            color: categoryColor,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 1.5),
+                        Text(
+                          node.label.isNotEmpty ? node.label : node.type,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                            letterSpacing: -0.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (subtitle.isNotEmpty) ...[
+                          const SizedBox(height: 1.5),
+                          Text(
+                            subtitle,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 10.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+
+            // Output Port Labels (for nodes with multiple outputs like condition or nav)
+            if (hasMultipleOutputs)
+              for (int i = 0; i < node.outputPorts.length; i++)
+                Positioned(
+                  right: 2,
+                  top: _getPortY(node, i, false) - 17.0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: node.outputPorts[i].color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: node.outputPorts[i].color.withValues(alpha: 0.3),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Text(
+                      node.outputPorts[i].label,
+                      style: TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w700,
+                        color: node.outputPorts[i].color,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ),
+                ),
+
+            // Running Status Badge
+            if (isActive && widget.isRunning)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.success,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.success.withValues(alpha: 0.8),
+                        blurRadius: 4 + 3 * pulse,
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (!widget.readOnly && node.type != 'start')
+              Positioned(
+                top: -2,
+                right: -2,
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      widget.graph.nodes.remove(node);
+                      widget.graph.edges.removeWhere(
+                          (e) => e.fromNode == node.id || e.toNode == node.id);
+                      if (widget.graph.entrypoint == node.id) {
+                        widget.graph.entrypoint =
+                            widget.graph.nodes.isNotEmpty ? widget.graph.nodes.first.id : null;
+                      }
+                      if (widget.selectedNode?.id == node.id) {
+                        widget.onSelectNode(null);
+                      }
+                    });
+                    widget.onGraphChanged();
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: const Padding(
+                    padding: EdgeInsets.all(3.0),
+                    child: Icon(Icons.close_rounded, size: 13, color: AppColors.textTertiary),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildNodeHeader(GraphNode node, bool isActive) {
-    String categoryTitle;
-    IconData icon;
-    Color categoryColor;
-
-    switch (node.type) {
-      case 'start':
-        categoryTitle = 'Trigger';
-        icon = Icons.bolt_rounded;
-        categoryColor = AppColors.success;
-        break;
-      case 'end':
-      case 'mission_end':
-        categoryTitle = 'Terminal';
-        icon = Icons.stop_rounded;
-        categoryColor = const Color(0xFFDC2626);
-        break;
-      case 'navigate_waypoint':
-        categoryTitle = 'Navigation';
-        icon = Icons.navigation_rounded;
-        categoryColor = const Color(0xFF2563EB);
-        break;
-      case 'navigate_coordinates':
-        categoryTitle = 'Coordinates';
-        icon = Icons.explore_rounded;
-        categoryColor = const Color(0xFF2563EB);
-        break;
-      case 'patrol_loop':
-        categoryTitle = 'Patrol Loop';
-        icon = Icons.sync_rounded;
-        categoryColor = const Color(0xFF3B82F6);
-        break;
-      case 'relocalize':
-        categoryTitle = 'Localization';
-        icon = Icons.my_location_rounded;
-        categoryColor = const Color(0xFF0284C7);
-        break;
-      case 'cancel_navigation':
-        categoryTitle = 'Navigation';
-        icon = Icons.cancel_rounded;
-        categoryColor = const Color(0xFFDC2626);
-        break;
-      case 'wait':
-        categoryTitle = 'Timing';
-        icon = Icons.timer_outlined;
-        categoryColor = AppColors.warning;
-        break;
-      case 'dock':
-        categoryTitle = 'Power & Dock';
-        icon = Icons.battery_charging_full_rounded;
-        categoryColor = const Color(0xFF16A34A);
-        break;
-      case 'undock':
-        categoryTitle = 'Power & Dock';
-        icon = Icons.power_settings_new_rounded;
-        categoryColor = const Color(0xFF059669);
-        break;
-      case 'jog_motion':
-        categoryTitle = 'Actuator';
-        icon = Icons.gamepad_outlined;
-        categoryColor = const Color(0xFFD97706);
-        break;
-      case 'emergency_stop':
-        categoryTitle = 'Safety';
-        icon = Icons.emergency_rounded;
-        categoryColor = const Color(0xFFDC2626);
-        break;
-      case 'loop':
-      case 'loop_counter':
-        categoryTitle = 'Logic Flow';
-        icon = Icons.loop_rounded;
-        categoryColor = const Color(0xFF7C3AED);
-        break;
-      case 'condition':
-        categoryTitle = 'Branch Logic';
-        icon = Icons.call_split_rounded;
-        categoryColor = const Color(0xFFEA580C);
-        break;
-      case 'parallel':
-      case 'parallel_fork':
-        categoryTitle = 'Parallel Flow';
-        icon = Icons.alt_route_rounded;
-        categoryColor = const Color(0xFF00ACC1);
-        break;
-      case 'battery_guard':
-        categoryTitle = 'Safety Guard';
-        icon = Icons.battery_saver_rounded;
-        categoryColor = const Color(0xFF059669);
-        break;
-      case 'set_variable':
-        categoryTitle = 'Variables';
-        icon = Icons.data_object_rounded;
-        categoryColor = const Color(0xFF9333EA);
-        break;
-      case 'ui_interaction':
-        categoryTitle = 'Kiosk Form';
-        icon = Icons.touch_app_rounded;
-        categoryColor = AppColors.primary;
-        break;
-      case 'ui_notification':
-        categoryTitle = 'Kiosk Alert';
-        icon = Icons.notifications_active_rounded;
-        categoryColor = const Color(0xFF0284C7);
-        break;
-      case 'ui_choice':
-        categoryTitle = 'Kiosk Dialog';
-        icon = Icons.ads_click_rounded;
-        categoryColor = AppColors.primary;
-        break;
-      case 'ui_media':
-        categoryTitle = 'Kiosk Media';
-        icon = Icons.smart_display_rounded;
-        categoryColor = const Color(0xFF0284C7);
-        break;
-      case 'ui_speech':
-        categoryTitle = 'Voice TTS';
-        icon = Icons.record_voice_over_rounded;
-        categoryColor = const Color(0xFF8B5CF6);
-        break;
-      case 'notify':
-        categoryTitle = 'Robot Signal';
-        icon = Icons.lightbulb_rounded;
-        categoryColor = const Color(0xFF0D9488);
-        break;
-      case 'call_api':
-        categoryTitle = 'Webhook & API';
-        icon = Icons.http_rounded;
-        categoryColor = const Color(0xFF7C3AED);
-        break;
-      case 'call_service':
-        categoryTitle = 'ROS 2 Service';
-        icon = Icons.precision_manufacturing_rounded;
-        categoryColor = const Color(0xFF4F46E5);
-        break;
-      case 'call_action':
-        categoryTitle = 'ROS 2 Action';
-        icon = Icons.settings_input_component_rounded;
-        categoryColor = const Color(0xFF4F46E5);
-        break;
-      case 'publish_topic':
-        categoryTitle = 'ROS 2 Topic';
-        icon = Icons.podcasts_rounded;
-        categoryColor = const Color(0xFF4F46E5);
-        break;
-      case 'switch_mission':
-      case 'redirect_mission':
-        categoryTitle = 'Workflow';
-        icon = Icons.shuffle_rounded;
-        categoryColor = const Color(0xFF009688);
-        break;
-      default:
-        categoryTitle = 'Step';
-        icon = Icons.circle_outlined;
-        categoryColor = AppColors.textSecondary;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceElevated,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(13),
-          topRight: Radius.circular(13),
-        ),
-        border: Border(
-          bottom: BorderSide(color: AppColors.border),
-        ),
-      ),
-      child: Row(
-        children: [
-          // n8n-style category squircle icon container
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: categoryColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: categoryColor.withValues(alpha: 0.25),
-                width: 1,
-              ),
-            ),
-            child: Center(
-              child: Icon(icon, size: 17, color: categoryColor),
-            ),
-          ),
-          const SizedBox(width: 9),
-          // Category tag + Node title
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  categoryTitle.toUpperCase(),
-                  style: TextStyle(
-                    color: categoryColor,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.7,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 1.5),
-                Text(
-                  node.label.isNotEmpty ? node.label : node.type,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12.5,
-                    letterSpacing: -0.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          // Status indicator or Delete action
-          if (isActive && widget.isRunning)
-            AnimatedBuilder(
-              animation: _flowAnimController,
-              builder: (context, _) {
-                final pulse = (math.sin(_flowAnimController.value * 2 * math.pi) + 1.0) / 2.0;
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.12 + 0.1 * pulse),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.success.withValues(alpha: 0.4 + 0.4 * pulse),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.success.withValues(alpha: 0.3 * pulse),
-                        blurRadius: 6 * pulse,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.success,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.success.withValues(alpha: 0.8),
-                              blurRadius: 3 + 2 * pulse,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Text(
-                        'RUNNING',
-                        style: TextStyle(
-                          color: AppColors.success,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            )
-          else if (!widget.readOnly && node.type != 'start')
-            InkWell(
-              onTap: () {
-                setState(() {
-                  widget.graph.nodes.remove(node);
-                  widget.graph.edges.removeWhere(
-                      (e) => e.fromNode == node.id || e.toNode == node.id);
-                  if (widget.graph.entrypoint == node.id) {
-                    widget.graph.entrypoint =
-                        widget.graph.nodes.isNotEmpty ? widget.graph.nodes.first.id : null;
-                  }
-                  if (widget.selectedNode?.id == node.id) {
-                    widget.onSelectNode(null);
-                  }
-                });
-                widget.onGraphChanged();
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: const Padding(
-                padding: EdgeInsets.all(4.0),
-                child: Icon(Icons.close_rounded, size: 15, color: AppColors.textTertiary),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNodeSummary(GraphNode node) {
-    String summary = '';
-    switch (node.type) {
-      case 'start':
-        final trigger = node.params['trigger'] as String? ?? 'manual';
-        final enabled = node.params['enabled'] != false;
-        if (trigger == 'interval') {
-          final mins = (node.params['interval_minutes'] as num?)?.toInt() ?? 30;
-          final h = mins ~/ 60;
-          final m = mins % 60;
-          final dStr = h > 0 ? (m > 0 ? '${h}h ${m}m' : '${h}h') : '${m}m';
-          summary = enabled ? '⏰ Every $dStr ($mins min)' : '⏸ Every $dStr (Paused)';
-        } else if (trigger == 'schedule') {
-          final hour = (node.params['schedule_hour'] as num?)?.toInt() ?? 9;
-          final min = (node.params['schedule_minute'] as num?)?.toInt() ?? 0;
-          final rep = node.params['schedule_type'] as String? ?? 'daily';
-          final h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-          final amPm = hour >= 12 ? 'PM' : 'AM';
-          final tStr = '$h12:${min.toString().padLeft(2, '0')} $amPm';
-          summary = enabled ? '⏰ $rep at $tStr' : '⏸ $rep at $tStr (Paused)';
-        } else {
-          summary = '▶ On-demand / manual start';
-        }
-        break;
-      case 'end':
-      case 'mission_end':
-        summary = node.params['dock_on_end'] == true
-            ? 'Finish & return to charger'
-            : 'Finish mission safely';
-        break;
-      case 'navigate_waypoint':
-        final wp = node.params['waypoint']?.toString() ?? '';
-        summary = wp.isNotEmpty ? 'Drive to: $wp' : 'Pick a destination in settings';
-        break;
-      case 'navigate_coordinates':
-        summary = 'Drive to X: ${node.params['x'] ?? 0}, Y: ${node.params['y'] ?? 0}';
-        break;
-      case 'patrol_loop':
-        final wps = (node.params['waypoints'] as List?)?.length ?? 0;
-        final laps = node.params['laps'] ?? 1;
-        summary = 'Visit $wps places in order ($laps laps)';
-        break;
-      case 'relocalize':
-        summary = 'Scan room with laser to find position';
-        break;
-      case 'cancel_navigation':
-        summary = 'Stop robot movement immediately';
-        break;
-      case 'wait':
-        final sec = node.params['duration_sec'] ?? node.params['duration'] ?? 5;
-        summary = 'Pause and wait $sec seconds';
-        break;
-      case 'dock':
-        summary = 'Drive to charger and plug in';
-        break;
-      case 'undock':
-        summary = 'Safely back away from charger';
-        break;
-      case 'jog_motion':
-        final dur = node.params['duration_sec'] ?? 1.0;
-        summary = 'Nudge / drive wheels for ${dur}s';
-        break;
-      case 'emergency_stop':
-        summary = 'Safety stop (cut motor power)';
-        break;
-      case 'loop':
-      case 'loop_counter':
-        final count = node.params['count'] ?? 3;
-        summary = 'Repeat connected steps $count times';
-        break;
-      case 'condition':
-        final expr = node.params['expression'] ?? 'true';
-        summary = 'Check if: $expr';
-        break;
-      case 'parallel':
-      case 'parallel_fork':
-        final bc = (node.params['branch_count'] as num?)?.toInt() ?? 2;
-        summary = 'Run $bc steps at the same time';
-        break;
-      case 'battery_guard':
-        final minB = node.params['min_battery_pct'] ?? 20;
-        summary = 'Check if battery is at least $minB%';
-        break;
-      case 'set_variable':
-        final varName = node.params['variable_name'] ?? 'var';
-        final val = node.params['value'] ?? '';
-        summary = 'Remember: $varName = $val';
-        break;
-      case 'call_api':
-        final method = node.params['method'] ?? 'POST';
-        final url = node.params['url']?.toString() ?? '';
-        summary = '$method $url'.trim();
-        if (summary.isEmpty) summary = 'Send web notification';
-        break;
-      case 'call_service':
-        final srv = node.params['service_name']?.toString() ?? '';
-        summary = srv.isNotEmpty ? 'Run command: $srv' : 'Trigger robot command';
-        break;
-      case 'call_action':
-        final act = node.params['action_name']?.toString() ?? '';
-        summary = act.isNotEmpty ? 'Run task: $act' : 'Run background task';
-        break;
-      case 'publish_topic':
-        final top = node.params['topic_name']?.toString() ?? '';
-        summary = top.isNotEmpty ? 'Broadcast to: $top' : 'Broadcast live signal';
-        break;
-      case 'ui_interaction':
-        final title = node.params['title'] ?? 'Form';
-        summary = 'Show form on screen: $title';
-        break;
-      case 'ui_notification':
-        final title = node.params['title'] ?? 'Notice';
-        summary = 'Show notice: $title';
-        break;
-      case 'ui_choice':
-        final title = node.params['title'] ?? 'Question';
-        summary = 'Ask buttons: $title';
-        break;
-      case 'ui_media':
-        final mtype = node.params['media_type'] ?? 'media';
-        summary = 'Show $mtype on robot screen';
-        break;
-      case 'ui_speech':
-        final text = node.params['text'] ?? '';
-        summary = text.isNotEmpty ? 'Say: "$text"' : 'Speak announcement aloud';
-        break;
-      case 'switch_mission':
-      case 'redirect_mission':
-        final target = (node.params['target_mission_id'] ?? node.params['mission_id'])?.toString() ?? '';
-        summary = target.isNotEmpty ? 'Switch to mission: $target' : 'Switch to another saved mission';
-        break;
-      case 'notify':
-        summary = node.params['oled_text'] ?? 'Sound chime & flash lights';
-        break;
-      default:
-        summary = 'Execute step';
-    }
-
-    return Text(
-      summary,
-      style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-
-  Widget _buildPortWidget({
+  Widget _buildPortPin({
     required GraphNode node,
     required NodePort port,
     required bool isInput,
@@ -1519,114 +1163,94 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       activeColor = AppColors.primary;
     }
 
+    const double baseSize = 16.0;
+    final pinSize = (isHovered || isBeingDrawnFrom) ? 20.0 : baseSize;
+
     return KeyedSubtree(
       key: gKey,
-      child: GestureDetector(
-        onPanStart: widget.readOnly
-            ? null
-            : (details) {
-                setState(() {
-                  _drawingFromNode = node;
-                  _drawingFromPort = port;
-                  _drawingFromIsInput = isInput;
-                  _drawingCurrentPos = _portOffsets[portKey] ?? _estimatePortOffset(node, port.id, isInput);
-                  _hoveredTarget = null;
-                  _hoveredValidation = null;
-                });
-              },
-        onPanUpdate: widget.readOnly
-            ? null
-            : (details) {
-                setState(() {
-                  _drawingCurrentPos = (_drawingCurrentPos ?? node.position) + details.delta;
-                  final hovered = _findHoveredPort(_drawingCurrentPos!);
-                  _hoveredTarget = hovered;
-                  if (hovered != null && _drawingFromNode != null && _drawingFromPort != null) {
-                    _hoveredValidation = _validateConnection(
-                      fromNode: _drawingFromNode!,
-                      fromPort: _drawingFromPort!,
-                      fromIsInput: _drawingFromIsInput ?? false,
-                      toNode: hovered.$1,
-                      toPort: hovered.$2,
-                      toIsInput: hovered.$3,
-                    );
-                  } else {
+      child: Tooltip(
+        message: port.label,
+        waitDuration: const Duration(milliseconds: 300),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onPanStart: widget.readOnly
+              ? null
+              : (details) {
+                  setState(() {
+                    _drawingFromNode = node;
+                    _drawingFromPort = port;
+                    _drawingFromIsInput = isInput;
+                    _drawingCurrentPos = _portOffsets[portKey] ?? _estimatePortOffset(node, port.id, isInput);
+                    _hoveredTarget = null;
                     _hoveredValidation = null;
-                  }
-                });
-              },
-        onPanEnd: widget.readOnly
-            ? null
-            : (details) {
-                _finishWireDrawing();
-              },
-        onPanCancel: widget.readOnly
-            ? null
-            : () {
-                _cancelWireDrawing();
-              },
-        child: MouseRegion(
-          cursor: isHoverInvalid
-              ? SystemMouseCursors.forbidden
-              : (isHoverValid ? SystemMouseCursors.click : SystemMouseCursors.precise),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-            decoration: BoxDecoration(
-              color: isHovered
-                  ? activeColor.withValues(alpha: 0.2)
-                  : (isBeingDrawnFrom
-                      ? AppColors.primary.withValues(alpha: 0.25)
-                      : port.color.withValues(alpha: 0.1)),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: activeColor.withValues(alpha: isHovered || isBeingDrawnFrom ? 0.95 : 0.5),
-                width: isHovered || isBeingDrawnFrom ? 1.8 : 1.2,
-              ),
-              boxShadow: (isHovered || isBeingDrawnFrom)
-                  ? [
-                      BoxShadow(
-                        color: activeColor.withValues(alpha: 0.35),
-                        blurRadius: 8,
-                        spreadRadius: 1,
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isInput) ...[
-                  _buildPortHandle(
-                    color: activeColor,
-                    isHoverValid: isHoverValid,
-                    isHoverInvalid: isHoverInvalid,
-                    isActive: isBeingDrawnFrom,
+                  });
+                },
+          onPanUpdate: widget.readOnly
+              ? null
+              : (details) {
+                  setState(() {
+                    _drawingCurrentPos = (_drawingCurrentPos ?? node.position) + details.delta;
+                    final hovered = _findHoveredPort(_drawingCurrentPos!);
+                    _hoveredTarget = hovered;
+                    if (hovered != null && _drawingFromNode != null && _drawingFromPort != null) {
+                      _hoveredValidation = _validateConnection(
+                        fromNode: _drawingFromNode!,
+                        fromPort: _drawingFromPort!,
+                        fromIsInput: _drawingFromIsInput ?? false,
+                        toNode: hovered.$1,
+                        toPort: hovered.$2,
+                        toIsInput: hovered.$3,
+                      );
+                    } else {
+                      _hoveredValidation = null;
+                    }
+                  });
+                },
+          onPanEnd: widget.readOnly
+              ? null
+              : (details) {
+                  _finishWireDrawing();
+                },
+          onPanCancel: widget.readOnly
+              ? null
+              : () {
+                  _cancelWireDrawing();
+                },
+          child: MouseRegion(
+            cursor: isHoverInvalid
+                ? SystemMouseCursors.forbidden
+                : (isHoverValid ? SystemMouseCursors.click : SystemMouseCursors.precise),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: pinSize,
+              height: pinSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.surface,
+                border: Border.all(
+                  color: activeColor,
+                  width: (isHovered || isBeingDrawnFrom) ? 2.5 : 1.8,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: (isHovered || isBeingDrawnFrom)
+                        ? activeColor.withValues(alpha: 0.5)
+                        : AppColors.shadowTint.withValues(alpha: 0.15),
+                    blurRadius: (isHovered || isBeingDrawnFrom) ? 8 : 4,
+                    spreadRadius: (isHovered || isBeingDrawnFrom) ? 1.5 : 0.5,
                   ),
-                  const SizedBox(width: 5),
                 ],
-                Flexible(
-                  child: Text(
-                    port.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: activeColor,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
-                    ),
+              ),
+              child: Center(
+                child: Container(
+                  width: (isHovered || isBeingDrawnFrom) ? 8.0 : 6.0,
+                  height: (isHovered || isBeingDrawnFrom) ? 8.0 : 6.0,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: activeColor,
                   ),
                 ),
-                if (!isInput) ...[
-                  const SizedBox(width: 5),
-                  _buildPortHandle(
-                    color: activeColor,
-                    isHoverValid: isHoverValid,
-                    isHoverInvalid: isHoverInvalid,
-                    isActive: isBeingDrawnFrom,
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),
@@ -1634,83 +1258,164 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     );
   }
 
-  Widget _buildPortHandle({
-    required Color color,
-    required bool isHoverValid,
-    required bool isHoverInvalid,
-    required bool isActive,
-  }) {
-    if (isHoverValid) {
-      return Container(
-        width: 13,
-        height: 13,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: AppColors.success,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.success.withValues(alpha: 0.65),
-              blurRadius: 6,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: const Center(
-          child: Icon(Icons.check, size: 8.5, color: Colors.white),
-        ),
-      );
+  (String, IconData, Color) _getNodeCategoryMeta(String type) {
+    switch (type) {
+      case 'start':
+        return ('Trigger', Icons.bolt_rounded, AppColors.success);
+      case 'end':
+      case 'mission_end':
+        return ('Terminal', Icons.stop_rounded, const Color(0xFFDC2626));
+      case 'navigate_waypoint':
+        return ('Navigation', Icons.navigation_rounded, const Color(0xFF2563EB));
+      case 'navigate_coordinates':
+        return ('Coordinates', Icons.explore_rounded, const Color(0xFF2563EB));
+      case 'patrol_loop':
+        return ('Patrol Loop', Icons.sync_rounded, const Color(0xFF3B82F6));
+      case 'relocalize':
+        return ('Localization', Icons.my_location_rounded, const Color(0xFF0284C7));
+      case 'cancel_navigation':
+        return ('Navigation', Icons.cancel_rounded, const Color(0xFFDC2626));
+      case 'wait':
+        return ('Timing', Icons.timer_outlined, AppColors.warning);
+      case 'dock':
+        return ('Power & Dock', Icons.battery_charging_full_rounded, const Color(0xFF16A34A));
+      case 'undock':
+        return ('Power & Dock', Icons.power_settings_new_rounded, const Color(0xFF059669));
+      case 'jog_motion':
+        return ('Actuator', Icons.gamepad_outlined, const Color(0xFFD97706));
+      case 'emergency_stop':
+        return ('Safety', Icons.emergency_rounded, const Color(0xFFDC2626));
+      case 'loop':
+      case 'loop_counter':
+        return ('Logic Flow', Icons.loop_rounded, const Color(0xFF7C3AED));
+      case 'condition':
+        return ('Branch Logic', Icons.call_split_rounded, const Color(0xFFEA580C));
+      case 'parallel':
+      case 'parallel_fork':
+        return ('Parallel Flow', Icons.alt_route_rounded, const Color(0xFF00ACC1));
+      case 'battery_guard':
+        return ('Safety Guard', Icons.battery_saver_rounded, const Color(0xFF059669));
+      case 'set_variable':
+        return ('Variables', Icons.data_object_rounded, const Color(0xFF9333EA));
+      case 'ui_interaction':
+        return ('Kiosk Form', Icons.touch_app_rounded, AppColors.primary);
+      case 'ui_notification':
+        return ('Kiosk Alert', Icons.notifications_active_rounded, const Color(0xFF0284C7));
+      case 'ui_choice':
+        return ('Kiosk Dialog', Icons.ads_click_rounded, AppColors.primary);
+      case 'ui_media':
+        return ('Kiosk Media', Icons.smart_display_rounded, const Color(0xFF0284C7));
+      case 'ui_speech':
+        return ('Voice TTS', Icons.record_voice_over_rounded, const Color(0xFF8B5CF6));
+      case 'notify':
+        return ('Robot Signal', Icons.lightbulb_rounded, const Color(0xFF0D9488));
+      case 'call_api':
+        return ('Webhook & API', Icons.http_rounded, const Color(0xFF7C3AED));
+      case 'call_service':
+        return ('ROS 2 Service', Icons.precision_manufacturing_rounded, const Color(0xFF4F46E5));
+      case 'call_action':
+        return ('ROS 2 Action', Icons.settings_input_component_rounded, const Color(0xFF4F46E5));
+      case 'publish_topic':
+        return ('ROS 2 Topic', Icons.podcasts_rounded, const Color(0xFF4F46E5));
+      case 'switch_mission':
+      case 'redirect_mission':
+        return ('Workflow', Icons.shuffle_rounded, const Color(0xFF009688));
+      default:
+        return ('Step', Icons.circle_outlined, AppColors.textSecondary);
     }
-    if (isHoverInvalid) {
-      return Container(
-        width: 13,
-        height: 13,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: AppColors.danger,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.danger.withValues(alpha: 0.65),
-              blurRadius: 6,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: const Center(
-          child: Icon(Icons.close, size: 8.5, color: Colors.white),
-        ),
-      );
-    }
+  }
 
-    // n8n magnetic circular socket pin
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        border: Border.all(
-          color: isActive ? AppColors.primary : color.withValues(alpha: 0.85),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: (isActive ? AppColors.primary : color).withValues(alpha: 0.35),
-            blurRadius: 4,
-            spreadRadius: 0.5,
-          ),
-        ],
-      ),
-      child: Center(
-        child: Container(
-          width: 5,
-          height: 5,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isActive ? AppColors.primary : color,
-          ),
-        ),
-      ),
-    );
+  String _getNodeShortSummary(GraphNode node) {
+    switch (node.type) {
+      case 'start':
+        final trigger = node.params['trigger'] as String? ?? 'manual';
+        if (trigger == 'interval') {
+          final mins = (node.params['interval_minutes'] as num?)?.toInt() ?? 30;
+          return 'Every ${mins}m';
+        } else if (trigger == 'schedule') {
+          final hour = (node.params['schedule_hour'] as num?)?.toInt() ?? 9;
+          final min = (node.params['schedule_minute'] as num?)?.toInt() ?? 0;
+          final rep = node.params['schedule_type'] as String? ?? 'daily';
+          final h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+          final amPm = hour >= 12 ? 'PM' : 'AM';
+          return '$rep at $h12:${min.toString().padLeft(2, '0')} $amPm';
+        }
+        return 'Manual start';
+      case 'end':
+      case 'mission_end':
+        return node.params['dock_on_end'] == true ? 'Finish & Dock' : 'Finish';
+      case 'navigate_waypoint':
+        final wp = node.params['waypoint']?.toString() ?? '';
+        return wp.isNotEmpty ? wp : 'Set destination';
+      case 'navigate_coordinates':
+        return 'X: ${node.params['x'] ?? 0}, Y: ${node.params['y'] ?? 0}';
+      case 'patrol_loop':
+        final wps = (node.params['waypoints'] as List?)?.length ?? 0;
+        final laps = node.params['laps'] ?? 1;
+        return '$wps points · $laps laps';
+      case 'relocalize':
+        return 'Scan room';
+      case 'cancel_navigation':
+        return 'Halt robot';
+      case 'wait':
+        final sec = node.params['duration_sec'] ?? node.params['duration'] ?? 5;
+        return '${sec}s delay';
+      case 'dock':
+        return 'Auto-dock';
+      case 'undock':
+        return 'Leave dock';
+      case 'jog_motion':
+        final dur = node.params['duration_sec'] ?? 1.0;
+        return '${dur}s move';
+      case 'emergency_stop':
+        return 'Motor cut';
+      case 'loop':
+      case 'loop_counter':
+        final count = node.params['count'] ?? 3;
+        return 'Repeat ${count}x';
+      case 'condition':
+        final expr = node.params['expression'] ?? '';
+        return expr.isNotEmpty ? 'if: $expr' : 'Conditional';
+      case 'battery_guard':
+        final minB = node.params['min_battery_pct'] ?? 20;
+        return 'Min: $minB%';
+      case 'set_variable':
+        final varName = node.params['variable_name'] ?? 'var';
+        final val = node.params['value'] ?? '';
+        return '$varName = $val';
+      case 'call_api':
+        final method = node.params['method'] ?? 'POST';
+        final url = node.params['url']?.toString() ?? '';
+        return url.isNotEmpty ? '$method $url' : '$method request';
+      case 'call_service':
+        final srv = node.params['service_name']?.toString() ?? '';
+        return srv.isNotEmpty ? srv : 'ROS 2 service';
+      case 'call_action':
+        final act = node.params['action_name']?.toString() ?? '';
+        return act.isNotEmpty ? act : 'ROS 2 action';
+      case 'publish_topic':
+        final top = node.params['topic_name']?.toString() ?? '';
+        return top.isNotEmpty ? top : 'ROS 2 topic';
+      case 'ui_interaction':
+        return node.params['title']?.toString() ?? 'Touch form';
+      case 'ui_choice':
+        return node.params['title']?.toString() ?? 'User choice';
+      case 'ui_notification':
+        return node.params['title']?.toString() ?? 'Notice';
+      case 'ui_media':
+        return node.params['media_type']?.toString() ?? 'Media display';
+      case 'ui_speech':
+        final text = node.params['text']?.toString() ?? '';
+        return text.isNotEmpty ? '"$text"' : 'Voice speak';
+      case 'notify':
+        return node.params['oled_text']?.toString() ?? 'Chime & LEDs';
+      case 'switch_mission':
+      case 'redirect_mission':
+        final target = (node.params['target_mission_id'] ?? node.params['mission_id'])?.toString() ?? '';
+        return target.isNotEmpty ? 'Switch: $target' : 'Switch mission';
+      default:
+        return '';
+    }
   }
 
   void _finishWireDrawing() {
@@ -1883,7 +1588,7 @@ class _EdgesPainter extends CustomPainter {
       }
 
       if (isSelected) {
-        _drawOrthogonalEdge(
+        _drawBezierEdge(
           canvas,
           p1,
           p2,
@@ -1895,7 +1600,7 @@ class _EdgesPainter extends CustomPainter {
           drawHalo: true,
           isEdgeActive: isActive,
         );
-        _drawOrthogonalEdge(
+        _drawBezierEdge(
           canvas,
           p1,
           p2,
@@ -1908,7 +1613,7 @@ class _EdgesPainter extends CustomPainter {
           isEdgeActive: isActive,
         );
       } else {
-        _drawOrthogonalEdge(
+        _drawBezierEdge(
           canvas,
           p1,
           p2,
@@ -1976,9 +1681,9 @@ class _EdgesPainter extends CustomPainter {
       }
 
       if (isDashed) {
-        _drawDashedOrthogonalEdge(canvas, p1, p2, wireColor, wireWidth);
+        _drawDashedBezierEdge(canvas, p1, p2, wireColor, wireWidth);
       } else {
-        _drawOrthogonalEdge(canvas, p1, p2, wireColor, wireWidth);
+        _drawBezierEdge(canvas, p1, p2, wireColor, wireWidth);
       }
     }
   }
@@ -1988,34 +1693,24 @@ class _EdgesPainter extends CustomPainter {
       (n) => n.id == nodeId,
       orElse: () => GraphNode(id: '', type: '', position: Offset.zero),
     );
-    double y = node.position.dy + 82.0;
-    if (isInput) {
-      final portIndex = node.inputPorts.indexWhere((p) => p.id == portId);
-      if (portIndex > 0) y += portIndex * 26.0;
-      return Offset(node.position.dx + 16.0, y);
-    } else {
-      final portIndex = node.outputPorts.indexWhere((p) => p.id == portId);
-      if (portIndex > 0) y += portIndex * 26.0;
-      return Offset(node.position.dx + 244.0, y);
-    }
+    return _MissionGraphCanvasState._estimatePortOffsetStatic(node, portId, isInput);
   }
 
-  Path _buildOrthogonalPath(
+  Path _buildBezierPath(
     Offset p1,
     Offset p2, {
     double corridorOffset = 0.0,
     double loopLaneOffset = 0.0,
   }) {
-    final points = _MissionGraphCanvasState._getOrthogonalPoints(
+    return _MissionGraphCanvasState._buildBezierPath(
       p1,
       p2,
       corridorOffset: corridorOffset,
       loopLaneOffset: loopLaneOffset,
     );
-    return _MissionGraphCanvasState._buildSmoothPath(points, 14.0);
   }
 
-  void _drawOrthogonalEdge(
+  void _drawBezierEdge(
     Canvas canvas,
     Offset p1,
     Offset p2,
@@ -2027,7 +1722,7 @@ class _EdgesPainter extends CustomPainter {
     bool drawHalo = true,
     bool isEdgeActive = false,
   }) {
-    final path = _buildOrthogonalPath(
+    final path = _buildBezierPath(
       p1,
       p2,
       corridorOffset: corridorOffset,
@@ -2071,11 +1766,7 @@ class _EdgesPainter extends CustomPainter {
       final metric = metrics.first;
       final totalLen = metric.length;
 
-      // Primary: Destination Entry Arrowhead
-      // Placed right before destination port entering horizontally from the left.
-      // At this location (metric.length - 12.0), the wire is strictly traveling
-      // forward (+X) into the input pin. This arrowhead is ALWAYS pointing forward (> [Port]),
-      // eliminating any reverse or backwards pointing arrows!
+      // Primary: Destination Entry Arrowhead right before destination port
       if (totalLen >= 18.0) {
         final endOffset = math.max(4.0, totalLen - 12.0);
         final endTangent = metric.getTangentForOffset(endOffset);
@@ -2086,9 +1777,6 @@ class _EdgesPainter extends CustomPainter {
       }
 
       // Secondary: Mid-span directional arrow (for long forward wires only)
-      // Only draw mid-arrow if the path is sufficiently long, forward-directed (p2.dx >= p1.dx + 60.0),
-      // and the tangent vector is pointing strictly in the forward (+X) direction (> 0.3).
-      // NEVER draw mid-arrows on reverse loopback bridges where tangent dx is negative!
       if (totalLen > 180.0 && p2.dx >= p1.dx + 60.0) {
         final midTangent = metric.getTangentForOffset(totalLen * 0.5);
         if (midTangent != null && midTangent.vector.dx > 0.3) {
@@ -2164,7 +1852,7 @@ class _EdgesPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawDashedOrthogonalEdge(
+  void _drawDashedBezierEdge(
     Canvas canvas,
     Offset p1,
     Offset p2,
@@ -2173,7 +1861,7 @@ class _EdgesPainter extends CustomPainter {
     double corridorOffset = 0.0,
     double loopLaneOffset = 0.0,
   }) {
-    final path = _buildOrthogonalPath(
+    final path = _buildBezierPath(
       p1,
       p2,
       corridorOffset: corridorOffset,
