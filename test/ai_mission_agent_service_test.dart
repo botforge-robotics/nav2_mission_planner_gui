@@ -85,9 +85,13 @@ void main() {
       expect(nodeTypes.contains('start'), true);
       expect(nodeTypes.contains('battery_guard'), true);
       expect(nodeTypes.contains('navigate_waypoint'), true);
-      expect(nodeTypes.contains('ui_choice'), true);
-      expect(nodeTypes.contains('ui_interaction'), true);
+      expect(nodeTypes.contains('ui_interaction'), true, reason: 'Must have interactive data collection forms');
       expect(nodeTypes.contains('dock'), true);
+
+      // Verify that the requisition form has text input to enter out of stock material information
+      final requisitionNode = graph.nodes.firstWhere((n) => n.id == 'n_ask_stock');
+      final fields = (requisitionNode.params['fields'] as List? ?? []);
+      expect(fields.any((f) => f['key'] == 'materials_needed'), true, reason: 'Must have text input field to collect missing material details');
 
       // Verify waypoints navigated
       final navWaypoints = graph.nodes

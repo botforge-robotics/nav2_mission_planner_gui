@@ -524,7 +524,10 @@ Your task is to convert human natural language workflow instructions into a comp
    - The user's input may include conversational questions or commentary (e.g. "will it optimize travel?", "can it do this?").
    - Extract ONLY the robotic workflow instructions (destinations, tasks, timings). Ignore commentary and DO NOT attempt to answer questions inside the JSON.
    - NEVER repeat parameters or generate duplicate keys (e.g. do not repeat "trigger_type" or "trigger_location").
-9. Return ONLY valid JSON conforming to the output schema. No conversational filler, no markdown quotes outside the JSON block.
+9. DATA COLLECTION VS. SIMPLE QUESTIONS:
+   - When the user asks to "collect information", "ask what is out of stock", "enter requisition details", or "take feedback", DO NOT use a simple Yes/No choice dialog!
+   - Use "ui_interaction" with dynamic form fields (switch, text, number) so the human operator can type in the requested information (e.g. text input for missing items, number for quantity).
+10. Return ONLY valid JSON conforming to the output schema. No conversational filler, no markdown quotes outside the JSON block.
 
 ### JSON OUTPUT FORMAT:
 Your response must be a single, complete, syntactically valid JSON object matching this structure:
@@ -996,13 +999,19 @@ Output only the JSON object starting with { and ending with }. Do not include ma
           },
           {
             'id': 'n_ask_stock',
-            'type': 'ui_choice',
-            'label': 'Stock & Material Check',
+            'type': 'ui_interaction',
+            'label': '$bayLoc Material Requisition',
             'params': {
-              'title': '$bayLoc Inventory Check',
-              'message': 'Are any raw materials out of stock or needing procurement?',
-              'options': ['Out of Stock (Procure)', 'Stock Sufficient'],
-              'timeout_seconds': 60
+              'title': '$bayLoc Stock & Requisition Check',
+              'message': 'Check inventory and input any raw materials out of stock or needing procurement.',
+              'subtype': 'dynamic_form',
+              'fields': [
+                {'key': 'out_of_stock', 'label': 'Raw Materials Out of Stock', 'type': 'switch', 'required': true, 'default_value': true},
+                {'key': 'materials_needed', 'label': 'Materials / Components Needed', 'type': 'text', 'required': true, 'default_value': 'Raw Stock & Parts'},
+                {'key': 'requisition_qty', 'label': 'Quantity / Units Required', 'type': 'number', 'required': false, 'default_value': '5'},
+                {'key': 'operator_notes', 'label': 'Bay Station Notes', 'type': 'text', 'required': false},
+              ],
+              'timeout_seconds': 90
             }
           },
           {
@@ -1046,12 +1055,6 @@ Output only the JSON object starting with { and ending with }. Do not include ma
             'params': {}
           },
           {
-            'id': 'n_voice_nav_fail',
-            'type': 'ui_speech',
-            'label': 'Industrial Hazard Warning',
-            'params': {'text': 'Navigation blocked or timed out in workspace. Returning safely to dock.', 'voice': 'female'}
-          },
-          {
             'id': 'n_dock_abort',
             'type': 'dock',
             'label': 'Abort: Return to Dock',
@@ -1064,26 +1067,25 @@ Output only the JSON object starting with { and ending with }. Do not include ma
           {'id': 'e_2', 'from_node': 'n_bat', 'from_port': 'ok', 'to_node': 'n_go_bay', 'to_port': 'in'},
           {'id': 'e_3', 'from_node': 'n_bat', 'from_port': 'low_battery', 'to_node': 'n_dock_abort', 'to_port': 'in'},
           {'id': 'e_4', 'from_node': 'n_go_bay', 'from_port': 'arrived', 'to_node': 'n_ask_stock', 'to_port': 'in'},
-          {'id': 'e_5', 'from_node': 'n_go_bay', 'from_port': 'failed', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
-          {'id': 'e_6', 'from_node': 'n_go_bay', 'from_port': 'timeout', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
-          {'id': 'e_7', 'from_node': 'n_ask_stock', 'from_port': 'out of stock (procure)', 'to_node': 'n_go_store', 'to_port': 'in'},
-          {'id': 'e_8', 'from_node': 'n_ask_stock', 'from_port': 'stock sufficient', 'to_node': 'n_dock_success', 'to_port': 'in'},
+          {'id': 'e_5', 'from_node': 'n_go_bay', 'from_port': 'failed', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_6', 'from_node': 'n_go_bay', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_7', 'from_node': 'n_ask_stock', 'from_port': 'submitted', 'to_node': 'n_go_store', 'to_port': 'in'},
+          {'id': 'e_8', 'from_node': 'n_ask_stock', 'from_port': 'cancelled', 'to_node': 'n_dock_success', 'to_port': 'in'},
           {'id': 'e_9', 'from_node': 'n_ask_stock', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
           {'id': 'e_10', 'from_node': 'n_go_store', 'from_port': 'arrived', 'to_node': 'n_procure_form', 'to_port': 'in'},
-          {'id': 'e_11', 'from_node': 'n_go_store', 'from_port': 'failed', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
-          {'id': 'e_12', 'from_node': 'n_go_store', 'from_port': 'timeout', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
+          {'id': 'e_11', 'from_node': 'n_go_store', 'from_port': 'failed', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_12', 'from_node': 'n_go_store', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
           {'id': 'e_13', 'from_node': 'n_procure_form', 'from_port': 'submitted', 'to_node': 'n_deliver_bay', 'to_port': 'in'},
           {'id': 'e_14', 'from_node': 'n_procure_form', 'from_port': 'cancelled', 'to_node': 'n_dock_abort', 'to_port': 'in'},
           {'id': 'e_15', 'from_node': 'n_procure_form', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
           {'id': 'e_16', 'from_node': 'n_deliver_bay', 'from_port': 'arrived', 'to_node': 'n_deliver_workstation', 'to_port': 'in'},
-          {'id': 'e_17', 'from_node': 'n_deliver_bay', 'from_port': 'failed', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
-          {'id': 'e_18', 'from_node': 'n_deliver_bay', 'from_port': 'timeout', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
+          {'id': 'e_17', 'from_node': 'n_deliver_bay', 'from_port': 'failed', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_18', 'from_node': 'n_deliver_bay', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
           {'id': 'e_19', 'from_node': 'n_deliver_workstation', 'from_port': 'arrived', 'to_node': 'n_dock_success', 'to_port': 'in'},
-          {'id': 'e_20', 'from_node': 'n_deliver_workstation', 'from_port': 'failed', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
-          {'id': 'e_21', 'from_node': 'n_deliver_workstation', 'from_port': 'timeout', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
+          {'id': 'e_20', 'from_node': 'n_deliver_workstation', 'from_port': 'failed', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_21', 'from_node': 'n_deliver_workstation', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
           {'id': 'e_22', 'from_node': 'n_dock_success', 'from_port': 'docked', 'to_node': 'n_end_safe', 'to_port': 'in'},
           {'id': 'e_23', 'from_node': 'n_dock_abort', 'from_port': 'docked', 'to_node': 'n_end_safe', 'to_port': 'in'},
-          {'id': 'e_24', 'from_node': 'n_voice_nav_fail', 'from_port': 'done', 'to_node': 'n_dock_abort', 'to_port': 'in'},
         ],
       };
     }
@@ -1525,14 +1527,27 @@ Output only the JSON object starting with { and ending with }. Do not include ma
       orElse: () => graph.nodes.first,
     );
 
-    // 1. Longest-path depth calculation so dependencies flow strictly Left to Right
+    // Build forward happy-path outgoing edges (excluding recovery ports: low_battery, failed, timeout, cancelled)
+    final happyOutgoing = <String, List<String>>{};
+    for (final id in nodesMap.keys) {
+      happyOutgoing[id] = [];
+    }
+    for (final e in edges) {
+      final p = e.fromPort.toLowerCase();
+      final isRecovery = p == 'failed' || p == 'timeout' || p == 'low_battery' || p == 'cancelled' || p == 'failure';
+      if (!isRecovery && nodesMap.containsKey(e.fromNode) && nodesMap.containsKey(e.toNode)) {
+        happyOutgoing[e.fromNode]?.add(e.toNode);
+      }
+    }
+
+    // 1. Longest-path depth calculation along the primary mission timeline
     final depths = <String, int>{startNode.id: 0};
     final queue = <String>[startNode.id];
 
     while (queue.isNotEmpty) {
       final cur = queue.removeAt(0);
       final curDepth = depths[cur]!;
-      for (final next in outgoing[cur] ?? []) {
+      for (final next in happyOutgoing[cur] ?? []) {
         final currentKnown = depths[next] ?? -1;
         if (currentKnown < curDepth + 1) {
           depths[next] = curDepth + 1;
@@ -1541,7 +1556,7 @@ Output only the JSON object starting with { and ending with }. Do not include ma
       }
     }
 
-    // Assign any unvisited or disconnected nodes
+    // Assign any unvisited or recovery nodes
     int maxDepth = 0;
     for (final d in depths.values) {
       if (d > maxDepth) maxDepth = d;
@@ -1568,8 +1583,8 @@ Output only the JSON object starting with { and ending with }. Do not include ma
       layers.putIfAbsent(entry.value, () => []).add(entry.key);
     }
 
-    const double colSpacing = 340.0;
-    const double rowSpacing = 210.0;
+    const double colSpacing = 360.0;
+    const double rowSpacing = 220.0;
     const double startX = 80.0;
     const double centerY = 340.0;
 

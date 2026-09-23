@@ -280,7 +280,24 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
     double corridorOffset = 0.0,
     double loopLaneOffset = 0.0,
   }) {
-    if (p2.dx >= p1.dx + 48.0) {
+    final dx = p2.dx - p1.dx;
+
+    // 1. Long-span forward jump (spans across 2 or more columns)
+    // Route via an obstacle-free bottom gutter channel so it NEVER slices through intermediate node cards!
+    if (dx >= 380.0) {
+      final gutterY = math.max(p1.dy, p2.dy) + 95.0 + loopLaneOffset + (corridorOffset * 0.5);
+      final exitX = p1.dx + 26.0;
+      final enterX = p2.dx - 26.0;
+      return [
+        p1,
+        Offset(exitX, p1.dy),
+        Offset(exitX, gutterY),
+        Offset(enterX, gutterY),
+        Offset(enterX, p2.dy),
+        p2,
+      ];
+    } else if (dx >= 48.0) {
+      // 2. Adjacent or near column: clean vertical step in the inter-column corridor
       final midX = ((p1.dx + p2.dx) / 2.0) + corridorOffset;
       return [
         p1,
@@ -289,6 +306,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
         p2,
       ];
     } else {
+      // 3. Loopback / reverse edge
       final exitX = p1.dx + 30.0 + (loopLaneOffset > 0 ? loopLaneOffset : 0.0);
       final enterX = p2.dx - 30.0 - (loopLaneOffset < 0 ? -loopLaneOffset : loopLaneOffset);
       final double midY;
@@ -835,7 +853,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
     final isActive = widget.activeNodeId == node.id;
 
     // Node Dimension Constants
-    const double nodeWidth = 240.0;
+    const double nodeWidth = 260.0;
 
     return Positioned(
       left: node.position.dx,
@@ -929,22 +947,26 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                         isInput: true,
                       )
                     else
-                      const SizedBox(width: 20),
+                      const SizedBox(width: 12),
 
-                    // Output Ports Column
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        for (final outPort in node.outputPorts)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: _buildPortWidget(
-                              node: node,
-                              port: outPort,
-                              isInput: false,
+                    const SizedBox(width: 6),
+
+                    // Output Ports Column (flexible to prevent RenderFlex overflow on long port labels)
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          for (final outPort in node.outputPorts)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: _buildPortWidget(
+                                node: node,
+                                port: outPort,
+                                isInput: false,
+                              ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1412,12 +1434,16 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                   ),
                   const SizedBox(width: 5),
                 ],
-                Text(
-                  port.label,
-                  style: TextStyle(
-                    color: activeColor,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
+                Flexible(
+                  child: Text(
+                    port.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: activeColor,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 if (!isInput) ...[
@@ -1779,7 +1805,7 @@ class _EdgesPainter extends CustomPainter {
     } else {
       final portIndex = node.outputPorts.indexWhere((p) => p.id == portId);
       if (portIndex > 0) y += portIndex * 26.0;
-      return Offset(node.position.dx + 224.0, y);
+      return Offset(node.position.dx + 244.0, y);
     }
   }
 
