@@ -90,6 +90,11 @@ class AiAgentConfig {
   final VoiceTranscriptionProvider voiceProvider;
   final String voiceApiKey;
 
+  /// Whether an AI model backend is configured and ready for prompts.
+  /// Local providers (Ollama, LM Studio) run without a cloud key.
+  /// Cloud providers (Gemini, OpenAI, Anthropic, etc.) require an API key.
+  bool get isConfigured => provider.isLocal || apiKey.trim().isNotEmpty;
+
   AiAgentConfig copyWith({
     AiProvider? provider,
     String? apiKey,

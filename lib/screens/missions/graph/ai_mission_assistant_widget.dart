@@ -44,6 +44,9 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
   String? _statusMessage;
   bool _isError = false;
 
+  bool _isAiConfigured = false;
+  AiAgentConfig? _aiConfig;
+
   final List<String> _quickPrompts = [
     'Go to pharmacy, ask if room 102 medicines are ready, if yes deliver to room 102 and collect feedback with voice, if no return to dock',
     'Patrol Reception, Lab, and Nurse Station in a loop with 20% battery guard and dock on low battery',
@@ -54,11 +57,25 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
   void initState() {
     super.initState();
     _promptController = TextEditingController();
+    _promptController.addListener(() {
+      if (mounted) setState(() {});
+    });
     _focusNode = FocusNode();
     _focusNode.addListener(() {
       if (mounted) setState(() {});
     });
     _initSpeech();
+    _checkAiConfig();
+  }
+
+  Future<void> _checkAiConfig() async {
+    final cfg = await AiMissionAgentService.instance.getConfig();
+    if (mounted) {
+      setState(() {
+        _aiConfig = cfg;
+        _isAiConfigured = cfg.isConfigured;
+      });
+    }
   }
 
   Future<void> _initSpeech() async {
@@ -81,6 +98,18 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
   }
 
   Future<void> _toggleListening() async {
+    if (!_isAiConfigured) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('AI is not configured. Please add an API key or select a local provider in Settings.'),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(label: 'Settings', onPressed: _openSettings),
+          ),
+        );
+      }
+      return;
+    }
     final cfg = await AiMissionAgentService.instance.getConfig();
     final isCloudWhisper = cfg.voiceProvider != VoiceTranscriptionProvider.deviceNative;
 
@@ -223,6 +252,11 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
     final text = _promptController.text.trim();
     if (text.isEmpty) return;
 
+    if (!_isAiConfigured) {
+      _openSettings();
+      return;
+    }
+
     if (_isListening) {
       await _speech.stop();
       setState(() => _isListening = false);
@@ -260,8 +294,9 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
     }
   }
 
-  void _openSettings() {
-    AiAgentSettingsDialog.show(context);
+  Future<void> _openSettings() async {
+    await AiAgentSettingsDialog.show(context);
+    await _checkAiConfig();
   }
 
   @override
@@ -280,7 +315,12 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.35), width: 1.2),
+          border: Border.all(
+            color: _isAiConfigured
+                ? AppColors.primary.withValues(alpha: 0.35)
+                : const Color(0xFFF59E0B).withValues(alpha: 0.4),
+            width: 1.2,
+          ),
           boxShadow: [
             BoxShadow(
               color: AppColors.shadowTint.withValues(alpha: 0.12),
@@ -309,10 +349,16 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
+                        color: _isAiConfigured
+                            ? AppColors.primary.withValues(alpha: 0.12)
+                            : const Color(0xFFFEF3C7),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 16),
+                      child: Icon(
+                        Icons.auto_awesome,
+                        color: _isAiConfigured ? AppColors.primary : const Color(0xFFD97706),
+                        size: 16,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     const Text(
@@ -328,13 +374,15 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
+                        color: _isAiConfigured
+                            ? AppColors.primary.withValues(alpha: 0.1)
+                            : const Color(0xFFFEF3C7),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Text(
-                        'PREVIEW',
+                      child: Text(
+                        _isAiConfigured ? 'PREVIEW' : 'NOT CONFIGURED',
                         style: TextStyle(
-                          color: AppColors.primary,
+                          color: _isAiConfigured ? AppColors.primary : const Color(0xFFD97706),
                           fontSize: 9.5,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.5,
@@ -347,21 +395,33 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
             ),
             // Quick Mic Button on pill
             Tooltip(
-              message: 'Speak prompt (Voice Input)',
+              message: _isAiConfigured
+                  ? 'Speak prompt (Voice Input)'
+                  : 'AI not configured — tap to configure in Settings',
               child: InkWell(
                 onTap: () {
-                  setState(() => _isExpanded = true);
-                  _toggleListening();
+                  if (_isAiConfigured) {
+                    setState(() => _isExpanded = true);
+                    _toggleListening();
+                  } else {
+                    _openSettings();
+                  }
                 },
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
                   margin: const EdgeInsets.only(right: 6),
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
+                    color: _isAiConfigured
+                        ? AppColors.primary.withValues(alpha: 0.1)
+                        : AppColors.surfaceSunken,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.mic_none_rounded, color: AppColors.primary, size: 16),
+                  child: Icon(
+                    _isAiConfigured ? Icons.mic_none_rounded : Icons.mic_off_outlined,
+                    color: _isAiConfigured ? AppColors.primary : AppColors.textTertiary,
+                    size: 16,
+                  ),
                 ),
               ),
             ),
@@ -431,18 +491,61 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Text(
-                          'AI Workflow Assistant (Preview)',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.2,
-                          ),
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'AI Workflow Assistant (Preview)',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _isAiConfigured
+                                    ? AppColors.success.withValues(alpha: 0.12)
+                                    : const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: _isAiConfigured
+                                      ? AppColors.success.withValues(alpha: 0.3)
+                                      : const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: _isAiConfigured ? AppColors.success : const Color(0xFFD97706),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _isAiConfigured
+                                        ? (_aiConfig?.provider.displayName ?? 'Ready')
+                                        : 'Not Configured',
+                                    style: TextStyle(
+                                      color: _isAiConfigured ? AppColors.success : const Color(0xFFB45309),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        SizedBox(height: 1),
-                        Text(
+                        const SizedBox(height: 1),
+                        const Text(
                           'Preview version — review synthesized nodes and safety fallbacks before execution',
                           style: TextStyle(
                             color: AppColors.textSecondary,
@@ -486,6 +589,60 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Prominent configuration warning banner when AI is unconfigured
+                  if (!_isAiConfigured)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text(
+                                  'AI Provider Not Configured',
+                                  style: TextStyle(
+                                    color: Color(0xFF92400E),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Text input, mic, and workflow generation are disabled until an AI provider or API key is set up in Settings.',
+                                  style: TextStyle(
+                                    color: Color(0xFFB45309),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton.icon(
+                            onPressed: _openSettings,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFFD97706),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              visualDensity: VisualDensity.compact,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                            icon: const Icon(Icons.settings, size: 14),
+                            label: const Text('Configure', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   // Suggestions / Quick Prompts
                   Row(
                     children: const [
@@ -524,16 +681,26 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
                           label: Text(
                             label,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
+                            style: TextStyle(
+                              color: _isAiConfigured ? AppColors.textPrimary : AppColors.textTertiary,
                               fontSize: 11.5,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          onPressed: () {
-                            _promptController.text = p;
-                            _focusNode.requestFocus();
-                          },
+                          onPressed: _isAiConfigured
+                              ? () {
+                                  _promptController.text = p;
+                                  _focusNode.requestFocus();
+                                }
+                              : () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('AI is not configured. Please set up your API key in Settings first.'),
+                                      behavior: SnackBarBehavior.floating,
+                                      action: SnackBarAction(label: 'Settings', onPressed: _openSettings),
+                                    ),
+                                  );
+                                },
                         );
                       },
                     ),
@@ -623,9 +790,11 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                       color: AppColors.surfaceSunken,
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
                       border: Border.all(
-                        color: _isListening
-                            ? AppColors.primary
-                            : (_focusNode.hasFocus ? AppColors.primary : AppColors.border),
+                        color: !_isAiConfigured
+                            ? AppColors.border
+                            : (_isListening
+                                ? AppColors.primary
+                                : (_focusNode.hasFocus ? AppColors.primary : AppColors.border)),
                         width: 1.2,
                       ),
                     ),
@@ -634,15 +803,18 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                         TextField(
                           controller: _promptController,
                           focusNode: _focusNode,
+                          enabled: _isAiConfigured && !_isGenerating,
                           maxLines: 3,
                           minLines: 2,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            color: _isAiConfigured ? AppColors.textPrimary : AppColors.textTertiary,
                             fontSize: 13.5,
                             height: 1.4,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Describe your robot workflow or speak via mic (e.g. Go to pharmacy, ask if room 102 medicines are ready, if yes deliver and collect feedback, if no dock)...',
+                            hintText: _isAiConfigured
+                                ? 'Describe your robot workflow or speak via mic (e.g. Go to pharmacy, ask if room 102 medicines are ready, if yes deliver and collect feedback, if no dock)...'
+                                : 'AI is not configured. Add an API key or local model in Settings to enable text prompt, voice mic, and workflow generation.',
                             hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12.5),
                             contentPadding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
                             border: InputBorder.none,
@@ -672,10 +844,12 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                 )
                               else
                                 Tooltip(
-                                  message: _isListening ? 'Stop recording & transcribe' : 'Voice Input (Microphone)',
+                                  message: !_isAiConfigured
+                                      ? 'Configure AI in Settings to enable Voice Input'
+                                      : (_isListening ? 'Stop recording & transcribe' : 'Voice Input (Microphone)'),
                                   child: _isListening
                                       ? FilledButton.icon(
-                                          onPressed: _toggleListening,
+                                          onPressed: (!_isAiConfigured || _isGenerating) ? null : _toggleListening,
                                           style: FilledButton.styleFrom(
                                             backgroundColor: AppColors.danger,
                                             foregroundColor: Colors.white,
@@ -691,20 +865,35 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                           label: const Text('Stop & Transcribe', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
                                         )
                                       : OutlinedButton.icon(
-                                          onPressed: _toggleListening,
+                                          onPressed: (!_isAiConfigured || _isGenerating) ? null : _toggleListening,
                                           style: OutlinedButton.styleFrom(
-                                            foregroundColor: AppColors.primary,
-                                            side: BorderSide(color: AppColors.primary.withValues(alpha: 0.35)),
+                                            foregroundColor: _isAiConfigured ? AppColors.primary : AppColors.textTertiary,
+                                            side: BorderSide(
+                                              color: _isAiConfigured
+                                                  ? AppColors.primary.withValues(alpha: 0.35)
+                                                  : AppColors.border,
+                                            ),
                                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                           ),
-                                          icon: const Icon(Icons.mic_none_rounded, size: 16),
-                                          label: const Text('Voice Input', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                                          icon: Icon(
+                                            Icons.mic_none_rounded,
+                                            size: 16,
+                                            color: _isAiConfigured ? null : AppColors.textTertiary,
+                                          ),
+                                          label: Text(
+                                            'Voice Input',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: _isAiConfigured ? null : AppColors.textTertiary,
+                                            ),
+                                          ),
                                         ),
                                 ),
                               const SizedBox(width: 8),
 
-                              if (_promptController.text.isNotEmpty)
+                              if (_promptController.text.isNotEmpty && _isAiConfigured && !_isGenerating)
                                 Tooltip(
                                   message: 'Clear input',
                                   child: InkWell(
@@ -717,26 +906,38 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                   ),
                                 ),
                               const Spacer(),
-                              FilledButton.icon(
-                                onPressed: _isGenerating ? null : _generateMission,
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: Colors.white,
-                                  disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                  elevation: 0,
-                                ),
-                                icon: _isGenerating
-                                    ? const SizedBox(
-                                        width: 14,
-                                        height: 14,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                      )
-                                    : const Icon(Icons.play_arrow_rounded, size: 18),
-                                label: Text(
-                                  _isGenerating ? 'Synthesizing...' : 'Generate Workflow',
-                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+                              Tooltip(
+                                message: !_isAiConfigured
+                                    ? 'Configure AI in Settings to generate workflows'
+                                    : (_isGenerating
+                                        ? 'Synthesizing mission workflow...'
+                                        : (_promptController.text.trim().isEmpty
+                                            ? 'Enter a description to generate workflow'
+                                            : 'Generate robot workflow')),
+                                child: FilledButton.icon(
+                                  onPressed: (_isAiConfigured && !_isGenerating && _promptController.text.trim().isNotEmpty)
+                                      ? _generateMission
+                                      : null,
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.25),
+                                    disabledForegroundColor: Colors.white.withValues(alpha: 0.6),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    elevation: 0,
+                                  ),
+                                  icon: _isGenerating
+                                      ? const SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        )
+                                      : const Icon(Icons.play_arrow_rounded, size: 18),
+                                  label: Text(
+                                    _isGenerating ? 'Synthesizing...' : 'Generate Workflow',
+                                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
+                                  ),
                                 ),
                               ),
                             ],

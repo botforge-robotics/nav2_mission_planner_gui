@@ -151,5 +151,28 @@ void main() {
       expect(startNode.params['schedule_type'], 'weekly');
       expect(startNode.params['weekdays'], [0, 1, 2, 3, 4]);
     });
+
+    test('AiAgentConfig isConfigured correctly validates credentials and local providers', () {
+      // Default config without API key is not configured
+      final emptyGemini = AiAgentConfig(provider: AiProvider.gemini, apiKey: '');
+      expect(emptyGemini.isConfigured, false);
+
+      // Cloud provider with API key is configured
+      final configuredGemini = AiAgentConfig(provider: AiProvider.gemini, apiKey: 'AIzaSyFakeKey123');
+      expect(configuredGemini.isConfigured, true);
+
+      final emptyOpenAi = AiAgentConfig(provider: AiProvider.openai, apiKey: '   ');
+      expect(emptyOpenAi.isConfigured, false);
+
+      final configuredOpenAi = AiAgentConfig(provider: AiProvider.openai, apiKey: 'sk-proj-xyz');
+      expect(configuredOpenAi.isConfigured, true);
+
+      // Local providers (Ollama, LM Studio) do not require cloud API key
+      final localOllama = AiAgentConfig(provider: AiProvider.ollama, apiKey: '');
+      expect(localOllama.isConfigured, true);
+
+      final localLmStudio = AiAgentConfig(provider: AiProvider.lmstudio, apiKey: '');
+      expect(localLmStudio.isConfigured, true);
+    });
   });
 }
