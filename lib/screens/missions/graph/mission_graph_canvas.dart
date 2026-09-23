@@ -215,7 +215,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       node.type == 'end' || node.type == 'mission_end' || node.type == 'dock_and_end';
 
   static double _getNodeWidth(GraphNode node) {
-    if (_isTerminalBadge(node)) {
+    if (_isTerminalBadge(node) || !node.isExpanded) {
       return 56.0;
     }
     final labelLen = (node.label.isNotEmpty ? node.label : node.type).length;
@@ -233,7 +233,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
   }
 
   static double _getNodeHeight(GraphNode node) {
-    if (_isTerminalBadge(node)) {
+    if (_isTerminalBadge(node) || !node.isExpanded) {
       return 56.0;
     }
     final outCount = node.outputPorts.length;
@@ -242,31 +242,76 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     return 66.0 + (outCount - 1) * 28.0;
   }
 
-  static double _getPortY(GraphNode node, int index, bool isInput) {
-    final nodeHeight = _getNodeHeight(node);
-    if (isInput) {
-      return nodeHeight / 2.0;
+  static Offset _calculatePortRelativeOffset({
+    required GraphNode node,
+    required bool isInput,
+    required String portId,
+  }) {
+    final isCompact = _isTerminalBadge(node) || !node.isExpanded;
+    final side = isInput ? node.inputSide : node.outputSide;
+    final ports = isInput ? node.inputPorts : node.outputPorts;
+    final portIndex = ports.indexWhere((p) => p.id == portId);
+    final idx = portIndex >= 0 ? portIndex : 0;
+    final totalPorts = ports.length;
+
+    if (isCompact) {
+      const double d = 56.0;
+      const double center = d / 2.0;
+
+      switch (side) {
+        case 'left':
+          final y = totalPorts <= 1 ? center : 16.0 + (idx / (totalPorts - 1)) * 24.0;
+          return Offset(0.0, y);
+        case 'right':
+          final y = totalPorts <= 1 ? center : 16.0 + (idx / (totalPorts - 1)) * 24.0;
+          return Offset(d, y);
+        case 'top':
+          final x = totalPorts <= 1 ? center : 16.0 + (idx / (totalPorts - 1)) * 24.0;
+          return Offset(x, 0.0);
+        case 'bottom':
+        default:
+          final x = totalPorts <= 1 ? center : 16.0 + (idx / (totalPorts - 1)) * 24.0;
+          return Offset(x, d);
+      }
+    } else {
+      final w = _getNodeWidth(node);
+      final h = _getNodeHeight(node);
+
+      switch (side) {
+        case 'left':
+          final y = totalPorts <= 1 ? h / 2.0 : 18.0 + (idx / (totalPorts - 1)) * (h - 36.0);
+          return Offset(0.0, y);
+        case 'right':
+          final y = totalPorts <= 1 ? h / 2.0 : 18.0 + (idx / (totalPorts - 1)) * (h - 36.0);
+          return Offset(w, y);
+        case 'top':
+          final x = totalPorts <= 1 ? w / 2.0 : 24.0 + (idx / (totalPorts - 1)) * (w - 48.0);
+          return Offset(x, 0.0);
+        case 'bottom':
+        default:
+          final x = totalPorts <= 1 ? w / 2.0 : 24.0 + (idx / (totalPorts - 1)) * (w - 48.0);
+          return Offset(x, h);
+      }
     }
-    final outCount = node.outputPorts.length;
-    if (outCount <= 1) {
-      return nodeHeight / 2.0;
+  }
+
+  static Offset _getSideNormal(String side) {
+    switch (side) {
+      case 'left':
+        return const Offset(-1.0, 0.0);
+      case 'right':
+        return const Offset(1.0, 0.0);
+      case 'top':
+        return const Offset(0.0, -1.0);
+      case 'bottom':
+        return const Offset(0.0, 1.0);
+      default:
+        return const Offset(1.0, 0.0);
     }
-    const topPad = 20.0;
-    final available = nodeHeight - 2 * topPad;
-    final step = available / (outCount - 1);
-    return topPad + index * step;
   }
 
   static Offset _estimatePortOffsetStatic(GraphNode node, String portId, bool isInput) {
-    final nodeWidth = _getNodeWidth(node);
-    final nodeHeight = _getNodeHeight(node);
-    if (isInput) {
-      return Offset(node.position.dx, node.position.dy + nodeHeight / 2.0);
-    } else {
-      final idx = node.outputPorts.indexWhere((p) => p.id == portId);
-      final pinY = _getPortY(node, idx >= 0 ? idx : 0, false);
-      return Offset(node.position.dx + nodeWidth, node.position.dy + pinY);
-    }
+    return node.position + _calculatePortRelativeOffset(node: node, isInput: isInput, portId: portId);
   }
 
   static Color _getPortColor(NodePort port, bool isInput) {
@@ -422,6 +467,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
   static Path _buildBezierPath(
     Offset p1,
     Offset p2, {
+    Offset dir1 = const Offset(1.0, 0.0),
+    Offset dir2 = const Offset(-1.0, 0.0),
     double corridorOffset = 0.0,
     double loopLaneOffset = 0.0,
   }) {
@@ -430,16 +477,24 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
 
     final dx = p2.dx - p1.dx;
     final dy = p2.dy - p1.dy;
+    final dist = (p2 - p1).distance;
 
-    if (dx >= 20.0) {
-      // Forward horizontal cubic Bézier curve
-      final curvature = math.max(dx * 0.45, 45.0);
-      final cp1 = Offset(p1.dx + curvature, p1.dy + corridorOffset);
-      final cp2 = Offset(p2.dx - curvature, p2.dy + corridorOffset);
+    if (dist < 32.0) {
+      final curvature = math.max(12.0, dist * 0.4);
+      final cp1 = Offset(p1.dx + dir1.dx * curvature, p1.dy + dir1.dy * curvature);
+      final cp2 = Offset(p2.dx + dir2.dx * curvature, p2.dy + dir2.dy * curvature);
       path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
-    } else {
-      // Reverse / loopback edge
-      final loopOut = math.max(55.0, (p1.dx - p2.dx) * 0.28);
+      return path;
+    }
+
+    // Dynamic curvature based on distance
+    final curvature = (dist * 0.45).clamp(40.0, 220.0);
+    Offset cp1 = Offset(p1.dx + dir1.dx * curvature, p1.dy + dir1.dy * curvature);
+    Offset cp2 = Offset(p2.dx + dir2.dx * curvature, p2.dy + dir2.dy * curvature);
+
+    // If both ports are default horizontal but target is behind source (loopback edge)
+    if (dir1.dx > 0 && dir2.dx < 0 && dx < 20.0) {
+      final loopOut = math.max(55.0, -dx * 0.28);
       final midX = (p1.dx + p2.dx) / 2.0;
       final arcHeight = (dy < 0 ? -75.0 : 75.0) + loopLaneOffset;
       final midY = (p1.dy + p2.dy) / 2.0 + arcHeight;
@@ -454,8 +509,15 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         p2.dx - loopOut, p2.dy,
         p2.dx, p2.dy,
       );
+      return path;
     }
 
+    if (corridorOffset != 0.0) {
+      cp1 += Offset(-dir1.dy * corridorOffset, dir1.dx * corridorOffset);
+      cp2 += Offset(-dir2.dy * corridorOffset, dir2.dx * corridorOffset);
+    }
+
+    path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
     return path;
   }
 
@@ -464,12 +526,16 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     Offset p1,
     Offset p2,
     double threshold, {
+    Offset dir1 = const Offset(1.0, 0.0),
+    Offset dir2 = const Offset(-1.0, 0.0),
     double corridorOffset = 0.0,
     double loopLaneOffset = 0.0,
   }) {
     final path = _buildBezierPath(
       p1,
       p2,
+      dir1: dir1,
+      dir2: dir2,
       corridorOffset: corridorOffset,
       loopLaneOffset: loopLaneOffset,
     );
@@ -493,12 +559,16 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
   static Offset _getBezierMidpoint(
     Offset p1,
     Offset p2, {
+    Offset dir1 = const Offset(1.0, 0.0),
+    Offset dir2 = const Offset(-1.0, 0.0),
     double corridorOffset = 0.0,
     double loopLaneOffset = 0.0,
   }) {
     final path = _buildBezierPath(
       p1,
       p2,
+      dir1: dir1,
+      dir2: dir2,
       corridorOffset: corridorOffset,
       loopLaneOffset: loopLaneOffset,
     );
@@ -586,9 +656,20 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         }
       }
 
+      final fromNode = widget.graph.nodes.firstWhere(
+        (n) => n.id == edge.fromNode,
+        orElse: () => GraphNode(id: '', type: '', position: Offset.zero),
+      );
+      final toNode = widget.graph.nodes.firstWhere(
+        (n) => n.id == edge.toNode,
+        orElse: () => GraphNode(id: '', type: '', position: Offset.zero),
+      );
+
       layouts[edge.id] = _EdgeRouteLayout(
         p1: p1,
         p2: p2,
+        dir1: _getSideNormal(fromNode.outputSide),
+        dir2: _getSideNormal(toNode.inputSide),
         corridorOffset: corridorOffset,
         loopLaneOffset: loopLaneOffset,
         totalInSource: totalInSource,
@@ -617,6 +698,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     final mid = _getBezierMidpoint(
       p1,
       p2,
+      dir1: layout?.dir1 ?? const Offset(1.0, 0.0),
+      dir2: layout?.dir2 ?? const Offset(-1.0, 0.0),
       corridorOffset: layout?.corridorOffset ?? 0.0,
       loopLaneOffset: layout?.loopLaneOffset ?? 0.0,
     );
@@ -751,6 +834,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                     layout.p1,
                     layout.p2,
                     22.0,
+                    dir1: layout.dir1,
+                    dir2: layout.dir2,
                     corridorOffset: layout.corridorOffset,
                     loopLaneOffset: layout.loopLaneOffset,
                   )) {
@@ -929,6 +1014,334 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     );
   }
 
+  void _rotateNode(GraphNode node) {
+    setState(() {
+      node.rotationDegrees = (node.rotationDegrees + 90) % 360;
+      _portOffsets.clear();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updatePortOffsets());
+    });
+    widget.onGraphChanged();
+  }
+
+  void _showNodeContextMenu(BuildContext context, GraphNode node, Offset globalPosition) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+
+    final nextRotation = (node.rotationDegrees + 90) % 360;
+    String sideName(int deg) {
+      switch (deg) {
+        case 90:
+          return 'South ↓';
+        case 180:
+          return 'West ←';
+        case 270:
+          return 'North ↑';
+        default:
+          return 'East →';
+      }
+    }
+
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 1, 1),
+        Offset.zero & overlay.size,
+      ),
+      color: AppColors.surfaceElevated,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      items: [
+        PopupMenuItem(
+          value: 'rotate',
+          height: 38,
+          child: Row(
+            children: [
+              const Icon(Icons.rotate_right_rounded, size: 18, color: AppColors.primary),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Rotate to ${sideName(nextRotation)}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                  Text('Current: ${sideName(node.rotationDegrees)}',
+                      style: const TextStyle(fontSize: 9.5, color: AppColors.textTertiary)),
+                ],
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceSunken,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text('R',
+                    style: TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+        if (!_isTerminalBadge(node))
+          PopupMenuItem(
+            value: 'toggle_expand',
+            height: 38,
+            child: Row(
+              children: [
+                Icon(
+                  node.isExpanded ? Icons.close_fullscreen_rounded : Icons.open_in_full_rounded,
+                  size: 17,
+                  color: AppColors.textPrimary,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  node.isExpanded ? 'Collapse to Icon' : 'Expand Details',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                ),
+              ],
+            ),
+          ),
+        if (node.type != 'start') ...[
+          const PopupMenuDivider(height: 1),
+          const PopupMenuItem(
+            value: 'delete',
+            height: 38,
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.danger),
+                SizedBox(width: 10),
+                Text('Delete Step', style: TextStyle(fontSize: 12, color: AppColors.danger)),
+                Spacer(),
+                Text('Del', style: TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+
+    if (!mounted || selected == null) return;
+
+    if (selected == 'rotate') {
+      _rotateNode(node);
+    } else if (selected == 'toggle_expand') {
+      setState(() {
+        node.isExpanded = !node.isExpanded;
+        _portOffsets.clear();
+        WidgetsBinding.instance.addPostFrameCallback((_) => _updatePortOffsets());
+      });
+      widget.onGraphChanged();
+    } else if (selected == 'delete') {
+      setState(() {
+        widget.graph.nodes.remove(node);
+        widget.graph.edges.removeWhere((e) => e.fromNode == node.id || e.toNode == node.id);
+        if (widget.selectedNode?.id == node.id) {
+          widget.onSelectNode(null);
+        }
+      });
+      widget.onGraphChanged();
+    }
+  }
+
+  Widget _buildCompactNodeWidget(
+    GraphNode node, {
+    required bool isSelected,
+    required bool isActive,
+    required double pulse,
+    required VoidCallback onToggleExpand,
+  }) {
+    const double nodeDiameter = 56.0;
+    final (categoryTitle, icon, categoryColor) = _getNodeCategoryMeta(node.type);
+    final subtitle = _getNodeShortSummary(node);
+
+    final glowAlpha = 0.25 + 0.35 * pulse;
+    final glowBlur = 12.0 + 8.0 * pulse;
+
+    return GestureDetector(
+      onPanUpdate: widget.readOnly
+          ? null
+          : (details) {
+              _onNodeDrag(node, details.delta);
+            },
+      onTap: () {
+        widget.onSelectNode(node);
+        _setSelectedEdge(null);
+      },
+      onDoubleTap: onToggleExpand,
+      onSecondaryTapDown: (details) {
+        _showNodeContextMenu(context, node, details.globalPosition);
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.topCenter,
+        children: [
+          // 1. Circular Node Badge (56x56)
+          Container(
+            width: nodeDiameter,
+            height: nodeDiameter,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.surface,
+              border: Border.all(
+                color: isActive
+                    ? Color.lerp(AppColors.primary, AppColors.primaryLight, pulse)!
+                    : isSelected
+                        ? AppColors.primary
+                        : categoryColor,
+                width: isSelected || isActive ? 2.6 : 2.0,
+              ),
+              boxShadow: [
+                if (isActive)
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: glowAlpha),
+                    blurRadius: glowBlur,
+                    spreadRadius: 2.0,
+                  )
+                else if (isSelected)
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    spreadRadius: 1.5,
+                  )
+                else
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+              ],
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Inner radial gradient wash
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          categoryColor.withValues(alpha: isSelected ? 0.22 : 0.12),
+                          categoryColor.withValues(alpha: 0.04),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Center Icon
+                Center(
+                  child: Icon(
+                    icon,
+                    size: 24,
+                    color: isSelected ? AppColors.primary : categoryColor,
+                  ),
+                ),
+
+                // Expand button badge in top-right
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: GestureDetector(
+                    onTap: onToggleExpand,
+                    child: Tooltip(
+                      message: 'Expand Node Details',
+                      child: Container(
+                        width: 17,
+                        height: 17,
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceElevated,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.border, width: 1.0),
+                          boxShadow: const [
+                            BoxShadow(color: Colors.black26, blurRadius: 3, offset: Offset(0, 1)),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.open_in_full_rounded,
+                          size: 9,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Rotation indicator badge if rotated
+                if (node.rotationDegrees != 0)
+                  Positioned(
+                    bottom: -2,
+                    right: -2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceElevated,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: AppColors.primary, width: 1.0),
+                      ),
+                      child: Text(
+                        '${node.rotationDegrees}°',
+                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: AppColors.primary),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // 2. Title & Subtitle Badge Underneath
+          Positioned(
+            top: nodeDiameter + 4.0,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 130),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.surfaceElevated
+                    : AppColors.surface.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(6),
+                border: isSelected
+                    ? Border.all(color: AppColors.primary.withValues(alpha: 0.6), width: 1.0)
+                    : Border.all(color: AppColors.border.withValues(alpha: 0.5), width: 0.8),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 1)),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    node.label.isNotEmpty ? node.label : node.type,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.textTertiary,
+                        fontSize: 8.5,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNodeWidget(GraphNode node) {
     final isSelected = widget.selectedNode?.id == node.id;
     final isActive = widget.activeNodeId == node.id;
@@ -968,55 +1381,115 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            // 1. Sleek n8n Node Tile
-            if (isActive)
-              AnimatedBuilder(
-                animation: _flowAnimController,
-                builder: (context, _) {
-                  final pulse = (math.sin(_flowAnimController.value * 2 * math.pi) + 1.0) / 2.0;
-                  return _buildNodeCard(
-                    node,
-                    isSelected: isSelected,
-                    isActive: true,
-                    pulse: pulse,
-                    nodeWidth: nodeWidth,
-                    nodeHeight: nodeHeight,
-                  );
-                },
-              )
+            // 1. Sleek n8n Node: Compact Circular Icon OR Expanded Card
+            if (!node.isExpanded)
+              if (isActive)
+                AnimatedBuilder(
+                  animation: _flowAnimController,
+                  builder: (context, _) {
+                    final pulse = (math.sin(_flowAnimController.value * 2 * math.pi) + 1.0) / 2.0;
+                    return _buildCompactNodeWidget(
+                      node,
+                      isSelected: isSelected,
+                      isActive: true,
+                      pulse: pulse,
+                      onToggleExpand: () {
+                        setState(() {
+                          node.isExpanded = true;
+                          _portOffsets.clear();
+                          WidgetsBinding.instance.addPostFrameCallback((_) => _updatePortOffsets());
+                        });
+                        widget.onGraphChanged();
+                      },
+                    );
+                  },
+                )
+              else
+                _buildCompactNodeWidget(
+                  node,
+                  isSelected: isSelected,
+                  isActive: false,
+                  pulse: 0.0,
+                  onToggleExpand: () {
+                    setState(() {
+                      node.isExpanded = true;
+                      _portOffsets.clear();
+                      WidgetsBinding.instance.addPostFrameCallback((_) => _updatePortOffsets());
+                    });
+                    widget.onGraphChanged();
+                  },
+                )
             else
-              _buildNodeCard(
-                node,
-                isSelected: isSelected,
-                isActive: false,
-                pulse: 0.0,
-                nodeWidth: nodeWidth,
-                nodeHeight: nodeHeight,
-              ),
-
-            // 2. Magnetic Outer Input Pin on Left Border
-            if (node.inputPorts.isNotEmpty)
-              Positioned(
-                left: -9.0,
-                top: (nodeHeight - 18.0) / 2.0,
-                child: _buildPortPin(
-                  node: node,
-                  port: node.inputPorts.first,
-                  isInput: true,
+              if (isActive)
+                AnimatedBuilder(
+                  animation: _flowAnimController,
+                  builder: (context, _) {
+                    final pulse = (math.sin(_flowAnimController.value * 2 * math.pi) + 1.0) / 2.0;
+                    return _buildNodeCard(
+                      node,
+                      isSelected: isSelected,
+                      isActive: true,
+                      pulse: pulse,
+                      nodeWidth: nodeWidth,
+                      nodeHeight: nodeHeight,
+                      onCollapse: () {
+                        setState(() {
+                          node.isExpanded = false;
+                          _portOffsets.clear();
+                          WidgetsBinding.instance.addPostFrameCallback((_) => _updatePortOffsets());
+                        });
+                        widget.onGraphChanged();
+                      },
+                    );
+                  },
+                )
+              else
+                _buildNodeCard(
+                  node,
+                  isSelected: isSelected,
+                  isActive: false,
+                  pulse: 0.0,
+                  nodeWidth: nodeWidth,
+                  nodeHeight: nodeHeight,
+                  onCollapse: () {
+                    setState(() {
+                      node.isExpanded = false;
+                      _portOffsets.clear();
+                      WidgetsBinding.instance.addPostFrameCallback((_) => _updatePortOffsets());
+                    });
+                    widget.onGraphChanged();
+                  },
                 ),
-              ),
 
-            // 3. Magnetic Outer Output Pin(s) on Right Border
-            for (int i = 0; i < node.outputPorts.length; i++)
-              Positioned(
-                right: -9.0,
-                top: _getPortY(node, i, false) - 9.0,
-                child: _buildPortPin(
-                  node: node,
-                  port: node.outputPorts[i],
-                  isInput: false,
-                ),
-              ),
+            // 2. Magnetic Input Port Pin(s) on active input side
+            for (final p in node.inputPorts)
+              Builder(builder: (_) {
+                final rel = _calculatePortRelativeOffset(node: node, isInput: true, portId: p.id);
+                return Positioned(
+                  left: rel.dx - 9.0,
+                  top: rel.dy - 9.0,
+                  child: _buildPortPin(
+                    node: node,
+                    port: p,
+                    isInput: true,
+                  ),
+                );
+              }),
+
+            // 3. Magnetic Output Port Pin(s) on active output side
+            for (final p in node.outputPorts)
+              Builder(builder: (_) {
+                final rel = _calculatePortRelativeOffset(node: node, isInput: false, portId: p.id);
+                return Positioned(
+                  left: rel.dx - 9.0,
+                  top: rel.dy - 9.0,
+                  child: _buildPortPin(
+                    node: node,
+                    port: p,
+                    isInput: false,
+                  ),
+                );
+              }),
           ],
         ),
       ),
@@ -1070,6 +1543,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
               onTap: () {
                 widget.onSelectNode(node);
                 _setSelectedEdge(null);
+              },
+              onSecondaryTapDown: (details) {
+                _showNodeContextMenu(context, node, details.globalPosition);
               },
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1139,17 +1615,20 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
               ),
             ),
 
-            // Left Outer Input Socket Pin
+            // Outer Input Socket Pin positioned by inputSide
             if (node.inputPorts.isNotEmpty)
-              Positioned(
-                left: -9.0,
-                top: (badgeSize - 18.0) / 2.0,
-                child: _buildPortPin(
-                  node: node,
-                  port: node.inputPorts.first,
-                  isInput: true,
-                ),
-              ),
+              Builder(builder: (_) {
+                final rel = _calculatePortRelativeOffset(node: node, isInput: true, portId: node.inputPorts.first.id);
+                return Positioned(
+                  left: rel.dx - 9.0,
+                  top: rel.dy - 9.0,
+                  child: _buildPortPin(
+                    node: node,
+                    port: node.inputPorts.first,
+                    isInput: true,
+                  ),
+                );
+              }),
 
             // Delete (x) button on hover/top right
             if (!widget.readOnly)
@@ -1193,6 +1672,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     required double pulse,
     required double nodeWidth,
     required double nodeHeight,
+    VoidCallback? onCollapse,
   }) {
     final glowAlpha = 0.25 + 0.35 * pulse;
     final glowBlur = 12.0 + 8.0 * pulse;
@@ -1211,6 +1691,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       onTap: () {
         widget.onSelectNode(node);
         _setSelectedEdge(null);
+      },
+      onDoubleTap: onCollapse,
+      onSecondaryTapDown: (details) {
+        _showNodeContextMenu(context, node, details.globalPosition);
       },
       child: Container(
         width: nodeWidth,
@@ -1375,31 +1859,74 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                   ),
                 ),
               )
-            else if (!widget.readOnly && node.type != 'start')
+            else
               Positioned(
                 top: -2,
                 right: -2,
-                child: InkWell(
-                  onTap: () {
-                    setState(() {
-                      widget.graph.nodes.remove(node);
-                      widget.graph.edges.removeWhere(
-                          (e) => e.fromNode == node.id || e.toNode == node.id);
-                      if (widget.graph.entrypoint == node.id) {
-                        widget.graph.entrypoint =
-                            widget.graph.nodes.isNotEmpty ? widget.graph.nodes.first.id : null;
-                      }
-                      if (widget.selectedNode?.id == node.id) {
-                        widget.onSelectNode(null);
-                      }
-                    });
-                    widget.onGraphChanged();
-                  },
-                  borderRadius: BorderRadius.circular(10),
-                  child: const Padding(
-                    padding: EdgeInsets.all(3.0),
-                    child: Icon(Icons.close_rounded, size: 13, color: AppColors.textTertiary),
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (node.rotationDegrees != 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        margin: const EdgeInsets.only(right: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceElevated,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: AppColors.primary, width: 0.8),
+                        ),
+                        child: Text(
+                          '${node.rotationDegrees}°',
+                          style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: AppColors.primary),
+                        ),
+                      ),
+                    if (onCollapse != null)
+                      InkWell(
+                        onTap: onCollapse,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Tooltip(
+                          message: 'Collapse to Icon',
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.surface,
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            padding: const EdgeInsets.all(2.5),
+                            margin: const EdgeInsets.only(right: 3),
+                            child: const Icon(Icons.close_fullscreen_rounded, size: 10, color: AppColors.textSecondary),
+                          ),
+                        ),
+                      ),
+                    if (!widget.readOnly && node.type != 'start')
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            widget.graph.nodes.remove(node);
+                            widget.graph.edges.removeWhere(
+                                (e) => e.fromNode == node.id || e.toNode == node.id);
+                            if (widget.graph.entrypoint == node.id) {
+                              widget.graph.entrypoint =
+                                  widget.graph.nodes.isNotEmpty ? widget.graph.nodes.first.id : null;
+                            }
+                            if (widget.selectedNode?.id == node.id) {
+                              widget.onSelectNode(null);
+                            }
+                          });
+                          widget.onGraphChanged();
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.surface,
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          padding: const EdgeInsets.all(2.5),
+                          child: const Icon(Icons.close_rounded, size: 11, color: AppColors.textTertiary),
+                        ),
+                      ),
+                  ],
                 ),
               ),
           ],
@@ -1790,6 +2317,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
 class _EdgeRouteLayout {
   final Offset p1;
   final Offset p2;
+  final Offset dir1;
+  final Offset dir2;
   final double corridorOffset;
   final double loopLaneOffset;
   final int totalInSource;
@@ -1798,6 +2327,8 @@ class _EdgeRouteLayout {
   const _EdgeRouteLayout({
     required this.p1,
     required this.p2,
+    this.dir1 = const Offset(1.0, 0.0),
+    this.dir2 = const Offset(-1.0, 0.0),
     required this.corridorOffset,
     required this.loopLaneOffset,
     required this.totalInSource,
@@ -1867,6 +2398,9 @@ class _EdgesPainter extends CustomPainter {
         edgeColor = AppColors.success;
       }
 
+      final dir1 = layout?.dir1 ?? const Offset(1.0, 0.0);
+      final dir2 = layout?.dir2 ?? const Offset(-1.0, 0.0);
+
       if (isEdgeSelected) {
         _drawBezierEdge(
           canvas,
@@ -1874,6 +2408,8 @@ class _EdgesPainter extends CustomPainter {
           p2,
           AppColors.danger.withValues(alpha: 0.35),
           8.0,
+          dir1: dir1,
+          dir2: dir2,
           corridorOffset: corridorOffset,
           loopLaneOffset: loopLaneOffset,
           isSelected: true,
@@ -1886,6 +2422,8 @@ class _EdgesPainter extends CustomPainter {
           p2,
           AppColors.danger,
           4.0,
+          dir1: dir1,
+          dir2: dir2,
           corridorOffset: corridorOffset,
           loopLaneOffset: loopLaneOffset,
           isSelected: true,
@@ -1900,6 +2438,8 @@ class _EdgesPainter extends CustomPainter {
           p2,
           edgeColor,
           isActive ? 4.0 : 3.4,
+          dir1: dir1,
+          dir2: dir2,
           corridorOffset: corridorOffset,
           loopLaneOffset: loopLaneOffset,
           isSelected: true,
@@ -1914,6 +2454,8 @@ class _EdgesPainter extends CustomPainter {
           p2,
           edgeColor.withValues(alpha: 0.65),
           2.0,
+          dir1: dir1,
+          dir2: dir2,
           corridorOffset: corridorOffset,
           loopLaneOffset: loopLaneOffset,
         );
@@ -1991,12 +2533,16 @@ class _EdgesPainter extends CustomPainter {
   Path _buildBezierPath(
     Offset p1,
     Offset p2, {
+    Offset dir1 = const Offset(1.0, 0.0),
+    Offset dir2 = const Offset(-1.0, 0.0),
     double corridorOffset = 0.0,
     double loopLaneOffset = 0.0,
   }) {
     return _MissionGraphCanvasState._buildBezierPath(
       p1,
       p2,
+      dir1: dir1,
+      dir2: dir2,
       corridorOffset: corridorOffset,
       loopLaneOffset: loopLaneOffset,
     );
@@ -2008,6 +2554,8 @@ class _EdgesPainter extends CustomPainter {
     Offset p2,
     Color color,
     double width, {
+    Offset dir1 = const Offset(1.0, 0.0),
+    Offset dir2 = const Offset(-1.0, 0.0),
     double corridorOffset = 0.0,
     double loopLaneOffset = 0.0,
     bool isSelected = false,
@@ -2017,6 +2565,8 @@ class _EdgesPainter extends CustomPainter {
     final path = _buildBezierPath(
       p1,
       p2,
+      dir1: dir1,
+      dir2: dir2,
       corridorOffset: corridorOffset,
       loopLaneOffset: loopLaneOffset,
     );
@@ -2150,12 +2700,16 @@ class _EdgesPainter extends CustomPainter {
     Offset p2,
     Color color,
     double width, {
+    Offset dir1 = const Offset(1.0, 0.0),
+    Offset dir2 = const Offset(-1.0, 0.0),
     double corridorOffset = 0.0,
     double loopLaneOffset = 0.0,
   }) {
     final path = _buildBezierPath(
       p1,
       p2,
+      dir1: dir1,
+      dir2: dir2,
       corridorOffset: corridorOffset,
       loopLaneOffset: loopLaneOffset,
     );

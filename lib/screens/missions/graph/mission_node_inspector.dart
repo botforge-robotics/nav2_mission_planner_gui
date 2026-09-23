@@ -323,6 +323,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     ],
                   ),
                 ),
+                if (!widget.readOnly)
+                  IconButton(
+                    icon: const Icon(Icons.rotate_right_rounded, color: AppColors.primary, size: 20),
+                    tooltip: 'Rotate Connection Points (Press R to cycle 90°)',
+                    onPressed: () {
+                      node.rotationDegrees = (node.rotationDegrees + 90) % 360;
+                      widget.onChanged();
+                    },
+                  ),
                 if (widget.onDelete != null && node.type != 'start' && !widget.readOnly)
                   IconButton(
                     icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 20),

@@ -223,6 +223,42 @@ class GraphNode {
     }
   }
 
+  int get rotationDegrees => ((params['rotation'] as num?)?.toInt() ?? 0) % 360;
+  set rotationDegrees(int val) => params['rotation'] = (val % 360);
+
+  bool get isExpanded => params['expanded'] == true;
+  set isExpanded(bool val) => params['expanded'] = val;
+
+  /// Returns the active side ('left', 'right', 'top', 'bottom') for the input port
+  String get inputSide {
+    switch (rotationDegrees) {
+      case 90:
+        return 'top';
+      case 180:
+        return 'right';
+      case 270:
+        return 'bottom';
+      case 0:
+      default:
+        return 'left';
+    }
+  }
+
+  /// Returns the active side ('left', 'right', 'top', 'bottom') for output ports
+  String get outputSide {
+    switch (rotationDegrees) {
+      case 90:
+        return 'bottom';
+      case 180:
+        return 'left';
+      case 270:
+        return 'top';
+      case 0:
+      default:
+        return 'right';
+    }
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'type': type,

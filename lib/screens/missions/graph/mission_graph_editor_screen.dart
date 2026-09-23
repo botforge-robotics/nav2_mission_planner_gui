@@ -935,6 +935,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                       return KeyEventResult.handled;
                     }
                   }
+                  if (event.logicalKey == LogicalKeyboardKey.keyR) {
+                    if (_selectedNode != null && !_running) {
+                      setState(() {
+                        _selectedNode!.rotationDegrees = (_selectedNode!.rotationDegrees + 90) % 360;
+                        _canvasRevision++;
+                      });
+                      return KeyEventResult.handled;
+                    }
+                  }
                 }
                 return KeyEventResult.ignored;
               },
