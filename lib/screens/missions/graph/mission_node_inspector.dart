@@ -3,7 +3,6 @@ import 'dart:typed_data' show Uint8List;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import '../../../services/locations_controller.dart';
 import '../../../services/sdk_api_service.dart';
 import '../../../theme/app_theme.dart';
@@ -40,85 +39,21 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   late TextEditingController _labelController;
   late FocusNode _labelFocusNode;
 
-  TextEditingController? _activeController;
-  FocusNode? _activeFocusNode;
-  ValueChanged<String>? _activeOnChanged;
-  TextSelection? _lastSelection;
-
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _labelController = TextEditingController(text: widget.node.label);
     _labelFocusNode = FocusNode();
-    _labelFocusNode.addListener(() {
-      if (_labelFocusNode.hasFocus) {
-        _setActiveField(
-          controller: _labelController,
-          focusNode: _labelFocusNode,
-          onChanged: (val) {
-            widget.node.label = val;
-            widget.onChanged();
-          },
-        );
-      }
-    });
   }
 
   void _setActiveField({
     required TextEditingController controller,
     required FocusNode focusNode,
     required ValueChanged<String> onChanged,
-  }) {
-    _activeController = controller;
-    _activeFocusNode = focusNode;
-    _activeOnChanged = onChanged;
-    _lastSelection = controller.selection;
-  }
+  }) {}
 
-  void _insertVariableIntoActiveField(String varName) {
-    final token = '{$varName}';
-    final controller = _activeController;
 
-    if (controller != null) {
-      final text = controller.text;
-      int start = _lastSelection?.start ?? controller.selection.start;
-      int end = _lastSelection?.end ?? controller.selection.end;
-
-      if (start < 0 || end < 0 || start > text.length || end > text.length) {
-        start = text.length;
-        end = text.length;
-      }
-
-      final newText = text.replaceRange(start, end, token);
-      controller.text = newText;
-      final newOffset = start + token.length;
-      controller.selection = TextSelection.collapsed(offset: newOffset);
-      _lastSelection = controller.selection;
-
-      _activeOnChanged?.call(newText);
-      _activeFocusNode?.requestFocus();
-
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Inserted $token into active field'),
-          duration: const Duration(milliseconds: 1200),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } else {
-      Clipboard.setData(ClipboardData(text: token));
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Copied $token to clipboard. Tap into any text field to insert.'),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
 
   List<AvailableVariable> _getAvailableVariables() {
     if (widget.graph != null) {
@@ -129,104 +64,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     return mockGraph.getAllVariables();
   }
 
-  Widget _buildAvailableVariablesBanner() {
-    final vars = _getAvailableVariables();
-    if (vars.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFF141923),
-        border: Border(
-          bottom: BorderSide(color: AppColors.border, width: 1),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.data_object_rounded, size: 14, color: AppColors.primary),
-              const SizedBox(width: 6),
-              const Text(
-                'AVAILABLE VARIABLES',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const Spacer(),
-              const Text(
-                'Tap chip to insert',
-                style: TextStyle(
-                  color: AppColors.textTertiary,
-                  fontSize: 10,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 28,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: vars.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
-              itemBuilder: (context, index) {
-                final v = vars[index];
-                return Tooltip(
-                  message: '${v.isSystem ? "[System Variable]" : "[Mission Variable]"}\nSource: ${v.source}\nClick to insert {${v.name}} into active field',
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(6),
-                    onTap: () => _insertVariableIntoActiveField(v.name),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: v.isSystem
-                            ? AppColors.surfaceElevated
-                            : AppColors.primary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: v.isSystem
-                              ? AppColors.border
-                              : AppColors.primary.withValues(alpha: 0.4),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            v.isSystem ? Icons.memory : Icons.data_array,
-                            size: 11,
-                            color: v.isSystem ? AppColors.textSecondary : AppColors.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '{${v.name}}',
-                            style: TextStyle(
-                              color: v.isSystem ? AppColors.textPrimary : AppColors.primary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildVariableInputField({
     required String label,
@@ -342,8 +180,6 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             ),
           ),
 
-          // Available Variables Banner
-          _buildAvailableVariablesBanner(),
 
           // Tabs (Properties vs Preview for UI interaction)
           if (isUiInteraction)

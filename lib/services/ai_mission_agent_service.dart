@@ -1537,23 +1537,26 @@ Output only the JSON object starting with { and ending with }. Do not include ma
   }
 
   /// Calculates clean, non-overlapping hierarchical coordinates (Sugiyama DAG style)
-  /// with topological depth ranking and barycenter ordering to eliminate wire tangles.
+  /// Applies an optimal, untangled layered DAG layout to the mission graph.
+  /// Eliminates wire tangles using cycle-safe topological ranking, port-divergent
+  /// branch spreading, and barycentric vertical ordering with collision avoidance.
   static void applyCleanGraphLayout(MissionGraph graph) {
     if (graph.nodes.isEmpty) return;
 
     final nodesMap = {for (final n in graph.nodes) n.id: n};
     final edges = graph.edges;
 
-    final outgoing = <String, List<String>>{};
-    final incoming = <String, List<String>>{};
+    // Build adjacency
+    final outgoing = <String, List<GraphEdge>>{};
+    final incoming = <String, List<GraphEdge>>{};
     for (final id in nodesMap.keys) {
       outgoing[id] = [];
       incoming[id] = [];
     }
     for (final e in edges) {
       if (nodesMap.containsKey(e.fromNode) && nodesMap.containsKey(e.toNode)) {
-        outgoing[e.fromNode]?.add(e.toNode);
-        incoming[e.toNode]?.add(e.fromNode);
+        outgoing[e.fromNode]!.add(e);
+        incoming[e.toNode]!.add(e);
       }
     }
 
@@ -1563,26 +1566,41 @@ Output only the JSON object starting with { and ending with }. Do not include ma
       orElse: () => graph.nodes.first,
     );
 
-    // Build forward happy-path outgoing edges (excluding recovery ports: low_battery, failed, timeout, cancelled)
-    final happyOutgoing = <String, List<String>>{};
-    for (final id in nodesMap.keys) {
-      happyOutgoing[id] = [];
+    // 1. Identify back-edges to break cycles (DFS traversal from startNode)
+    final visited = <String>{};
+    final inStack = <String>{};
+    final backEdges = <GraphEdge>{};
+
+    void detectCycles(String u) {
+      visited.add(u);
+      inStack.add(u);
+      for (final e in outgoing[u] ?? <GraphEdge>[]) {
+        final v = e.toNode;
+        if (!visited.contains(v)) {
+          detectCycles(v);
+        } else if (inStack.contains(v)) {
+          backEdges.add(e);
+        }
+      }
+      inStack.remove(u);
     }
-    for (final e in edges) {
-      final p = e.fromPort.toLowerCase();
-      final isRecovery = p == 'failed' || p == 'timeout' || p == 'low_battery' || p == 'cancelled' || p == 'failure';
-      if (!isRecovery && nodesMap.containsKey(e.fromNode) && nodesMap.containsKey(e.toNode)) {
-        happyOutgoing[e.fromNode]?.add(e.toNode);
+    detectCycles(startNode.id);
+
+    // Also visit any remaining disconnected components
+    for (final id in nodesMap.keys) {
+      if (!visited.contains(id)) {
+        detectCycles(id);
       }
     }
 
-    // 1. Compute proper topological longest-path depth along all valid DAG edges
+    // 2. Compute topological depths on forward DAG
     final depths = <String, int>{startNode.id: 0};
     bool relaxed = true;
-    int maxPasses = nodesMap.length * 2;
+    int maxPasses = nodesMap.length;
     while (relaxed && maxPasses-- > 0) {
       relaxed = false;
       for (final e in edges) {
+        if (backEdges.contains(e)) continue;
         if (!nodesMap.containsKey(e.fromNode) || !nodesMap.containsKey(e.toNode)) continue;
         final fromD = depths[e.fromNode];
         if (fromD != null) {
@@ -1595,34 +1613,27 @@ Output only the JSON object starting with { and ending with }. Do not include ma
       }
     }
 
-    // Assign any unvisited/disconnected islands
+    // Assign layer 0 to any unvisited islands
     int maxDepth = 0;
     for (final d in depths.values) {
       if (d > maxDepth) maxDepth = d;
     }
     for (final node in graph.nodes) {
-      if (!depths.containsKey(node.id)) {
-        depths[node.id] = 0;
-      }
+      depths.putIfAbsent(node.id, () => 0);
     }
 
-    // Push ONLY primary happy-path terminal sinks to the rightmost column.
-    // Local abort/recovery badges stay in their natural adjacent column!
+    // Push primary happy-path terminal sinks to the rightmost column
     for (final node in graph.nodes) {
       final out = outgoing[node.id] ?? [];
       final isTerminal = node.type == 'end' || node.type == 'mission_end' || node.type == 'dock_and_end' ||
-          (node.type == 'dock' && (out.isEmpty || out.every((t) => nodesMap[t]?.type == 'end' || nodesMap[t]?.type == 'dock_and_end')));
+          (node.type == 'dock' && (out.isEmpty || out.every((e) => nodesMap[e.toNode]?.type == 'end' || nodesMap[e.toNode]?.type == 'dock_and_end')));
       if (isTerminal) {
-        final preds = incoming[node.id] ?? [];
+        final inEdges = incoming[node.id] ?? [];
         bool isHappyPath = false;
-        for (final p in preds) {
-          final edge = edges.firstWhere(
-            (e) => e.fromNode == p && e.toNode == node.id,
-            orElse: () => GraphEdge(id: '', fromNode: '', fromPort: '', toNode: '', toPort: ''),
-          );
+        for (final edge in inEdges) {
           final pLow = edge.fromPort.toLowerCase();
           final isRecovery = pLow == 'failed' || pLow == 'timeout' || pLow == 'low_battery' || pLow == 'cancelled' || pLow == 'failure' || pLow == 'abort';
-          if (!isRecovery && depths[p] != null && depths[p]! >= maxDepth - 1) {
+          if (!isRecovery && depths[edge.fromNode] != null && depths[edge.fromNode]! >= maxDepth - 1) {
             isHappyPath = true;
             break;
           }
@@ -1633,75 +1644,85 @@ Output only the JSON object starting with { and ending with }. Do not include ma
       }
     }
 
-    // Group into columns
+    // 3. Group nodes into layer columns
     final layers = <int, List<String>>{};
     for (final entry in depths.entries) {
       layers.putIfAbsent(entry.value, () => []).add(entry.key);
     }
 
-    // Identify primary happy-path spine starting from start node
-    final spineNodeIds = <String>{startNode.id};
-    String? curSpine = startNode.id;
-    while (curSpine != null) {
-      final outEdges = edges.where((e) => e.fromNode == curSpine).toList();
-      GraphEdge? happyEdge;
-      for (final prefPort in ['next', 'ok', 'arrived', 'submitted', 'done', 'docked', 'completed', 'true', 'yes']) {
-        for (final e in outEdges) {
-          if (e.fromPort.toLowerCase() == prefPort) {
-            happyEdge = e;
-            break;
-          }
-        }
-        if (happyEdge != null) break;
-      }
-      if (happyEdge != null && !spineNodeIds.contains(happyEdge.toNode) && nodesMap.containsKey(happyEdge.toNode)) {
-        spineNodeIds.add(happyEdge.toNode);
-        curSpine = happyEdge.toNode;
-      } else {
-        curSpine = null;
-      }
-    }
-
     const double colSpacing = 240.0;
-    const double rowSpacing = 160.0;
+    const double rowSpacing = 150.0;
     const double startX = 80.0;
-    const double baselineY = 220.0;
+    const double baselineY = 240.0;
 
-    // Temporary map of assigned Y positions for barycenter sorting
+    // Track assigned Y positions
     final yPositions = <String, double>{startNode.id: baselineY};
 
     final sortedColKeys = layers.keys.toList()..sort();
 
+    // 4. Position nodes in each layer using barycentric & port-divergent placement
     for (final col in sortedColKeys) {
       final nodeIds = layers[col]!;
 
-      // Sort nodes in this column:
-      // 1. Spine node is ALWAYS first (at baselineY)
-      // 2. Regular non-abort branch nodes follow
-      // 3. Local terminal abort/failure badges are placed below
+      // Calculate ideal Y for each node based on predecessors and port offsets
+      final idealYs = <String, double>{};
+      for (final id in nodeIds) {
+        if (id == startNode.id) {
+          idealYs[id] = baselineY;
+          continue;
+        }
+
+        final inEdges = (incoming[id] ?? []).where((e) => !backEdges.contains(e)).toList();
+        if (inEdges.isEmpty) {
+          idealYs[id] = baselineY;
+          continue;
+        }
+
+        double sumY = 0;
+        int count = 0;
+        for (final edge in inEdges) {
+          final predId = edge.fromNode;
+          final predY = yPositions[predId] ?? baselineY;
+          final predNode = nodesMap[predId];
+          final outPorts = predNode?.outputPorts ?? [];
+          final portIdx = outPorts.indexWhere((p) => p.id == edge.fromPort);
+          final totalOut = outPorts.length;
+
+          // Symmetrical divergence: upper ports branch upward, lower ports branch downward
+          double branchOffset = 0.0;
+          if (totalOut > 1 && portIdx >= 0) {
+            branchOffset = (portIdx - (totalOut - 1) / 2.0) * (rowSpacing * 0.9);
+          }
+
+          sumY += (predY + branchOffset);
+          count++;
+        }
+        idealYs[id] = count > 0 ? (sumY / count) : baselineY;
+      }
+
+      // Sort nodes in this layer by idealY to untangle wire crossings
       nodeIds.sort((a, b) {
-        final aIsSpine = spineNodeIds.contains(a);
-        final bIsSpine = spineNodeIds.contains(b);
-        if (aIsSpine && !bIsSpine) return -1;
-        if (!aIsSpine && bIsSpine) return 1;
-
-        final aIsAbort = nodesMap[a]?.params['status'] == 'aborted' || nodesMap[a]?.params['status'] == 'failed';
-        final bIsAbort = nodesMap[b]?.params['status'] == 'aborted' || nodesMap[b]?.params['status'] == 'failed';
-        if (!aIsAbort && bIsAbort) return -1;
-        if (aIsAbort && !bIsAbort) return 1;
-
-        final predsA = incoming[a] ?? [];
-        final predsB = incoming[b] ?? [];
-        final avgYA = predsA.isEmpty
-            ? baselineY
-            : predsA.map((p) => yPositions[p] ?? baselineY).reduce((v, e) => v + e) / predsA.length;
-        final avgYB = predsB.isEmpty
-            ? baselineY
-            : predsB.map((p) => yPositions[p] ?? baselineY).reduce((v, e) => v + e) / predsB.length;
-        return avgYA.compareTo(avgYB);
+        final ya = idealYs[a] ?? baselineY;
+        final yb = idealYs[b] ?? baselineY;
+        return ya.compareTo(yb);
       });
 
-      final hasSpineInCol = nodeIds.any((id) => spineNodeIds.contains(id));
+      // Enforce minimum row spacing between consecutive nodes in the layer
+      final currentYs = nodeIds.map((id) => idealYs[id] ?? baselineY).toList();
+      for (int i = 1; i < currentYs.length; i++) {
+        if (currentYs[i] < currentYs[i - 1] + rowSpacing) {
+          currentYs[i] = currentYs[i - 1] + rowSpacing;
+        }
+      }
+
+      // Center the layer around the average of its ideal positions
+      final avgIdeal = idealYs.values.isEmpty
+          ? baselineY
+          : idealYs.values.reduce((a, b) => a + b) / idealYs.length;
+      final avgActual = currentYs.isEmpty
+          ? baselineY
+          : currentYs.reduce((a, b) => a + b) / currentYs.length;
+      final shift = avgIdeal - avgActual;
 
       for (int i = 0; i < nodeIds.length; i++) {
         final id = nodeIds[i];
@@ -1709,22 +1730,36 @@ Output only the JSON object starting with { and ending with }. Do not include ma
         if (node == null) continue;
 
         final double x = startX + col * colSpacing;
-        double y;
-        if (hasSpineInCol) {
-          // Primary flow stays anchored directly on the horizontal baseline!
-          // Branches and abort badges spread downward underneath.
-          y = baselineY + i * rowSpacing;
-        } else {
-          // If this column is an off-spine branch, anchor relative to predecessor's Y
-          final preds = incoming[id] ?? [];
-          final avgPredY = preds.isEmpty
-              ? (baselineY + rowSpacing)
-              : preds.map((p) => yPositions[p] ?? (baselineY + rowSpacing)).reduce((v, e) => v + e) / preds.length;
-          y = avgPredY + (i * rowSpacing);
-        }
+        final double y = currentYs[i] + shift;
 
         node.position = Offset(x, y);
         yPositions[id] = y;
+      }
+    }
+
+    // 5. Final collision-free safety check: ensure strictly 100% unique positions
+    final usedPositions = <String>{};
+    for (final node in graph.nodes) {
+      var pos = node.position;
+      while (usedPositions.contains('${pos.dx.round()},${pos.dy.round()}')) {
+        pos = Offset(pos.dx, pos.dy + rowSpacing);
+      }
+      node.position = pos;
+      usedPositions.add('${pos.dx.round()},${pos.dy.round()}');
+    }
+
+    // 6. Guarantee positive canvas bounds with generous headroom (x >= 80, y >= 100)
+    double minY = double.infinity;
+    double minX = double.infinity;
+    for (final node in graph.nodes) {
+      if (node.position.dy < minY) minY = node.position.dy;
+      if (node.position.dx < minX) minX = node.position.dx;
+    }
+    final double yOffsetNeeded = minY < 100.0 ? (100.0 - minY) : 0.0;
+    final double xOffsetNeeded = minX < 80.0 ? (80.0 - minX) : 0.0;
+    if (yOffsetNeeded > 0.0 || xOffsetNeeded > 0.0) {
+      for (final node in graph.nodes) {
+        node.position = Offset(node.position.dx + xOffsetNeeded, node.position.dy + yOffsetNeeded);
       }
     }
   }

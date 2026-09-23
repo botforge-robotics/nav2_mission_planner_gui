@@ -1273,7 +1273,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     final isActive = widget.activeNodeId == node.id;
 
     if (_isTerminalBadge(node)) {
-      if (isActive) {
+      if (isActive || isSelected) {
         return AnimatedBuilder(
           animation: _flowAnimController,
           builder: (context, _) {
@@ -1281,7 +1281,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
             return _buildTerminalBadgeWidget(
               node,
               isSelected: isSelected,
-              isActive: true,
+              isActive: isActive,
               pulse: pulse,
             );
           },
@@ -1307,8 +1307,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            // 1. Compact Circular n8n-style Node (always compact — details in right panel)
-            if (isActive)
+            // 1. Compact Circular n8n-style Node (animated when active or clicked/selected)
+            if (isActive || isSelected)
               AnimatedBuilder(
                 animation: _flowAnimController,
                 builder: (context, _) {
@@ -1316,7 +1316,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                   return _buildCompactNodeWidget(
                     node,
                     isSelected: isSelected,
-                    isActive: true,
+                    isActive: isActive,
                     pulse: pulse,
                   );
                 },
@@ -1577,10 +1577,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     }
 
     const double baseSize = 18.0;
-    final pinSize = (isHovered || isBeingDrawnFrom) ? 22.0 : baseSize;
-
+    final isSelected = widget.selectedNode?.id == node.id;
     final isMouseOver = _hoveredPortKey == portKey;
-    final isActivelyHovered = isHovered || (isMouseOver && _drawingFromNode == null);
+    final isActivelyHovered = isHovered || (isMouseOver && _drawingFromNode == null) || isSelected;
+    final pinSize = (isHovered || isBeingDrawnFrom || isMouseOver || isSelected) ? 21.0 : baseSize;
     final side = isInput ? node.inputSide : node.outputSide;
 
     return KeyedSubtree(
