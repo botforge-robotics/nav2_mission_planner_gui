@@ -77,10 +77,74 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
   }
 
   Future<void> _createMission() async {
-    final created = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const MissionEditorScreen()),
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Create New Mission',
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.account_tree_rounded, color: AppColors.primary),
+                ),
+                title: const Text('Visual Node Editor (n8n Style)', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Drag-and-drop workflow graph with AI assistant and flow animation'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(ctx).pop('graph'),
+              ),
+              const Divider(height: 8),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.format_list_numbered_rounded, color: AppColors.accent),
+                ),
+                title: const Text('Linear Step-by-Step Editor', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Classic sequential list of waypoint and action steps'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(ctx).pop('linear'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
-    if (created == true) _load();
+
+    if (!mounted) return;
+    if (choice == 'graph') {
+      final created = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const MissionGraphEditorScreen()),
+      );
+      if (created == true) _load();
+    } else if (choice == 'linear') {
+      final created = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const MissionEditorScreen()),
+      );
+      if (created == true) _load();
+    }
   }
 
   Future<void> _deleteMission(Map<String, dynamic> mission) async {
@@ -284,6 +348,17 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
               ),
             ),
           ] else ...[
+            IconButton(
+              tooltip: 'Visual Node Editor',
+              icon: const Icon(Icons.account_tree_outlined),
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const MissionGraphEditorScreen()),
+                );
+                _load();
+              },
+            ),
             IconButton(
               tooltip: 'Scheduler',
               icon: const Icon(Icons.alarm_rounded),
