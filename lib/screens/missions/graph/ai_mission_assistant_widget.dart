@@ -1,4 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../../services/ai_mission_agent_service.dart';
 import '../../../theme/app_theme.dart';
@@ -6,7 +9,8 @@ import 'ai_agent_settings_dialog.dart';
 import 'mission_graph_models.dart';
 
 /// Floating AI Mission Assistant widget docked in the bottom-right corner
-/// of the Mission Graph Editor. Supports both text typing and microphone voice input.
+/// of the Mission Graph Editor. Supports both text typing and microphone voice input
+/// backed by high-accuracy AI Voice Models (Groq Whisper / OpenAI Whisper) and Device Native.
 /// Fully styled with NavPro Mini's light, modern autonomous robotics design tokens.
 class AiMissionAssistantWidget extends StatefulWidget {
   const AiMissionAssistantWidget({
@@ -29,8 +33,11 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
   late final FocusNode _focusNode;
 
   final stt.SpeechToText _speech = stt.SpeechToText();
+  final AudioRecorder _audioRecorder = AudioRecorder();
   bool _speechAvailable = false;
   bool _isListening = false;
+  bool _isTranscribingVoice = false;
+  String? _voiceEngineLabel;
 
   bool _isExpanded = false;
   bool _isGenerating = false;
@@ -74,6 +81,106 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
   }
 
   Future<void> _toggleListening() async {
+    final cfg = await AiMissionAgentService.instance.getConfig();
+    final isCloudWhisper = cfg.voiceProvider != VoiceTranscriptionProvider.deviceNative;
+
+    if (isCloudWhisper) {
+      await _toggleWhisperVoice(cfg);
+    } else {
+      await _toggleNativeSpeech();
+    }
+  }
+
+  Future<void> _toggleWhisperVoice(AiAgentConfig cfg) async {
+    if (_isListening) {
+      // User tapped mic to stop recording and start transcription
+      try {
+        final path = await _audioRecorder.stop();
+        if (mounted) {
+          setState(() {
+            _isListening = false;
+            _isTranscribingVoice = true;
+          });
+        }
+
+        if (path != null && File(path).existsSync()) {
+          final transcribed = await AiMissionAgentService.instance.transcribeAudio(audioPath: path);
+          if (mounted && transcribed.isNotEmpty) {
+            final current = _promptController.text.trim();
+            _promptController.text = current.isEmpty ? transcribed : '$current $transcribed';
+            _promptController.selection = TextSelection.fromPosition(
+              TextPosition(offset: _promptController.text.length),
+            );
+          }
+          try {
+            await File(path).delete();
+          } catch (_) {}
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Whisper transcription error: $e'),
+              behavior: SnackBarBehavior.floating,
+              action: SnackBarAction(
+                label: 'Settings',
+                onPressed: _openSettings,
+              ),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isTranscribingVoice = false);
+      }
+    } else {
+      // User tapped mic to start recording
+      try {
+        final hasPermission = await _audioRecorder.hasPermission();
+        if (!hasPermission) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Microphone permission denied. Please allow microphone access.'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+
+        final tempDir = await getTemporaryDirectory();
+        final path = '${tempDir.path}/prompt_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+        await _audioRecorder.start(
+          const RecordConfig(
+            encoder: AudioEncoder.aacLc,
+            bitRate: 128000,
+            sampleRate: 44100,
+          ),
+          path: path,
+        );
+
+        if (mounted) {
+          setState(() {
+            _isListening = true;
+            _voiceEngineLabel = cfg.voiceProvider.shortName;
+          });
+        }
+      } catch (e) {
+        debugPrint('[AudioRecorder] Start error: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Could not start audio recorder: $e'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _toggleNativeSpeech() async {
     if (_isListening) {
       await _speech.stop();
       if (mounted) setState(() => _isListening = false);
@@ -82,7 +189,10 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
         _speechAvailable = await _speech.initialize();
       }
       if (_speechAvailable) {
-        setState(() => _isListening = true);
+        setState(() {
+          _isListening = true;
+          _voiceEngineLabel = 'Native Speech';
+        });
         await _speech.listen(
           onResult: (result) {
             if (mounted) {
@@ -103,9 +213,13 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Microphone / speech recognition is not available. Please type your prompt.'),
+            SnackBar(
+              content: const Text('Microphone / speech recognition is not available. Please type your prompt or use Groq/OpenAI Whisper.'),
               behavior: SnackBarBehavior.floating,
+              action: SnackBarAction(
+                label: 'Settings',
+                onPressed: _openSettings,
+              ),
             ),
           );
         }
@@ -116,6 +230,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
   @override
   void dispose() {
     _speech.stop();
+    _audioRecorder.dispose();
     _promptController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -442,24 +557,77 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                   ),
                   const SizedBox(height: 14),
 
+                  // Transcribing active banner
+                  if (_isTranscribingVoice)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF93C5FD)),
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2563EB)),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Transcribing audio with ${_voiceEngineLabel ?? "Whisper AI"} model...',
+                              style: const TextStyle(
+                                color: Color(0xFF1D4ED8),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   // Listening active banner
                   if (_isListening)
                     Container(
                       margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                       ),
                       child: Row(
-                        children: const [
-                          Icon(Icons.record_voice_over_rounded, size: 15, color: AppColors.primary),
-                          SizedBox(width: 8),
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: AppColors.danger,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Listening to microphone... Speak your workflow description.',
-                              style: TextStyle(color: AppColors.primary, fontSize: 11.5, fontWeight: FontWeight.w600),
+                              'Recording audio (${_voiceEngineLabel ?? "Voice Model"})... Click stop when finished.',
+                              style: const TextStyle(color: AppColors.primary, fontSize: 11.5, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          InkWell(
+                            onTap: _toggleListening,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.danger,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'Stop & Transcribe',
+                                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
                             ),
                           ),
                         ],
@@ -503,37 +671,54 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                           child: Row(
                             children: [
                               // Voice Input Toggle Button
-                              Tooltip(
-                                message: _isListening ? 'Stop listening' : 'Voice Input (Microphone)',
-                                child: _isListening
-                                    ? FilledButton.icon(
-                                        onPressed: _toggleListening,
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: AppColors.danger,
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                          elevation: 0,
+                              if (_isTranscribingVoice)
+                                FilledButton.icon(
+                                  onPressed: null,
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppColors.surfaceElevated,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    elevation: 0,
+                                  ),
+                                  icon: const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                                  ),
+                                  label: const Text('Transcribing...', style: TextStyle(fontSize: 11.5, color: AppColors.primary)),
+                                )
+                              else
+                                Tooltip(
+                                  message: _isListening ? 'Stop recording & transcribe' : 'Voice Input (Microphone)',
+                                  child: _isListening
+                                      ? FilledButton.icon(
+                                          onPressed: _toggleListening,
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: AppColors.danger,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                            elevation: 0,
+                                          ),
+                                          icon: const SizedBox(
+                                            width: 12,
+                                            height: 12,
+                                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                          ),
+                                          label: const Text('Stop & Transcribe', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                                        )
+                                      : OutlinedButton.icon(
+                                          onPressed: _toggleListening,
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: AppColors.primary,
+                                            side: BorderSide(color: AppColors.primary.withValues(alpha: 0.35)),
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
+                                          icon: const Icon(Icons.mic_none_rounded, size: 16),
+                                          label: const Text('Voice Input', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
                                         ),
-                                        icon: const SizedBox(
-                                          width: 12,
-                                          height: 12,
-                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                        ),
-                                        label: const Text('Listening... Stop', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                                      )
-                                    : OutlinedButton.icon(
-                                        onPressed: _toggleListening,
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: AppColors.primary,
-                                          side: BorderSide(color: AppColors.primary.withValues(alpha: 0.35)),
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                        ),
-                                        icon: const Icon(Icons.mic_none_rounded, size: 16),
-                                        label: const Text('Voice Input', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-                                      ),
-                              ),
+                                ),
                               const SizedBox(width: 8),
 
                               if (_promptController.text.isNotEmpty)

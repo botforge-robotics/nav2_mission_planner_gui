@@ -88,5 +88,40 @@ void main() {
         expect(endNode.position.dx > startNode.position.dx, true);
       }
     });
+
+    test('Verifies VoiceTranscriptionProvider definitions and serialization', () {
+      expect(VoiceTranscriptionProvider.values.length, 3);
+      for (final v in VoiceTranscriptionProvider.values) {
+        expect(v.displayName.isNotEmpty, true);
+        expect(v.shortName.isNotEmpty, true);
+        expect(v.modelName.isNotEmpty, true);
+        expect(v.description.isNotEmpty, true);
+      }
+
+      // Test config JSON serialization
+      final cfg = AiAgentConfig(
+        provider: AiProvider.openai,
+        apiKey: 'test-key',
+        voiceProvider: VoiceTranscriptionProvider.groqWhisper,
+        voiceApiKey: 'gsk-voice-key',
+      );
+      final json = cfg.toJson();
+      expect(json['voiceProvider'], 'groqWhisper');
+      expect(json['voiceApiKey'], 'gsk-voice-key');
+
+      final restored = AiAgentConfig.fromJson(json);
+      expect(restored.voiceProvider, VoiceTranscriptionProvider.groqWhisper);
+      expect(restored.voiceApiKey, 'gsk-voice-key');
+    });
+
+    test('testVoiceConnection validates missing API key', () async {
+      final service = AiMissionAgentService.instance;
+      final res = await service.testVoiceConnection(
+        provider: VoiceTranscriptionProvider.groqWhisper,
+        apiKey: '',
+      );
+      expect(res['success'], false);
+      expect(res['message'], contains('required'));
+    });
   });
 }

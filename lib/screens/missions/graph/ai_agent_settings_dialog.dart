@@ -25,6 +25,13 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
   late final TextEditingController _modelController;
   late final TextEditingController _baseUrlController;
 
+  VoiceTranscriptionProvider _voiceProvider = VoiceTranscriptionProvider.groqWhisper;
+  late final TextEditingController _voiceApiKeyController;
+  bool _obscureVoiceApiKey = true;
+  bool _testingVoiceConnection = false;
+  String? _voiceTestResult;
+  bool _voiceTestSuccess = false;
+
   bool _obscureApiKey = true;
   bool _testingConnection = false;
   String? _testResult;
@@ -37,6 +44,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
     _apiKeyController = TextEditingController();
     _modelController = TextEditingController();
     _baseUrlController = TextEditingController();
+    _voiceApiKeyController = TextEditingController();
     _loadConfig();
   }
 
@@ -45,6 +53,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
     _apiKeyController.dispose();
     _modelController.dispose();
     _baseUrlController.dispose();
+    _voiceApiKeyController.dispose();
     super.dispose();
   }
 
@@ -56,6 +65,8 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
         _apiKeyController.text = cfg.apiKey;
         _modelController.text = cfg.model;
         _baseUrlController.text = cfg.baseUrl;
+        _voiceProvider = cfg.voiceProvider;
+        _voiceApiKeyController.text = cfg.voiceApiKey;
         _loading = false;
       });
     }
@@ -241,12 +252,54 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
     }
   }
 
+  Future<void> _testVoiceModel() async {
+    setState(() {
+      _testingVoiceConnection = true;
+      _voiceTestResult = null;
+    });
+
+    String apiKey = _voiceApiKeyController.text.trim();
+    if (apiKey.isEmpty) {
+      if (_voiceProvider == VoiceTranscriptionProvider.groqWhisper && _provider == AiProvider.groq) {
+        apiKey = _apiKeyController.text.trim();
+      } else if (_voiceProvider == VoiceTranscriptionProvider.openAiWhisper && _provider == AiProvider.openai) {
+        apiKey = _apiKeyController.text.trim();
+      }
+    }
+
+    try {
+      final res = await AiMissionAgentService.instance.testVoiceConnection(
+        provider: _voiceProvider,
+        apiKey: apiKey,
+      );
+      if (mounted) {
+        setState(() {
+          _voiceTestSuccess = res['success'] == true;
+          _voiceTestResult = res['message'] as String?;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _voiceTestSuccess = false;
+          _voiceTestResult = 'Voice test error: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _testingVoiceConnection = false);
+      }
+    }
+  }
+
   Future<void> _save() async {
     final cfg = AiAgentConfig(
       provider: _provider,
       apiKey: _apiKeyController.text.trim(),
       model: _modelController.text.trim(),
       baseUrl: _baseUrlController.text.trim(),
+      voiceProvider: _voiceProvider,
+      voiceApiKey: _voiceApiKeyController.text.trim(),
     );
     await AiMissionAgentService.instance.saveConfig(cfg);
     if (mounted) {
@@ -576,6 +629,216 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                               ),
                             ),
                           ),
+                          const SizedBox(height: 18),
+
+                          // Voice AI Section
+                          const Divider(height: 36, thickness: 1, color: AppColors.border),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.mic_rounded, color: AppColors.primary, size: 18),
+                              ),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'Voice Speech-to-Text Model',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Select the speech recognition model used when speaking voice mission prompts.',
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Voice Model Dropdown
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceSunken,
+                              borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<VoiceTranscriptionProvider>(
+                                value: _voiceProvider,
+                                isExpanded: true,
+                                icon: const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                dropdownColor: AppColors.surfaceElevated,
+                                items: VoiceTranscriptionProvider.values.map((v) {
+                                  return DropdownMenuItem<VoiceTranscriptionProvider>(
+                                    value: v,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          v == VoiceTranscriptionProvider.deviceNative
+                                              ? Icons.phone_android_rounded
+                                              : Icons.auto_awesome_rounded,
+                                          size: 16,
+                                          color: AppColors.primary,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            v.displayName,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() {
+                                      _voiceProvider = val;
+                                      _voiceTestResult = null;
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Voice Provider description
+                          Text(
+                            _voiceProvider.description,
+                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.3),
+                          ),
+
+                          if (_voiceProvider != VoiceTranscriptionProvider.deviceNative) ...[
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                Text(
+                                  '${_voiceProvider == VoiceTranscriptionProvider.groqWhisper ? "Groq" : "OpenAI"} Voice API Key',
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  (_voiceProvider == VoiceTranscriptionProvider.groqWhisper && _provider == AiProvider.groq) ||
+                                          (_voiceProvider == VoiceTranscriptionProvider.openAiWhisper && _provider == AiProvider.openai)
+                                      ? 'Using primary key'
+                                      : 'Separate key optional',
+                                  style: const TextStyle(color: AppColors.textTertiary, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: _voiceApiKeyController,
+                              obscureText: _obscureVoiceApiKey,
+                              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5, letterSpacing: 0.5),
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: AppColors.surfaceSunken,
+                                hintText: (_voiceProvider == VoiceTranscriptionProvider.groqWhisper && _provider == AiProvider.groq) ||
+                                        (_voiceProvider == VoiceTranscriptionProvider.openAiWhisper && _provider == AiProvider.openai)
+                                    ? 'Leave blank to use primary AI Provider key'
+                                    : 'Enter dedicated Whisper API key',
+                                hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12, letterSpacing: 0),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscureVoiceApiKey ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                    color: AppColors.textSecondary,
+                                    size: 20,
+                                  ),
+                                  splashRadius: 18,
+                                  onPressed: () => setState(() => _obscureVoiceApiKey = !_obscureVoiceApiKey),
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                  borderSide: const BorderSide(color: AppColors.border),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                  borderSide: const BorderSide(color: AppColors.border),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            // Test Voice Button
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size(0, 34),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  foregroundColor: AppColors.textPrimary,
+                                  side: const BorderSide(color: AppColors.border),
+                                ),
+                                icon: _testingVoiceConnection
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                                      )
+                                    : const Icon(Icons.record_voice_over_rounded, size: 16, color: AppColors.primary),
+                                label: Text(
+                                  _testingVoiceConnection ? 'Verifying Voice...' : 'Test Voice Model API',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                onPressed: _testingVoiceConnection ? null : _testVoiceModel,
+                              ),
+                            ),
+                            if (_voiceTestResult != null) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: _voiceTestSuccess ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: _voiceTestSuccess ? const Color(0xFF86EFAC) : const Color(0xFFFCA5A5),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      _voiceTestSuccess ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                                      color: _voiceTestSuccess ? AppColors.success : AppColors.danger,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        _voiceTestResult!,
+                                        style: TextStyle(
+                                          color: _voiceTestSuccess ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
                           const SizedBox(height: 18),
 
                           // Offline Guard Container

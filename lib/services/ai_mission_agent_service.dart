@@ -21,30 +21,90 @@ enum AiProvider {
   custom,
 }
 
+enum VoiceTranscriptionProvider {
+  groqWhisper,
+  openAiWhisper,
+  deviceNative,
+}
+
+extension VoiceTranscriptionProviderDetails on VoiceTranscriptionProvider {
+  String get displayName {
+    switch (this) {
+      case VoiceTranscriptionProvider.groqWhisper:
+        return 'Groq Whisper Large v3 (Fastest AI, ~150ms)';
+      case VoiceTranscriptionProvider.openAiWhisper:
+        return 'OpenAI Whisper-1 (High Accuracy)';
+      case VoiceTranscriptionProvider.deviceNative:
+        return 'Device Native (On-Device Speech Recognizer)';
+    }
+  }
+
+  String get shortName {
+    switch (this) {
+      case VoiceTranscriptionProvider.groqWhisper:
+        return 'Groq Whisper';
+      case VoiceTranscriptionProvider.openAiWhisper:
+        return 'OpenAI Whisper';
+      case VoiceTranscriptionProvider.deviceNative:
+        return 'Native Speech';
+    }
+  }
+
+  String get modelName {
+    switch (this) {
+      case VoiceTranscriptionProvider.groqWhisper:
+        return 'whisper-large-v3-turbo';
+      case VoiceTranscriptionProvider.openAiWhisper:
+        return 'whisper-1';
+      case VoiceTranscriptionProvider.deviceNative:
+        return 'native';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case VoiceTranscriptionProvider.groqWhisper:
+        return 'Sub-second LPU inference (~150ms). Accurately understands robotics jargon (waypoints, docking, AMCL, relocalization).';
+      case VoiceTranscriptionProvider.openAiWhisper:
+        return 'Industry standard OpenAI Whisper model with exceptional multi-lingual & accent accuracy.';
+      case VoiceTranscriptionProvider.deviceNative:
+        return 'Local OS speech recognition. Zero latency and offline, standard accuracy.';
+    }
+  }
+}
+
 class AiAgentConfig {
   AiAgentConfig({
     this.provider = AiProvider.gemini,
     this.apiKey = '',
     this.model = 'gemini-1.5-flash',
     this.baseUrl = '',
+    this.voiceProvider = VoiceTranscriptionProvider.groqWhisper,
+    this.voiceApiKey = '',
   });
 
   final AiProvider provider;
   final String apiKey;
   final String model;
   final String baseUrl;
+  final VoiceTranscriptionProvider voiceProvider;
+  final String voiceApiKey;
 
   AiAgentConfig copyWith({
     AiProvider? provider,
     String? apiKey,
     String? model,
     String? baseUrl,
+    VoiceTranscriptionProvider? voiceProvider,
+    String? voiceApiKey,
   }) {
     return AiAgentConfig(
       provider: provider ?? this.provider,
       apiKey: apiKey ?? this.apiKey,
       model: model ?? this.model,
       baseUrl: baseUrl ?? this.baseUrl,
+      voiceProvider: voiceProvider ?? this.voiceProvider,
+      voiceApiKey: voiceApiKey ?? this.voiceApiKey,
     );
   }
 
@@ -53,6 +113,8 @@ class AiAgentConfig {
         'apiKey': apiKey,
         'model': model,
         'baseUrl': baseUrl,
+        'voiceProvider': voiceProvider.name,
+        'voiceApiKey': voiceApiKey,
       };
 
   factory AiAgentConfig.fromJson(Map<String, dynamic> json) {
@@ -64,6 +126,11 @@ class AiAgentConfig {
       apiKey: json['apiKey'] as String? ?? '',
       model: json['model'] as String? ?? 'gemini-1.5-flash',
       baseUrl: json['baseUrl'] as String? ?? '',
+      voiceProvider: VoiceTranscriptionProvider.values.firstWhere(
+        (e) => e.name == (json['voiceProvider'] as String?),
+        orElse: () => VoiceTranscriptionProvider.groqWhisper,
+      ),
+      voiceApiKey: json['voiceApiKey'] as String? ?? '',
     );
   }
 }
@@ -206,6 +273,107 @@ class AiMissionAgentService {
     _cachedConfig = config;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKey, jsonEncode(config.toJson()));
+  }
+
+  /// Transcribes recorded speech audio using Groq Whisper or OpenAI Whisper models.
+  Future<String> transcribeAudio({
+    required String audioPath,
+    VoiceTranscriptionProvider? overrideProvider,
+    String? overrideApiKey,
+  }) async {
+    final config = await getConfig();
+    final voiceProvider = overrideProvider ?? config.voiceProvider;
+
+    if (voiceProvider == VoiceTranscriptionProvider.deviceNative) {
+      throw Exception('Device Native provider does not use remote cloud transcription.');
+    }
+
+    String apiKey = (overrideApiKey ?? config.voiceApiKey).trim();
+    if (apiKey.isEmpty) {
+      if (voiceProvider == VoiceTranscriptionProvider.groqWhisper && config.provider == AiProvider.groq) {
+        apiKey = config.apiKey.trim();
+      } else if (voiceProvider == VoiceTranscriptionProvider.openAiWhisper && config.provider == AiProvider.openai) {
+        apiKey = config.apiKey.trim();
+      }
+    }
+
+    if (apiKey.isEmpty) {
+      final name = voiceProvider == VoiceTranscriptionProvider.groqWhisper ? 'Groq' : 'OpenAI';
+      throw Exception('No API key provided for $name Whisper. Please configure your $name API key in AI Settings.');
+    }
+
+    final Uri endpoint = voiceProvider == VoiceTranscriptionProvider.groqWhisper
+        ? Uri.parse('https://api.groq.com/openai/v1/audio/transcriptions')
+        : Uri.parse('https://api.openai.com/v1/audio/transcriptions');
+
+    final String model = voiceProvider.modelName;
+
+    final request = http.MultipartRequest('POST', endpoint);
+    request.headers['Authorization'] = 'Bearer $apiKey';
+    request.fields['model'] = model;
+    request.fields['response_format'] = 'json';
+    request.fields['temperature'] = '0.0';
+    request.fields['prompt'] =
+        'NavPro Mini autonomous mobile robot mission planner, waypoint navigation, docking, battery guard, condition branch, UI dialog, medicine delivery, patrol, relocalize';
+
+    final audioFile = await http.MultipartFile.fromPath('file', audioPath);
+    request.files.add(audioFile);
+
+    final streamedResponse = await request.send().timeout(const Duration(seconds: 30));
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final text = json['text'] as String? ?? '';
+      return text.trim();
+    } else {
+      String msg = 'Status ${response.statusCode}: ${response.body}';
+      try {
+        final err = jsonDecode(response.body);
+        if (err is Map && err.containsKey('error')) {
+          msg = err['error'] is Map ? err['error']['message'] ?? msg : err['error'].toString();
+        }
+      } catch (_) {}
+      throw Exception('Voice model transcription failed: $msg');
+    }
+  }
+
+  /// Verifies connectivity to the Voice AI API.
+  Future<Map<String, dynamic>> testVoiceConnection({
+    required VoiceTranscriptionProvider provider,
+    required String apiKey,
+  }) async {
+    if (provider == VoiceTranscriptionProvider.deviceNative) {
+      return {'success': true, 'message': 'Device Native engine is available on this system.'};
+    }
+    if (apiKey.trim().isEmpty) {
+      return {'success': false, 'message': 'API key is required for ${provider.displayName}.'};
+    }
+
+    final endpoint = provider == VoiceTranscriptionProvider.groqWhisper
+        ? Uri.parse('https://api.groq.com/openai/v1/models')
+        : Uri.parse('https://api.openai.com/v1/models');
+
+    try {
+      final resp = await http.get(
+        endpoint,
+        headers: {'Authorization': 'Bearer ${apiKey.trim()}'},
+      ).timeout(const Duration(seconds: 10));
+
+      if (resp.statusCode == 200) {
+        return {
+          'success': true,
+          'message': 'Voice API verified! ${provider.displayName} is ready for high-accuracy voice transcription.',
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'Voice authentication failed (${resp.statusCode}): ${resp.body}',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Voice connection error: $e'};
+    }
   }
 
   /// System prompt giving the LLM deep knowledge of NavPro Mini mission nodes and safety rules.
