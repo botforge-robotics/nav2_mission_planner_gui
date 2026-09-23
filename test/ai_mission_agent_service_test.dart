@@ -86,7 +86,7 @@ void main() {
       expect(nodeTypes.contains('battery_guard'), true);
       expect(nodeTypes.contains('navigate_waypoint'), true);
       expect(nodeTypes.contains('ui_interaction'), true, reason: 'Must have interactive data collection forms');
-      expect(nodeTypes.contains('dock'), true);
+      expect(nodeTypes.contains('dock') || graph.nodes.any((n) => n.params['dock_on_end'] == true), true, reason: 'Must contain dock or end badge with dock_on_end');
 
       // Verify that the requisition form has text input to enter out of stock material information
       final requisitionNode = graph.nodes.firstWhere((n) => n.id == 'n_ask_stock');
@@ -275,7 +275,7 @@ void main() {
       );
 
       expect(graph.nodes.isNotEmpty, true);
-      expect(graph.nodes.any((n) => n.type == 'dock'), true);
+      expect(graph.nodes.any((n) => n.type == 'dock' || n.params['dock_on_end'] == true), true, reason: 'Must contain dock or end badge with dock_on_end');
       final navWaypoints = graph.nodes
           .where((n) => n.type == 'navigate_waypoint')
           .map((n) => n.params['waypoint']?.toString().toLowerCase() ?? '')

@@ -147,11 +147,35 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     }
   }
 
+  static bool _isTerminalBadge(GraphNode node) =>
+      node.type == 'end' || node.type == 'mission_end';
+
+  static double _getNodeWidth(GraphNode node) {
+    if (_isTerminalBadge(node)) {
+      return 56.0;
+    }
+    final labelLen = (node.label.isNotEmpty ? node.label : node.type).length;
+    final textWidth = (labelLen * 7.5).clamp(80.0, 160.0);
+
+    if (node.outputPorts.length > 1) {
+      int maxPortLen = 0;
+      for (final p in node.outputPorts) {
+        if (p.label.length > maxPortLen) maxPortLen = p.label.length;
+      }
+      final portColumnWidth = (maxPortLen * 6.8 + 16.0).clamp(48.0, 110.0);
+      return math.max(250.0, 72.0 + textWidth + portColumnWidth + 24.0);
+    }
+    return math.max(230.0, 75.0 + textWidth + 30.0);
+  }
+
   static double _getNodeHeight(GraphNode node) {
+    if (_isTerminalBadge(node)) {
+      return 56.0;
+    }
     final outCount = node.outputPorts.length;
     if (outCount <= 1) return 66.0;
-    if (outCount == 2) return 80.0;
-    return 66.0 + (outCount - 1) * 26.0;
+    if (outCount == 2) return 82.0;
+    return 66.0 + (outCount - 1) * 28.0;
   }
 
   static double _getPortY(GraphNode node, int index, bool isInput) {
@@ -170,7 +194,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
   }
 
   static Offset _estimatePortOffsetStatic(GraphNode node, String portId, bool isInput) {
-    const nodeWidth = 230.0;
+    final nodeWidth = _getNodeWidth(node);
     final nodeHeight = _getNodeHeight(node);
     if (isInput) {
       return Offset(node.position.dx, node.position.dy + nodeHeight / 2.0);
@@ -179,6 +203,24 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       final pinY = _getPortY(node, idx >= 0 ? idx : 0, false);
       return Offset(node.position.dx + nodeWidth, node.position.dy + pinY);
     }
+  }
+
+  static Color _getPortColor(NodePort port, bool isInput) {
+    if (isInput) return const Color(0xFF0284C7); // Sky Blue
+    final id = port.id.toLowerCase();
+    if (id == 'true' || id == 'arrived' || id == 'docked' || id == 'undocked' || id == 'completed' || id == 'ok' || id == 'submitted' || id == 'next' || id == 'yes') {
+      return const Color(0xFF10B981); // Emerald Green
+    }
+    if (id == 'false' || id == 'failed' || id == 'low_battery' || id == 'cancelled' || id == 'no' || id == 'abort') {
+      return const Color(0xFFEF4444); // Red
+    }
+    if (id == 'timeout' || id == 'interrupted' || id == 'warning') {
+      return const Color(0xFFF59E0B); // Amber / Orange
+    }
+    if (id == 'loop_body' || id.startsWith('branch_')) {
+      return const Color(0xFF8B5CF6); // Purple
+    }
+    return port.color;
   }
 
   Offset _estimatePortOffset(GraphNode node, String portId, bool isInput) {
@@ -218,8 +260,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
 
     // 2. If not snapping directly to a port, check if cursor is over any node card
     for (final node in widget.graph.nodes) {
+      final nodeWidth = _getNodeWidth(node);
       final nodeHeight = _getNodeHeight(node);
-      final nodeRect = Rect.fromLTWH(node.position.dx - 12, node.position.dy - 6, 230.0 + 24, nodeHeight + 12);
+      final nodeRect = Rect.fromLTWH(node.position.dx - 12, node.position.dy - 6, nodeWidth + 24, nodeHeight + 12);
       if (nodeRect.contains(canvasPos)) {
         if (!(_drawingFromIsInput ?? false)) {
           // Dragging from output -> target this node's input port
@@ -689,6 +732,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                               portOffsets: _portOffsets,
                               edgeLayouts: _calculateEdgeLayouts(),
                               selectedEdge: _selectedEdge,
+                              selectedNodeId: widget.selectedNode?.id,
                               activeNodeId: widget.activeNodeId,
                               animProgress: _flowAnimController.value,
                               isRunning: widget.isRunning,
@@ -832,7 +876,30 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     final isSelected = widget.selectedNode?.id == node.id;
     final isActive = widget.activeNodeId == node.id;
 
-    const double nodeWidth = 230.0;
+    if (_isTerminalBadge(node)) {
+      if (isActive) {
+        return AnimatedBuilder(
+          animation: _flowAnimController,
+          builder: (context, _) {
+            final pulse = (math.sin(_flowAnimController.value * 2 * math.pi) + 1.0) / 2.0;
+            return _buildTerminalBadgeWidget(
+              node,
+              isSelected: isSelected,
+              isActive: true,
+              pulse: pulse,
+            );
+          },
+        );
+      }
+      return _buildTerminalBadgeWidget(
+        node,
+        isSelected: isSelected,
+        isActive: false,
+        pulse: 0.0,
+      );
+    }
+
+    final double nodeWidth = _getNodeWidth(node);
     final double nodeHeight = _getNodeHeight(node);
 
     return Positioned(
@@ -873,8 +940,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
             // 2. Magnetic Outer Input Pin on Left Border
             if (node.inputPorts.isNotEmpty)
               Positioned(
-                left: -8.0,
-                top: (nodeHeight - 16.0) / 2.0,
+                left: -9.0,
+                top: (nodeHeight - 18.0) / 2.0,
                 child: _buildPortPin(
                   node: node,
                   port: node.inputPorts.first,
@@ -885,12 +952,184 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
             // 3. Magnetic Outer Output Pin(s) on Right Border
             for (int i = 0; i < node.outputPorts.length; i++)
               Positioned(
-                right: -8.0,
-                top: _getPortY(node, i, false) - 8.0,
+                right: -9.0,
+                top: _getPortY(node, i, false) - 9.0,
                 child: _buildPortPin(
                   node: node,
                   port: node.outputPorts[i],
                   isInput: false,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTerminalBadgeWidget(
+    GraphNode node, {
+    required bool isSelected,
+    required bool isActive,
+    required double pulse,
+  }) {
+    const double badgeSize = 56.0;
+    const double totalHeight = 76.0;
+
+    final dockOnEnd = node.params['dock_on_end'] == true;
+    final status = (node.params['status'] as String? ?? 'success').toLowerCase();
+    final isAborted = status == 'failed' || status == 'aborted';
+
+    final Color badgeColor = isAborted
+        ? const Color(0xFFEF4444)
+        : (dockOnEnd ? const Color(0xFF10B981) : const Color(0xFF0D9488));
+
+    final IconData badgeIcon = isAborted
+        ? Icons.stop_rounded
+        : (dockOnEnd ? Icons.battery_charging_full_rounded : Icons.flag_rounded);
+
+    final String badgeLabel = isAborted
+        ? 'ABORT'
+        : (dockOnEnd ? 'DOCK & END' : 'FINISH');
+
+    final glowAlpha = 0.25 + 0.35 * pulse;
+    final glowBlur = 12.0 + 8.0 * pulse;
+
+    return Positioned(
+      left: node.position.dx,
+      top: node.position.dy,
+      child: SizedBox(
+        width: badgeSize,
+        height: totalHeight,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Circular Badge Sunk Button
+            GestureDetector(
+              onPanUpdate: widget.readOnly
+                  ? null
+                  : (details) {
+                      setState(() {
+                        node.position += details.delta;
+                        for (final p in node.inputPorts) {
+                          final k = '${node.id}_in_${p.id}';
+                          if (_portOffsets.containsKey(k)) {
+                            _portOffsets[k] = _portOffsets[k]! + details.delta;
+                          }
+                        }
+                      });
+                      widget.onGraphChanged();
+                    },
+              onTap: () {
+                widget.onSelectNode(node);
+                _setSelectedEdge(null);
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: badgeSize,
+                    height: badgeSize,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.surface,
+                      border: Border.all(
+                        color: isActive
+                            ? Color.lerp(AppColors.primary, AppColors.primaryLight, pulse)!
+                            : isSelected
+                                ? AppColors.primary
+                                : badgeColor,
+                        width: isSelected || isActive ? 2.6 : 2.0,
+                      ),
+                      boxShadow: [
+                        if (isActive)
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: glowAlpha),
+                            blurRadius: glowBlur,
+                            spreadRadius: 2.0 * pulse,
+                          )
+                        else if (isSelected)
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 2),
+                          )
+                        else
+                          BoxShadow(
+                            color: badgeColor.withValues(alpha: 0.18),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Icon(badgeIcon, size: 28, color: badgeColor),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: badgeColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: badgeColor.withValues(alpha: 0.35),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Text(
+                      badgeLabel,
+                      style: TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w800,
+                        color: badgeColor,
+                        letterSpacing: 0.4,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Left Outer Input Socket Pin
+            if (node.inputPorts.isNotEmpty)
+              Positioned(
+                left: -9.0,
+                top: (badgeSize - 18.0) / 2.0,
+                child: _buildPortPin(
+                  node: node,
+                  port: node.inputPorts.first,
+                  isInput: true,
+                ),
+              ),
+
+            // Delete (x) button on hover/top right
+            if (!widget.readOnly)
+              Positioned(
+                top: -3,
+                right: -3,
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      widget.graph.nodes.remove(node);
+                      widget.graph.edges.removeWhere(
+                          (e) => e.fromNode == node.id || e.toNode == node.id);
+                      if (widget.selectedNode?.id == node.id) {
+                        widget.onSelectNode(null);
+                      }
+                    });
+                    widget.onGraphChanged();
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.surface,
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    padding: const EdgeInsets.all(2.5),
+                    child: const Icon(Icons.close_rounded, size: 11, color: AppColors.textTertiary),
+                  ),
                 ),
               ),
           ],
@@ -1003,83 +1242,85 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                   ),
                 ),
                 const SizedBox(width: 9),
-                // Category tag, Node title, 1-line parameter summary
+                // Center Column: Category tag, Node title, 1-line parameter summary
                 Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(right: hasMultipleOutputs ? 44.0 : 8.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          categoryTitle.toUpperCase(),
-                          style: TextStyle(
-                            color: categoryColor,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        categoryTitle.toUpperCase(),
+                        style: TextStyle(
+                          color: categoryColor,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 1.5),
+                      Text(
+                        node.label.isNotEmpty ? node.label : node.type,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                          letterSpacing: -0.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (subtitle.isNotEmpty) ...[
                         const SizedBox(height: 1.5),
                         Text(
-                          node.label.isNotEmpty ? node.label : node.type,
+                          subtitle,
                           style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12.5,
-                            letterSpacing: -0.2,
+                            color: AppColors.textSecondary,
+                            fontSize: 10.5,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (subtitle.isNotEmpty) ...[
-                          const SizedBox(height: 1.5),
-                          Text(
-                            subtitle,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 10.5,
+                      ],
+                    ],
+                  ),
+                ),
+
+                // Dedicated Right Column for Branching Output Port Labels (cleanly separated, no overlap!)
+                if (hasMultipleOutputs) ...[
+                  const SizedBox(width: 6),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      for (final port in node.outputPorts)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: _getPortColor(port, false).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: _getPortColor(port, false).withValues(alpha: 0.35),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            port.label,
+                            style: TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w700,
+                              color: _getPortColor(port, false),
                             ),
                             maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ],
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
-                ),
+                  const SizedBox(width: 2),
+                ],
               ],
             ),
-
-            // Output Port Labels (for nodes with multiple outputs like condition or nav)
-            if (hasMultipleOutputs)
-              for (int i = 0; i < node.outputPorts.length; i++)
-                Positioned(
-                  right: 2,
-                  top: _getPortY(node, i, false) - 17.0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: node.outputPorts[i].color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: node.outputPorts[i].color.withValues(alpha: 0.3),
-                        width: 0.8,
-                      ),
-                    ),
-                    child: Text(
-                      node.outputPorts[i].label,
-                      style: TextStyle(
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.w700,
-                        color: node.outputPorts[i].color,
-                      ),
-                      maxLines: 1,
-                    ),
-                  ),
-                ),
 
             // Running Status Badge
             if (isActive && widget.isRunning)
@@ -1154,7 +1395,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     final isHoverValid = isHovered && (_hoveredValidation?.isValid ?? false);
     final isHoverInvalid = isHovered && !(_hoveredValidation?.isValid ?? true);
 
-    Color activeColor = port.color;
+    Color activeColor = _getPortColor(port, isInput);
     if (isHoverValid) {
       activeColor = AppColors.success;
     } else if (isHoverInvalid) {
@@ -1163,14 +1404,14 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       activeColor = AppColors.primary;
     }
 
-    const double baseSize = 16.0;
-    final pinSize = (isHovered || isBeingDrawnFrom) ? 20.0 : baseSize;
+    const double baseSize = 18.0;
+    final pinSize = (isHovered || isBeingDrawnFrom) ? 22.0 : baseSize;
 
     return KeyedSubtree(
       key: gKey,
       child: Tooltip(
         message: port.label,
-        waitDuration: const Duration(milliseconds: 300),
+        waitDuration: const Duration(milliseconds: 200),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onPanStart: widget.readOnly
@@ -1229,13 +1470,13 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                 color: AppColors.surface,
                 border: Border.all(
                   color: activeColor,
-                  width: (isHovered || isBeingDrawnFrom) ? 2.5 : 1.8,
+                  width: (isHovered || isBeingDrawnFrom) ? 2.6 : 2.2,
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: (isHovered || isBeingDrawnFrom)
                         ? activeColor.withValues(alpha: 0.5)
-                        : AppColors.shadowTint.withValues(alpha: 0.15),
+                        : activeColor.withValues(alpha: 0.25),
                     blurRadius: (isHovered || isBeingDrawnFrom) ? 8 : 4,
                     spreadRadius: (isHovered || isBeingDrawnFrom) ? 1.5 : 0.5,
                   ),
@@ -1243,8 +1484,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
               ),
               child: Center(
                 child: Container(
-                  width: (isHovered || isBeingDrawnFrom) ? 8.0 : 6.0,
-                  height: (isHovered || isBeingDrawnFrom) ? 8.0 : 6.0,
+                  width: (isHovered || isBeingDrawnFrom) ? 9.0 : 7.0,
+                  height: (isHovered || isBeingDrawnFrom) ? 9.0 : 7.0,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: activeColor,
@@ -1536,6 +1777,7 @@ class _EdgesPainter extends CustomPainter {
     required this.portOffsets,
     required this.edgeLayouts,
     this.selectedEdge,
+    this.selectedNodeId,
     this.activeNodeId,
     this.animProgress = 0.0,
     this.isRunning = false,
@@ -1550,6 +1792,7 @@ class _EdgesPainter extends CustomPainter {
   final Map<String, Offset> portOffsets;
   final Map<String, _EdgeRouteLayout> edgeLayouts;
   final GraphEdge? selectedEdge;
+  final String? selectedNodeId;
   final String? activeNodeId;
   final double animProgress;
   final bool isRunning;
@@ -1574,20 +1817,22 @@ class _EdgesPainter extends CustomPainter {
       final totalInSource = layout?.totalInSource ?? 1;
       final totalInTarget = layout?.totalInTarget ?? 1;
 
-      final isSelected = selectedEdge?.id == edge.id;
-      final isActive = activeNodeId == edge.fromNode;
+      final isEdgeSelected = selectedEdge?.id == edge.id;
+      final isConnectedToSelectedNode = selectedNodeId != null &&
+          (selectedNodeId == edge.fromNode || selectedNodeId == edge.toNode);
+      final isActive = activeNodeId == edge.fromNode || (activeNodeId != null && activeNodeId == edge.toNode);
 
       Color edgeColor = const Color(0xFF475569);
       final pLow = edge.fromPort.toLowerCase();
-      if (pLow == 'failed' || pLow == 'false' || pLow == 'no') {
+      if (pLow == 'failed' || pLow == 'false' || pLow == 'no' || pLow == 'low_battery' || pLow == 'cancelled' || pLow == 'abort') {
         edgeColor = AppColors.danger;
-      } else if (pLow == 'timeout' || pLow == 'interrupted') {
+      } else if (pLow == 'timeout' || pLow == 'interrupted' || pLow == 'warning') {
         edgeColor = AppColors.warning;
-      } else if (pLow == 'submitted' || pLow == 'true' || pLow == 'yes' || pLow == 'arrived' || pLow == 'completed' || pLow == 'docked' || pLow == 'undocked' || pLow == 'done' || pLow == 'confirmed' || pLow == 'next') {
+      } else if (pLow == 'submitted' || pLow == 'true' || pLow == 'yes' || pLow == 'arrived' || pLow == 'completed' || pLow == 'docked' || pLow == 'undocked' || pLow == 'done' || pLow == 'confirmed' || pLow == 'next' || pLow == 'ok') {
         edgeColor = AppColors.success;
       }
 
-      if (isSelected) {
+      if (isEdgeSelected) {
         _drawBezierEdge(
           canvas,
           p1,
@@ -1612,18 +1857,30 @@ class _EdgesPainter extends CustomPainter {
           drawHalo: false,
           isEdgeActive: isActive,
         );
-      } else {
+      } else if (isConnectedToSelectedNode || isActive) {
+        // Highlighted solid wire with glowing halo and energy particles for connected selected node or active step
         _drawBezierEdge(
           canvas,
           p1,
           p2,
           edgeColor,
-          isActive ? 4.0 : 3.2,
+          isActive ? 4.0 : 3.4,
           corridorOffset: corridorOffset,
           loopLaneOffset: loopLaneOffset,
-          isSelected: false,
+          isSelected: true,
           drawHalo: true,
-          isEdgeActive: isActive,
+          isEdgeActive: true,
+        );
+      } else {
+        // Default unselected: clean subtle dotted/dashed Bézier wire with directional arrowhead!
+        _drawDashedBezierEdge(
+          canvas,
+          p1,
+          p2,
+          edgeColor.withValues(alpha: 0.65),
+          2.0,
+          corridorOffset: corridorOffset,
+          loopLaneOffset: loopLaneOffset,
         );
       }
 
@@ -1883,13 +2140,27 @@ class _EdgesPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    for (final metric in path.computeMetrics()) {
+    final metrics = path.computeMetrics().toList();
+    for (final metric in metrics) {
       double distance = 0.0;
       while (distance < metric.length) {
-        final len = math.min(8.0, metric.length - distance);
+        final len = math.min(7.0, metric.length - distance);
         final extract = metric.extractPath(distance, distance + len);
         canvas.drawPath(extract, paint);
-        distance += len + 6.0;
+        distance += len + 5.0;
+      }
+    }
+
+    if (metrics.isNotEmpty) {
+      final metric = metrics.first;
+      final totalLen = metric.length;
+      if (totalLen >= 18.0) {
+        final endOffset = math.max(4.0, totalLen - 12.0);
+        final endTangent = metric.getTangentForOffset(endOffset);
+        if (endTangent != null) {
+          final arrowSize = math.max(width * 2.5, 9.0);
+          _drawArrowHead(canvas, endTangent.position, endTangent.angle, color, arrowSize);
+        }
       }
     }
   }

@@ -421,10 +421,12 @@ Your task is to convert human natural language workflow instructions into a comp
        Set "trigger": "schedule", "schedule_type": "daily" (or "weekly"), "schedule_hour": <hour>, "schedule_minute": <minute>, "weekdays": <weekdays list> on the "start" node params!
      - If no recurrence or time is specified, default to "trigger": "manual".
 
-2. "end": Terminal stop node.
+2. "end": Terminal stop node (rendered as an ultra-compact circular badge).
    - Input ports: "in"
    - Output ports: NONE
-   - Params: {}
+   - Params: {"dock_on_end": true, "status": "success" | "aborted" | "failed"}
+   - DOCK & END COMBINATION: When ending a mission with docking or aborting, use an "end" node with {"dock_on_end": true} or {"status": "aborted"} instead of chaining separate "dock" -> "end" cards!
+   - LOCAL TERMINAL BADGES: Drop a local "end" badge directly adjacent to each error/cancel/abort port (e.g. low_battery, nav failed, user cancelled) rather than dragging long lines across the whole canvas!
 
 3. "navigate_waypoint": Navigates AMR to a named waypoint.
    - Input ports: "in"
@@ -507,14 +509,15 @@ Your task is to convert human natural language workflow instructions into a comp
 
 ### CRITICAL SAFETY & DESIGN RULES:
 1. Always start with a "start" node.
-2. Safety check: Insert a "battery_guard" check near the beginning. If "low_battery", route to "dock" or safe abort.
-3. Fail-safe recovery: For every "navigate_waypoint" and "navigate_coordinates", you MUST connect the "failed" and "timeout" ports to a safety branch (e.g. announce error with "ui_speech", alert operator, or return to "dock"). Never leave error ports dangling!
+2. Safety check: Insert a "battery_guard" check near the beginning. If "low_battery", route to a local abort "end" badge.
+3. Fail-safe recovery: For every "navigate_waypoint" and "navigate_coordinates", you MUST connect the "failed" and "timeout" ports to a safety branch (e.g. announce error with "ui_speech", alert operator, or a local abort "end" badge). Never leave error ports dangling!
 4. STRICT SEQUENCING FOR DELIVERY & FORMS:
    - Driving to a destination and asking for input/feedback at that destination MUST BE SEQUENTIAL.
    - ALWAYS connect: "navigate_waypoint" -> output port "arrived" -> destination interaction ("ui_interaction" or "ui_choice").
    - NEVER start a destination feedback form before the robot arrives at that destination!
 5. User interactions: If asking questions or choices, handle the negative / cancelled / timeout branches gracefully (e.g. return to dock or end).
-6. All branches must terminate at an "end" node or "dock" node.
+6. LOCAL TERMINAL BADGES & DOCKING:
+   - Use compact "end" nodes with {"dock_on_end": true} or {"status": "aborted"} directly adjacent to each branch termination or failure point rather than pulling messy wires across the entire canvas to a single distant node.
 7. ROUTE & DISPATCH OPTIMIZATION (BATCH PICKUPS & SEQUENTIAL DELIVERIES):
    - When multiple deliveries require items from the same source (e.g. Store Room, Warehouse, Kitchen, Pharmacy):
      The AMR MUST smartly optimize travel! Visit the source hub ONCE to batch and collect/load all items for the different destinations.
@@ -537,17 +540,17 @@ Your response must be a single, complete, syntactically valid JSON object matchi
   "nodes": [
     {"id": "n_start", "type": "start", "label": "Start Mission", "params": {"trigger": "manual"}},
     {"id": "n_bat", "type": "battery_guard", "label": "Battery Guard (>20%)", "params": {"min_battery": 20.0}},
+    {"id": "n_abort_bat", "type": "end", "label": "Abort - Low Battery", "params": {"dock_on_end": true, "status": "aborted"}},
     {"id": "n_nav_1", "type": "navigate_waypoint", "label": "Go to Bay 1", "params": {"waypoint": "Bay 1", "tolerance_m": 0.25}},
-    {"id": "n_dock", "type": "dock", "label": "Auto Dock to Charger", "params": {}},
-    {"id": "n_end", "type": "end", "label": "Mission Complete", "params": {}}
+    {"id": "n_err_nav", "type": "end", "label": "Nav Failed", "params": {"dock_on_end": true, "status": "failed"}},
+    {"id": "n_end", "type": "end", "label": "Finish & Dock", "params": {"dock_on_end": true, "status": "success"}}
   ],
   "edges": [
     {"id": "e_1", "from_node": "n_start", "from_port": "next", "to_node": "n_bat", "to_port": "in"},
     {"id": "e_2", "from_node": "n_bat", "from_port": "ok", "to_node": "n_nav_1", "to_port": "in"},
-    {"id": "e_3", "from_node": "n_bat", "from_port": "low_battery", "to_node": "n_dock", "to_port": "in"},
-    {"id": "e_4", "from_node": "n_nav_1", "from_port": "arrived", "to_node": "n_dock", "to_port": "in"},
-    {"id": "e_5", "from_node": "n_nav_1", "from_port": "failed", "to_node": "n_dock", "to_port": "in"},
-    {"id": "e_6", "from_node": "n_dock", "from_port": "docked", "to_node": "n_end", "to_port": "in"}
+    {"id": "e_3", "from_node": "n_bat", "from_port": "low_battery", "to_node": "n_abort_bat", "to_port": "in"},
+    {"id": "e_4", "from_node": "n_nav_1", "from_port": "arrived", "to_node": "n_end", "to_port": "in"},
+    {"id": "e_5", "from_node": "n_nav_1", "from_port": "failed", "to_node": "n_err_nav", "to_port": "in"}
   ]
 }
 ''';
@@ -1049,43 +1052,76 @@ Output only the JSON object starting with { and ending with }. Do not include ma
             'params': {'waypoint': workLoc, 'tolerance_m': 0.25}
           },
           {
-            'id': 'n_dock_success',
-            'type': 'dock',
-            'label': 'Return to Charging Dock',
-            'params': {}
+            'id': 'n_abort_bat',
+            'type': 'end',
+            'label': 'Low Battery Abort',
+            'params': {'dock_on_end': true, 'status': 'aborted'}
           },
           {
-            'id': 'n_dock_abort',
-            'type': 'dock',
-            'label': 'Abort: Return to Dock',
-            'params': {}
+            'id': 'n_abort_bay',
+            'type': 'end',
+            'label': '$bayLoc Nav Fail',
+            'params': {'dock_on_end': true, 'status': 'failed'}
           },
-          {'id': 'n_end_safe', 'type': 'end', 'label': 'Mission Finished', 'params': {}},
+          {
+            'id': 'n_cancel_stock',
+            'type': 'end',
+            'label': 'Requisition Cancelled',
+            'params': {'dock_on_end': true, 'status': 'aborted'}
+          },
+          {
+            'id': 'n_abort_store',
+            'type': 'end',
+            'label': '$storeLoc Nav Fail',
+            'params': {'dock_on_end': true, 'status': 'failed'}
+          },
+          {
+            'id': 'n_abort_procure',
+            'type': 'end',
+            'label': 'Procurement Aborted',
+            'params': {'dock_on_end': true, 'status': 'aborted'}
+          },
+          {
+            'id': 'n_abort_del_bay',
+            'type': 'end',
+            'label': '$bayLoc Delivery Fail',
+            'params': {'dock_on_end': true, 'status': 'failed'}
+          },
+          {
+            'id': 'n_abort_del_ws',
+            'type': 'end',
+            'label': '$workLoc Delivery Fail',
+            'params': {'dock_on_end': true, 'status': 'failed'}
+          },
+          {
+            'id': 'n_end_complete',
+            'type': 'end',
+            'label': 'Finish & Dock',
+            'params': {'dock_on_end': true, 'status': 'success'}
+          },
         ],
         'edges': [
           {'id': 'e_1', 'from_node': 'n_start', 'from_port': 'next', 'to_node': 'n_bat', 'to_port': 'in'},
           {'id': 'e_2', 'from_node': 'n_bat', 'from_port': 'ok', 'to_node': 'n_go_bay', 'to_port': 'in'},
-          {'id': 'e_3', 'from_node': 'n_bat', 'from_port': 'low_battery', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_3', 'from_node': 'n_bat', 'from_port': 'low_battery', 'to_node': 'n_abort_bat', 'to_port': 'in'},
           {'id': 'e_4', 'from_node': 'n_go_bay', 'from_port': 'arrived', 'to_node': 'n_ask_stock', 'to_port': 'in'},
-          {'id': 'e_5', 'from_node': 'n_go_bay', 'from_port': 'failed', 'to_node': 'n_dock_abort', 'to_port': 'in'},
-          {'id': 'e_6', 'from_node': 'n_go_bay', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_5', 'from_node': 'n_go_bay', 'from_port': 'failed', 'to_node': 'n_abort_bay', 'to_port': 'in'},
+          {'id': 'e_6', 'from_node': 'n_go_bay', 'from_port': 'timeout', 'to_node': 'n_abort_bay', 'to_port': 'in'},
           {'id': 'e_7', 'from_node': 'n_ask_stock', 'from_port': 'submitted', 'to_node': 'n_go_store', 'to_port': 'in'},
-          {'id': 'e_8', 'from_node': 'n_ask_stock', 'from_port': 'cancelled', 'to_node': 'n_dock_success', 'to_port': 'in'},
-          {'id': 'e_9', 'from_node': 'n_ask_stock', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_8', 'from_node': 'n_ask_stock', 'from_port': 'cancelled', 'to_node': 'n_cancel_stock', 'to_port': 'in'},
+          {'id': 'e_9', 'from_node': 'n_ask_stock', 'from_port': 'timeout', 'to_node': 'n_cancel_stock', 'to_port': 'in'},
           {'id': 'e_10', 'from_node': 'n_go_store', 'from_port': 'arrived', 'to_node': 'n_procure_form', 'to_port': 'in'},
-          {'id': 'e_11', 'from_node': 'n_go_store', 'from_port': 'failed', 'to_node': 'n_dock_abort', 'to_port': 'in'},
-          {'id': 'e_12', 'from_node': 'n_go_store', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_11', 'from_node': 'n_go_store', 'from_port': 'failed', 'to_node': 'n_abort_store', 'to_port': 'in'},
+          {'id': 'e_12', 'from_node': 'n_go_store', 'from_port': 'timeout', 'to_node': 'n_abort_store', 'to_port': 'in'},
           {'id': 'e_13', 'from_node': 'n_procure_form', 'from_port': 'submitted', 'to_node': 'n_deliver_bay', 'to_port': 'in'},
-          {'id': 'e_14', 'from_node': 'n_procure_form', 'from_port': 'cancelled', 'to_node': 'n_dock_abort', 'to_port': 'in'},
-          {'id': 'e_15', 'from_node': 'n_procure_form', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_14', 'from_node': 'n_procure_form', 'from_port': 'cancelled', 'to_node': 'n_abort_procure', 'to_port': 'in'},
+          {'id': 'e_15', 'from_node': 'n_procure_form', 'from_port': 'timeout', 'to_node': 'n_abort_procure', 'to_port': 'in'},
           {'id': 'e_16', 'from_node': 'n_deliver_bay', 'from_port': 'arrived', 'to_node': 'n_deliver_workstation', 'to_port': 'in'},
-          {'id': 'e_17', 'from_node': 'n_deliver_bay', 'from_port': 'failed', 'to_node': 'n_dock_abort', 'to_port': 'in'},
-          {'id': 'e_18', 'from_node': 'n_deliver_bay', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
-          {'id': 'e_19', 'from_node': 'n_deliver_workstation', 'from_port': 'arrived', 'to_node': 'n_dock_success', 'to_port': 'in'},
-          {'id': 'e_20', 'from_node': 'n_deliver_workstation', 'from_port': 'failed', 'to_node': 'n_dock_abort', 'to_port': 'in'},
-          {'id': 'e_21', 'from_node': 'n_deliver_workstation', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
-          {'id': 'e_22', 'from_node': 'n_dock_success', 'from_port': 'docked', 'to_node': 'n_end_safe', 'to_port': 'in'},
-          {'id': 'e_23', 'from_node': 'n_dock_abort', 'from_port': 'docked', 'to_node': 'n_end_safe', 'to_port': 'in'},
+          {'id': 'e_17', 'from_node': 'n_deliver_bay', 'from_port': 'failed', 'to_node': 'n_abort_del_bay', 'to_port': 'in'},
+          {'id': 'e_18', 'from_node': 'n_deliver_bay', 'from_port': 'timeout', 'to_node': 'n_abort_del_bay', 'to_port': 'in'},
+          {'id': 'e_19', 'from_node': 'n_deliver_workstation', 'from_port': 'arrived', 'to_node': 'n_end_complete', 'to_port': 'in'},
+          {'id': 'e_20', 'from_node': 'n_deliver_workstation', 'from_port': 'failed', 'to_node': 'n_abort_del_ws', 'to_port': 'in'},
+          {'id': 'e_21', 'from_node': 'n_deliver_workstation', 'from_port': 'timeout', 'to_node': 'n_abort_del_ws', 'to_port': 'in'},
         ],
       };
     }
@@ -1556,24 +1592,53 @@ Output only the JSON object starting with { and ending with }. Do not include ma
       }
     }
 
-    // Assign any unvisited or recovery nodes
+    // Assign any unvisited or recovery nodes adjacent to their predecessors
+    // so localized abort / failure / branches remain beside their source!
     int maxDepth = 0;
     for (final d in depths.values) {
       if (d > maxDepth) maxDepth = d;
     }
     for (final id in nodesMap.keys) {
       if (!depths.containsKey(id)) {
-        depths[id] = ++maxDepth;
+        final preds = incoming[id] ?? [];
+        int maxPredDepth = 0;
+        for (final p in preds) {
+          final pd = depths[p];
+          if (pd != null && pd > maxPredDepth) {
+            maxPredDepth = pd;
+          }
+        }
+        depths[id] = maxPredDepth + 1;
+        if (depths[id]! > maxDepth) {
+          maxDepth = depths[id]!;
+        }
       }
     }
 
-    // Push terminal sinks to the rightmost column
+    // Push ONLY primary happy-path terminal sinks to the rightmost column.
+    // Local abort/recovery badges stay in their natural adjacent column!
     for (final node in graph.nodes) {
       final out = outgoing[node.id] ?? [];
       final isTerminal = node.type == 'end' || node.type == 'mission_end' || 
           (node.type == 'dock' && (out.isEmpty || out.every((t) => nodesMap[t]?.type == 'end')));
-      if (isTerminal && depths[node.id]! < maxDepth) {
-        depths[node.id] = maxDepth;
+      if (isTerminal) {
+        final preds = incoming[node.id] ?? [];
+        bool isHappyPath = false;
+        for (final p in preds) {
+          final edge = edges.firstWhere(
+            (e) => e.fromNode == p && e.toNode == node.id,
+            orElse: () => GraphEdge(id: '', fromNode: '', fromPort: '', toNode: '', toPort: ''),
+          );
+          final pLow = edge.fromPort.toLowerCase();
+          final isRecovery = pLow == 'failed' || pLow == 'timeout' || pLow == 'low_battery' || pLow == 'cancelled' || pLow == 'failure' || pLow == 'abort';
+          if (!isRecovery && depths[p] != null && depths[p]! >= maxDepth - 1) {
+            isHappyPath = true;
+            break;
+          }
+        }
+        if (isHappyPath && depths[node.id]! < maxDepth) {
+          depths[node.id] = maxDepth;
+        }
       }
     }
 
