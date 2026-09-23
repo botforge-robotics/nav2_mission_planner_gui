@@ -77,69 +77,13 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
   }
 
   Future<void> _createMission() async {
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Create New Mission',
-                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.account_tree_rounded, color: AppColors.primary),
-                ),
-                title: const Text('Visual Node Editor (n8n Style)', style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text('Drag-and-drop workflow graph with AI assistant and flow animation'),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => Navigator.of(ctx).pop('graph'),
-              ),
-              const Divider(height: 8),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.format_list_numbered_rounded, color: AppColors.accent),
-                ),
-                title: const Text('Linear Step-by-Step Editor', style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text('Classic sequential list of waypoint and action steps'),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => Navigator.of(ctx).pop('linear'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (!mounted) return;
-    if (choice == 'graph') {
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
+    if (isDesktop) {
       final created = await Navigator.of(context).push<bool>(
         MaterialPageRoute(builder: (_) => const MissionGraphEditorScreen()),
       );
       if (created == true) _load();
-    } else if (choice == 'linear') {
+    } else {
       final created = await Navigator.of(context).push<bool>(
         MaterialPageRoute(builder: (_) => const MissionEditorScreen()),
       );
@@ -318,11 +262,11 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
-              child: FilledButton.tonalIcon(
+              padding: const EdgeInsets.only(right: AppSpacing.md),
+              child: FilledButton.icon(
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(0, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                 ),
                 icon: const Icon(Icons.account_tree_outlined, size: 18),
                 label: const Text('Node Editor'),
@@ -333,18 +277,6 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
                   );
                   _load();
                 },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.md),
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                ),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Add Mission'),
-                onPressed: _createMission,
               ),
             ),
           ] else ...[
@@ -373,8 +305,8 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
           ? null
           : FloatingActionButton.extended(
               onPressed: _createMission,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Add Mission'),
+              icon: const Icon(Icons.edit_note_rounded),
+              label: const Text('Basic Editor'),
             ),
       body: SafeArea(
         child: robotIp == null
@@ -391,7 +323,7 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
                   final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
                   final changed = await Navigator.of(context).push<bool>(
                     MaterialPageRoute(
-                      builder: (_) => isGraph
+                      builder: (_) => (isGraph || isDesktop)
                           ? MissionGraphEditorScreen(existingMission: mission)
                           : MissionEditorScreen(existing: mission),
                     ),
@@ -489,8 +421,12 @@ class _Body extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             FilledButton.icon(
               onPressed: onCreateMission,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Add Mission'),
+              icon: Icon(Breakpoints.of(context) == DeviceClass.desktop
+                  ? Icons.account_tree_outlined
+                  : Icons.edit_note_rounded),
+              label: Text(Breakpoints.of(context) == DeviceClass.desktop
+                  ? 'Open Node Editor'
+                  : 'Basic Editor'),
             ),
           ],
         ),

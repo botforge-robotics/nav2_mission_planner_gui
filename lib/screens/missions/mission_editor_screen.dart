@@ -1199,8 +1199,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
               onPressed: () => _goBack(false),
             ),
             title: Text(_isEditing
-                ? 'Mission Studio · Edit Mission'
-                : 'Mission Studio · New Mission'),
+                ? 'Basic Editor · Edit Mission'
+                : 'Basic Editor · New Mission'),
           actions: [
             if (_isEditing)
               Padding(
