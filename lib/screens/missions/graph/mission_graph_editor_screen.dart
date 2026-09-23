@@ -10,6 +10,7 @@ import 'mission_graph_canvas.dart';
 import 'mission_graph_models.dart';
 import 'mission_node_inspector.dart';
 import 'ui_interaction_dialog.dart';
+import 'ai_mission_assistant_widget.dart';
 
 /// Validation outcome containing blocking errors and ignorable warnings.
 class GraphValidationOutcome {
@@ -147,6 +148,17 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         });
       }
     } catch (_) {}
+  }
+
+  List<String> _getAvailableWaypointNames() {
+    final list = LocationsController.instance.value;
+    if (list != null && list.isNotEmpty) {
+      return list
+          .map((e) => (e['name'] ?? '').toString())
+          .where((s) => s.isNotEmpty)
+          .toList();
+    }
+    return const [];
   }
 
   void _startExecutionPolling({bool fast = false}) {
@@ -853,27 +865,73 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   if (_activeRobotInteraction != null)
                     _buildRobotInteractionBanner(),
                   Expanded(
-                    child: MissionGraphCanvas(
-                      graph: _graph,
-                      selectedNode: _selectedNode,
-                      selectedEdge: _selectedEdge,
-                      activeNodeId: _activeNodeId,
-                      isRunning: _running,
-                      onSelectNode: (node) => setState(() {
-                        _selectedNode = node;
-                        if (node != null) _selectedEdge = null;
-                      }),
-                      onSelectEdge: (edge) => setState(() {
-                        _selectedEdge = edge;
-                        if (edge != null) _selectedNode = null;
-                      }),
-                      onDeleteEdge: (edge) => setState(() {
-                        _graph.edges.remove(edge);
-                        _selectedEdge = null;
-                      }),
-                      onGraphChanged: () {
-                        setState(() {});
-                      },
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: MissionGraphCanvas(
+                            key: ValueKey(_graph.id),
+                            graph: _graph,
+                            selectedNode: _selectedNode,
+                            selectedEdge: _selectedEdge,
+                            activeNodeId: _activeNodeId,
+                            isRunning: _running,
+                            onSelectNode: (node) => setState(() {
+                              _selectedNode = node;
+                              if (node != null) _selectedEdge = null;
+                            }),
+                            onSelectEdge: (edge) => setState(() {
+                              _selectedEdge = edge;
+                              if (edge != null) _selectedNode = null;
+                            }),
+                            onDeleteEdge: (edge) => setState(() {
+                              _graph.edges.remove(edge);
+                              _selectedEdge = null;
+                            }),
+                            onGraphChanged: () {
+                              setState(() {});
+                            },
+                          ),
+                        ),
+                        // Floating Bottom-Right AI Assistant Widget
+                        Positioned(
+                          right: 16,
+                          bottom: 16,
+                          child: AiMissionAssistantWidget(
+                            availableWaypoints: _getAvailableWaypointNames(),
+                            existingGraph: _graph,
+                            onGraphGenerated: (newGraph) {
+                              setState(() {
+                                _graph = newGraph;
+                                _nameController.text = newGraph.name;
+                                _selectedNode = null;
+                                _selectedEdge = null;
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  backgroundColor: const Color(0xFF1E222D),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    side: const BorderSide(color: AppColors.primaryLight),
+                                  ),
+                                  content: Row(
+                                    children: [
+                                      const Icon(Icons.auto_awesome, color: AppColors.primaryLight, size: 20),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          'Workflow "${newGraph.name}" generated with ${newGraph.nodes.length} nodes & ${newGraph.edges.length} edges.',
+                                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

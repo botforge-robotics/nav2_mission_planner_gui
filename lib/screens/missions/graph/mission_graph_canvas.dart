@@ -97,6 +97,14 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _updatePortOffsets());
   }
 
+  @override
+  void didUpdateWidget(covariant MissionGraphCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.graph != widget.graph || oldWidget.graph.nodes.length != widget.graph.nodes.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updatePortOffsets());
+    }
+  }
+
   void _updatePortOffsets() {
     final canvasBox = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
     if (canvasBox == null || !canvasBox.hasSize) return;
