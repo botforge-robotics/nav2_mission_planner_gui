@@ -1662,10 +1662,10 @@ Output only the JSON object starting with { and ending with }. Do not include ma
       }
     }
 
-    const double colSpacing = 380.0;
+    const double colSpacing = 240.0;
     const double rowSpacing = 160.0;
     const double startX = 80.0;
-    const double baselineY = 240.0;
+    const double baselineY = 220.0;
 
     // Temporary map of assigned Y positions for barycenter sorting
     final yPositions = <String, double>{startNode.id: baselineY};
