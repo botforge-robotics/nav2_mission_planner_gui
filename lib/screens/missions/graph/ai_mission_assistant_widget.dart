@@ -440,11 +440,13 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
   }
 
   Widget _buildExpandedCard() {
+    final screenWidth = MediaQuery.maybeOf(context)?.size.width ?? 500;
+    final cardWidth = (screenWidth < 520 ? screenWidth - 32 : 480.0).clamp(320.0, 500.0);
     return Material(
       color: Colors.transparent,
       elevation: 0,
       child: Container(
-        width: 470,
+        width: cardWidth,
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
@@ -494,13 +496,16 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                       children: [
                         Row(
                           children: [
-                            const Text(
-                              'AI Workflow Assistant (Preview)',
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: -0.2,
+                            const Flexible(
+                              child: Text(
+                                'AI Workflow Assistant',
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: -0.2,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 8),
