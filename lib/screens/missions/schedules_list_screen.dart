@@ -178,6 +178,12 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
             .map((d) => _weekdayShort[d])
             .join(', ');
         return days.isEmpty ? 'Weekly' : 'Weekly: $days';
+      case 'interval':
+        final mins = (schedule['interval_minutes'] as num?)?.toInt() ?? (schedule['minute'] as num?)?.toInt() ?? 30;
+        final h = mins ~/ 60;
+        final m = mins % 60;
+        final dStr = h > 0 ? (m > 0 ? '${h}h ${m}m' : '${h}h') : '${m}m';
+        return 'Every $dStr ($mins min)';
       default:
         return 'Daily';
     }

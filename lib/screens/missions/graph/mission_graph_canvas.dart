@@ -1155,7 +1155,25 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
     String summary = '';
     switch (node.type) {
       case 'start':
-        summary = 'Mission starts here';
+        final trigger = node.params['trigger'] as String? ?? 'manual';
+        final enabled = node.params['enabled'] != false;
+        if (trigger == 'interval') {
+          final mins = (node.params['interval_minutes'] as num?)?.toInt() ?? 30;
+          final h = mins ~/ 60;
+          final m = mins % 60;
+          final dStr = h > 0 ? (m > 0 ? '${h}h ${m}m' : '${h}h') : '${m}m';
+          summary = enabled ? '⏰ Every $dStr ($mins min)' : '⏸ Every $dStr (Paused)';
+        } else if (trigger == 'schedule') {
+          final hour = (node.params['schedule_hour'] as num?)?.toInt() ?? 9;
+          final min = (node.params['schedule_minute'] as num?)?.toInt() ?? 0;
+          final rep = node.params['schedule_type'] as String? ?? 'daily';
+          final h12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+          final amPm = hour >= 12 ? 'PM' : 'AM';
+          final tStr = '$h12:${min.toString().padLeft(2, '0')} $amPm';
+          summary = enabled ? '⏰ $rep at $tStr' : '⏸ $rep at $tStr (Paused)';
+        } else {
+          summary = '▶ On-demand / manual start';
+        }
         break;
       case 'end':
       case 'mission_end':

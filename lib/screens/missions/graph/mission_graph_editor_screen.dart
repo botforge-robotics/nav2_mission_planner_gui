@@ -239,6 +239,50 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
     try {
       await api.putGraphMission(_graph.toJson());
+
+      // Auto-sync start node trigger/schedule to robot schedule store
+      final startNode = _graph.nodes.cast<GraphNode?>().firstWhere(
+        (n) => n?.type == 'start',
+        orElse: () => null,
+      );
+      if (startNode != null) {
+        final trigger = startNode.params['trigger'] as String? ?? 'manual';
+        final enabled = startNode.params['enabled'] as bool? ?? true;
+        final schedId = 'sched_${_graph.id}';
+
+        if (trigger != 'manual' && enabled) {
+          final isInterval = trigger == 'interval';
+          final schedType = isInterval ? 'interval' : (startNode.params['schedule_type'] as String? ?? 'daily');
+          final intervalMins = (startNode.params['interval_minutes'] as num?)?.toInt() ?? 30;
+          final hour = isInterval ? 0 : ((startNode.params['schedule_hour'] as num?)?.toInt() ?? 9);
+          final minute = isInterval ? intervalMins : ((startNode.params['schedule_minute'] as num?)?.toInt() ?? 0);
+          final weekdays = ((startNode.params['weekdays'] as List?)?.cast<int>() ?? const []).toList();
+          final date = startNode.params['schedule_date'] as String?;
+
+          try {
+            await api.putSchedule(
+              schedId,
+              missionId: _graph.id,
+              name: '${_graph.name} (${isInterval ? "Every ${intervalMins}m" : schedType})',
+              hour: hour,
+              minute: minute,
+              repeat: schedType,
+              intervalMinutes: isInterval ? intervalMins : null,
+              date: schedType == 'once' ? date : null,
+              weekdays: schedType == 'weekly' ? weekdays : const [],
+              enabled: true,
+            );
+          } catch (schedErr) {
+            debugPrint('Note: schedule sync result: $schedErr');
+          }
+        } else {
+          // If trigger is manual or disabled, remove any existing schedule record
+          try {
+            await api.deleteSchedule(schedId);
+          } catch (_) {}
+        }
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -576,6 +620,18 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     switch (type) {
       case 'start':
         defaultLabel = 'Start Mission';
+        defaultParams = {
+          'trigger': 'manual',
+          'enabled': true,
+          'interval_minutes': 30,
+          'schedule_type': 'daily',
+          'schedule_hour': 9,
+          'schedule_minute': 0,
+          'weekdays': [0, 1, 2, 3, 4],
+          'min_battery': 20.0,
+          'skip_if_busy': true,
+          'require_active_map': true,
+        };
         break;
       case 'end':
       case 'mission_end':

@@ -390,10 +390,25 @@ Your task is to convert human natural language workflow instructions into a comp
 [$wpList]
 
 ### AVAILABLE NODE TYPES & SCHEMA:
-1. "start": Mission entry point.
+1. "start": Mission entry point & workflow trigger.
    - Input ports: NONE
    - Output ports: "next"
-   - Params: {}
+   - Params: {
+       "trigger": "manual" | "interval" | "schedule",
+       "interval_minutes": 30, // For "interval": repeats every X minutes (e.g. 15, 30, 60, 120)
+       "schedule_type": "daily" | "weekly" | "once", // For "schedule" clock alarm
+       "schedule_hour": 9, // Hour 0-23
+       "schedule_minute": 0, // Minute 0-59
+       "weekdays": [0, 1, 2, 3, 4], // For weekly: 0=Mon..6=Sun
+       "schedule_date": "2026-10-01", // For once: YYYY-MM-DD
+       "enabled": true
+     }
+   - TRIGGER INSTRUCTION RULES:
+     - If user asks to run "every X minutes" or "every X hours" (e.g. "patrol every 30 minutes", "inspect warehouse every 2 hours"):
+       Set "trigger": "interval", "interval_minutes": <minutes> on the "start" node params!
+     - If user specifies a clock time, alarm, or daily schedule (e.g. "at 9:00 AM", "daily at 14:30", "every morning at 8 on weekdays"):
+       Set "trigger": "schedule", "schedule_type": "daily" (or "weekly"), "schedule_hour": <hour>, "schedule_minute": <minute>, "weekdays": <weekdays list> on the "start" node params!
+     - If no recurrence or time is specified, default to "trigger": "manual".
 
 2. "end": Terminal stop node.
    - Input ports: "in"
@@ -768,13 +783,69 @@ Your task is to convert human natural language workflow instructions into a comp
         lower.contains('deliver') ||
         lower.contains('pharmacy');
 
+    // Detect interval or clock alarm trigger from prompt
+    String startTrigger = 'manual';
+    final startParams = <String, dynamic>{
+      'trigger': 'manual',
+      'enabled': true,
+      'interval_minutes': 30,
+      'schedule_type': 'daily',
+      'schedule_hour': 9,
+      'schedule_minute': 0,
+      'weekdays': [0, 1, 2, 3, 4],
+    };
+
+    final intervalMatch = RegExp(r'every\s+(\d+)\s*(minute|min|hour|hr)s?', caseSensitive: false).firstMatch(prompt);
+    if (intervalMatch != null) {
+      final numVal = int.tryParse(intervalMatch.group(1) ?? '30') ?? 30;
+      final unit = intervalMatch.group(2)?.toLowerCase() ?? 'min';
+      final totalMins = unit.startsWith('h') ? numVal * 60 : numVal;
+      startTrigger = 'interval';
+      startParams['trigger'] = 'interval';
+      startParams['interval_minutes'] = totalMins;
+    } else if (lower.contains('every hour') || lower.contains('hourly')) {
+      startTrigger = 'interval';
+      startParams['trigger'] = 'interval';
+      startParams['interval_minutes'] = 60;
+    } else {
+      final timeMatch = RegExp(r'at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?', caseSensitive: false).firstMatch(prompt);
+      if (timeMatch != null) {
+        int hour = int.tryParse(timeMatch.group(1) ?? '9') ?? 9;
+        final minute = int.tryParse(timeMatch.group(2) ?? '0') ?? 0;
+        final amPm = timeMatch.group(3)?.toLowerCase();
+        if (amPm == 'pm' && hour < 12) hour += 12;
+        if (amPm == 'am' && hour == 12) hour = 0;
+
+        startTrigger = 'schedule';
+        startParams['trigger'] = 'schedule';
+        startParams['schedule_hour'] = hour;
+        startParams['schedule_minute'] = minute;
+
+        if (lower.contains('weekday') || lower.contains('workday')) {
+          startParams['schedule_type'] = 'weekly';
+          startParams['weekdays'] = [0, 1, 2, 3, 4];
+        } else if (lower.contains('weekend')) {
+          startParams['schedule_type'] = 'weekly';
+          startParams['weekdays'] = [5, 6];
+        } else {
+          startParams['schedule_type'] = 'daily';
+        }
+      }
+    }
+
+    final startLabel = startTrigger == 'interval'
+        ? 'Start (Every ${startParams['interval_minutes']}m)'
+        : (startTrigger == 'schedule'
+            ? 'Start (Alarm ${startParams['schedule_hour']}:${startParams['schedule_minute'].toString().padLeft(2, '0')})'
+            : 'Start Mission');
+
     // Build delivery / pharmacy workflow with full safety branchings
     if (hasMedicineOrDelivery) {
       return {
         'name': 'Medical Delivery: $fromWp to $toWp',
         'description': 'Autonomous delivery with battery guard, pharmacist confirmation, patient verification, feedback collection, and safe dock return.',
         'nodes': [
-          {'id': 'n_start', 'type': 'start', 'label': 'Start Mission', 'params': {}},
+          {'id': 'n_start', 'type': 'start', 'label': startLabel, 'params': startParams},
           {'id': 'n_bat', 'type': 'battery_guard', 'label': 'Battery Guard (>20%)', 'params': {'min_battery': 20.0}},
           {
             'id': 'n_go_source',
@@ -883,7 +954,7 @@ Your task is to convert human natural language workflow instructions into a comp
       'name': 'Inspection & Patrol Mission',
       'description': 'Patrol route with battery check, obstacle recovery, and dock completion.',
       'nodes': [
-        {'id': 'n_start', 'type': 'start', 'label': 'Start Mission', 'params': {}},
+        {'id': 'n_start', 'type': 'start', 'label': startLabel, 'params': startParams},
         {'id': 'n_bat', 'type': 'battery_guard', 'label': 'Battery Guard (>25%)', 'params': {'min_battery': 25.0}},
         {'id': 'n_wp1', 'type': 'navigate_waypoint', 'label': 'Inspect $fromWp', 'params': {'waypoint': fromWp, 'tolerance_m': 0.25}},
         {'id': 'n_wait', 'type': 'wait', 'label': 'Scan Area (5s)', 'params': {'seconds': 5}},

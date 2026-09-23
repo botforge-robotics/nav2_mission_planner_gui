@@ -123,5 +123,33 @@ void main() {
       expect(res['success'], false);
       expect(res['message'], contains('required'));
     });
+
+    test('Synthesizes mission with interval trigger on start node when asked every X minutes', () async {
+      final service = AiMissionAgentService.instance;
+      final graph = await service.generateMissionGraph(
+        userPrompt: 'Patrol Reception and Lab every 45 minutes with battery check and return to dock',
+        availableWaypoints: ['Dock', 'Reception', 'Lab'],
+      );
+
+      final startNode = graph.nodes.firstWhere((n) => n.type == 'start');
+      expect(startNode.params['trigger'], 'interval');
+      expect(startNode.params['interval_minutes'], 45);
+      expect(startNode.params['enabled'], true);
+    });
+
+    test('Synthesizes mission with clock alarm schedule trigger on start node when asked at specific time', () async {
+      final service = AiMissionAgentService.instance;
+      final graph = await service.generateMissionGraph(
+        userPrompt: 'Patrol Reception and Lab at 8:30 AM on weekdays',
+        availableWaypoints: ['Dock', 'Reception', 'Lab'],
+      );
+
+      final startNode = graph.nodes.firstWhere((n) => n.type == 'start');
+      expect(startNode.params['trigger'], 'schedule');
+      expect(startNode.params['schedule_hour'], 8);
+      expect(startNode.params['schedule_minute'], 30);
+      expect(startNode.params['schedule_type'], 'weekly');
+      expect(startNode.params['weekdays'], [0, 1, 2, 3, 4]);
+    });
   });
 }

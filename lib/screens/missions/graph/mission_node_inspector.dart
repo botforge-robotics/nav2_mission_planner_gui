@@ -370,7 +370,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     if (node.label.isNotEmpty) return node.label;
     switch (node.type) {
       case 'start':
-        return 'Start Mission';
+        return 'Mission Start & Triggers';
       case 'end':
       case 'mission_end':
         return 'Finish Mission';
@@ -437,7 +437,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   String _getNodeFriendlyDescription(GraphNode node) {
     switch (node.type) {
       case 'start':
-        return 'This is where your mission begins. Connect this to the first step you want the robot to take.';
+        return 'Where your workflow begins. Configure trigger mode: manual on-demand, repeating interval (every X minutes), or clock alarm (specific time & days).';
       case 'end':
       case 'mission_end':
         return 'Safely finishes the mission. The robot stops and can optionally drive back to its charger.';
@@ -570,7 +570,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 16),
 
         // Type specific inspectors
-        if (node.type == 'navigate_waypoint')
+        if (node.type == 'start')
+          _buildStartInspector()
+        else if (node.type == 'navigate_waypoint')
           _buildNavigateWaypointInspector()
         else if (node.type == 'navigate_coordinates')
           _buildNavigateCoordinatesInspector()
@@ -1045,6 +1047,607 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildStartInspector() {
+    final trigger = widget.node.params['trigger'] as String? ?? 'manual';
+    final enabled = widget.node.params['enabled'] as bool? ?? true;
+    final intervalMinutes = (widget.node.params['interval_minutes'] as num?)?.toInt() ?? 30;
+    final scheduleType = widget.node.params['schedule_type'] as String? ?? 'daily';
+    final scheduleHour = (widget.node.params['schedule_hour'] as num?)?.toInt() ?? 9;
+    final scheduleMinute = (widget.node.params['schedule_minute'] as num?)?.toInt() ?? 0;
+    final weekdays = ((widget.node.params['weekdays'] as List?)?.cast<int>() ?? [0, 1, 2, 3, 4]).toSet();
+    final scheduleDate = widget.node.params['schedule_date'] as String? ??
+        DateTime.now().toIso8601String().substring(0, 10);
+    final minBattery = (widget.node.params['min_battery'] as num?)?.toDouble() ?? 20.0;
+    final skipIfBusy = widget.node.params['skip_if_busy'] as bool? ?? true;
+    final requireActiveMap = widget.node.params['require_active_map'] as bool? ?? true;
+
+    const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    String timeFormatted() {
+      final hour12 = scheduleHour == 0 ? 12 : (scheduleHour > 12 ? scheduleHour - 12 : scheduleHour);
+      final amPm = scheduleHour >= 12 ? 'PM' : 'AM';
+      final minStr = scheduleMinute.toString().padLeft(2, '0');
+      return '$hour12:$minStr $amPm (${scheduleHour.toString().padLeft(2, '0')}:$minStr)';
+    }
+
+    String summaryText() {
+      if (trigger == 'interval') {
+        final hours = intervalMinutes ~/ 60;
+        final mins = intervalMinutes % 60;
+        final durationStr = hours > 0 ? (mins > 0 ? '${hours}h ${mins}m' : '${hours}h') : '${mins}m';
+        return enabled
+            ? '⏰ Auto-Trigger: Repeats every $durationStr ($intervalMinutes min)'
+            : '⏸ Trigger Paused: Every $durationStr ($intervalMinutes min)';
+      } else if (trigger == 'schedule') {
+        String repStr = 'Daily';
+        if (scheduleType == 'weekly') {
+          final days = weekdays.map((d) => d >= 0 && d < 7 ? weekdayLabels[d] : '').where((s) => s.isNotEmpty).join(', ');
+          repStr = days.isEmpty ? 'Weekly (No days selected)' : 'Weekly ($days)';
+        } else if (scheduleType == 'once') {
+          repStr = 'Once on $scheduleDate';
+        }
+        return enabled
+            ? '⏰ Auto-Trigger: $repStr at ${timeFormatted()}'
+            : '⏸ Trigger Paused: $repStr at ${timeFormatted()}';
+      }
+      return '▶ On-Demand / Manual: Triggers when started via app, API, or touchscreen.';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Summary & State Banner
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: trigger == 'manual'
+                ? AppColors.surfaceSunken
+                : (enabled ? AppColors.primary.withValues(alpha: 0.08) : AppColors.warning.withValues(alpha: 0.1)),
+            borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+            border: Border.all(
+              color: trigger == 'manual'
+                  ? AppColors.border
+                  : (enabled ? AppColors.primary.withValues(alpha: 0.4) : AppColors.warning),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                trigger == 'manual'
+                    ? Icons.play_circle_fill_rounded
+                    : (trigger == 'interval' ? Icons.timer_rounded : Icons.alarm_rounded),
+                size: 22,
+                color: trigger == 'manual'
+                    ? AppColors.textSecondary
+                    : (enabled ? AppColors.primary : AppColors.warning),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  summaryText(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: trigger == 'manual'
+                        ? AppColors.textPrimary
+                        : (enabled ? AppColors.primary : AppColors.textPrimary),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Trigger Mode Selector
+        const Text(
+          'Workflow Trigger Mode',
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Choose how this mission should be started:',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+        ),
+        const SizedBox(height: 8),
+
+        Row(
+          children: [
+            Expanded(
+              child: _buildTriggerModeCard(
+                title: 'Manual / API',
+                subtitle: 'On-demand run',
+                icon: Icons.touch_app_rounded,
+                selected: trigger == 'manual',
+                onTap: widget.readOnly
+                    ? null
+                    : () {
+                        widget.node.params['trigger'] = 'manual';
+                        widget.onChanged();
+                      },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildTriggerModeCard(
+                title: 'Interval Timer',
+                subtitle: 'Every X min',
+                icon: Icons.timelapse_rounded,
+                selected: trigger == 'interval',
+                onTap: widget.readOnly
+                    ? null
+                    : () {
+                        widget.node.params['trigger'] = 'interval';
+                        widget.node.params.putIfAbsent('interval_minutes', () => 30);
+                        widget.onChanged();
+                      },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildTriggerModeCard(
+                title: 'Clock Alarm',
+                subtitle: 'Time & days',
+                icon: Icons.alarm_rounded,
+                selected: trigger == 'schedule',
+                onTap: widget.readOnly
+                    ? null
+                    : () {
+                        widget.node.params['trigger'] = 'schedule';
+                        widget.node.params.putIfAbsent('schedule_type', () => 'daily');
+                        widget.node.params.putIfAbsent('schedule_hour', () => 9);
+                        widget.node.params.putIfAbsent('schedule_minute', () => 0);
+                        widget.onChanged();
+                      },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // If trigger is Interval
+        if (trigger == 'interval') ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.timer_outlined, size: 18, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Recurring Interval Settings',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Every $intervalMinutes min',
+                        style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text('Quick Presets:', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final preset in [5, 10, 15, 30, 45, 60, 120, 240])
+                      ActionChip(
+                        label: Text(preset < 60 ? '$preset min' : '${preset ~/ 60} hr${preset > 60 ? 's' : ''}'),
+                        labelStyle: TextStyle(
+                          fontSize: 11,
+                          fontWeight: intervalMinutes == preset ? FontWeight.bold : FontWeight.normal,
+                          color: intervalMinutes == preset ? AppColors.textOnPrimary : AppColors.textPrimary,
+                        ),
+                        backgroundColor: intervalMinutes == preset ? AppColors.primary : AppColors.surfaceSunken,
+                        side: BorderSide(
+                          color: intervalMinutes == preset ? AppColors.primary : AppColors.border,
+                        ),
+                        onPressed: widget.readOnly
+                            ? null
+                            : () {
+                                widget.node.params['interval_minutes'] = preset;
+                                widget.onChanged();
+                              },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _buildNumberSlider(
+                  label: 'Custom Interval (Minutes)',
+                  value: intervalMinutes.toDouble().clamp(1.0, 360.0),
+                  min: 1.0,
+                  max: 360.0,
+                  divisions: 359,
+                  onChanged: (v) {
+                    if (widget.readOnly) return;
+                    widget.node.params['interval_minutes'] = v.round();
+                    widget.onChanged();
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // If trigger is Clock Alarm / Schedule
+        if (trigger == 'schedule') ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.alarm_on_rounded, size: 18, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Alarm Time & Days',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Time Picker Button
+                InkWell(
+                  onTap: widget.readOnly
+                      ? null
+                      : () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: TimeOfDay(hour: scheduleHour, minute: scheduleMinute),
+                          );
+                          if (picked != null) {
+                            widget.node.params['schedule_hour'] = picked.hour;
+                            widget.node.params['schedule_minute'] = picked.minute;
+                            widget.onChanged();
+                          }
+                        },
+                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceSunken,
+                      borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time_rounded, color: AppColors.primary, size: 24),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Trigger Time', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                            Text(
+                              timeFormatted(),
+                              style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        const Icon(Icons.edit_calendar_rounded, color: AppColors.primary, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Repeat Mode Selector
+                const Text('Repeat Schedule:', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    for (final mode in [
+                      ('daily', 'Every Day', Icons.calendar_today_rounded),
+                      ('weekly', 'Select Days', Icons.view_week_rounded),
+                      ('once', 'One-Time', Icons.event_rounded),
+                    ]) ...[
+                      ChoiceChip(
+                        label: Text(mode.$2),
+                        avatar: Icon(mode.$3, size: 14),
+                        selected: scheduleType == mode.$1,
+                        selectedColor: AppColors.primary,
+                        labelStyle: TextStyle(
+                          fontSize: 11,
+                          fontWeight: scheduleType == mode.$1 ? FontWeight.bold : FontWeight.normal,
+                          color: scheduleType == mode.$1 ? AppColors.textOnPrimary : AppColors.textPrimary,
+                        ),
+                        onSelected: widget.readOnly
+                            ? null
+                            : (sel) {
+                                if (sel) {
+                                  widget.node.params['schedule_type'] = mode.$1;
+                                  widget.onChanged();
+                                }
+                              },
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                  ],
+                ),
+
+                // If Weekly: Day Chips
+                if (scheduleType == 'weekly') ...[
+                  const SizedBox(height: 12),
+                  const Text('Days of Week:', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (int i = 0; i < 7; i++)
+                        FilterChip(
+                          label: Text(weekdayLabels[i]),
+                          selected: weekdays.contains(i),
+                          selectedColor: AppColors.primary,
+                          labelStyle: TextStyle(
+                            fontSize: 11,
+                            fontWeight: weekdays.contains(i) ? FontWeight.bold : FontWeight.normal,
+                            color: weekdays.contains(i) ? AppColors.textOnPrimary : AppColors.textPrimary,
+                          ),
+                          onSelected: widget.readOnly
+                              ? null
+                              : (sel) {
+                                  if (sel) {
+                                    weekdays.add(i);
+                                  } else {
+                                    weekdays.remove(i);
+                                  }
+                                  widget.node.params['weekdays'] = weekdays.toList()..sort();
+                                  widget.onChanged();
+                                },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      TextButton.icon(
+                        style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                        icon: const Icon(Icons.work_outline_rounded, size: 14),
+                        label: const Text('Mon–Fri (Weekdays)', style: TextStyle(fontSize: 11)),
+                        onPressed: widget.readOnly
+                            ? null
+                            : () {
+                                widget.node.params['weekdays'] = [0, 1, 2, 3, 4];
+                                widget.onChanged();
+                              },
+                      ),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                        icon: const Icon(Icons.weekend_outlined, size: 14),
+                        label: const Text('Sat–Sun (Weekends)', style: TextStyle(fontSize: 11)),
+                        onPressed: widget.readOnly
+                            ? null
+                            : () {
+                                widget.node.params['weekdays'] = [5, 6];
+                                widget.onChanged();
+                              },
+                      ),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                        icon: const Icon(Icons.all_inclusive_rounded, size: 14),
+                        label: const Text('All 7 Days', style: TextStyle(fontSize: 11)),
+                        onPressed: widget.readOnly
+                            ? null
+                            : () {
+                                widget.node.params['weekdays'] = [0, 1, 2, 3, 4, 5, 6];
+                                widget.onChanged();
+                              },
+                      ),
+                    ],
+                  ),
+                ],
+
+                // If Once: Date Picker
+                if (scheduleType == 'once') ...[
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: widget.readOnly
+                        ? null
+                        : () async {
+                            final now = DateTime.now();
+                            final parsed = DateTime.tryParse(scheduleDate) ?? now;
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: parsed.isBefore(now) ? now : parsed,
+                              firstDate: now,
+                              lastDate: now.add(const Duration(days: 365 * 2)),
+                            );
+                            if (picked != null) {
+                              widget.node.params['schedule_date'] =
+                                  '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                              widget.onChanged();
+                            }
+                          },
+                    borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceSunken,
+                        borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.event_rounded, color: AppColors.primary, size: 18),
+                          const SizedBox(width: 8),
+                          Text('Date: $scheduleDate', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          const Spacer(),
+                          const Text('Change Date', style: TextStyle(fontSize: 11, color: AppColors.primary)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // If trigger is automated (interval or schedule), show Active Toggle & Safety
+        if (trigger != 'manual') ...[
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('Schedule Enabled & Active', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  subtitle: Text(
+                    enabled ? 'Robot will automatically fire this workflow when due' : 'Trigger paused — will not fire automatically',
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  ),
+                  value: enabled,
+                  activeThumbColor: AppColors.primary,
+                  onChanged: widget.readOnly
+                      ? null
+                      : (val) {
+                          widget.node.params['enabled'] = val;
+                          widget.onChanged();
+                        },
+                ),
+                const Divider(height: 1, color: AppColors.border),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.shield_outlined, size: 16, color: AppColors.primary),
+                          const SizedBox(width: 6),
+                          const Text('Auto-Trigger Safety Guards', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _buildNumberSlider(
+                        label: 'Min Battery to Auto-Trigger (%)',
+                        value: minBattery.clamp(10.0, 50.0),
+                        min: 10.0,
+                        max: 50.0,
+                        divisions: 8,
+                        onChanged: (v) {
+                          if (widget.readOnly) return;
+                          widget.node.params['min_battery'] = v;
+                          widget.onChanged();
+                        },
+                      ),
+                      CheckboxListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Skip trigger if robot is already busy', style: TextStyle(fontSize: 11.5)),
+                        value: skipIfBusy,
+                        activeColor: AppColors.primary,
+                        onChanged: widget.readOnly
+                            ? null
+                            : (v) {
+                                widget.node.params['skip_if_busy'] = v ?? true;
+                                widget.onChanged();
+                              },
+                      ),
+                      CheckboxListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Require active map to match mission map', style: TextStyle(fontSize: 11.5)),
+                        value: requireActiveMap,
+                        activeColor: AppColors.primary,
+                        onChanged: widget.readOnly
+                            ? null
+                            : (v) {
+                                widget.node.params['require_active_map'] = v ?? true;
+                                widget.onChanged();
+                              },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTriggerModeCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surfaceSunken,
+          borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.border,
+            width: selected ? 1.8 : 1.0,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 22, color: selected ? AppColors.primary : AppColors.textSecondary),
+            const SizedBox(height: 6),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+                color: selected ? AppColors.primary : AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 9.5,
+                color: selected ? AppColors.primary.withValues(alpha: 0.8) : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
