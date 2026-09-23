@@ -33,11 +33,12 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
   late final FocusNode _focusNode;
 
   final stt.SpeechToText _speech = stt.SpeechToText();
-  final AudioRecorder _audioRecorder = AudioRecorder();
+  final _MissionAudioRecorder _audioRecorder = _MissionAudioRecorder();
   bool _speechAvailable = false;
   bool _isListening = false;
   bool _isTranscribingVoice = false;
   String? _voiceEngineLabel;
+  String? _activeAudioPath;
 
   bool _isExpanded = false;
   bool _isGenerating = false;
@@ -95,7 +96,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
     if (_isListening) {
       // User tapped mic to stop recording and start transcription
       try {
-        final path = await _audioRecorder.stop();
+        final path = (await _audioRecorder.stop()) ?? _activeAudioPath;
         if (mounted) {
           setState(() {
             _isListening = false;
@@ -135,30 +136,11 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
     } else {
       // User tapped mic to start recording
       try {
-        final hasPermission = await _audioRecorder.hasPermission();
-        if (!hasPermission) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Microphone permission denied. Please allow microphone access.'),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-          return;
-        }
-
         final tempDir = await getTemporaryDirectory();
-        final path = '${tempDir.path}/prompt_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        final path = '${tempDir.path}/prompt_${DateTime.now().millisecondsSinceEpoch}.wav';
+        _activeAudioPath = path;
 
-        await _audioRecorder.start(
-          const RecordConfig(
-            encoder: AudioEncoder.aacLc,
-            bitRate: 128000,
-            sampleRate: 44100,
-          ),
-          path: path,
-        );
+        await _audioRecorder.start(path: path);
 
         if (mounted) {
           setState(() {
@@ -171,11 +153,13 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Could not start audio recorder: $e'),
+              content: Text('Audio recorder could not start ($e). Falling back to native speech recognition.'),
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
             ),
           );
         }
+        await _toggleNativeSpeech();
       }
     }
   }
@@ -805,5 +789,89 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
         ),
       ),
     );
+  }
+}
+
+/// Unified audio recorder that uses ALSA arecord on Linux systems (guaranteeing
+/// zero-dependency recording without MissingPluginException or missing ffmpeg/parecord),
+/// and falls back to package:record on other mobile/desktop platforms.
+class _MissionAudioRecorder {
+  Process? _linuxProcess;
+  final AudioRecorder _packageRecorder = AudioRecorder();
+  bool _usingLinuxProcess = false;
+
+  Future<void> start({required String path}) async {
+    if (Platform.isLinux) {
+      try {
+        _linuxProcess = await Process.start('arecord', [
+          '-f', 'S16_LE',
+          '-r', '16000',
+          '-c', '1',
+          path,
+        ]);
+        _usingLinuxProcess = true;
+        return;
+      } catch (e) {
+        debugPrint('[_MissionAudioRecorder] arecord failed ($e), falling back to package recorder...');
+      }
+    }
+
+    try {
+      final hasPermission = await _packageRecorder.hasPermission();
+      if (!hasPermission) {
+        throw Exception('Microphone permission denied.');
+      }
+      await _packageRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.wav,
+          sampleRate: 16000,
+          numChannels: 1,
+        ),
+        path: path,
+      );
+      _usingLinuxProcess = false;
+    } catch (e) {
+      if (Platform.isLinux) {
+        _linuxProcess = await Process.start('arecord', [
+          '-f', 'S16_LE',
+          '-r', '16000',
+          '-c', '1',
+          path,
+        ]);
+        _usingLinuxProcess = true;
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  Future<String?> stop() async {
+    if (_usingLinuxProcess && _linuxProcess != null) {
+      try {
+        _linuxProcess!.kill(ProcessSignal.sigint);
+        await _linuxProcess!.exitCode.timeout(
+          const Duration(milliseconds: 1500),
+          onTimeout: () {
+            _linuxProcess?.kill();
+            return 0;
+          },
+        );
+      } catch (_) {}
+      _linuxProcess = null;
+      _usingLinuxProcess = false;
+      return null;
+    } else {
+      return await _packageRecorder.stop();
+    }
+  }
+
+  void dispose() {
+    if (_linuxProcess != null) {
+      try {
+        _linuxProcess!.kill();
+      } catch (_) {}
+      _linuxProcess = null;
+    }
+    _packageRecorder.dispose();
   }
 }
