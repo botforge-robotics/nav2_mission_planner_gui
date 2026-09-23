@@ -269,7 +269,7 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                 ),
                 icon: const Icon(Icons.account_tree_outlined, size: 18),
-                label: const Text('Node Editor'),
+                label: const Text('Workflow Editor'),
                 onPressed: () async {
                   await Navigator.of(context).push(
                     MaterialPageRoute(
@@ -281,7 +281,7 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
             ),
           ] else ...[
             IconButton(
-              tooltip: 'Visual Node Editor',
+              tooltip: 'Workflow Editor',
               icon: const Icon(Icons.account_tree_outlined),
               onPressed: () async {
                 await Navigator.of(context).push(
@@ -306,7 +306,7 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
           : FloatingActionButton.extended(
               onPressed: _createMission,
               icon: const Icon(Icons.edit_note_rounded),
-              label: const Text('Basic Editor'),
+              label: const Text('Mission Editor'),
             ),
       body: SafeArea(
         child: robotIp == null
@@ -425,8 +425,8 @@ class _Body extends StatelessWidget {
                   ? Icons.account_tree_outlined
                   : Icons.edit_note_rounded),
               label: Text(Breakpoints.of(context) == DeviceClass.desktop
-                  ? 'Open Node Editor'
-                  : 'Basic Editor'),
+                  ? 'Open Workflow Editor'
+                  : 'Mission Editor'),
             ),
           ],
         ),

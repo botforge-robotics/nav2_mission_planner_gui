@@ -1031,6 +1031,22 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       title: Row(
         children: [
           const Icon(Icons.account_tree_outlined, color: AppColors.primary, size: 22),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text(
+              'Workflow Editor',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
           const SizedBox(width: 10),
 
           // Mission Name: Display as text with pen icon, enters edit mode on click
