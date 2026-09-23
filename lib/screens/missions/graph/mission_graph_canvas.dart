@@ -605,9 +605,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
             ),
 
           // Canvas Controls (Zoom In, Zoom Out, Reset)
+          // Positioned at bottom-left so it never overlaps with the AI Mission Assistant at bottom-right
           Positioned(
             bottom: 16,
-            right: 16,
+            left: 16,
             child: Card(
               color: AppColors.surface,
               shape: RoundedRectangleBorder(
@@ -620,26 +621,31 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.add, color: AppColors.textPrimary),
+                    icon: const Icon(Icons.add, color: AppColors.textPrimary, size: 20),
                     tooltip: 'Zoom In',
+                    visualDensity: VisualDensity.compact,
                     onPressed: () {
                       final matrix = _transformController.value.clone();
                       matrix.scaleByDouble(1.2, 1.2, 1.0, 1.0);
                       _transformController.value = matrix;
                     },
                   ),
+                  const Divider(height: 1, thickness: 1, color: AppColors.border),
                   IconButton(
-                    icon: const Icon(Icons.remove, color: AppColors.textPrimary),
+                    icon: const Icon(Icons.remove, color: AppColors.textPrimary, size: 20),
                     tooltip: 'Zoom Out',
+                    visualDensity: VisualDensity.compact,
                     onPressed: () {
                       final matrix = _transformController.value.clone();
                       matrix.scaleByDouble(0.8, 0.8, 1.0, 1.0);
                       _transformController.value = matrix;
                     },
                   ),
+                  const Divider(height: 1, thickness: 1, color: AppColors.border),
                   IconButton(
-                    icon: const Icon(Icons.center_focus_strong, color: AppColors.textPrimary),
+                    icon: const Icon(Icons.center_focus_strong, color: AppColors.textPrimary, size: 18),
                     tooltip: 'Reset View',
+                    visualDensity: VisualDensity.compact,
                     onPressed: () {
                       _transformController.value = Matrix4.identity();
                     },
