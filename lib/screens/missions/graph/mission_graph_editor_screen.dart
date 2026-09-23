@@ -908,20 +908,32 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                               });
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  backgroundColor: const Color(0xFF1E222D),
+                                  backgroundColor: AppColors.surface,
                                   behavior: SnackBarBehavior.floating,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    side: const BorderSide(color: AppColors.primaryLight),
+                                    borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+                                    side: const BorderSide(color: AppColors.border, width: 1.2),
                                   ),
+                                  elevation: 6,
                                   content: Row(
                                     children: [
-                                      const Icon(Icons.auto_awesome, color: AppColors.primaryLight, size: 20),
-                                      const SizedBox(width: 10),
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 18),
+                                      ),
+                                      const SizedBox(width: 12),
                                       Expanded(
                                         child: Text(
-                                          'Workflow "${newGraph.name}" generated with ${newGraph.nodes.length} nodes & ${newGraph.edges.length} edges.',
-                                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                                          'Generated "${newGraph.name}" (${newGraph.nodes.length} nodes, ${newGraph.edges.length} edges).',
+                                          style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
                                     ],

@@ -229,10 +229,11 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: const Color(0xFF1E222D),
+      backgroundColor: AppColors.surface,
+      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF2E3547)),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        side: const BorderSide(color: AppColors.border, width: 1.2),
       ),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
@@ -240,331 +241,383 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
         child: _loading
             ? const Padding(
                 padding: EdgeInsets.all(48),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
               )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header
-                    Row(
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    decoration: const BoxDecoration(
+                      color: AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
+                      border: Border(bottom: BorderSide(color: AppColors.border)),
+                    ),
+                    child: Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(10),
+                          width: 36,
+                          height: 36,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.psychology_outlined, color: AppColors.primaryLight, size: 24),
+                          child: const Icon(Icons.psychology_outlined, color: AppColors.primary, size: 20),
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
                             children: const [
                               Text(
                                 'AI Mission Agent Settings',
                                 style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
+                                  color: AppColors.textPrimary,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
+                                  letterSpacing: -0.2,
                                 ),
                               ),
-                              SizedBox(height: 2),
+                              SizedBox(height: 1),
                               Text(
                                 'Configure LLM agent API credentials for live workflow synthesis',
                                 style: TextStyle(
-                                  color: Color(0xFF94A3B8),
-                                  fontSize: 12.5,
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close, color: Color(0xFF94A3B8)),
+                          icon: const Icon(Icons.close, color: AppColors.textSecondary, size: 20),
+                          splashRadius: 18,
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                       ],
                     ),
-                    const Divider(height: 32, thickness: 1, color: Color(0xFF2E3547)),
+                  ),
 
-                    // Provider Dropdown
-                    const Text(
-                      'AI Provider',
-                      style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF13161F),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF2E3547)),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<AiProvider>(
-                          value: _provider,
-                          isExpanded: true,
-                          dropdownColor: const Color(0xFF1E222D),
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
-                          onChanged: _onProviderChanged,
-                          items: const [
-                            DropdownMenuItem(
-                              value: AiProvider.gemini,
-                              child: Text('Google Gemini (Flash / Pro)'),
-                            ),
-                            DropdownMenuItem(
-                              value: AiProvider.openai,
-                              child: Text('OpenAI (GPT-4o / GPT-4o-mini)'),
-                            ),
-                            DropdownMenuItem(
-                              value: AiProvider.anthropic,
-                              child: Text('Anthropic (Claude 3.5 Sonnet)'),
-                            ),
-                            DropdownMenuItem(
-                              value: AiProvider.ollama,
-                              child: Text('Ollama (Local LLM - Llama/Mistral/Qwen)'),
-                            ),
-                            DropdownMenuItem(
-                              value: AiProvider.custom,
-                              child: Text('Custom OpenAI-Compatible Endpoint'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Model Name Input + Suggestion Chips
-                    const Text(
-                      'Model Name',
-                      style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _modelController,
-                      style: const TextStyle(color: Colors.white, fontSize: 13.5),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFF13161F),
-                        hintText: 'e.g. gemini-1.5-flash, gpt-4o-mini',
-                        hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFF2E3547)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFF2E3547)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: AppColors.primaryLight),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Model suggestion chips
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: (_modelSuggestions[_provider] ?? []).map((m) {
-                        final isSelected = _modelController.text.trim() == m;
-                        return InkWell(
-                          onTap: () => setState(() => _modelController.text = m),
-                          borderRadius: BorderRadius.circular(6),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.primary.withValues(alpha: 0.3)
-                                  : const Color(0xFF272C3D),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: isSelected ? AppColors.primaryLight : Colors.transparent,
-                              ),
-                            ),
-                            child: Text(
-                              m,
-                              style: TextStyle(
-                                color: isSelected ? Colors.white : const Color(0xFF94A3B8),
-                                fontSize: 11,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // API Key Input
-                    Row(
-                      children: [
-                        const Text(
-                          'API Key',
-                          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                        if (_provider == AiProvider.ollama)
-                          const Padding(
-                            padding: EdgeInsets.only(left: 6),
-                            child: Text(
-                              '(Optional for local Ollama)',
-                              style: TextStyle(color: Color(0xFF64748B), fontSize: 11.5),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _apiKeyController,
-                      obscureText: _obscureApiKey,
-                      style: const TextStyle(color: Colors.white, fontSize: 13.5, letterSpacing: 1.1),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFF13161F),
-                        hintText: _provider == AiProvider.ollama ? 'Optional' : 'sk-... or AIza...',
-                        hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13, letterSpacing: 0),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscureApiKey ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                            color: const Color(0xFF94A3B8),
-                            size: 20,
-                          ),
-                          onPressed: () => setState(() => _obscureApiKey = !_obscureApiKey),
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFF2E3547)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFF2E3547)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: AppColors.primaryLight),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Custom Base URL (For Ollama or Custom)
-                    if (_provider == AiProvider.ollama ||
-                        _provider == AiProvider.custom ||
-                        _provider == AiProvider.openai) ...[
-                      const Text(
-                        'API Base URL',
-                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _baseUrlController,
-                        style: const TextStyle(color: Colors.white, fontSize: 13.5),
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: const Color(0xFF13161F),
-                          hintText: _provider == AiProvider.ollama
-                              ? 'http://localhost:11434/v1'
-                              : 'https://api.openai.com/v1',
-                          hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: Color(0xFF2E3547)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: Color(0xFF2E3547)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: AppColors.primaryLight),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                    ],
-
-                    // Info / Offline fallback note
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF13161F),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF2E3547)),
-                      ),
-                      child: Row(
+                  // Form Body
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Icon(Icons.info_outline, color: Color(0xFF38BDF8), size: 18),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Offline Guard: If no API key is set or no internet is available, the agent automatically uses the built-in deterministic mission synthesizer with full safety checks.',
-                              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, height: 1.35),
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Provider Dropdown
+                          const Text(
+                            'AI Provider',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceSunken,
+                              borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<AiProvider>(
+                                value: _provider,
+                                isExpanded: true,
+                                dropdownColor: AppColors.surface,
+                                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5),
+                                onChanged: _onProviderChanged,
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: AiProvider.gemini,
+                                    child: Text('Google Gemini (Flash / Pro)'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: AiProvider.openai,
+                                    child: Text('OpenAI (GPT-4o / GPT-4o-mini)'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: AiProvider.anthropic,
+                                    child: Text('Anthropic (Claude 3.5 Sonnet)'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: AiProvider.ollama,
+                                    child: Text('Ollama (Local LLM - Llama/Mistral/Qwen)'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: AiProvider.custom,
+                                    child: Text('Custom OpenAI-Compatible Endpoint'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
 
-                    // Test connection outcome
-                    if (_testResult != null)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 14),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: _testSuccess
-                              ? const Color(0xFF064E3B).withValues(alpha: 0.6)
-                              : const Color(0xFF7F1D1D).withValues(alpha: 0.6),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: _testSuccess ? const Color(0xFF059669) : const Color(0xFFDC2626),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _testSuccess ? Icons.check_circle_outline : Icons.error_outline,
-                              color: _testSuccess ? const Color(0xFF34D399) : const Color(0xFFF87171),
-                              size: 18,
+                          // Model Name Input + Suggestion Chips
+                          const Text(
+                            'Model Name',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _testResult!,
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _modelController,
+                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: AppColors.surfaceSunken,
+                              hintText: 'e.g. gemini-1.5-flash, gpt-4o-mini',
+                              hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                borderSide: const BorderSide(color: AppColors.border),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                borderSide: const BorderSide(color: AppColors.border),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Model suggestion chips
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: (_modelSuggestions[_provider] ?? []).map((m) {
+                              final isSelected = _modelController.text.trim() == m;
+                              return InkWell(
+                                onTap: () => setState(() => _modelController.text = m),
+                                borderRadius: BorderRadius.circular(6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? AppColors.primary.withValues(alpha: 0.1)
+                                        : AppColors.surfaceSunken,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: isSelected ? AppColors.primary : AppColors.border,
+                                      width: isSelected ? 1.2 : 1.0,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    m,
+                                    style: TextStyle(
+                                      color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                                      fontSize: 11,
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 18),
+
+                          // API Key Input
+                          Row(
+                            children: [
+                              const Text(
+                                'API Key',
                                 style: TextStyle(
-                                  color: _testSuccess ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2),
-                                  fontSize: 12,
+                                  color: AppColors.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (_provider == AiProvider.ollama)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 6),
+                                  child: Text(
+                                    '(Optional for local Ollama)',
+                                    style: TextStyle(color: AppColors.textTertiary, fontSize: 11.5),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _apiKeyController,
+                            obscureText: _obscureApiKey,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13.5,
+                              letterSpacing: 1.1,
+                            ),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: AppColors.surfaceSunken,
+                              hintText: _provider == AiProvider.ollama ? 'Optional' : 'sk-... or AIza...',
+                              hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13, letterSpacing: 0),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscureApiKey ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                  color: AppColors.textSecondary,
+                                  size: 20,
+                                ),
+                                splashRadius: 18,
+                                onPressed: () => setState(() => _obscureApiKey = !_obscureApiKey),
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                borderSide: const BorderSide(color: AppColors.border),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                borderSide: const BorderSide(color: AppColors.border),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+
+                          // Custom Base URL (For Ollama or Custom)
+                          if (_provider == AiProvider.ollama ||
+                              _provider == AiProvider.custom ||
+                              _provider == AiProvider.openai) ...[
+                            const Text(
+                              'API Base URL',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _baseUrlController,
+                              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5),
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: AppColors.surfaceSunken,
+                                hintText: _provider == AiProvider.ollama
+                                    ? 'http://localhost:11434/v1'
+                                    : 'https://api.openai.com/v1',
+                                hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                  borderSide: const BorderSide(color: AppColors.border),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                  borderSide: const BorderSide(color: AppColors.border),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
                                 ),
                               ),
                             ),
+                            const SizedBox(height: 18),
                           ],
-                        ),
-                      ),
 
-                    // Actions
-                    Row(
+                          // Info / Offline fallback note
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF0F9FF),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFBAE6FD)),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Icon(Icons.info_outline_rounded, color: Color(0xFF0284C7), size: 18),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Offline Guard: If no API key is set or no internet is available, the agent automatically uses the built-in deterministic mission synthesizer with full safety checks.',
+                                    style: TextStyle(color: Color(0xFF0369A1), fontSize: 12, height: 1.35),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Test connection outcome
+                          if (_testResult != null)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 14),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: _testSuccess ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: _testSuccess ? const Color(0xFF86EFAC) : const Color(0xFFFCA5A5),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _testSuccess ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                                    color: _testSuccess ? AppColors.success : AppColors.danger,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _testResult!,
+                                      style: TextStyle(
+                                        color: _testSuccess ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Actions
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    decoration: const BoxDecoration(
+                      color: AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.vertical(bottom: Radius.circular(AppSpacing.cardRadius)),
+                      border: Border(top: BorderSide(color: AppColors.border)),
+                    ),
+                    child: Row(
                       children: [
                         OutlinedButton.icon(
                           onPressed: _testingConnection ? null : _testConnection,
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Color(0xFF3B445B)),
+                            foregroundColor: AppColors.textPrimary,
+                            side: const BorderSide(color: AppColors.borderStrong),
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
                           ),
                           icon: _testingConnection
                               ? const SizedBox(
                                   width: 14,
                                   height: 14,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
                                 )
                               : const Icon(Icons.network_check_outlined, size: 16),
                           label: Text(_testingConnection ? 'Testing...' : 'Test Connection'),
@@ -572,21 +625,28 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                         const Spacer(),
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Cancel', style: TextStyle(color: Color(0xFF94A3B8))),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.textSecondary,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
+                          ),
+                          child: const Text('Cancel'),
                         ),
                         const SizedBox(width: 8),
                         FilledButton(
                           onPressed: _save,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
+                            elevation: 0,
                           ),
                           child: const Text('Save Settings', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
       ),
     );
