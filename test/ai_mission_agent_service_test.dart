@@ -66,5 +66,27 @@ void main() {
         expect(p.defaultModels.isNotEmpty, true, reason: 'Provider ${p.name} must have default models');
       }
     });
+
+    test('applyCleanGraphLayout spaces nodes cleanly and aligns terminal nodes', () async {
+      final service = AiMissionAgentService.instance;
+      final graph = await service.generateMissionGraph(
+        userPrompt: 'Go to Pharmacy, then go to Room 102, then dock',
+        availableWaypoints: ['Pharmacy', 'Room 102', 'Dock'],
+      );
+
+      AiMissionAgentService.applyCleanGraphLayout(graph);
+
+      // Verify no two nodes share the same position
+      final positions = graph.nodes.map((n) => '${n.position.dx.round()},${n.position.dy.round()}').toList();
+      final uniquePositions = positions.toSet();
+      expect(uniquePositions.length, positions.length, reason: 'Every node must have a unique coordinate on the canvas');
+
+      // Verify start node is at leftmost column and dock/end are further right
+      final startNode = graph.nodes.firstWhere((n) => n.type == 'start');
+      final endNodes = graph.nodes.where((n) => n.type == 'end' || n.type == 'dock');
+      for (final endNode in endNodes) {
+        expect(endNode.position.dx > startNode.position.dx, true);
+      }
+    });
   });
 }

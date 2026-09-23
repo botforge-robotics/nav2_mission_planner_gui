@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../../services/ai_mission_agent_service.dart';
 import '../../../theme/app_theme.dart';
 import 'ai_agent_settings_dialog.dart';
 import 'mission_graph_models.dart';
 
 /// Floating AI Mission Assistant widget docked in the bottom-right corner
-/// of the Mission Graph Editor. Fully styled with NavPro Mini's light,
-/// modern autonomous robotics design tokens.
+/// of the Mission Graph Editor. Supports both text typing and microphone voice input.
+/// Fully styled with NavPro Mini's light, modern autonomous robotics design tokens.
 class AiMissionAssistantWidget extends StatefulWidget {
   const AiMissionAssistantWidget({
     super.key,
@@ -27,13 +28,17 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
   late final TextEditingController _promptController;
   late final FocusNode _focusNode;
 
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _speechAvailable = false;
+  bool _isListening = false;
+
   bool _isExpanded = false;
   bool _isGenerating = false;
   String? _statusMessage;
   bool _isError = false;
 
   final List<String> _quickPrompts = [
-    'Go to pharmacy, ask if room 102 medicines are ready, if yes deliver to room 102 and collect feedback with voice in parallel, if no return to dock',
+    'Go to pharmacy, ask if room 102 medicines are ready, if yes deliver to room 102 and collect feedback with voice, if no return to dock',
     'Patrol Reception, Lab, and Nurse Station in a loop with 20% battery guard and dock on low battery',
     'Navigate to Room 101, display patient questionnaire form, announce arrival, then return to dock',
   ];
@@ -46,10 +51,71 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
     _focusNode.addListener(() {
       if (mounted) setState(() {});
     });
+    _initSpeech();
+  }
+
+  Future<void> _initSpeech() async {
+    try {
+      _speechAvailable = await _speech.initialize(
+        onError: (val) {
+          debugPrint('[SpeechToText] Error: $val');
+          if (mounted) setState(() => _isListening = false);
+        },
+        onStatus: (val) {
+          if (val == 'done' || val == 'notListening') {
+            if (mounted) setState(() => _isListening = false);
+          }
+        },
+      );
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('[SpeechToText] Init error: $e');
+    }
+  }
+
+  Future<void> _toggleListening() async {
+    if (_isListening) {
+      await _speech.stop();
+      if (mounted) setState(() => _isListening = false);
+    } else {
+      if (!_speechAvailable) {
+        _speechAvailable = await _speech.initialize();
+      }
+      if (_speechAvailable) {
+        setState(() => _isListening = true);
+        await _speech.listen(
+          onResult: (result) {
+            if (mounted) {
+              setState(() {
+                _promptController.text = result.recognizedWords;
+                _promptController.selection = TextSelection.fromPosition(
+                  TextPosition(offset: _promptController.text.length),
+                );
+              });
+            }
+          },
+          listenOptions: stt.SpeechListenOptions(
+            listenFor: const Duration(seconds: 60),
+            pauseFor: const Duration(seconds: 4),
+            localeId: 'en_US',
+          ),
+        );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Microphone / speech recognition is not available. Please type your prompt.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
   }
 
   @override
   void dispose() {
+    _speech.stop();
     _promptController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -58,6 +124,11 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
   Future<void> _generateMission() async {
     final text = _promptController.text.trim();
     if (text.isEmpty) return;
+
+    if (_isListening) {
+      await _speech.stop();
+      setState(() => _isListening = false);
+    }
 
     setState(() {
       _isGenerating = true;
@@ -107,71 +178,104 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
     return Material(
       color: Colors.transparent,
       elevation: 0,
-      child: InkWell(
-        onTap: () => setState(() => _isExpanded = true),
-        borderRadius: BorderRadius.circular(28),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.35), width: 1.2),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.shadowTint.withValues(alpha: 0.12),
-                blurRadius: 16,
-                spreadRadius: 0,
-                offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.35), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadowTint.withValues(alpha: 0.12),
+              blurRadius: 16,
+              spreadRadius: 0,
+              offset: const Offset(0, 4),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              onTap: () => setState(() => _isExpanded = true),
+              borderRadius: const BorderRadius.horizontal(left: Radius.circular(28)),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 16),
+                    ),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'AI Mission Agent',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13.5,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'PROMPT',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 16),
               ),
-              const SizedBox(width: 10),
-              const Text(
-                'AI Mission Agent',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13.5,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Text(
-                  'PROMPT',
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
+            ),
+            // Quick Mic Button on pill
+            Tooltip(
+              message: 'Speak prompt (Voice Input)',
+              child: InkWell(
+                onTap: () {
+                  setState(() => _isExpanded = true);
+                  _toggleListening();
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
                   ),
+                  child: const Icon(Icons.mic_none_rounded, color: AppColors.primary, size: 16),
                 ),
               ),
-              const SizedBox(width: 6),
-              const Icon(Icons.keyboard_arrow_up_rounded, color: AppColors.textSecondary, size: 20),
-            ],
-          ),
+            ),
+            InkWell(
+              onTap: () => setState(() => _isExpanded = true),
+              borderRadius: const BorderRadius.horizontal(right: Radius.circular(28)),
+              child: const Padding(
+                padding: EdgeInsets.fromLTRB(2, 10, 12, 10),
+                child: Icon(Icons.keyboard_arrow_up_rounded, color: AppColors.textSecondary, size: 20),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -182,7 +286,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
       color: Colors.transparent,
       elevation: 0,
       child: Container(
-        width: 460,
+        width: 470,
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
@@ -241,7 +345,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                         ),
                         SizedBox(height: 1),
                         Text(
-                          'Live prompt-to-graph synthesis',
+                          'Text or voice prompt synthesis',
                           style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 11.5,
@@ -338,13 +442,39 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                   ),
                   const SizedBox(height: 14),
 
+                  // Listening active banner
+                  if (_isListening)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(Icons.record_voice_over_rounded, size: 15, color: AppColors.primary),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Listening to microphone... Speak your workflow description.',
+                              style: TextStyle(color: AppColors.primary, fontSize: 11.5, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   // Prompt TextField Container
                   Container(
                     decoration: BoxDecoration(
                       color: AppColors.surfaceSunken,
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
                       border: Border.all(
-                        color: _focusNode.hasFocus ? AppColors.primary : AppColors.border,
+                        color: _isListening
+                            ? AppColors.primary
+                            : (_focusNode.hasFocus ? AppColors.primary : AppColors.border),
                         width: 1.2,
                       ),
                     ),
@@ -361,7 +491,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                             height: 1.4,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Describe mission in English (e.g. Go to pharmacy, ask for medicines for room 102, if yes give patient and take feedback, if no dock)...',
+                            hintText: 'Type or click mic to speak (e.g. Go to pharmacy, ask for medicines for room 102, if yes deliver and collect feedback, if no dock)...',
                             hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12.5),
                             contentPadding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
                             border: InputBorder.none,
@@ -372,6 +502,40 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                           padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
                           child: Row(
                             children: [
+                              // Voice Input Toggle Button
+                              Tooltip(
+                                message: _isListening ? 'Stop listening' : 'Voice Input (Microphone)',
+                                child: _isListening
+                                    ? FilledButton.icon(
+                                        onPressed: _toggleListening,
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: AppColors.danger,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          elevation: 0,
+                                        ),
+                                        icon: const SizedBox(
+                                          width: 12,
+                                          height: 12,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        ),
+                                        label: const Text('Listening... Stop', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                                      )
+                                    : OutlinedButton.icon(
+                                        onPressed: _toggleListening,
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AppColors.primary,
+                                          side: BorderSide(color: AppColors.primary.withValues(alpha: 0.35)),
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        icon: const Icon(Icons.mic_none_rounded, size: 16),
+                                        label: const Text('Voice Input', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                                      ),
+                              ),
+                              const SizedBox(width: 8),
+
                               if (_promptController.text.isNotEmpty)
                                 Tooltip(
                                   message: 'Clear input',

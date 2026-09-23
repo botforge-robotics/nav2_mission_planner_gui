@@ -1426,15 +1426,33 @@ class _EdgesPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 1. Draw saved edges
+    // 1. Group incoming edges by destination input port to separate overlapping wires
+    final targetIncoming = <String, List<GraphEdge>>{};
+    for (final edge in graph.edges) {
+      final toKey = '${edge.toNode}_in_${edge.toPort}';
+      targetIncoming.putIfAbsent(toKey, () => []).add(edge);
+    }
+
+    // 2. Draw saved edges
     for (final edge in graph.edges) {
       final fromKey = '${edge.fromNode}_out_${edge.fromPort}';
       final toKey = '${edge.toNode}_in_${edge.toPort}';
 
       final p1 = portOffsets[fromKey] ??
           _estimateNodePortOffset(edge.fromNode, edge.fromPort, false);
-      final p2 = portOffsets[toKey] ??
+      final baseP2 = portOffsets[toKey] ??
           _estimateNodePortOffset(edge.toNode, edge.toPort, true);
+
+      final incomingList = targetIncoming[toKey] ?? [edge];
+      final totalInTarget = incomingList.length;
+      final indexInTarget = incomingList.indexOf(edge);
+
+      // When multiple edges arrive at the same input port, spread them vertically
+      // into visually distinct sub-slots so lines NEVER overlap on top of each other.
+      final double slotOffset = totalInTarget > 1
+          ? (indexInTarget - (totalInTarget - 1) / 2.0) * 14.0
+          : 0.0;
+      final p2 = Offset(baseP2.dx, baseP2.dy + slotOffset);
 
       final isSelected = selectedEdge?.id == edge.id;
       final isActive = activeNodeId == edge.fromNode;
@@ -1450,10 +1468,22 @@ class _EdgesPainter extends CustomPainter {
       }
 
       if (isSelected) {
-        _drawOrthogonalEdge(canvas, p1, p2, AppColors.danger.withValues(alpha: 0.35), 8.0);
-        _drawOrthogonalEdge(canvas, p1, p2, AppColors.danger, 4.0);
+        _drawOrthogonalEdge(canvas, p1, p2, AppColors.danger.withValues(alpha: 0.35), 8.0, laneIndex: indexInTarget);
+        _drawOrthogonalEdge(canvas, p1, p2, AppColors.danger, 4.0, laneIndex: indexInTarget);
       } else {
-        _drawOrthogonalEdge(canvas, p1, p2, edgeColor, isActive ? 4.0 : 3.2);
+        _drawOrthogonalEdge(canvas, p1, p2, edgeColor, isActive ? 4.0 : 3.2, laneIndex: indexInTarget);
+      }
+
+      // If multiple incoming edges share this input, draw a dedicated visual connector pin at p2
+      if (totalInTarget > 1) {
+        final pinPaint = Paint()
+          ..color = edgeColor
+          ..style = PaintingStyle.fill;
+        final innerPaint = Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(p2, 4.5, pinPaint);
+        canvas.drawCircle(p2, 2.2, innerPaint);
       }
     }
 
@@ -1500,10 +1530,11 @@ class _EdgesPainter extends CustomPainter {
     }
   }
 
-  Path _buildOrthogonalPath(Offset p1, Offset p2) {
+  Path _buildOrthogonalPath(Offset p1, Offset p2, {int laneIndex = 0}) {
     List<Offset> points;
     if (p2.dx >= p1.dx + 48.0) {
-      final midX = (p1.dx + p2.dx) / 2.0;
+      final double midXOffset = laneIndex != 0 ? (laneIndex * 8.0) : 0.0;
+      final midX = ((p1.dx + p2.dx) / 2.0) + midXOffset;
       points = [
         p1,
         Offset(midX, p1.dy),
@@ -1512,12 +1543,12 @@ class _EdgesPainter extends CustomPainter {
       ];
     } else {
       final exitX = p1.dx + 28.0;
-      final enterX = p2.dx - 28.0;
+      final enterX = p2.dx - 28.0 - (laneIndex * 8.0);
       final double midY;
       if ((p2.dy - p1.dy).abs() > 30.0) {
         midY = (p1.dy + p2.dy) / 2.0;
       } else {
-        midY = p1.dy + 80.0;
+        midY = p1.dy + 80.0 + (laneIndex * 14.0);
       }
       points = [
         p1,
@@ -1570,8 +1601,8 @@ class _EdgesPainter extends CustomPainter {
     return path;
   }
 
-  void _drawOrthogonalEdge(Canvas canvas, Offset p1, Offset p2, Color color, double width) {
-    final path = _buildOrthogonalPath(p1, p2);
+  void _drawOrthogonalEdge(Canvas canvas, Offset p1, Offset p2, Color color, double width, {int laneIndex = 0}) {
+    final path = _buildOrthogonalPath(p1, p2, laneIndex: laneIndex);
 
     // 1. Subtle outline / shadow for clear visibility against any canvas background
     final shadowPaint = Paint()

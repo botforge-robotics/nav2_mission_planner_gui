@@ -11,6 +11,7 @@ import 'mission_graph_models.dart';
 import 'mission_node_inspector.dart';
 import 'ui_interaction_dialog.dart';
 import 'ai_mission_assistant_widget.dart';
+import '../../../services/ai_mission_agent_service.dart';
 
 /// Validation outcome containing blocking errors and ignorable warnings.
 class GraphValidationOutcome {
@@ -1223,6 +1224,30 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 canProceed: !validation.hasErrors,
               );
             }
+          },
+        ),
+        const SizedBox(width: 8),
+
+        // Auto-Align Button
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            foregroundColor: AppColors.textSecondary,
+            side: const BorderSide(color: AppColors.border),
+          ),
+          icon: const Icon(Icons.auto_fix_high_rounded, size: 17, color: AppColors.primary),
+          label: const Text('Auto-Align'),
+          onPressed: () {
+            setState(() {
+              AiMissionAgentService.applyCleanGraphLayout(_graph);
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Graph layout neatly aligned and reorganized.'),
+                duration: Duration(seconds: 2),
+              ),
+            );
           },
         ),
         const SizedBox(width: 8),

@@ -281,10 +281,11 @@ Your task is to convert human natural language mission descriptions into a compl
         "timeout_seconds": 90
       }
 
-11. "parallel": Executes multiple branches simultaneously (e.g. speak while moving, or notify while waiting).
+11. "parallel": Executes multiple simultaneous NON-DRIVING branches at a spot (e.g. speak voice greeting while showing a questionnaire form, or play chime while flashing LED lights).
     - Input ports: "in"
     - Output ports: "branch_1", "branch_2", ...
     - Params: {"branch_count": 2}
+    - STRICT PROHIBITION: NEVER branch driving ("navigate_waypoint", "navigate_coordinates", "patrol_loop") in parallel with destination user interactions ("ui_interaction", "ui_choice")! A person at a room cannot fill a form while the robot is still driving in transit. The robot MUST finish driving first ("arrived"), and only then trigger the interaction.
 
 12. "wait": Timer delay.
     - Input ports: "in"
@@ -315,9 +316,14 @@ Your task is to convert human natural language mission descriptions into a compl
 1. Always start with a "start" node.
 2. Safety check: Insert a "battery_guard" check near the beginning. If "low_battery", route to "dock" or safe abort.
 3. Fail-safe recovery: For every "navigate_waypoint" and "navigate_coordinates", you MUST connect the "failed" and "timeout" ports to a safety branch (e.g. announce error with "ui_speech", alert operator, or return to "dock"). Never leave error ports dangling!
-4. User interactions: If asking questions or choices, handle the negative / cancelled / timeout branches gracefully (e.g. return to dock or end).
-5. All branches must terminate at an "end" node or "dock" node.
-6. Return ONLY valid JSON conforming to the output schema. No conversational filler, no markdown quotes outside the JSON block.
+4. STRICT SEQUENCING FOR DELIVERY & FORMS:
+   - Driving to a destination and asking for input/feedback at that destination MUST BE SEQUENTIAL.
+   - ALWAYS connect: "navigate_waypoint" -> output port "arrived" -> destination interaction ("ui_interaction" or "ui_choice").
+   - You can use "parallel" AFTER arrival (e.g. branch_1: "ui_speech" voice alert to patient, branch_2: "ui_interaction" medicine receipt form).
+   - NEVER start a destination feedback form before the robot arrives at that destination!
+5. User interactions: If asking questions or choices, handle the negative / cancelled / timeout branches gracefully (e.g. return to dock or end).
+6. All branches must terminate at an "end" node or "dock" node.
+7. Return ONLY valid JSON conforming to the output schema. No conversational filler, no markdown quotes outside the JSON block.
 
 ### JSON OUTPUT SCHEMA:
 {
@@ -736,6 +742,9 @@ Your task is to convert human natural language mission descriptions into a compl
     Map<String, dynamic> json,
     List<String> availableWaypoints,
   ) {
+    // Sanitize any invalid parallel splits (e.g. driving + interaction in parallel)
+    _sanitizeParallelInteractions(json);
+
     final rawNodes = (json['nodes'] as List? ?? []);
     final rawEdges = (json['edges'] as List? ?? []);
 
@@ -800,93 +809,172 @@ Your task is to convert human natural language mission descriptions into a compl
       }
     }
 
-    // Topological DAG layout calculation (left-to-right flow with vertical branching)
-    _applyTopologicalLayout(nodesMap, edgesList);
-
-    return MissionGraph(
+    final missionGraph = MissionGraph(
       id: 'mission_${DateTime.now().millisecondsSinceEpoch}',
       name: json['name']?.toString() ?? 'AI Generated Mission',
       nodes: nodesMap.values.toList(),
       edges: edgesList,
     );
+
+    // Apply neat Sugiyama hierarchical DAG layout
+    applyCleanGraphLayout(missionGraph);
+
+    return missionGraph;
   }
 
-  /// Calculates visual coordinates so nodes never overlap and branch cleanly.
-  void _applyTopologicalLayout(
-    Map<String, GraphNode> nodes,
-    List<GraphEdge> edges,
-  ) {
-    if (nodes.isEmpty) return;
+  /// Programmatically enforces that driving nodes and destination user interactions
+  /// are strictly sequential, even if an external LLM tried to parallelize them.
+  static void _sanitizeParallelInteractions(Map<String, dynamic> json) {
+    final rawNodes = (json['nodes'] as List? ?? []).whereType<Map>().toList();
+    final rawEdges = (json['edges'] as List? ?? []).whereType<Map>().toList();
 
-    // Adjacency and in-degree maps
+    for (final node in rawNodes) {
+      if (node['type'] == 'parallel') {
+        final parallelId = node['id']?.toString() ?? '';
+        final branchEdges = rawEdges.where((e) => e['from_node'] == parallelId).toList();
+        final targetIds = branchEdges.map((e) => e['to_node']?.toString() ?? '').toList();
+        final targets = rawNodes.where((rn) => targetIds.contains(rn['id']?.toString())).toList();
+
+        final driving = targets.firstWhere(
+          (tn) => tn['type'] == 'navigate_waypoint' || tn['type'] == 'navigate_coordinates',
+          orElse: () => {},
+        );
+        final interaction = targets.firstWhere(
+          (tn) => tn['type'] == 'ui_interaction' || tn['type'] == 'ui_choice',
+          orElse: () => {},
+        );
+
+        if (driving.isNotEmpty && interaction.isNotEmpty) {
+          final drivingId = driving['id']?.toString() ?? '';
+          final interactionId = interaction['id']?.toString() ?? '';
+
+          // Remove the direct parallel -> interaction edge
+          rawEdges.removeWhere((e) => e['from_node'] == parallelId && e['to_node'] == interactionId);
+
+          // Route navigation arrived -> interaction
+          rawEdges.add({
+            'id': 'e_seq_${DateTime.now().millisecondsSinceEpoch}',
+            'from_node': drivingId,
+            'from_port': 'arrived',
+            'to_node': interactionId,
+            'to_port': 'in',
+          });
+        }
+      }
+    }
+  }
+
+  /// Calculates clean, non-overlapping hierarchical coordinates (Sugiyama DAG style)
+  /// with topological depth ranking and barycenter ordering to eliminate wire tangles.
+  static void applyCleanGraphLayout(MissionGraph graph) {
+    if (graph.nodes.isEmpty) return;
+
+    final nodesMap = {for (final n in graph.nodes) n.id: n};
+    final edges = graph.edges;
+
     final outgoing = <String, List<String>>{};
     final incoming = <String, List<String>>{};
-    for (final id in nodes.keys) {
+    for (final id in nodesMap.keys) {
       outgoing[id] = [];
       incoming[id] = [];
     }
     for (final e in edges) {
-      outgoing[e.fromNode]?.add(e.toNode);
-      incoming[e.toNode]?.add(e.fromNode);
+      if (nodesMap.containsKey(e.fromNode) && nodesMap.containsKey(e.toNode)) {
+        outgoing[e.fromNode]?.add(e.toNode);
+        incoming[e.toNode]?.add(e.fromNode);
+      }
     }
 
-    // Find start node
-    final startNode = nodes.values.firstWhere(
+    // Find start / root node
+    final startNode = graph.nodes.firstWhere(
       (n) => n.type == 'start',
-      orElse: () => nodes.values.first,
+      orElse: () => graph.nodes.first,
     );
 
-    // BFS depth assignment
+    // 1. Longest-path depth calculation so dependencies flow strictly Left to Right
     final depths = <String, int>{startNode.id: 0};
     final queue = <String>[startNode.id];
 
     while (queue.isNotEmpty) {
       final cur = queue.removeAt(0);
-      final d = depths[cur]!;
+      final curDepth = depths[cur]!;
       for (final next in outgoing[cur] ?? []) {
-        if (!depths.containsKey(next) || depths[next]! < d + 1) {
-          depths[next] = d + 1;
+        final currentKnown = depths[next] ?? -1;
+        if (currentKnown < curDepth + 1) {
+          depths[next] = curDepth + 1;
           queue.add(next);
         }
       }
     }
 
-    // Assign any unvisited disconnected nodes
+    // Assign any unvisited or disconnected nodes
     int maxDepth = 0;
     for (final d in depths.values) {
       if (d > maxDepth) maxDepth = d;
     }
-    for (final id in nodes.keys) {
-      depths.putIfAbsent(id, () => ++maxDepth);
+    for (final id in nodesMap.keys) {
+      if (!depths.containsKey(id)) {
+        depths[id] = ++maxDepth;
+      }
     }
 
-    // Group nodes by depth column
+    // Push terminal sinks to the rightmost column
+    for (final node in graph.nodes) {
+      final out = outgoing[node.id] ?? [];
+      final isTerminal = node.type == 'end' || node.type == 'mission_end' || 
+          (node.type == 'dock' && (out.isEmpty || out.every((t) => nodesMap[t]?.type == 'end')));
+      if (isTerminal && depths[node.id]! < maxDepth) {
+        depths[node.id] = maxDepth;
+      }
+    }
+
+    // Group into columns
     final layers = <int, List<String>>{};
     for (final entry in depths.entries) {
       layers.putIfAbsent(entry.value, () => []).add(entry.key);
     }
 
-    // Compute coordinate positions: X = layer * 280 + 100, Y centered
-    const double colSpacing = 280.0;
-    const double rowSpacing = 160.0;
-    const double startX = 100.0;
+    const double colSpacing = 340.0;
+    const double rowSpacing = 210.0;
+    const double startX = 80.0;
     const double centerY = 340.0;
 
-    for (final layer in layers.entries) {
-      final col = layer.key;
-      final nodeIds = layer.value;
-      final totalInCol = nodeIds.length;
+    // Temporary map of assigned Y positions for barycenter sorting
+    final yPositions = <String, double>{startNode.id: centerY};
 
+    final sortedColKeys = layers.keys.toList()..sort();
+
+    for (final col in sortedColKeys) {
+      final nodeIds = layers[col]!;
+
+      // Sort nodes in this column by average Y position of predecessors (Barycenter heuristic)
+      if (col > 0) {
+        nodeIds.sort((a, b) {
+          final predsA = incoming[a] ?? [];
+          final predsB = incoming[b] ?? [];
+
+          final avgYA = predsA.isEmpty
+              ? centerY
+              : predsA.map((p) => yPositions[p] ?? centerY).reduce((v, e) => v + e) / predsA.length;
+          final avgYB = predsB.isEmpty
+              ? centerY
+              : predsB.map((p) => yPositions[p] ?? centerY).reduce((v, e) => v + e) / predsB.length;
+
+          return avgYA.compareTo(avgYB);
+        });
+      }
+
+      final totalInCol = nodeIds.length;
       for (int i = 0; i < totalInCol; i++) {
-        final nodeId = nodeIds[i];
-        final node = nodes[nodeId];
+        final id = nodeIds[i];
+        final node = nodesMap[id];
         if (node == null) continue;
 
         final double x = startX + col * colSpacing;
-        final double yOffset = (i - (totalInCol - 1) / 2.0) * rowSpacing;
-        final double y = centerY + yOffset;
+        final double y = centerY + (i - (totalInCol - 1) / 2.0) * rowSpacing;
 
         node.position = Offset(x, y);
+        yPositions[id] = y;
       }
     }
   }
