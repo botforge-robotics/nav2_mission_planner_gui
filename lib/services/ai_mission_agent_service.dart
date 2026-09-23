@@ -8,7 +8,16 @@ enum AiProvider {
   gemini,
   openai,
   anthropic,
+  deepseek,
+  groq,
+  openrouter,
+  mistral,
+  xai,
+  together,
+  perplexity,
+  cohere,
   ollama,
+  lmstudio,
   custom,
 }
 
@@ -57,6 +66,117 @@ class AiAgentConfig {
       baseUrl: json['baseUrl'] as String? ?? '',
     );
   }
+}
+
+extension AiProviderDetails on AiProvider {
+  String get displayName {
+    switch (this) {
+      case AiProvider.gemini:
+        return 'Google Gemini';
+      case AiProvider.openai:
+        return 'OpenAI';
+      case AiProvider.anthropic:
+        return 'Anthropic Claude';
+      case AiProvider.deepseek:
+        return 'DeepSeek (V3 / R1)';
+      case AiProvider.groq:
+        return 'Groq (Ultra-Fast LPU)';
+      case AiProvider.openrouter:
+        return 'OpenRouter (Multi-Model)';
+      case AiProvider.mistral:
+        return 'Mistral AI';
+      case AiProvider.xai:
+        return 'xAI (Grok)';
+      case AiProvider.together:
+        return 'Together AI';
+      case AiProvider.perplexity:
+        return 'Perplexity AI';
+      case AiProvider.cohere:
+        return 'Cohere';
+      case AiProvider.ollama:
+        return 'Ollama (Local / Robot)';
+      case AiProvider.lmstudio:
+        return 'LM Studio (Local Desktop)';
+      case AiProvider.custom:
+        return 'Custom OpenAI-Compatible';
+    }
+  }
+
+  String get defaultBaseUrl {
+    switch (this) {
+      case AiProvider.openai:
+        return 'https://api.openai.com/v1';
+      case AiProvider.deepseek:
+        return 'https://api.deepseek.com';
+      case AiProvider.groq:
+        return 'https://api.groq.com/openai/v1';
+      case AiProvider.openrouter:
+        return 'https://openrouter.ai/api/v1';
+      case AiProvider.mistral:
+        return 'https://api.mistral.ai/v1';
+      case AiProvider.xai:
+        return 'https://api.x.ai/v1';
+      case AiProvider.together:
+        return 'https://api.together.xyz/v1';
+      case AiProvider.perplexity:
+        return 'https://api.perplexity.ai';
+      case AiProvider.cohere:
+        return 'https://api.cohere.com/v2';
+      case AiProvider.ollama:
+        return 'http://localhost:11434/v1';
+      case AiProvider.lmstudio:
+        return 'http://localhost:1234/v1';
+      case AiProvider.gemini:
+      case AiProvider.anthropic:
+      case AiProvider.custom:
+        return '';
+    }
+  }
+
+  List<String> get defaultModels {
+    switch (this) {
+      case AiProvider.gemini:
+        return ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-thinking-exp'];
+      case AiProvider.openai:
+        return ['gpt-4o-mini', 'gpt-4o', 'o3-mini', 'gpt-4-turbo'];
+      case AiProvider.anthropic:
+        return ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'];
+      case AiProvider.deepseek:
+        return ['deepseek-chat', 'deepseek-reasoner'];
+      case AiProvider.groq:
+        return ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'qwen-2.5-32b'];
+      case AiProvider.openrouter:
+        return [
+          'meta-llama/llama-3.3-70b-instruct',
+          'anthropic/claude-3.5-sonnet',
+          'google/gemini-flash-1.5',
+          'deepseek/deepseek-r1',
+          'openai/gpt-4o-mini',
+        ];
+      case AiProvider.mistral:
+        return ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest', 'pixtral-large-latest'];
+      case AiProvider.xai:
+        return ['grok-2-1212', 'grok-2-vision-1212', 'grok-beta'];
+      case AiProvider.together:
+        return [
+          'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+          'Qwen/Qwen2.5-72B-Instruct-Turbo',
+          'deepseek-ai/DeepSeek-R1',
+        ];
+      case AiProvider.perplexity:
+        return ['sonar', 'sonar-pro', 'sonar-reasoning'];
+      case AiProvider.cohere:
+        return ['command-r-plus-08-2024', 'command-r-08-2024'];
+      case AiProvider.ollama:
+        return ['llama3.2', 'llama3.1:8b', 'qwen2.5:7b', 'mistral', 'deepseek-r1:8b'];
+      case AiProvider.lmstudio:
+        return ['default', 'local-model'];
+      case AiProvider.custom:
+        return ['custom-model'];
+    }
+  }
+
+  bool get isLocal => this == AiProvider.ollama || this == AiProvider.lmstudio;
 }
 
 class AiMissionAgentService {
@@ -232,8 +352,8 @@ Your task is to convert human natural language mission descriptions into a compl
 
     Map<String, dynamic>? generatedJson;
 
-    // Check if user has an API key configured for external LLM
-    final hasKey = config.apiKey.trim().isNotEmpty || config.provider == AiProvider.ollama;
+    // Check if user has an API key configured for external LLM (or using local inference)
+    final hasKey = config.apiKey.trim().isNotEmpty || config.provider.isLocal;
 
     if (hasKey) {
       try {
@@ -291,52 +411,6 @@ Your task is to convert human natural language mission descriptions into a compl
         responseText = data['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
         break;
 
-      case AiProvider.openai:
-      case AiProvider.custom:
-      case AiProvider.ollama:
-        String baseUrl = config.baseUrl.trim();
-        if (baseUrl.isEmpty) {
-          if (config.provider == AiProvider.openai) {
-            baseUrl = 'https://api.openai.com/v1';
-          } else if (config.provider == AiProvider.ollama) {
-            baseUrl = 'http://localhost:11434/v1';
-          }
-        }
-        if (baseUrl.endsWith('/')) baseUrl = baseUrl.substring(0, baseUrl.length - 1);
-        final url = Uri.parse('$baseUrl/chat/completions');
-
-        final headers = <String, String>{
-          'Content-Type': 'application/json',
-        };
-        if (config.apiKey.trim().isNotEmpty) {
-          headers['Authorization'] = 'Bearer ${config.apiKey.trim()}';
-        }
-
-        final model = config.model.isNotEmpty
-            ? config.model
-            : (config.provider == AiProvider.ollama ? 'llama3:8b' : 'gpt-4o-mini');
-
-        final resp = await http.post(
-          url,
-          headers: headers,
-          body: jsonEncode({
-            'model': model,
-            'messages': [
-              {'role': 'system', 'content': systemPrompt},
-              {'role': 'user', 'content': userPrompt}
-            ],
-            'temperature': 0.2,
-            'response_format': {'type': 'json_object'},
-          }),
-        ).timeout(const Duration(seconds: 30));
-
-        if (resp.statusCode != 200) {
-          throw Exception('${config.provider.name} API error (${resp.statusCode}): ${resp.body}');
-        }
-        final data = jsonDecode(resp.body) as Map<String, dynamic>;
-        responseText = data['choices']?[0]?['message']?['content'] ?? '';
-        break;
-
       case AiProvider.anthropic:
         final url = Uri.parse('https://api.anthropic.com/v1/messages');
         final model = config.model.isNotEmpty ? config.model : 'claude-3-5-sonnet-20241022';
@@ -363,6 +437,86 @@ Your task is to convert human natural language mission descriptions into a compl
         }
         final data = jsonDecode(resp.body) as Map<String, dynamic>;
         responseText = data['content']?[0]?['text'] ?? '';
+        break;
+
+      case AiProvider.cohere:
+        String baseUrl = config.baseUrl.trim();
+        if (baseUrl.isEmpty) baseUrl = config.provider.defaultBaseUrl;
+        if (baseUrl.endsWith('/')) baseUrl = baseUrl.substring(0, baseUrl.length - 1);
+        final url = Uri.parse('$baseUrl/chat');
+        final model = config.model.isNotEmpty ? config.model : config.provider.defaultModels.first;
+
+        final resp = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ${config.apiKey.trim()}',
+          },
+          body: jsonEncode({
+            'model': model,
+            'messages': [
+              {'role': 'system', 'content': systemPrompt},
+              {'role': 'user', 'content': userPrompt}
+            ],
+            'response_format': {'type': 'json_object'},
+          }),
+        ).timeout(const Duration(seconds: 30));
+
+        if (resp.statusCode != 200) {
+          throw Exception('Cohere API error (${resp.statusCode}): ${resp.body}');
+        }
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        responseText = data['message']?['content']?[0]?['text'] ?? '';
+        break;
+
+      // Universal OpenAI-compatible providers:
+      // openai, deepseek, groq, openrouter, mistral, xai, together, perplexity, ollama, lmstudio, custom
+      default:
+        String baseUrl = config.baseUrl.trim();
+        if (baseUrl.isEmpty) {
+          baseUrl = config.provider.defaultBaseUrl;
+        }
+        if (baseUrl.endsWith('/')) baseUrl = baseUrl.substring(0, baseUrl.length - 1);
+        final url = Uri.parse('$baseUrl/chat/completions');
+
+        final headers = <String, String>{
+          'Content-Type': 'application/json',
+        };
+        if (config.apiKey.trim().isNotEmpty) {
+          headers['Authorization'] = 'Bearer ${config.apiKey.trim()}';
+        }
+        if (config.provider == AiProvider.openrouter) {
+          headers['HTTP-Referer'] = 'https://github.com/botforge-robotics/nav2_mission_planner_gui';
+          headers['X-Title'] = 'NavPro Mini AMR';
+        }
+
+        final model = config.model.isNotEmpty
+            ? config.model
+            : config.provider.defaultModels.first;
+
+        final shouldPassJsonFormat = config.provider != AiProvider.perplexity;
+
+        final bodyMap = <String, dynamic>{
+          'model': model,
+          'messages': [
+            {'role': 'system', 'content': systemPrompt},
+            {'role': 'user', 'content': userPrompt}
+          ],
+          'temperature': 0.2,
+          if (shouldPassJsonFormat) 'response_format': {'type': 'json_object'},
+        };
+
+        final resp = await http.post(
+          url,
+          headers: headers,
+          body: jsonEncode(bodyMap),
+        ).timeout(const Duration(seconds: 35));
+
+        if (resp.statusCode != 200) {
+          throw Exception('${config.provider.displayName} API error (${resp.statusCode}): ${resp.body}');
+        }
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        responseText = data['choices']?[0]?['message']?['content'] ?? '';
         break;
     }
 

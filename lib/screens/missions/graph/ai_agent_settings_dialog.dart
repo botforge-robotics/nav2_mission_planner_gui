@@ -31,14 +31,6 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
   bool _testSuccess = false;
   bool _loading = true;
 
-  final Map<AiProvider, List<String>> _modelSuggestions = {
-    AiProvider.gemini: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'],
-    AiProvider.openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],
-    AiProvider.anthropic: ['claude-3-5-sonnet-20241022', 'claude-3-haiku-20240307'],
-    AiProvider.ollama: ['llama3.2', 'llama3', 'mistral', 'qwen2.5:7b'],
-    AiProvider.custom: ['custom-model'],
-  };
-
   @override
   void initState() {
     super.initState();
@@ -74,12 +66,14 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
     setState(() {
       _provider = provider;
       _testResult = null;
-      final suggestions = _modelSuggestions[provider] ?? ['default'];
+      final suggestions = provider.defaultModels;
       if (!suggestions.contains(_modelController.text)) {
         _modelController.text = suggestions.first;
       }
-      if (provider == AiProvider.ollama && _baseUrlController.text.isEmpty) {
-        _baseUrlController.text = 'http://localhost:11434/v1';
+      if (provider.defaultBaseUrl.isNotEmpty) {
+        _baseUrlController.text = provider.defaultBaseUrl;
+      } else {
+        _baseUrlController.clear();
       }
     });
   }
@@ -94,11 +88,11 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
     final model = _modelController.text.trim();
     final baseUrl = _baseUrlController.text.trim();
 
-    if (_provider != AiProvider.ollama && apiKey.isEmpty) {
+    if (!_provider.isLocal && apiKey.isEmpty) {
       setState(() {
         _testingConnection = false;
         _testSuccess = false;
-        _testResult = 'API Key is required for ${_provider.name.toUpperCase()}.';
+        _testResult = 'API Key is required for ${_provider.displayName}.';
       });
       return;
     }
@@ -127,48 +121,12 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
         if (resp.statusCode == 200) {
           setState(() {
             _testSuccess = true;
-            _testResult = 'Connection verified! Gemini API authenticated successfully.';
+            _testResult = 'Connection verified! Google Gemini authenticated successfully.';
           });
         } else {
           setState(() {
             _testSuccess = false;
             _testResult = 'Gemini error (${resp.statusCode}): ${resp.body}';
-          });
-        }
-      } else if (_provider == AiProvider.openai || _provider == AiProvider.custom || _provider == AiProvider.ollama) {
-        String endpoint = baseUrl;
-        if (endpoint.isEmpty) {
-          endpoint = _provider == AiProvider.ollama ? 'http://localhost:11434/v1' : 'https://api.openai.com/v1';
-        }
-        if (endpoint.endsWith('/')) endpoint = endpoint.substring(0, endpoint.length - 1);
-
-        final url = Uri.parse('$endpoint/chat/completions');
-        final headers = <String, String>{
-          'Content-Type': 'application/json',
-          if (apiKey.isNotEmpty) 'Authorization': 'Bearer $apiKey',
-        };
-
-        final resp = await http.post(
-          url,
-          headers: headers,
-          body: jsonEncode({
-            'model': model.isNotEmpty ? model : 'gpt-4o-mini',
-            'messages': [
-              {'role': 'user', 'content': 'Ping test. Reply with "pong".'}
-            ],
-            'max_tokens': 5,
-          }),
-        ).timeout(const Duration(seconds: 10));
-
-        if (resp.statusCode == 200) {
-          setState(() {
-            _testSuccess = true;
-            _testResult = 'Connection verified! ${_provider.name.toUpperCase()} responded successfully.';
-          });
-        } else {
-          setState(() {
-            _testSuccess = false;
-            _testResult = 'Provider error (${resp.statusCode}): ${resp.body}';
           });
         }
       } else if (_provider == AiProvider.anthropic) {
@@ -198,6 +156,76 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
           setState(() {
             _testSuccess = false;
             _testResult = 'Anthropic error (${resp.statusCode}): ${resp.body}';
+          });
+        }
+      } else if (_provider == AiProvider.cohere) {
+        String endpoint = baseUrl.isNotEmpty ? baseUrl : _provider.defaultBaseUrl;
+        if (endpoint.endsWith('/')) endpoint = endpoint.substring(0, endpoint.length - 1);
+        final url = Uri.parse('$endpoint/chat');
+
+        final resp = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $apiKey',
+          },
+          body: jsonEncode({
+            'model': model.isNotEmpty ? model : 'command-r-plus-08-2024',
+            'messages': [
+              {'role': 'user', 'content': 'Ping test'}
+            ],
+          }),
+        ).timeout(const Duration(seconds: 10));
+
+        if (resp.statusCode == 200) {
+          setState(() {
+            _testSuccess = true;
+            _testResult = 'Connection verified! Cohere authenticated successfully.';
+          });
+        } else {
+          setState(() {
+            _testSuccess = false;
+            _testResult = 'Cohere error (${resp.statusCode}): ${resp.body}';
+          });
+        }
+      } else {
+        // Universal OpenAI-compatible test (OpenAI, DeepSeek, Groq, OpenRouter, Mistral, xAI, Together, Perplexity, Ollama, LM Studio, Custom)
+        String endpoint = baseUrl.isNotEmpty ? baseUrl : _provider.defaultBaseUrl;
+        if (endpoint.endsWith('/')) endpoint = endpoint.substring(0, endpoint.length - 1);
+
+        final url = Uri.parse('$endpoint/chat/completions');
+        final headers = <String, String>{
+          'Content-Type': 'application/json',
+          if (apiKey.isNotEmpty) 'Authorization': 'Bearer $apiKey',
+          if (_provider == AiProvider.openrouter) ...{
+            'HTTP-Referer': 'https://github.com/botforge-robotics/nav2_mission_planner_gui',
+            'X-Title': 'NavPro Mini AMR',
+          },
+        };
+
+        final testModel = model.isNotEmpty ? model : _provider.defaultModels.first;
+
+        final resp = await http.post(
+          url,
+          headers: headers,
+          body: jsonEncode({
+            'model': testModel,
+            'messages': [
+              {'role': 'user', 'content': 'Ping test. Reply with "pong".'}
+            ],
+            'max_tokens': 5,
+          }),
+        ).timeout(const Duration(seconds: 12));
+
+        if (resp.statusCode == 200) {
+          setState(() {
+            _testSuccess = true;
+            _testResult = 'Connection verified! ${_provider.displayName} responded successfully.';
+          });
+        } else {
+          setState(() {
+            _testSuccess = false;
+            _testResult = '${_provider.displayName} error (${resp.statusCode}): ${resp.body}';
           });
         }
       }
@@ -237,7 +265,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
       ),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 540),
+        constraints: const BoxConstraints(maxWidth: 560),
         child: _loading
             ? const Padding(
                 padding: EdgeInsets.all(48),
@@ -285,7 +313,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                               ),
                               SizedBox(height: 1),
                               Text(
-                                'Configure LLM agent API credentials for live workflow synthesis',
+                                'Configure LLM agent credentials & inference endpoint for live workflow synthesis',
                                 style: TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 12,
@@ -335,41 +363,48 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                 dropdownColor: AppColors.surface,
                                 style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5),
                                 onChanged: _onProviderChanged,
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: AiProvider.gemini,
-                                    child: Text('Google Gemini (Flash / Pro)'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: AiProvider.openai,
-                                    child: Text('OpenAI (GPT-4o / GPT-4o-mini)'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: AiProvider.anthropic,
-                                    child: Text('Anthropic (Claude 3.5 Sonnet)'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: AiProvider.ollama,
-                                    child: Text('Ollama (Local LLM - Llama/Mistral/Qwen)'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: AiProvider.custom,
-                                    child: Text('Custom OpenAI-Compatible Endpoint'),
-                                  ),
-                                ],
+                                items: AiProvider.values.map((p) {
+                                  return DropdownMenuItem<AiProvider>(
+                                    value: p,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          p.isLocal
+                                              ? Icons.terminal_rounded
+                                              : (p == AiProvider.custom
+                                                  ? Icons.tune_rounded
+                                                  : Icons.cloud_queue_rounded),
+                                          size: 16,
+                                          color: p.isLocal ? AppColors.accent : AppColors.primary,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(p.displayName),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
                               ),
                             ),
                           ),
                           const SizedBox(height: 18),
 
                           // Model Name Input + Suggestion Chips
-                          const Text(
-                            'Model Name',
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          Row(
+                            children: [
+                              const Text(
+                                'Model Name',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${_provider.displayName} models',
+                                style: const TextStyle(color: AppColors.textTertiary, fontSize: 11),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 8),
                           TextField(
@@ -378,7 +413,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: AppColors.surfaceSunken,
-                              hintText: 'e.g. gemini-1.5-flash, gpt-4o-mini',
+                              hintText: 'e.g. ${_provider.defaultModels.first}',
                               hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               border: OutlineInputBorder(
@@ -400,7 +435,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           Wrap(
                             spacing: 6,
                             runSpacing: 6,
-                            children: (_modelSuggestions[_provider] ?? []).map((m) {
+                            children: _provider.defaultModels.map((m) {
                               final isSelected = _modelController.text.trim() == m;
                               return InkWell(
                                 onTap: () => setState(() => _modelController.text = m),
@@ -442,11 +477,11 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              if (_provider == AiProvider.ollama)
+                              if (_provider.isLocal)
                                 const Padding(
                                   padding: EdgeInsets.only(left: 6),
                                   child: Text(
-                                    '(Optional for local Ollama)',
+                                    '(Optional for local runner)',
                                     style: TextStyle(color: AppColors.textTertiary, fontSize: 11.5),
                                   ),
                                 ),
@@ -464,7 +499,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: AppColors.surfaceSunken,
-                              hintText: _provider == AiProvider.ollama ? 'Optional' : 'sk-... or AIza...',
+                              hintText: _provider.isLocal ? 'Optional (No API key needed)' : 'sk-... or AIza...',
                               hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13, letterSpacing: 0),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               suffixIcon: IconButton(
@@ -492,48 +527,58 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           ),
                           const SizedBox(height: 18),
 
-                          // Custom Base URL (For Ollama or Custom)
-                          if (_provider == AiProvider.ollama ||
-                              _provider == AiProvider.custom ||
-                              _provider == AiProvider.openai) ...[
-                            const Text(
-                              'API Base URL',
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _baseUrlController,
-                              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5),
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: AppColors.surfaceSunken,
-                                hintText: _provider == AiProvider.ollama
-                                    ? 'http://localhost:11434/v1'
-                                    : 'https://api.openai.com/v1',
-                                hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                  borderSide: const BorderSide(color: AppColors.border),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                  borderSide: const BorderSide(color: AppColors.border),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                          // Base URL (Custom or Pre-filled)
+                          Row(
+                            children: [
+                              const Text(
+                                'API Base URL',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
+                              const Spacer(),
+                              if (_provider.defaultBaseUrl.isNotEmpty &&
+                                  _baseUrlController.text != _provider.defaultBaseUrl)
+                                InkWell(
+                                  onTap: () => setState(() => _baseUrlController.text = _provider.defaultBaseUrl),
+                                  child: const Text(
+                                    'Reset default',
+                                    style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _baseUrlController,
+                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: AppColors.surfaceSunken,
+                              hintText: _provider.defaultBaseUrl.isNotEmpty
+                                  ? _provider.defaultBaseUrl
+                                  : 'https://api.example.com/v1',
+                              hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                borderSide: const BorderSide(color: AppColors.border),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                borderSide: const BorderSide(color: AppColors.border),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                              ),
                             ),
-                            const SizedBox(height: 18),
-                          ],
+                          ),
+                          const SizedBox(height: 18),
 
-                          // Info / Offline fallback note
+                          // Offline Guard Container
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
@@ -548,7 +593,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                 SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    'Offline Guard: If no API key is set or no internet is available, the agent automatically uses the built-in deterministic mission synthesizer with full safety checks.',
+                                    'Offline Guard: If no API key is provided or the robot is offline, the agent automatically activates the built-in deterministic mission synthesizer with full safety fail-safes.',
                                     style: TextStyle(color: Color(0xFF0369A1), fontSize: 12, height: 1.35),
                                   ),
                                 ),
@@ -557,7 +602,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           ),
                           const SizedBox(height: 14),
 
-                          // Test connection outcome
+                          // Test Connection Outcome Banner
                           if (_testResult != null)
                             Container(
                               margin: const EdgeInsets.only(bottom: 14),

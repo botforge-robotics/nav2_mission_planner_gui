@@ -58,5 +58,13 @@ void main() {
       expect(graph.nodes.any((n) => n.type == 'battery_guard'), true);
       expect(graph.nodes.any((n) => n.type == 'dock'), true);
     });
+
+    test('Verifies all 14 AI providers have valid display names and model suggestions', () {
+      expect(AiProvider.values.length, 14);
+      for (final p in AiProvider.values) {
+        expect(p.displayName.isNotEmpty, true, reason: 'Provider ${p.name} must have a display name');
+        expect(p.defaultModels.isNotEmpty, true, reason: 'Provider ${p.name} must have default models');
+      }
+    });
   });
 }
