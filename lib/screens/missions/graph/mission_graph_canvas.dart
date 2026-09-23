@@ -148,7 +148,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
   }
 
   static bool _isTerminalBadge(GraphNode node) =>
-      node.type == 'end' || node.type == 'mission_end';
+      node.type == 'end' || node.type == 'mission_end' || node.type == 'dock_and_end';
 
   static double _getNodeWidth(GraphNode node) {
     if (_isTerminalBadge(node)) {
@@ -476,18 +476,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       final baseP1 = _portOffsets[fromKey] ?? _estimatePortOffset(fromNode, edge.fromPort, false);
       final baseP2 = _portOffsets[toKey] ?? _estimatePortOffset(toNode, edge.toPort, true);
 
-      final outList = sourceGroups[fromKey] ?? [edge];
-      final inList = targetGroups[toKey] ?? [edge];
-
-      final sourceSlotOffset = outList.length > 1
-          ? (outList.indexOf(edge) - (outList.length - 1) / 2.0) * 12.0
-          : 0.0;
-      final targetSlotOffset = inList.length > 1
-          ? (inList.indexOf(edge) - (inList.length - 1) / 2.0) * 14.0
-          : 0.0;
-
-      final p1 = Offset(baseP1.dx, baseP1.dy + sourceSlotOffset);
-      final p2 = Offset(baseP2.dx, baseP2.dy + targetSlotOffset);
+      // Connect all incoming lines directly to the EXACT same input socket point (baseP2)
+      // and outgoing lines directly to the output socket point (baseP1)
+      final p1 = baseP1;
+      final p2 = baseP2;
       nominalP1[edge.id] = p1;
       nominalP2[edge.id] = p2;
 
@@ -975,7 +967,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     const double badgeSize = 56.0;
     const double totalHeight = 76.0;
 
-    final dockOnEnd = node.params['dock_on_end'] == true;
+    final dockOnEnd = node.type == 'dock_and_end' || node.params['dock_on_end'] == true;
     final status = (node.params['status'] as String? ?? 'success').toLowerCase();
     final isAborted = status == 'failed' || status == 'aborted';
 
@@ -1505,7 +1497,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         return ('Trigger', Icons.bolt_rounded, AppColors.success);
       case 'end':
       case 'mission_end':
-        return ('Terminal', Icons.stop_rounded, const Color(0xFFDC2626));
+      case 'dock_and_end':
+        return ('Terminal', Icons.battery_charging_full_rounded, const Color(0xFF10B981));
       case 'navigate_waypoint':
         return ('Navigation', Icons.navigation_rounded, const Color(0xFF2563EB));
       case 'navigate_coordinates':
@@ -1584,7 +1577,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         return 'Manual start';
       case 'end':
       case 'mission_end':
-        return node.params['dock_on_end'] == true ? 'Finish & Dock' : 'Finish';
+      case 'dock_and_end':
+        return (node.type == 'dock_and_end' || node.params['dock_on_end'] == true) ? 'Finish & Dock' : 'Finish';
       case 'navigate_waypoint':
         final wp = node.params['waypoint']?.toString() ?? '';
         return wp.isNotEmpty ? wp : 'Set destination';

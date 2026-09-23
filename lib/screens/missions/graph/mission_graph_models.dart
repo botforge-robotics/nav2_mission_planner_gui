@@ -110,6 +110,7 @@ class GraphNode {
         return const [NodePort(id: 'next', label: 'Next Step', isInput: false, color: Color(0xFF4CAF50))];
       case 'end':
       case 'mission_end':
+      case 'dock_and_end':
         return const []; // Terminal node (Mission finishes)
       case 'loop':
       case 'loop_counter':

@@ -1619,8 +1619,8 @@ Output only the JSON object starting with { and ending with }. Do not include ma
     // Local abort/recovery badges stay in their natural adjacent column!
     for (final node in graph.nodes) {
       final out = outgoing[node.id] ?? [];
-      final isTerminal = node.type == 'end' || node.type == 'mission_end' || 
-          (node.type == 'dock' && (out.isEmpty || out.every((t) => nodesMap[t]?.type == 'end')));
+      final isTerminal = node.type == 'end' || node.type == 'mission_end' || node.type == 'dock_and_end' ||
+          (node.type == 'dock' && (out.isEmpty || out.every((t) => nodesMap[t]?.type == 'end' || nodesMap[t]?.type == 'dock_and_end')));
       if (isTerminal) {
         final preds = incoming[node.id] ?? [];
         bool isHappyPath = false;
@@ -1648,44 +1648,89 @@ Output only the JSON object starting with { and ending with }. Do not include ma
       layers.putIfAbsent(entry.value, () => []).add(entry.key);
     }
 
-    const double colSpacing = 360.0;
-    const double rowSpacing = 220.0;
+    // Identify primary happy-path spine starting from start node
+    final spineNodeIds = <String>{startNode.id};
+    String? curSpine = startNode.id;
+    while (curSpine != null) {
+      final outEdges = edges.where((e) => e.fromNode == curSpine).toList();
+      GraphEdge? happyEdge;
+      for (final prefPort in ['next', 'ok', 'arrived', 'submitted', 'done', 'docked', 'completed', 'true', 'yes']) {
+        for (final e in outEdges) {
+          if (e.fromPort.toLowerCase() == prefPort) {
+            happyEdge = e;
+            break;
+          }
+        }
+        if (happyEdge != null) break;
+      }
+      if (happyEdge != null && !spineNodeIds.contains(happyEdge.toNode) && nodesMap.containsKey(happyEdge.toNode)) {
+        spineNodeIds.add(happyEdge.toNode);
+        curSpine = happyEdge.toNode;
+      } else {
+        curSpine = null;
+      }
+    }
+
+    const double colSpacing = 380.0;
+    const double rowSpacing = 160.0;
     const double startX = 80.0;
-    const double centerY = 340.0;
+    const double baselineY = 240.0;
 
     // Temporary map of assigned Y positions for barycenter sorting
-    final yPositions = <String, double>{startNode.id: centerY};
+    final yPositions = <String, double>{startNode.id: baselineY};
 
     final sortedColKeys = layers.keys.toList()..sort();
 
     for (final col in sortedColKeys) {
       final nodeIds = layers[col]!;
 
-      // Sort nodes in this column by average Y position of predecessors (Barycenter heuristic)
-      if (col > 0) {
-        nodeIds.sort((a, b) {
-          final predsA = incoming[a] ?? [];
-          final predsB = incoming[b] ?? [];
+      // Sort nodes in this column:
+      // 1. Spine node is ALWAYS first (at baselineY)
+      // 2. Regular non-abort branch nodes follow
+      // 3. Local terminal abort/failure badges are placed below
+      nodeIds.sort((a, b) {
+        final aIsSpine = spineNodeIds.contains(a);
+        final bIsSpine = spineNodeIds.contains(b);
+        if (aIsSpine && !bIsSpine) return -1;
+        if (!aIsSpine && bIsSpine) return 1;
 
-          final avgYA = predsA.isEmpty
-              ? centerY
-              : predsA.map((p) => yPositions[p] ?? centerY).reduce((v, e) => v + e) / predsA.length;
-          final avgYB = predsB.isEmpty
-              ? centerY
-              : predsB.map((p) => yPositions[p] ?? centerY).reduce((v, e) => v + e) / predsB.length;
+        final aIsAbort = nodesMap[a]?.params['status'] == 'aborted' || nodesMap[a]?.params['status'] == 'failed';
+        final bIsAbort = nodesMap[b]?.params['status'] == 'aborted' || nodesMap[b]?.params['status'] == 'failed';
+        if (!aIsAbort && bIsAbort) return -1;
+        if (aIsAbort && !bIsAbort) return 1;
 
-          return avgYA.compareTo(avgYB);
-        });
-      }
+        final predsA = incoming[a] ?? [];
+        final predsB = incoming[b] ?? [];
+        final avgYA = predsA.isEmpty
+            ? baselineY
+            : predsA.map((p) => yPositions[p] ?? baselineY).reduce((v, e) => v + e) / predsA.length;
+        final avgYB = predsB.isEmpty
+            ? baselineY
+            : predsB.map((p) => yPositions[p] ?? baselineY).reduce((v, e) => v + e) / predsB.length;
+        return avgYA.compareTo(avgYB);
+      });
 
-      final totalInCol = nodeIds.length;
-      for (int i = 0; i < totalInCol; i++) {
+      final hasSpineInCol = nodeIds.any((id) => spineNodeIds.contains(id));
+
+      for (int i = 0; i < nodeIds.length; i++) {
         final id = nodeIds[i];
         final node = nodesMap[id];
         if (node == null) continue;
 
         final double x = startX + col * colSpacing;
-        final double y = centerY + (i - (totalInCol - 1) / 2.0) * rowSpacing;
+        double y;
+        if (hasSpineInCol) {
+          // Primary flow stays anchored directly on the horizontal baseline!
+          // Branches and abort badges spread downward underneath.
+          y = baselineY + i * rowSpacing;
+        } else {
+          // If this column is an off-spine branch, anchor relative to predecessor's Y
+          final preds = incoming[id] ?? [];
+          final avgPredY = preds.isEmpty
+              ? (baselineY + rowSpacing)
+              : preds.map((p) => yPositions[p] ?? (baselineY + rowSpacing)).reduce((v, e) => v + e) / preds.length;
+          y = avgPredY + (i * rowSpacing);
+        }
 
         node.position = Offset(x, y);
         yPositions[id] = y;

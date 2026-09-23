@@ -373,6 +373,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         return 'Mission Start & Triggers';
       case 'end':
       case 'mission_end':
+      case 'dock_and_end':
         return 'Finish Mission';
       case 'navigate_waypoint':
         return 'Drive to Saved Place';
@@ -440,6 +441,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         return 'Where your workflow begins. Configure trigger mode: manual on-demand, repeating interval (every X minutes), or clock alarm (specific time & days).';
       case 'end':
       case 'mission_end':
+      case 'dock_and_end':
         return 'Safely finishes the mission. The robot stops and can optionally drive back to its charger.';
       case 'navigate_waypoint':
         return 'Tells the robot to safely drive across the room to a place saved on your map.';
@@ -592,7 +594,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           _buildSetVariableInspector()
         else if (node.type == 'notify')
           _buildNotifyInspector()
-        else if (node.type == 'end' || node.type == 'mission_end')
+        else if (node.type == 'end' || node.type == 'mission_end' || node.type == 'dock_and_end')
           _buildEndMissionInspector()
         else if (node.type == 'loop' || node.type == 'loop_counter')
           _buildLoopInspector()
