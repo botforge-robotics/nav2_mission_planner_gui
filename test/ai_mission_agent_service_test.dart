@@ -219,5 +219,46 @@ void main() {
       final localLmStudio = AiAgentConfig(provider: AiProvider.lmstudio, apiKey: '');
       expect(localLmStudio.isConfigured, true);
     });
+
+    test('Synthesizes restaurant food serving workflow across multiple tables', () async {
+      final service = AiMissionAgentService.instance;
+      final graph = await service.generateMissionGraph(
+        userPrompt: 'go to table 4 speak food is served then ask if anything else needed then go to table 8 and return to kitchen and dock',
+        availableWaypoints: ['Dock', 'Kitchen', 'Table 4', 'Table 8'],
+      );
+
+      // Verify domain and name
+      expect(graph.name.toLowerCase(), contains('table 4'));
+
+      // Verify intermediate waypoints in order
+      final navNodes = graph.nodes.where((n) => n.type == 'navigate_waypoint').toList();
+      final waypoints = navNodes.map((n) => n.params['waypoint']?.toString().toLowerCase()).toList();
+      expect(waypoints.contains('table 4'), true);
+      expect(waypoints.contains('table 8'), true);
+      expect(waypoints.contains('kitchen'), true);
+
+      // Verify speech, choice, and dock
+      expect(graph.nodes.any((n) => n.type == 'ui_speech'), true);
+      expect(graph.nodes.any((n) => n.type == 'ui_choice'), true);
+      expect(graph.nodes.any((n) => n.type == 'dock'), true);
+    });
+
+    test('Synthesizes data center inspection with pause/wait duration', () async {
+      final service = AiMissionAgentService.instance;
+      final graph = await service.generateMissionGraph(
+        userPrompt: 'inspect rack 12 wait 15 seconds then inspect rack 14 and return to dock',
+        availableWaypoints: ['Dock', 'Rack 12', 'Rack 14'],
+      );
+
+      final navNodes = graph.nodes.where((n) => n.type == 'navigate_waypoint').toList();
+      final waypoints = navNodes.map((n) => n.params['waypoint']?.toString().toLowerCase()).toList();
+      expect(waypoints.contains('rack 12'), true);
+      expect(waypoints.contains('rack 14'), true);
+
+      // Verify wait node has 15 seconds
+      final waitNode = graph.nodes.firstWhere((n) => n.type == 'wait');
+      expect(waitNode.params['seconds'], 15);
+      expect(graph.nodes.any((n) => n.type == 'dock'), true);
+    });
   });
 }

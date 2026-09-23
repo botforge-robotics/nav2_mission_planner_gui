@@ -808,32 +808,61 @@ Your task is to convert human natural language workflow instructions into a comp
         lower.contains('tool') ||
         lower.contains('cargo');
 
-    // 2. Extract locations in prompt
-    final extractedLocations = <String>[];
+    // 2. Extract locations in prompt preserving the exact sequence they appear
+    final extractedLocationsWithIndex = <({int index, String name})>[];
+
     for (final wp in availableWaypoints) {
-      if (lower.contains(wp.toLowerCase()) && !extractedLocations.contains(wp)) {
-        extractedLocations.add(wp);
+      final wpLower = wp.toLowerCase();
+      int startIdx = 0;
+      while (true) {
+        final idx = lower.indexOf(wpLower, startIdx);
+        if (idx == -1) break;
+        extractedLocationsWithIndex.add((index: idx, name: wp));
+        startIdx = idx + wpLower.length;
       }
     }
 
     void tryExtract(RegExp re, String Function(Match) formatter) {
       for (final m in re.allMatches(lower)) {
         final loc = formatter(m);
-        if (!extractedLocations.any((e) => e.toLowerCase() == loc.toLowerCase())) {
-          extractedLocations.add(loc);
-        }
+        extractedLocationsWithIndex.add((index: m.start, name: loc));
       }
     }
 
-    tryExtract(RegExp(r'bay\s*(\d+)'), (m) => 'Bay ${m.group(1)}');
-    tryExtract(RegExp(r'store\s*room'), (_) => 'Store Room');
-    tryExtract(RegExp(r'workstation(?:\s*(\w+))?'), (m) => m.group(1) != null ? 'Workstation ${m.group(1)!.toUpperCase()}' : 'Workstation');
-    tryExtract(RegExp(r'room\s*(\d+)'), (m) => 'Room ${m.group(1)}');
-    tryExtract(RegExp(r'pharmacy'), (_) => 'Pharmacy');
-    tryExtract(RegExp(r'reception'), (_) => 'Reception');
-    tryExtract(RegExp(r'lab(?:oratory)?'), (_) => 'Lab');
-    tryExtract(RegExp(r'warehouse'), (_) => 'Warehouse');
-    tryExtract(RegExp(r'assembly'), (_) => 'Assembly');
+    // Support diverse industries: Hospitality, Restaurants, Healthcare, Warehousing, Offices, Aviation, Datacenters
+    tryExtract(RegExp(r'table\s*(\d+)', caseSensitive: false), (m) => 'Table ${m.group(1)}');
+    tryExtract(RegExp(r'bay\s*(\d+)', caseSensitive: false), (m) => 'Bay ${m.group(1)}');
+    tryExtract(RegExp(r'room\s*(\d+)', caseSensitive: false), (m) => 'Room ${m.group(1)}');
+    tryExtract(RegExp(r'rack\s*(\d+)', caseSensitive: false), (m) => 'Rack ${m.group(1)}');
+    tryExtract(RegExp(r'shelf\s*(\d+)', caseSensitive: false), (m) => 'Shelf ${m.group(1)}');
+    tryExtract(RegExp(r'gate\s*(\d+)', caseSensitive: false), (m) => 'Gate ${m.group(1)}');
+    tryExtract(RegExp(r'desk\s*(\d+)', caseSensitive: false), (m) => 'Desk ${m.group(1)}');
+    tryExtract(RegExp(r'office\s*([a-zA-Z0-9]+)', caseSensitive: false), (m) => 'Office ${m.group(1)!.toUpperCase()}');
+    tryExtract(RegExp(r'zone\s*([a-zA-Z0-9]+)', caseSensitive: false), (m) => 'Zone ${m.group(1)!.toUpperCase()}');
+    tryExtract(RegExp(r'station\s*(\d+)', caseSensitive: false), (m) => 'Station ${m.group(1)}');
+    tryExtract(RegExp(r'store\s*room', caseSensitive: false), (_) => 'Store Room');
+    tryExtract(RegExp(r'workstation(?:\s*(\w+))?', caseSensitive: false), (m) => m.group(1) != null ? 'Workstation ${m.group(1)!.toUpperCase()}' : 'Workstation');
+    tryExtract(RegExp(r'kitchen', caseSensitive: false), (_) => 'Kitchen');
+    tryExtract(RegExp(r'lobby', caseSensitive: false), (_) => 'Lobby');
+    tryExtract(RegExp(r'reception', caseSensitive: false), (_) => 'Reception');
+    tryExtract(RegExp(r'lab(?:oratory)?', caseSensitive: false), (_) => 'Lab');
+    tryExtract(RegExp(r'pharmacy', caseSensitive: false), (_) => 'Pharmacy');
+    tryExtract(RegExp(r'warehouse', caseSensitive: false), (_) => 'Warehouse');
+    tryExtract(RegExp(r'assembly', caseSensitive: false), (_) => 'Assembly');
+    tryExtract(RegExp(r'conference\s*room', caseSensitive: false), (_) => 'Conference Room');
+    tryExtract(RegExp(r'cafeteria', caseSensitive: false), (_) => 'Cafeteria');
+    tryExtract(RegExp(r'pantry', caseSensitive: false), (_) => 'Pantry');
+    tryExtract(RegExp(r'auditorium', caseSensitive: false), (_) => 'Auditorium');
+    tryExtract(RegExp(r'entrance', caseSensitive: false), (_) => 'Entrance');
+    tryExtract(RegExp(r'exit', caseSensitive: false), (_) => 'Exit');
+
+    extractedLocationsWithIndex.sort((a, b) => a.index.compareTo(b.index));
+    final extractedLocations = <String>[];
+    for (final item in extractedLocationsWithIndex) {
+      if (!extractedLocations.any((e) => e.toLowerCase() == item.name.toLowerCase())) {
+        extractedLocations.add(item.name);
+      }
+    }
 
     // Detect interval or clock alarm trigger from prompt
     String startTrigger = 'manual';
@@ -1131,33 +1160,167 @@ Your task is to convert human natural language workflow instructions into a comp
       };
     }
 
-    // 5. Generic Patrol / Inspection / Multi-Stop Sequence
-    final wp1 = extractedLocations.isNotEmpty ? extractedLocations[0] : (availableWaypoints.isNotEmpty ? availableWaypoints[0] : 'Reception');
-    final wp2 = extractedLocations.length > 1 ? extractedLocations[1] : (availableWaypoints.length > 1 ? availableWaypoints[1] : 'Lab');
+    // 5. Universal Dynamic Multi-Stop Workflow Synthesizer:
+    // Dynamically builds a robust, safe, multi-stop mission for ANY industry
+    // (Restaurants, Hotels, Corporate Offices, Warehouses, Airports, Hospitals, Retail, Data Centers).
+    final intermediateLocations = extractedLocations
+        .where((l) => !l.toLowerCase().contains('dock') && !l.toLowerCase().contains('charger'))
+        .toList();
 
+    if (intermediateLocations.isEmpty) {
+      if (availableWaypoints.isNotEmpty) {
+        intermediateLocations.addAll(
+          availableWaypoints.where((w) => !w.toLowerCase().contains('dock') && !w.toLowerCase().contains('charger')).take(3),
+        );
+      }
+      if (intermediateLocations.isEmpty) {
+        intermediateLocations.addAll(['Waypoint A', 'Waypoint B']);
+      }
+    }
+
+    final hasQuestion = lower.contains('ask') || lower.contains('check') || lower.contains('inquire') || lower.contains('choice');
+    final hasForm = lower.contains('form') || lower.contains('sign') || lower.contains('feedback') || lower.contains('collect') || lower.contains('log') || lower.contains('receipt');
+    final hasSpeech = lower.contains('speak') || lower.contains('say') || lower.contains('announce') || lower.contains('greet') || lower.contains('tell');
+    final hasWait = lower.contains('wait') || lower.contains('delay') || lower.contains('pause') || lower.contains('scan');
+
+    int waitSeconds = 5;
+    final waitMatch = RegExp(r'wait\s+(\d+)\s*(s|sec|seconds?)?', caseSensitive: false).firstMatch(prompt);
+    if (waitMatch != null) {
+      waitSeconds = int.tryParse(waitMatch.group(1) ?? '5') ?? 5;
+    }
+
+    final nodes = <Map<String, dynamic>>[];
+    final edges = <Map<String, dynamic>>[];
+    int edgeCounter = 1;
+
+    void addEdge(String fromNode, String fromPort, String toNode, String toPort) {
+      edges.add({
+        'id': 'e_${edgeCounter++}',
+        'from_node': fromNode,
+        'from_port': fromPort,
+        'to_node': toNode,
+        'to_port': toPort,
+      });
+    }
+
+    // Common safety and termination nodes
+    nodes.add({'id': 'n_start', 'type': 'start', 'label': startLabel, 'params': startParams});
+    nodes.add({'id': 'n_bat', 'type': 'battery_guard', 'label': 'Battery Guard (>20%)', 'params': {'min_battery': 20.0}});
+    nodes.add({'id': 'n_dock_term', 'type': 'dock', 'label': 'Auto Dock to Charger', 'params': {}});
+    nodes.add({'id': 'n_end_term', 'type': 'end', 'label': 'Mission Finished', 'params': {}});
+
+    addEdge('n_start', 'next', 'n_bat', 'in');
+    addEdge('n_bat', 'low_battery', 'n_dock_term', 'in');
+    addEdge('n_dock_term', 'docked', 'n_end_term', 'in');
+    addEdge('n_dock_term', 'failed', 'n_end_term', 'in');
+
+    String currentFromNode = 'n_bat';
+    String currentFromPort = 'ok';
+
+    for (int i = 0; i < intermediateLocations.length; i++) {
+      final loc = intermediateLocations[i];
+      final navId = 'n_nav_$i';
+      nodes.add({
+        'id': navId,
+        'type': 'navigate_waypoint',
+        'label': 'Go to $loc',
+        'params': {'waypoint': loc, 'tolerance_m': 0.25},
+      });
+
+      addEdge(currentFromNode, currentFromPort, navId, 'in');
+      addEdge(navId, 'failed', 'n_dock_term', 'in');
+      addEdge(navId, 'timeout', 'n_dock_term', 'in');
+
+      String stopHeadNode = navId;
+      String stopHeadPort = 'arrived';
+
+      // Insert speech node at stop if requested
+      if (hasSpeech && (i == 0 || i == intermediateLocations.length - 1)) {
+        final speechId = 'n_speech_$i';
+        nodes.add({
+          'id': speechId,
+          'type': 'ui_speech',
+          'label': 'Announce at $loc',
+          'params': {'text': 'Arrived at $loc. Please proceed.', 'voice': 'female'},
+        });
+        addEdge(stopHeadNode, stopHeadPort, speechId, 'in');
+        stopHeadNode = speechId;
+        stopHeadPort = 'done';
+      }
+
+      // Insert user inquiry / choice node at stop if requested
+      if (hasQuestion && (i == 0 || i == intermediateLocations.length - 1)) {
+        final choiceId = 'n_choice_$i';
+        nodes.add({
+          'id': choiceId,
+          'type': 'ui_choice',
+          'label': '$loc Inquiry',
+          'params': {
+            'title': '$loc Check',
+            'message': 'Confirm action or request status at $loc.',
+            'options': ['Confirmed', 'Skip'],
+            'timeout_seconds': 60,
+          },
+        });
+        addEdge(stopHeadNode, stopHeadPort, choiceId, 'in');
+        addEdge(choiceId, 'skip', 'n_dock_term', 'in');
+        addEdge(choiceId, 'timeout', 'n_dock_term', 'in');
+        stopHeadNode = choiceId;
+        stopHeadPort = 'confirmed';
+      }
+
+      // Insert dynamic form / data collection node if requested
+      if (hasForm && i == intermediateLocations.length - 1) {
+        final formId = 'n_form_$i';
+        nodes.add({
+          'id': formId,
+          'type': 'ui_interaction',
+          'label': '$loc Receipt / Log',
+          'params': {
+            'title': '$loc Form',
+            'message': 'Confirm completion or enter details at $loc.',
+            'subtype': 'dynamic_form',
+            'fields': [
+              {'key': 'completed', 'label': 'Task Completed', 'type': 'switch', 'required': true, 'default_value': true},
+              {'key': 'notes', 'label': 'Notes / Comments', 'type': 'text', 'required': false},
+            ],
+            'timeout_seconds': 90,
+          },
+        });
+        addEdge(stopHeadNode, stopHeadPort, formId, 'in');
+        addEdge(formId, 'cancelled', 'n_dock_term', 'in');
+        addEdge(formId, 'timeout', 'n_dock_term', 'in');
+        stopHeadNode = formId;
+        stopHeadPort = 'submitted';
+      }
+
+      // Insert wait / scan delay if requested
+      if (hasWait) {
+        final waitId = 'n_wait_$i';
+        nodes.add({
+          'id': waitId,
+          'type': 'wait',
+          'label': 'Wait at $loc (${waitSeconds}s)',
+          'params': {'seconds': waitSeconds},
+        });
+        addEdge(stopHeadNode, stopHeadPort, waitId, 'in');
+        stopHeadNode = waitId;
+        stopHeadPort = 'next';
+      }
+
+      currentFromNode = stopHeadNode;
+      currentFromPort = stopHeadPort;
+    }
+
+    // Connect final stop to auto-dock
+    addEdge(currentFromNode, currentFromPort, 'n_dock_term', 'in');
+
+    final routeSummary = intermediateLocations.take(3).join(' -> ');
     return {
-      'name': 'Inspection & Patrol: $wp1 & $wp2',
-      'description': 'Patrol route with battery check, obstacle recovery, and dock completion.',
-      'nodes': [
-        {'id': 'n_start', 'type': 'start', 'label': startLabel, 'params': startParams},
-        {'id': 'n_bat', 'type': 'battery_guard', 'label': 'Battery Guard (>25%)', 'params': {'min_battery': 25.0}},
-        {'id': 'n_wp1', 'type': 'navigate_waypoint', 'label': 'Inspect $wp1', 'params': {'waypoint': wp1, 'tolerance_m': 0.25}},
-        {'id': 'n_wait', 'type': 'wait', 'label': 'Scan Area (5s)', 'params': {'seconds': 5}},
-        {'id': 'n_wp2', 'type': 'navigate_waypoint', 'label': 'Inspect $wp2', 'params': {'waypoint': wp2, 'tolerance_m': 0.25}},
-        {'id': 'n_dock', 'type': 'dock', 'label': 'Auto Dock', 'params': {}},
-        {'id': 'n_end', 'type': 'end', 'label': 'Mission Complete', 'params': {}},
-      ],
-      'edges': [
-        {'id': 'e_1', 'from_node': 'n_start', 'from_port': 'next', 'to_node': 'n_bat', 'to_port': 'in'},
-        {'id': 'e_2', 'from_node': 'n_bat', 'from_port': 'ok', 'to_node': 'n_wp1', 'to_port': 'in'},
-        {'id': 'e_3', 'from_node': 'n_bat', 'from_port': 'low_battery', 'to_node': 'n_dock', 'to_port': 'in'},
-        {'id': 'e_4', 'from_node': 'n_wp1', 'from_port': 'arrived', 'to_node': 'n_wait', 'to_port': 'in'},
-        {'id': 'e_5', 'from_node': 'n_wp1', 'from_port': 'failed', 'to_node': 'n_dock', 'to_port': 'in'},
-        {'id': 'e_6', 'from_node': 'n_wait', 'from_port': 'next', 'to_node': 'n_wp2', 'to_port': 'in'},
-        {'id': 'e_7', 'from_node': 'n_wp2', 'from_port': 'arrived', 'to_node': 'n_dock', 'to_port': 'in'},
-        {'id': 'e_8', 'from_node': 'n_wp2', 'from_port': 'failed', 'to_node': 'n_dock', 'to_port': 'in'},
-        {'id': 'e_9', 'from_node': 'n_dock', 'from_port': 'docked', 'to_node': 'n_end', 'to_port': 'in'},
-      ]
+      'name': 'Workflow: $routeSummary',
+      'description': 'Automated multi-stop workflow across ${intermediateLocations.join(', ')} with battery guard, obstacle recovery, and auto-docking.',
+      'nodes': nodes,
+      'edges': edges,
     };
   }
 
