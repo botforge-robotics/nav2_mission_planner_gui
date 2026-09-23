@@ -26,6 +26,7 @@ class MissionGraphCanvas extends StatefulWidget {
     required this.selectedNode,
     required this.onSelectNode,
     required this.onGraphChanged,
+    this.transformController,
     this.selectedEdge,
     this.onSelectEdge,
     this.onDeleteEdge,
@@ -41,6 +42,7 @@ class MissionGraphCanvas extends StatefulWidget {
   final ValueChanged<GraphEdge?>? onSelectEdge;
   final ValueChanged<GraphEdge>? onDeleteEdge;
   final VoidCallback onGraphChanged;
+  final TransformationController? transformController;
   final String? activeNodeId;
   final bool readOnly;
   final bool isRunning;
@@ -51,7 +53,12 @@ class MissionGraphCanvas extends StatefulWidget {
 
 class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     with SingleTickerProviderStateMixin {
-  final TransformationController _transformController = TransformationController();
+  TransformationController? _internalTransformController;
+  TransformationController get _effectiveTransformController =>
+      widget.transformController ?? (_internalTransformController ??= TransformationController());
+
+  double _canvasWidth = 8000;
+  double _canvasHeight = 8000;
   final GlobalKey _canvasKey = GlobalKey();
   late final AnimationController _flowAnimController;
 
@@ -106,14 +113,17 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
   @override
   void dispose() {
     _flowAnimController.dispose();
-    _transformController.dispose();
+    _internalTransformController?.dispose();
     super.dispose();
   }
 
   @override
   void didUpdateWidget(covariant MissionGraphCanvas oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.graph != widget.graph || oldWidget.graph.nodes.length != widget.graph.nodes.length) {
+    if (oldWidget.graph != widget.graph ||
+        oldWidget.graph.nodes.length != widget.graph.nodes.length ||
+        oldWidget.key != widget.key) {
+      _portOffsets.clear();
       WidgetsBinding.instance.addPostFrameCallback((_) => _updatePortOffsets());
     }
   }
@@ -145,6 +155,60 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     if (changed && mounted) {
       setState(() {});
     }
+  }
+
+  void _onNodeDrag(GraphNode node, Offset delta) {
+    setState(() {
+      node.position += delta;
+      for (final p in node.inputPorts) {
+        final k = '${node.id}_in_${p.id}';
+        if (_portOffsets.containsKey(k)) {
+          _portOffsets[k] = _portOffsets[k]! + delta;
+        }
+      }
+      for (final p in node.outputPorts) {
+        final k = '${node.id}_out_${p.id}';
+        if (_portOffsets.containsKey(k)) {
+          _portOffsets[k] = _portOffsets[k]! + delta;
+        }
+      }
+
+      // Dynamic headroom expansion when dragging near top or left edges:
+      // We translate all nodes and port offsets forward, and counter-shift the camera
+      // so there is zero visual movement while creating abundant new headroom.
+      double shiftX = 0;
+      double shiftY = 0;
+      if (node.position.dy < 80) {
+        shiftY = 320.0;
+      }
+      if (node.position.dx < 80) {
+        shiftX = 320.0;
+      }
+
+      if (shiftX > 0 || shiftY > 0) {
+        for (final n in widget.graph.nodes) {
+          n.position = Offset(n.position.dx + shiftX, n.position.dy + shiftY);
+        }
+        for (final k in _portOffsets.keys.toList()) {
+          _portOffsets[k] = _portOffsets[k]! + Offset(shiftX, shiftY);
+        }
+        final m = _effectiveTransformController.value.clone();
+        final sx = m.storage[0];
+        final sy = m.storage[5];
+        m.storage[12] -= shiftX * sx;
+        m.storage[13] -= shiftY * sy;
+        _effectiveTransformController.value = m;
+      }
+
+      // Expand bottom/right boundaries if user moves node further out
+      if (node.position.dx > _canvasWidth - 800) {
+        _canvasWidth += 2000;
+      }
+      if (node.position.dy > _canvasHeight - 800) {
+        _canvasHeight += 2000;
+      }
+    });
+    widget.onGraphChanged();
   }
 
   static bool _isTerminalBadge(GraphNode node) =>
@@ -669,9 +733,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         children: [
           // Infinite Grid + Edge Wire Painter
           InteractiveViewer(
-            transformationController: _transformController,
+            transformationController: _effectiveTransformController,
             constrained: false,
-            boundaryMargin: const EdgeInsets.all(3000),
+            boundaryMargin: const EdgeInsets.all(5000),
             minScale: 0.2,
             maxScale: 2.5,
             child: GestureDetector(
@@ -704,9 +768,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
               },
               child: SizedBox(
                 key: _canvasKey,
-                width: 5000,
-                height: 5000,
+                width: _canvasWidth,
+                height: _canvasHeight,
                 child: Stack(
+                  clipBehavior: Clip.none,
                   children: [
                     // Grid background
                     const Positioned.fill(
@@ -830,9 +895,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                     tooltip: 'Zoom In',
                     visualDensity: VisualDensity.compact,
                     onPressed: () {
-                      final matrix = _transformController.value.clone();
+                      final matrix = _effectiveTransformController.value.clone();
                       matrix.scaleByDouble(1.2, 1.2, 1.0, 1.0);
-                      _transformController.value = matrix;
+                      _effectiveTransformController.value = matrix;
                     },
                   ),
                   const Divider(height: 1, thickness: 1, color: AppColors.border),
@@ -841,9 +906,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                     tooltip: 'Zoom Out',
                     visualDensity: VisualDensity.compact,
                     onPressed: () {
-                      final matrix = _transformController.value.clone();
+                      final matrix = _effectiveTransformController.value.clone();
                       matrix.scaleByDouble(0.8, 0.8, 1.0, 1.0);
-                      _transformController.value = matrix;
+                      _effectiveTransformController.value = matrix;
                     },
                   ),
                   const Divider(height: 1, thickness: 1, color: AppColors.border),
@@ -852,7 +917,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                     tooltip: 'Reset View',
                     visualDensity: VisualDensity.compact,
                     onPressed: () {
-                      _transformController.value = Matrix4.identity();
+                      _effectiveTransformController.value = Matrix4.identity();
                     },
                   ),
                 ],
@@ -1000,16 +1065,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
               onPanUpdate: widget.readOnly
                   ? null
                   : (details) {
-                      setState(() {
-                        node.position += details.delta;
-                        for (final p in node.inputPorts) {
-                          final k = '${node.id}_in_${p.id}';
-                          if (_portOffsets.containsKey(k)) {
-                            _portOffsets[k] = _portOffsets[k]! + details.delta;
-                          }
-                        }
-                      });
-                      widget.onGraphChanged();
+                      _onNodeDrag(node, details.delta);
                     },
               onTap: () {
                 widget.onSelectNode(node);
@@ -1150,22 +1206,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       onPanUpdate: widget.readOnly
           ? null
           : (details) {
-              setState(() {
-                node.position += details.delta;
-                for (final p in node.inputPorts) {
-                  final k = '${node.id}_in_${p.id}';
-                  if (_portOffsets.containsKey(k)) {
-                    _portOffsets[k] = _portOffsets[k]! + details.delta;
-                  }
-                }
-                for (final p in node.outputPorts) {
-                  final k = '${node.id}_out_${p.id}';
-                  if (_portOffsets.containsKey(k)) {
-                    _portOffsets[k] = _portOffsets[k]! + details.delta;
-                  }
-                }
-              });
-              widget.onGraphChanged();
+              _onNodeDrag(node, details.delta);
             },
       onTap: () {
         widget.onSelectNode(node);

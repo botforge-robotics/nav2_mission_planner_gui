@@ -67,6 +67,10 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   late final TextEditingController _nodeSearchController;
   late final TextEditingController _variableSearchController;
 
+  final TransformationController _canvasTransformController = TransformationController();
+  final GlobalKey _canvasContainerKey = GlobalKey();
+  int _canvasRevision = 0;
+
   SdkApiService? get _api {
     final ip = context.read<ConnectionProvider>().robot?.ip;
     return ip == null ? null : SdkApiService(ip);
@@ -126,6 +130,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     _nameFocusNode.dispose();
     _nodeSearchController.dispose();
     _variableSearchController.dispose();
+    _canvasTransformController.dispose();
     super.dispose();
   }
 
@@ -604,14 +609,26 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     );
   }
 
-  void _addNodeFromCatalog(String type) {
+  void _addNodeFromCatalog(String type, {Offset? position}) {
     final timestamp = DateTime.now().millisecondsSinceEpoch.remainder(10000);
     final newId = '${type}_$timestamp';
-    Offset pos = const Offset(280, 200);
+    Offset pos;
 
-    if (_graph.nodes.isNotEmpty) {
-      final last = _graph.nodes.last;
-      pos = Offset(last.position.dx + 60, last.position.dy + 60);
+    if (position != null) {
+      pos = position;
+    } else {
+      final containerBox = _canvasContainerKey.currentContext?.findRenderObject() as RenderBox?;
+      if (containerBox != null && containerBox.hasSize) {
+        final vpCenter = Offset(containerBox.size.width / 2.0, containerBox.size.height / 2.0);
+        final sceneCenter = _canvasTransformController.toScene(vpCenter);
+        final jitter = (_graph.nodes.length % 5) * 16.0;
+        pos = Offset(sceneCenter.dx - 110 + jitter, sceneCenter.dy - 35 + jitter);
+      } else if (_graph.nodes.isNotEmpty) {
+        final last = _graph.nodes.last;
+        pos = Offset(last.position.dx + 40, last.position.dy + 40);
+      } else {
+        pos = const Offset(280, 200);
+      }
     }
 
     Map<String, dynamic> defaultParams = {};
@@ -927,29 +944,46 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     _buildRobotInteractionBanner(),
                   Expanded(
                     child: Stack(
+                      key: _canvasContainerKey,
                       children: [
                         Positioned.fill(
-                          child: MissionGraphCanvas(
-                            key: ValueKey(_graph.id),
-                            graph: _graph,
-                            selectedNode: _selectedNode,
-                            selectedEdge: _selectedEdge,
-                            activeNodeId: _activeNodeId,
-                            isRunning: _running,
-                            onSelectNode: (node) => setState(() {
-                              _selectedNode = node;
-                              if (node != null) _selectedEdge = null;
-                            }),
-                            onSelectEdge: (edge) => setState(() {
-                              _selectedEdge = edge;
-                              if (edge != null) _selectedNode = null;
-                            }),
-                            onDeleteEdge: (edge) => setState(() {
-                              _graph.edges.remove(edge);
-                              _selectedEdge = null;
-                            }),
-                            onGraphChanged: () {
-                              setState(() {});
+                          child: DragTarget<String>(
+                            onWillAcceptWithDetails: (details) => true,
+                            onAcceptWithDetails: (details) {
+                              final containerBox = _canvasContainerKey.currentContext?.findRenderObject() as RenderBox?;
+                              if (containerBox != null && containerBox.hasSize) {
+                                final localOffset = containerBox.globalToLocal(details.offset);
+                                final scenePos = _canvasTransformController.toScene(localOffset);
+                                _addNodeFromCatalog(details.data, position: scenePos);
+                              } else {
+                                _addNodeFromCatalog(details.data);
+                              }
+                            },
+                            builder: (context, candidateData, rejectedData) {
+                              return MissionGraphCanvas(
+                                key: ValueKey('${_graph.id}_$_canvasRevision'),
+                                transformController: _canvasTransformController,
+                                graph: _graph,
+                                selectedNode: _selectedNode,
+                                selectedEdge: _selectedEdge,
+                                activeNodeId: _activeNodeId,
+                                isRunning: _running,
+                                onSelectNode: (node) => setState(() {
+                                  _selectedNode = node;
+                                  if (node != null) _selectedEdge = null;
+                                }),
+                                onSelectEdge: (edge) => setState(() {
+                                  _selectedEdge = edge;
+                                  if (edge != null) _selectedNode = null;
+                                }),
+                                onDeleteEdge: (edge) => setState(() {
+                                  _graph.edges.remove(edge);
+                                  _selectedEdge = null;
+                                }),
+                                onGraphChanged: () {
+                                  setState(() {});
+                                },
+                              );
                             },
                           ),
                         ),
@@ -1317,7 +1351,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           onPressed: () {
             setState(() {
               AiMissionAgentService.applyCleanGraphLayout(_graph);
+              _canvasRevision++;
             });
+            _centerCanvasOnMission();
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Graph layout neatly aligned and reorganized.'),
@@ -1372,6 +1408,23 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         const SizedBox(width: 16),
       ],
     );
+  }
+
+  void _centerCanvasOnMission() {
+    final startNode = _graph.nodes.cast<GraphNode?>().firstWhere(
+      (n) => n?.type == 'start',
+      orElse: () => _graph.nodes.isNotEmpty ? _graph.nodes.first : null,
+    );
+    if (startNode != null) {
+      final containerBox = _canvasContainerKey.currentContext?.findRenderObject() as RenderBox?;
+      final vpH = (containerBox != null && containerBox.hasSize) ? containerBox.size.height : 600.0;
+      final targetTx = 80.0 - startNode.position.dx;
+      final targetTy = (vpH / 2.0) - startNode.position.dy;
+      final matrix = Matrix4.identity();
+      matrix.storage[12] = targetTx;
+      matrix.storage[13] = targetTy;
+      _canvasTransformController.value = matrix;
+    }
   }
 
   static const List<Map<String, dynamic>> _catalogCategories = [
@@ -1698,42 +1751,104 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     );
   }
 
+  Widget _buildPaletteCardContent(_PaletteItem item) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      margin: const EdgeInsets.symmetric(vertical: 2.5),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceElevated,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: item.color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(item.icon, size: 16, color: item.color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+                Text(item.subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+              ],
+            ),
+          ),
+          const Icon(Icons.add_rounded, size: 18, color: AppColors.textTertiary),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPaletteCard(_PaletteItem item) {
-    return InkWell(
-      onTap: () => _addNodeFromCatalog(item.type),
-      borderRadius: BorderRadius.circular(10),
-      hoverColor: AppColors.surfaceSunken,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-        margin: const EdgeInsets.symmetric(vertical: 2.5),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: item.color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(6),
+    return Draggable<String>(
+      data: item.type,
+      feedback: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: 210,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: item.color, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: item.color.withValues(alpha: 0.35),
+                blurRadius: 16,
+                spreadRadius: 2,
               ),
-              child: Icon(item.icon, size: 16, color: item.color),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
-                  Text(item.subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
-                ],
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: item.color.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(item.icon, size: 18, color: item.color),
               ),
-            ),
-            const Icon(Icons.add_rounded, size: 18, color: AppColors.textTertiary),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      item.subtitle,
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+      childWhenDragging: Opacity(
+        opacity: 0.35,
+        child: _buildPaletteCardContent(item),
+      ),
+      child: InkWell(
+        onTap: () => _addNodeFromCatalog(item.type),
+        borderRadius: BorderRadius.circular(10),
+        hoverColor: AppColors.surfaceSunken,
+        child: _buildPaletteCardContent(item),
       ),
     );
   }

@@ -1576,42 +1576,33 @@ Output only the JSON object starting with { and ending with }. Do not include ma
       }
     }
 
-    // 1. Longest-path depth calculation along the primary mission timeline
+    // 1. Compute proper topological longest-path depth along all valid DAG edges
     final depths = <String, int>{startNode.id: 0};
-    final queue = <String>[startNode.id];
-
-    while (queue.isNotEmpty) {
-      final cur = queue.removeAt(0);
-      final curDepth = depths[cur]!;
-      for (final next in happyOutgoing[cur] ?? []) {
-        final currentKnown = depths[next] ?? -1;
-        if (currentKnown < curDepth + 1) {
-          depths[next] = curDepth + 1;
-          queue.add(next);
+    bool relaxed = true;
+    int maxPasses = nodesMap.length * 2;
+    while (relaxed && maxPasses-- > 0) {
+      relaxed = false;
+      for (final e in edges) {
+        if (!nodesMap.containsKey(e.fromNode) || !nodesMap.containsKey(e.toNode)) continue;
+        final fromD = depths[e.fromNode];
+        if (fromD != null) {
+          final toD = depths[e.toNode];
+          if (toD == null || toD < fromD + 1) {
+            depths[e.toNode] = fromD + 1;
+            relaxed = true;
+          }
         }
       }
     }
 
-    // Assign any unvisited or recovery nodes adjacent to their predecessors
-    // so localized abort / failure / branches remain beside their source!
+    // Assign any unvisited/disconnected islands
     int maxDepth = 0;
     for (final d in depths.values) {
       if (d > maxDepth) maxDepth = d;
     }
-    for (final id in nodesMap.keys) {
-      if (!depths.containsKey(id)) {
-        final preds = incoming[id] ?? [];
-        int maxPredDepth = 0;
-        for (final p in preds) {
-          final pd = depths[p];
-          if (pd != null && pd > maxPredDepth) {
-            maxPredDepth = pd;
-          }
-        }
-        depths[id] = maxPredDepth + 1;
-        if (depths[id]! > maxDepth) {
-          maxDepth = depths[id]!;
-        }
+    for (final node in graph.nodes) {
+      if (!depths.containsKey(node.id)) {
+        depths[node.id] = 0;
       }
     }
 
