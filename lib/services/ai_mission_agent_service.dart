@@ -314,7 +314,7 @@ class AiMissionAgentService {
     request.fields['response_format'] = 'json';
     request.fields['temperature'] = '0.0';
     request.fields['prompt'] =
-        'NavPro Mini autonomous mobile robot mission planner, waypoint navigation, docking, battery guard, condition branch, UI dialog, medicine delivery, patrol, relocalize';
+        'NavPro Mini AMR AI workflow assistant, waypoint navigation, docking, battery guard, condition branch, UI dialog, medicine delivery, patrol, relocalize';
 
     final audioFile = await http.MultipartFile.fromPath('file', audioPath);
     request.files.add(audioFile);
@@ -383,8 +383,8 @@ class AiMissionAgentService {
         : 'Dock, Pharmacy, Room 101, Room 102, Triage, Nurse Station, Reception, Lab';
 
     return '''
-You are the Autonomous Robotics Mission Architect AI for NavPro Mini AMR.
-Your task is to convert human natural language mission descriptions into a complete, safe, and executable Mission Graph JSON.
+You are the NavPro AI Workflow Assistant for NavPro Mini Autonomous Mobile Robots (AMR).
+Your task is to convert human natural language workflow instructions into a complete, safe, and executable Mission Graph JSON for NavPro Mini AMR.
 
 ### KNOWN WAYPOINTS ON CURRENT MAP:
 [$wpList]

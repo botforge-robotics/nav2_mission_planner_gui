@@ -929,7 +929,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Text(
-                                          'Generated "${newGraph.name}" (${newGraph.nodes.length} nodes, ${newGraph.edges.length} edges).',
+                                          'Workflow generated: "${newGraph.name}" (${newGraph.nodes.length} nodes, ${newGraph.edges.length} edges).',
                                           style: const TextStyle(
                                             color: AppColors.textPrimary,
                                             fontSize: 13,

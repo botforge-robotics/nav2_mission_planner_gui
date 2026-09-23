@@ -356,7 +356,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                             mainAxisSize: MainAxisSize.min,
                             children: const [
                               Text(
-                                'AI Mission Agent Settings',
+                                'AI Workflow Assistant Settings',
                                 style: TextStyle(
                                   color: AppColors.textPrimary,
                                   fontSize: 16,
@@ -366,7 +366,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                               ),
                               SizedBox(height: 1),
                               Text(
-                                'Configure LLM agent credentials & inference endpoint for live workflow synthesis',
+                                'Configure LLM provider credentials & voice models for live AMR workflow synthesis',
                                 style: TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 12,

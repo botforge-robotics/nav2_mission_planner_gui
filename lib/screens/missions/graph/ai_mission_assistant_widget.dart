@@ -317,7 +317,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                     ),
                     const SizedBox(width: 10),
                     const Text(
-                      'AI Mission Agent',
+                      'AI Workflow Assistant',
                       style: TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
@@ -333,7 +333,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Text(
-                        'PROMPT',
+                        'WORKFLOW',
                         style: TextStyle(
                           color: AppColors.primary,
                           fontSize: 9.5,
@@ -434,7 +434,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                       mainAxisSize: MainAxisSize.min,
                       children: const [
                         Text(
-                          'AI Mission Architect',
+                          'AI Workflow Assistant',
                           style: TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 14.5,
@@ -444,7 +444,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                         ),
                         SizedBox(height: 1),
                         Text(
-                          'Text or voice prompt synthesis',
+                          'Synthesize autonomous robot workflows from voice or text',
                           style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 11.5,
@@ -493,7 +493,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                       Icon(Icons.lightbulb_outline, size: 13, color: AppColors.textSecondary),
                       SizedBox(width: 4),
                       Text(
-                        'QUICK TEMPLATES',
+                        'SAMPLE AMR WORKFLOWS',
                         style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 10.5,
@@ -643,7 +643,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                             height: 1.4,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Type or click mic to speak (e.g. Go to pharmacy, ask for medicines for room 102, if yes deliver and collect feedback, if no dock)...',
+                            hintText: 'Describe your robot workflow or speak via mic (e.g. Go to pharmacy, ask if room 102 medicines are ready, if yes deliver and collect feedback, if no dock)...',
                             hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12.5),
                             contentPadding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
                             border: InputBorder.none,
@@ -736,7 +736,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                       )
                                     : const Icon(Icons.play_arrow_rounded, size: 18),
                                 label: Text(
-                                  _isGenerating ? 'Synthesizing...' : 'Build Mission',
+                                  _isGenerating ? 'Synthesizing...' : 'Generate Workflow',
                                   style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
                                 ),
                               ),
