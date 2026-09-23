@@ -316,7 +316,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                     ),
                     const SizedBox(width: 10),
                     const Text(
-                      'AI Workflow Assistant',
+                      'AI Workflow Assistant (Preview)',
                       style: TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
@@ -332,7 +332,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Text(
-                        'WORKFLOW',
+                        'PREVIEW',
                         style: TextStyle(
                           color: AppColors.primary,
                           fontSize: 9.5,
@@ -433,7 +433,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                       mainAxisSize: MainAxisSize.min,
                       children: const [
                         Text(
-                          'AI Workflow Assistant',
+                          'AI Workflow Assistant (Preview)',
                           style: TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 14.5,
@@ -443,7 +443,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                         ),
                         SizedBox(height: 1),
                         Text(
-                          'Synthesize autonomous robot workflows from voice or text',
+                          'Preview version — review synthesized nodes and safety fallbacks before execution',
                           style: TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 11.5,
