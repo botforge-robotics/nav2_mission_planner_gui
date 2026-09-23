@@ -715,23 +715,48 @@ Your task is to convert human natural language workflow instructions into a comp
             ? config.model
             : config.provider.defaultModels.first;
 
-        final shouldPassJsonFormat = config.provider != AiProvider.perplexity;
+        // Groq LPU and Perplexity have issues with strict constrained JSON grammar mode
+        // Groq throws 400 'Failed to generate JSON. See failed_generation' when response_format is passed with complex schemas.
+        final shouldPassJsonFormat = config.provider != AiProvider.perplexity &&
+            config.provider != AiProvider.groq;
+
+        final userContent = '''$userPrompt
+
+IMPORTANT: Respond with a valid JSON object only, conforming strictly to the Mission Graph JSON schema. Start directly with { and end with }. Do not include markdown backticks or commentary outside the JSON.''';
 
         final bodyMap = <String, dynamic>{
           'model': model,
           'messages': [
             {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': userPrompt}
+            {'role': 'user', 'content': userContent}
           ],
-          'temperature': 0.2,
+          'temperature': 0.1,
+          'max_tokens': 4096,
           if (shouldPassJsonFormat) 'response_format': {'type': 'json_object'},
         };
 
-        final resp = await http.post(
+        var resp = await http.post(
           url,
           headers: headers,
           body: jsonEncode(bodyMap),
         ).timeout(const Duration(seconds: 60));
+
+        // If provider rejected strict JSON mode (e.g. Groq 400 "Failed to generate JSON" or "json_validate_failed"),
+        // automatically retry once without response_format since _extractJsonFromLlmOutput robustly parses JSON from text.
+        if (resp.statusCode == 400 &&
+            (resp.body.contains('Failed to generate JSON') ||
+                resp.body.contains('json_validate_failed') ||
+                resp.body.contains('failed_generation') ||
+                resp.body.contains('response_format') ||
+                resp.body.contains('schema'))) {
+          debugPrint('[AI Agent] Provider rejected response_format: ${resp.body}. Retrying without response_format...');
+          bodyMap.remove('response_format');
+          resp = await http.post(
+            url,
+            headers: headers,
+            body: jsonEncode(bodyMap),
+          ).timeout(const Duration(seconds: 60));
+        }
 
         if (resp.statusCode != 200) {
           String errMsg = resp.body;
