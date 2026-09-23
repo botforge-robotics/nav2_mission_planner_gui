@@ -1450,8 +1450,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     {
       'title': 'Charging & Movement',
       'items': [
-        _PaletteItem('dock_and_end', 'Dock & Finish', 'Dock at charger and complete mission', Icons.battery_charging_full_rounded, Color(0xFF10B981)),
-        _PaletteItem('dock', 'Go to Charger', 'Drive to dock and start charging', Icons.battery_charging_full, Color(0xFF16A34A)),
+        _PaletteItem('dock_and_end', 'Dock & Finish', 'Dock at charger and complete mission', Icons.charging_station_rounded, Color(0xFF10B981)),
+        _PaletteItem('dock', 'Go to Charger', 'Drive to dock and start charging', Icons.charging_station_rounded, Color(0xFF16A34A)),
         _PaletteItem('undock', 'Leave Charger', 'Safely back away from dock', Icons.power_settings_new, Color(0xFF059669)),
         _PaletteItem('jog_motion', 'Nudge / Turn Wheels', 'Drive forward/back or turn briefly', Icons.gamepad_outlined, Color(0xFFD97706)),
         _PaletteItem('emergency_stop', 'Safety Stop (E-Stop)', 'Immediately cut motor power', Icons.warning_amber_rounded, Color(0xFFDC2626)),
@@ -1461,8 +1461,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       'title': 'Rules & Flow Control',
       'items': [
         _PaletteItem('start', 'Start Mission', 'Where the mission begins', Icons.play_circle_outline, Color(0xFF16A34A)),
-        _PaletteItem('dock_and_end', 'Dock & Finish', 'Dock at charger and complete mission', Icons.battery_charging_full_rounded, Color(0xFF10B981)),
-        _PaletteItem('end', 'Finish Mission', 'Complete mission and stop safely', Icons.stop_circle_outlined, Color(0xFFDC2626)),
+        _PaletteItem('dock_and_end', 'Dock & Finish', 'Dock at charger and complete mission', Icons.charging_station_rounded, Color(0xFF10B981)),
+        _PaletteItem('end', 'Finish Mission', 'Complete mission and stop safely', Icons.task_alt_rounded, Color(0xFF0D9488)),
         _PaletteItem('loop', 'Repeat Steps', 'Repeat connected steps multiple times', Icons.loop_rounded, Color(0xFF7C3AED)),
         _PaletteItem('parallel', 'Run in Parallel', 'Execute multiple steps simultaneously', Icons.call_split_rounded, Color(0xFF00ACC1)),
         _PaletteItem('condition', 'Check / If-Else', 'Branch path based on condition', Icons.alt_route, Color(0xFFEA580C)),

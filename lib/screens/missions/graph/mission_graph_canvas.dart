@@ -228,52 +228,65 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     return _isTerminalBadge(node) ? _terminalBadgeSize : _compactNodeDiameter;
   }
 
-  static Offset _calculatePortRelativeOffset({
+  static double _calculatePortAngle({
     required GraphNode node,
     required bool isInput,
     required String portId,
   }) {
-    final double d = _isTerminalBadge(node) ? _terminalBadgeSize : _compactNodeDiameter;
     final side = isInput ? node.inputSide : node.outputSide;
     final ports = isInput ? node.inputPorts : node.outputPorts;
     final portIndex = ports.indexWhere((p) => p.id == portId);
     final idx = portIndex >= 0 ? portIndex : 0;
     final totalPorts = ports.length;
 
-    final double center = d / 2.0;
-    // Generous edge padding so connector dots are spaced widely along the edge
-    final double padStart = _isTerminalBadge(node) ? 14.0 : 16.0;
-    final double padEnd = d - padStart;
-    final double spread = padEnd - padStart;
-
-    final double pos = totalPorts <= 1 ? center : padStart + (idx / (totalPorts - 1)) * spread;
-
+    // Base angle pointing perpendicular to the side (in radians)
+    // 0 = East (right), pi/2 = South (bottom), pi = West (left), -pi/2 = North (top)
+    double baseAngle;
     switch (side) {
-      case 'left':
-        return Offset(0.0, pos);
-      case 'right':
-        return Offset(d, pos);
       case 'top':
-        return Offset(pos, 0.0);
+        baseAngle = -math.pi / 2.0;
+        break;
       case 'bottom':
+        baseAngle = math.pi / 2.0;
+        break;
+      case 'left':
+        baseAngle = math.pi;
+        break;
+      case 'right':
       default:
-        return Offset(pos, d);
+        baseAngle = 0.0;
+        break;
     }
+
+    if (totalPorts <= 1) {
+      return baseAngle;
+    }
+
+    // Spread ports symmetrically along the circular circumference arc.
+    // 32 degrees spacing provides generous, beautiful separation between connector pins.
+    const double stepRad = 32.0 * (math.pi / 180.0);
+    final double startAngle = baseAngle - ((totalPorts - 1) / 2.0) * stepRad;
+    return startAngle + idx * stepRad;
   }
 
-  static Offset _getSideNormal(String side) {
-    switch (side) {
-      case 'left':
-        return const Offset(-1.0, 0.0);
-      case 'right':
-        return const Offset(1.0, 0.0);
-      case 'top':
-        return const Offset(0.0, -1.0);
-      case 'bottom':
-        return const Offset(0.0, 1.0);
-      default:
-        return const Offset(1.0, 0.0);
-    }
+  static Offset _calculatePortRelativeOffset({
+    required GraphNode node,
+    required bool isInput,
+    required String portId,
+  }) {
+    final double d = _isTerminalBadge(node) ? _terminalBadgeSize : _compactNodeDiameter;
+    final double r = d / 2.0;
+    final double cx = r;
+    final double cy = r;
+
+    // Position mathematically on the circle's circumference: (cx + r*cos(θ), cy + r*sin(θ))
+    final angle = _calculatePortAngle(node: node, isInput: isInput, portId: portId);
+    return Offset(cx + r * math.cos(angle), cy + r * math.sin(angle));
+  }
+
+  static Offset _getPortNormal(GraphNode node, String portId, bool isInput) {
+    final angle = _calculatePortAngle(node: node, isInput: isInput, portId: portId);
+    return Offset(math.cos(angle), math.sin(angle));
   }
 
   static Offset _estimatePortOffsetStatic(GraphNode node, String portId, bool isInput) {
@@ -634,8 +647,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       layouts[edge.id] = _EdgeRouteLayout(
         p1: p1,
         p2: p2,
-        dir1: _getSideNormal(fromNode.outputSide),
-        dir2: _getSideNormal(toNode.inputSide),
+        dir1: _getPortNormal(fromNode, edge.fromPort, false),
+        dir2: _getPortNormal(toNode, edge.toPort, true),
         corridorOffset: corridorOffset,
         loopLaneOffset: loopLaneOffset,
         totalInSource: totalInSource,
@@ -1368,13 +1381,15 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         ? const Color(0xFFEF4444)
         : (dockOnEnd ? const Color(0xFF10B981) : const Color(0xFF0D9488));
 
+    // Clear, distinct icons for Dock & Finish, Finish, and Abort
     final IconData badgeIcon = isAborted
         ? Icons.stop_rounded
-        : (dockOnEnd ? Icons.battery_charging_full_rounded : Icons.flag_rounded);
+        : (dockOnEnd ? Icons.charging_station_rounded : Icons.task_alt_rounded);
 
-    final String badgeLabel = isAborted
+    final String defaultLabel = isAborted
         ? 'ABORT'
-        : (dockOnEnd ? 'DOCK & END' : 'FINISH');
+        : (dockOnEnd ? 'DOCK & FINISH' : 'FINISH');
+    final String badgeLabel = node.label.isNotEmpty ? node.label : defaultLabel;
 
     final glowAlpha = 0.25 + 0.35 * pulse;
     final glowBlur = 12.0 + 8.0 * pulse;
@@ -1388,7 +1403,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            // Circular Badge Sunk Button
+            // 1. Circular Badge Sunk Button
             GestureDetector(
               onPanUpdate: widget.readOnly
                   ? null
@@ -1402,71 +1417,81 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
               onSecondaryTapDown: (details) {
                 _showNodeContextMenu(context, node, details.globalPosition);
               },
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: badgeSize,
-                    height: badgeSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.surface,
-                      border: Border.all(
-                        color: isActive
-                            ? Color.lerp(AppColors.primary, AppColors.primaryLight, pulse)!
-                            : isSelected
-                                ? AppColors.primary
-                                : badgeColor,
-                        width: isSelected || isActive ? 2.6 : 2.0,
-                      ),
-                      boxShadow: [
-                        if (isActive)
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: glowAlpha),
-                            blurRadius: glowBlur,
-                            spreadRadius: 2.0 * pulse,
-                          )
-                        else if (isSelected)
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 2),
-                          )
-                        else
-                          BoxShadow(
-                            color: badgeColor.withValues(alpha: 0.18),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Icon(badgeIcon, size: 28, color: badgeColor),
-                    ),
+              child: Container(
+                width: badgeSize,
+                height: badgeSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.surface,
+                  border: Border.all(
+                    color: isActive
+                        ? Color.lerp(AppColors.primary, AppColors.primaryLight, pulse)!
+                        : isSelected
+                            ? AppColors.primary
+                            : badgeColor,
+                    width: isSelected || isActive ? 2.6 : 2.0,
                   ),
-                  const SizedBox(height: 3),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: badgeColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: badgeColor.withValues(alpha: 0.35),
-                        width: 0.8,
+                  boxShadow: [
+                    if (isActive)
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: glowAlpha),
+                        blurRadius: glowBlur,
+                        spreadRadius: 2.0 * pulse,
+                      )
+                    else if (isSelected)
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 2),
+                      )
+                    else
+                      BoxShadow(
+                        color: badgeColor.withValues(alpha: 0.18),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
-                    child: Text(
-                      badgeLabel,
-                      style: TextStyle(
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.w800,
-                        color: badgeColor,
-                        letterSpacing: 0.4,
-                      ),
-                      maxLines: 1,
-                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Icon(badgeIcon, size: 28, color: badgeColor),
+                ),
+              ),
+            ),
+
+            // 2. Complete Unclipped Label Underneath (centered, generous width)
+            Positioned(
+              top: badgeSize + 5.0,
+              left: -(130.0 - badgeSize) / 2.0,
+              width: 130.0,
+              child: Center(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 126),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.surfaceElevated
+                        : AppColors.surface.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(5),
+                    border: isSelected
+                        ? Border.all(color: AppColors.primary.withValues(alpha: 0.8), width: 1.2)
+                        : Border.all(color: badgeColor.withValues(alpha: 0.4), width: 0.8),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black12, blurRadius: 3, offset: Offset(0, 1)),
+                    ],
                   ),
-                ],
+                  child: Text(
+                    badgeLabel,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: isSelected ? AppColors.primary : badgeColor,
+                      letterSpacing: 0.3,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ),
             ),
 
@@ -1560,15 +1585,21 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
 
     return KeyedSubtree(
       key: gKey,
-      child: Tooltip(
-        message: '${isInput ? "⬤ In" : "◯ Out"}: ${port.label}',
-        waitDuration: Duration.zero,
-        preferBelow: false,
-        textStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
+      child: MouseRegion(
+        cursor: isHoverInvalid
+            ? SystemMouseCursors.forbidden
+            : (isHoverValid ? SystemMouseCursors.click : SystemMouseCursors.precise),
+        hitTestBehavior: HitTestBehavior.opaque,
+        onEnter: (_) {
+          if (_hoveredPortKey != portKey) {
+            setState(() => _hoveredPortKey = portKey);
+          }
+        },
+        onExit: (_) {
+          if (_hoveredPortKey == portKey) {
+            setState(() => _hoveredPortKey = null);
+          }
+        },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onPanStart: widget.readOnly
@@ -1614,119 +1645,104 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
               : () {
                   _cancelWireDrawing();
                 },
-          child: MouseRegion(
-            cursor: isHoverInvalid
-                ? SystemMouseCursors.forbidden
-                : (isHoverValid ? SystemMouseCursors.click : SystemMouseCursors.precise),
-            onEnter: (_) {
-              if (_hoveredPortKey != portKey) {
-                setState(() => _hoveredPortKey = portKey);
-              }
-            },
-            onExit: (_) {
-              if (_hoveredPortKey == portKey) {
-                setState(() => _hoveredPortKey = null);
-              }
-            },
-            child: SizedBox(
-              width: 18.0,
-              height: 18.0,
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  // Animated Connector Pin Circle
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: pinSize,
-                    height: pinSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.surface,
-                      border: Border.all(
-                        color: activeColor,
-                        width: (isHovered || isBeingDrawnFrom || isMouseOver) ? 2.6 : 2.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (isHovered || isBeingDrawnFrom || isMouseOver)
-                              ? activeColor.withValues(alpha: 0.5)
-                              : activeColor.withValues(alpha: 0.25),
-                          blurRadius: (isHovered || isBeingDrawnFrom || isMouseOver) ? 8 : 4,
-                          spreadRadius: (isHovered || isBeingDrawnFrom || isMouseOver) ? 1.5 : 0.5,
-                        ),
-                      ],
+          child: SizedBox(
+            width: 18.0,
+            height: 18.0,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                // Animated Connector Pin Circle
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: pinSize,
+                  height: pinSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.surface,
+                    border: Border.all(
+                      color: activeColor,
+                      width: (isHovered || isBeingDrawnFrom || isMouseOver) ? 2.6 : 2.2,
                     ),
-                    child: Center(
-                      child: Container(
-                        width: (isHovered || isBeingDrawnFrom || isMouseOver) ? 9.0 : 7.0,
-                        height: (isHovered || isBeingDrawnFrom || isMouseOver) ? 9.0 : 7.0,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: activeColor,
-                        ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (isHovered || isBeingDrawnFrom || isMouseOver)
+                            ? activeColor.withValues(alpha: 0.5)
+                            : activeColor.withValues(alpha: 0.25),
+                        blurRadius: (isHovered || isBeingDrawnFrom || isMouseOver) ? 8 : 4,
+                        spreadRadius: (isHovered || isBeingDrawnFrom || isMouseOver) ? 1.5 : 0.5,
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: (isHovered || isBeingDrawnFrom || isMouseOver) ? 9.0 : 7.0,
+                      height: (isHovered || isBeingDrawnFrom || isMouseOver) ? 9.0 : 7.0,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: activeColor,
                       ),
                     ),
                   ),
+                ),
 
-                  // Instant Hover Callout Badge (shows port name with 0ms delay!)
-                  if (isActivelyHovered)
-                    Positioned(
-                      left: side == 'right' ? 24.0 : (side == 'left' ? null : -50.0),
-                      right: side == 'left' ? 24.0 : null,
-                      top: side == 'bottom' ? 24.0 : (side == 'top' ? null : -4.0),
-                      bottom: side == 'top' ? 24.0 : null,
-                      child: IgnorePointer(
-                        child: Material(
-                          color: Colors.transparent,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceElevated,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: activeColor, width: 1.4),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.45),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
+                // Instant Single Colored Callout Badge (0ms delay, no duplicate tooltips!)
+                if (isActivelyHovered)
+                  Positioned(
+                    left: side == 'right' ? 24.0 : (side == 'left' ? null : -50.0),
+                    right: side == 'left' ? 24.0 : null,
+                    top: side == 'bottom' ? 24.0 : (side == 'top' ? null : -4.0),
+                    bottom: side == 'top' ? 24.0 : null,
+                    child: IgnorePointer(
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceElevated,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: activeColor, width: 1.4),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                              BoxShadow(
+                                color: activeColor.withValues(alpha: 0.3),
+                                blurRadius: 4,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 6.5,
+                                height: 6.5,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: activeColor,
                                 ),
-                                BoxShadow(
-                                  color: activeColor.withValues(alpha: 0.3),
-                                  blurRadius: 4,
-                                  spreadRadius: 1,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                '${isInput ? "In: " : ""}${port.label}',
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.1,
                                 ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 6.5,
-                                  height: 6.5,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: activeColor,
-                                  ),
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  '${isInput ? "In: " : ""}${port.label}',
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: -0.1,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -1740,8 +1756,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         return ('Trigger', Icons.bolt_rounded, AppColors.success);
       case 'end':
       case 'mission_end':
+        return ('Terminal', Icons.task_alt_rounded, const Color(0xFF0D9488));
       case 'dock_and_end':
-        return ('Terminal', Icons.battery_charging_full_rounded, const Color(0xFF10B981));
+        return ('Terminal', Icons.charging_station_rounded, const Color(0xFF10B981));
       case 'navigate_waypoint':
         return ('Navigation', Icons.navigation_rounded, const Color(0xFF2563EB));
       case 'navigate_coordinates':
@@ -1755,7 +1772,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       case 'wait':
         return ('Timing', Icons.timer_outlined, AppColors.warning);
       case 'dock':
-        return ('Power & Dock', Icons.battery_charging_full_rounded, const Color(0xFF16A34A));
+        return ('Power & Dock', Icons.charging_station_rounded, const Color(0xFF16A34A));
       case 'undock':
         return ('Power & Dock', Icons.power_settings_new_rounded, const Color(0xFF059669));
       case 'jog_motion':
