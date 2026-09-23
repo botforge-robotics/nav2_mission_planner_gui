@@ -59,6 +59,51 @@ void main() {
       expect(graph.nodes.any((n) => n.type == 'dock'), true);
     });
 
+    test('Synthesizes industrial material logistics mission for factory/warehouse without medical fallback', () async {
+      final service = AiMissionAgentService.instance;
+      final prompt = 'industrial work space go to bay1 ask if any raw material is out of stock collect informaton procure it from store room and deliver to bay1 along with collect 10 units raspbeery pi5 and deliver to workstation. at end return to dock';
+      final graph = await service.generateMissionGraph(
+        userPrompt: prompt,
+        availableWaypoints: ['Dock', 'Bay 1', 'Store Room', 'Workstation'],
+      );
+
+      // Verify domain and name
+      expect(graph.name, contains('Industrial Material Logistics'));
+
+      // Verify that NO hospital or medical terms leaked into nodes
+      for (final n in graph.nodes) {
+        final label = n.label.toLowerCase();
+        final paramsStr = n.params.toString().toLowerCase();
+        expect(label.contains('hospital'), false, reason: 'Node label "${n.label}" must not contain hospital');
+        expect(label.contains('pharmacy'), false, reason: 'Node label "${n.label}" must not contain pharmacy');
+        expect(label.contains('patient'), false, reason: 'Node label "${n.label}" must not contain patient');
+        expect(paramsStr.contains('prescription'), false, reason: 'Params must not contain prescription');
+      }
+
+      // Verify concrete industrial nodes
+      final nodeTypes = graph.nodes.map((n) => n.type).toSet();
+      expect(nodeTypes.contains('start'), true);
+      expect(nodeTypes.contains('battery_guard'), true);
+      expect(nodeTypes.contains('navigate_waypoint'), true);
+      expect(nodeTypes.contains('ui_choice'), true);
+      expect(nodeTypes.contains('ui_interaction'), true);
+      expect(nodeTypes.contains('dock'), true);
+
+      // Verify waypoints navigated
+      final navWaypoints = graph.nodes
+          .where((n) => n.type == 'navigate_waypoint')
+          .map((n) => (n.params['waypoint'] ?? n.label).toString().toLowerCase())
+          .toList();
+      expect(navWaypoints.any((w) => w.contains('bay 1') || w.contains('bay1')), true, reason: 'Must navigate to Bay 1');
+      expect(navWaypoints.any((w) => w.contains('store room')), true, reason: 'Must navigate to Store Room');
+      expect(navWaypoints.any((w) => w.contains('workstation')), true, reason: 'Must navigate to Workstation');
+
+      // Verify error recovery edges exist
+      final edgePorts = graph.edges.map((e) => '${e.fromPort}->${e.toPort}').toSet();
+      expect(edgePorts.contains('low_battery->in'), true);
+      expect(edgePorts.contains('failed->in'), true);
+    });
+
     test('Verifies all 14 AI providers have valid display names and model suggestions', () {
       expect(AiProvider.values.length, 14);
       for (final p in AiProvider.values) {

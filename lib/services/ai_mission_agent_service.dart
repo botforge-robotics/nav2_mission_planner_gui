@@ -385,11 +385,17 @@ class AiMissionAgentService {
   String _buildSystemPrompt(List<String> availableWaypoints) {
     final wpList = availableWaypoints.isNotEmpty
         ? availableWaypoints.join(', ')
-        : 'Dock, Pharmacy, Room 101, Room 102, Triage, Nurse Station, Reception, Lab';
+        : 'Dock, Bay 1, Store Room, Workstation, Assembly, Charging Station, Room 101, Reception, Lab';
 
     return '''
 You are the NavPro AI Workflow Assistant for NavPro Mini Autonomous Mobile Robots (AMR).
-Your task is to convert human natural language workflow instructions into a complete, safe, and executable Mission Graph JSON for NavPro Mini AMR.
+Your task is to convert human natural language workflow instructions into a complete, safe, and executable Mission Graph JSON for NavPro Mini AMR across ANY operational domain (Industrial Warehouses, Factories, Healthcare & Hospitals, Corporate Facilities, Retail, Education).
+
+### CRITICAL DOMAIN & WAYPOINT EXTRACTION RULES:
+1. DOMAIN ADAPTATION: Carefully identify the user's specific domain (e.g. Industrial Manufacturing, Warehousing, Material Handling, Facilities, Medical).
+2. DYNAMIC LOCATION EXTRACTION: Extract ALL named waypoints, bays, rooms, workstations, store rooms, and docks directly from the user's instructions (e.g. "Bay 1", "Store Room", "Workstation", "Room 102").
+3. DO NOT DEFAULT TO HOSPITAL OR MEDICINE unless the user specifically and explicitly asks for hospital, patient, or medicine tasks!
+4. Return ONLY valid JSON conforming to the schema. No markdown outside the JSON block.
 
 ### KNOWN WAYPOINTS ON CURRENT MAP:
 [$wpList]
@@ -463,8 +469,7 @@ Your task is to convert human natural language workflow instructions into a comp
         "message": "Instructions",
         "subtype": "dynamic_form",
         "fields": [
-          {"key": "room", "label": "Room Number", "type": "text", "required": true},
-          {"key": "feedback", "label": "Feedback Notes", "type": "text", "required": false}
+          {"key": "item_status", "label": "Status", "type": "text", "required": true}
         ],
         "timeout_seconds": 90
       }
@@ -473,7 +478,7 @@ Your task is to convert human natural language workflow instructions into a comp
     - Input ports: "in"
     - Output ports: "branch_1", "branch_2", ...
     - Params: {"branch_count": 2}
-    - STRICT PROHIBITION: NEVER branch driving ("navigate_waypoint", "navigate_coordinates", "patrol_loop") in parallel with destination user interactions ("ui_interaction", "ui_choice")! A person at a room cannot fill a form while the robot is still driving in transit. The robot MUST finish driving first ("arrived"), and only then trigger the interaction.
+    - STRICT PROHIBITION: NEVER branch driving ("navigate_waypoint", "navigate_coordinates", "patrol_loop") in parallel with destination user interactions ("ui_interaction", "ui_choice")! The robot MUST finish driving first ("arrived"), and only then trigger the interaction.
 
 12. "wait": Timer delay.
     - Input ports: "in"
@@ -507,7 +512,6 @@ Your task is to convert human natural language workflow instructions into a comp
 4. STRICT SEQUENCING FOR DELIVERY & FORMS:
    - Driving to a destination and asking for input/feedback at that destination MUST BE SEQUENTIAL.
    - ALWAYS connect: "navigate_waypoint" -> output port "arrived" -> destination interaction ("ui_interaction" or "ui_choice").
-   - You can use "parallel" AFTER arrival (e.g. branch_1: "ui_speech" voice alert to patient, branch_2: "ui_interaction" medicine receipt form).
    - NEVER start a destination feedback form before the robot arrives at that destination!
 5. User interactions: If asking questions or choices, handle the negative / cancelled / timeout branches gracefully (e.g. return to dock or end).
 6. All branches must terminate at an "end" node or "dock" node.
@@ -553,12 +557,14 @@ Your task is to convert human natural language workflow instructions into a comp
       try {
         generatedJson = await _callLlm(config, trimmedPrompt, availableWaypoints);
       } catch (e) {
-        debugPrint('[AI Agent] LLM call failed ($e), falling back to intelligent offline generator...');
+        debugPrint('[AI Agent] LLM call failed: $e');
+        // Do not silently mask the error with a hardcoded template if the user configured an LLM
+        throw Exception('${config.provider.displayName} AI Error: $e');
       }
+    } else {
+      // Offline fallback template engine
+      generatedJson = _generateOfflineWorkflow(trimmedPrompt, availableWaypoints);
     }
-
-    // Fallback to intelligent offline template engine
-    generatedJson ??= _generateOfflineWorkflow(trimmedPrompt, availableWaypoints);
 
     // Parse and auto-layout the graph visually
     return _buildAndLayoutGraph(generatedJson, availableWaypoints);
@@ -583,23 +589,34 @@ Your task is to convert human natural language workflow instructions into a comp
           url,
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
+            'system_instruction': {
+              'parts': [
+                {'text': systemPrompt}
+              ]
+            },
             'contents': [
               {
                 'role': 'user',
                 'parts': [
-                  {'text': '$systemPrompt\n\nUSER INSTRUCTION:\n$userPrompt'}
+                  {'text': userPrompt}
                 ]
               }
             ],
             'generationConfig': {
               'temperature': 0.2,
               'responseMimeType': 'application/json',
+              'maxOutputTokens': 8192,
             }
           }),
-        ).timeout(const Duration(seconds: 25));
+        ).timeout(const Duration(seconds: 60));
 
         if (resp.statusCode != 200) {
-          throw Exception('Gemini API error (${resp.statusCode}): ${resp.body}');
+          String errMsg = resp.body;
+          try {
+            final errObj = jsonDecode(resp.body) as Map<String, dynamic>;
+            errMsg = errObj['error']?['message'] ?? resp.body;
+          } catch (_) {}
+          throw Exception('Gemini ($model): $errMsg');
         }
         final data = jsonDecode(resp.body) as Map<String, dynamic>;
         responseText = data['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
@@ -617,17 +634,22 @@ Your task is to convert human natural language workflow instructions into a comp
           },
           body: jsonEncode({
             'model': model,
-            'max_tokens': 3000,
+            'max_tokens': 4000,
             'system': systemPrompt,
             'messages': [
               {'role': 'user', 'content': userPrompt}
             ],
             'temperature': 0.2,
           }),
-        ).timeout(const Duration(seconds: 30));
+        ).timeout(const Duration(seconds: 60));
 
         if (resp.statusCode != 200) {
-          throw Exception('Anthropic API error (${resp.statusCode}): ${resp.body}');
+          String errMsg = resp.body;
+          try {
+            final errObj = jsonDecode(resp.body) as Map<String, dynamic>;
+            errMsg = errObj['error']?['message'] ?? resp.body;
+          } catch (_) {}
+          throw Exception('Anthropic ($model): $errMsg');
         }
         final data = jsonDecode(resp.body) as Map<String, dynamic>;
         responseText = data['content']?[0]?['text'] ?? '';
@@ -654,7 +676,7 @@ Your task is to convert human natural language workflow instructions into a comp
             ],
             'response_format': {'type': 'json_object'},
           }),
-        ).timeout(const Duration(seconds: 30));
+        ).timeout(const Duration(seconds: 60));
 
         if (resp.statusCode != 200) {
           throw Exception('Cohere API error (${resp.statusCode}): ${resp.body}');
@@ -704,10 +726,15 @@ Your task is to convert human natural language workflow instructions into a comp
           url,
           headers: headers,
           body: jsonEncode(bodyMap),
-        ).timeout(const Duration(seconds: 35));
+        ).timeout(const Duration(seconds: 60));
 
         if (resp.statusCode != 200) {
-          throw Exception('${config.provider.displayName} API error (${resp.statusCode}): ${resp.body}');
+          String errMsg = resp.body;
+          try {
+            final errObj = jsonDecode(resp.body) as Map<String, dynamic>;
+            errMsg = errObj['error']?['message'] ?? resp.body;
+          } catch (_) {}
+          throw Exception('${config.provider.displayName} API error (${resp.statusCode}): $errMsg');
         }
         final data = jsonDecode(resp.body) as Map<String, dynamic>;
         responseText = data['choices']?[0]?['message']?['content'] ?? '';
@@ -717,7 +744,7 @@ Your task is to convert human natural language workflow instructions into a comp
     return _extractJsonFromLlmOutput(responseText);
   }
 
-  /// Extracts and parses JSON from LLM response (handling potential markdown ```json blocks).
+  /// Extracts and parses JSON from LLM response (handling potential markdown ```json blocks and chatter).
   Map<String, dynamic> _extractJsonFromLlmOutput(String text) {
     String clean = text.trim();
     if (clean.contains('```json')) {
@@ -729,64 +756,84 @@ Your task is to convert human natural language workflow instructions into a comp
       final end = clean.lastIndexOf('```');
       if (end > start) clean = clean.substring(start, end).trim();
     }
-    return jsonDecode(clean) as Map<String, dynamic>;
+
+    // Extract first outer matching JSON object if wrapped in conversational text
+    final firstBrace = clean.indexOf('{');
+    final lastBrace = clean.lastIndexOf('}');
+    if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
+      clean = clean.substring(firstBrace, lastBrace + 1).trim();
+    }
+
+    try {
+      return jsonDecode(clean) as Map<String, dynamic>;
+    } catch (e) {
+      throw Exception('Failed to parse AI output as JSON: $e\nOutput was: $clean');
+    }
   }
 
   /// Intelligent Offline Workflow Generator:
-  /// Uses advanced NLP intent parsing to construct rich, safe, multi-branch workflows
-  /// even when offline or when no API key is configured.
+  /// Uses NLP intent parsing to construct rich, safe, multi-branch workflows
+  /// matching the user's specific domain (Industrial, Hospital, or Patrol)
+  /// even when offline or without an external API key.
   Map<String, dynamic> _generateOfflineWorkflow(
     String prompt,
     List<String> availableWaypoints,
   ) {
     final lower = prompt.toLowerCase();
 
-    // Find mentioned waypoints or defaults
-    String fromWp = '';
-    String toWp = '';
+    // 1. Detect operational domain
+    final isMedical = lower.contains('hospital') ||
+        lower.contains('medicine') ||
+        lower.contains('prescription') ||
+        lower.contains('patient') ||
+        lower.contains('pharmacy') ||
+        lower.contains('triage') ||
+        lower.contains('nurse') ||
+        lower.contains('doctor');
 
+    final isIndustrial = lower.contains('industrial') ||
+        lower.contains('warehouse') ||
+        lower.contains('factory') ||
+        lower.contains('raw material') ||
+        lower.contains('material') ||
+        lower.contains('procure') ||
+        lower.contains('store room') ||
+        lower.contains('workstation') ||
+        lower.contains('bay') ||
+        lower.contains('stock') ||
+        lower.contains('inventory') ||
+        lower.contains('raspberry') ||
+        lower.contains('part') ||
+        lower.contains('unit') ||
+        lower.contains('tool') ||
+        lower.contains('cargo');
+
+    // 2. Extract locations in prompt
+    final extractedLocations = <String>[];
     for (final wp in availableWaypoints) {
-      if (lower.contains(wp.toLowerCase())) {
-        if (fromWp.isEmpty) {
-          fromWp = wp;
-        } else if (toWp.isEmpty && wp != fromWp) {
-          toWp = wp;
+      if (lower.contains(wp.toLowerCase()) && !extractedLocations.contains(wp)) {
+        extractedLocations.add(wp);
+      }
+    }
+
+    void tryExtract(RegExp re, String Function(Match) formatter) {
+      for (final m in re.allMatches(lower)) {
+        final loc = formatter(m);
+        if (!extractedLocations.any((e) => e.toLowerCase() == loc.toLowerCase())) {
+          extractedLocations.add(loc);
         }
       }
     }
 
-    // Default heuristics if not explicitly matched
-    if (fromWp.isEmpty) {
-      if (lower.contains('pharmacy')) {
-        fromWp = 'Pharmacy';
-      } else if (lower.contains('kitchen')) {
-        fromWp = 'Kitchen';
-      } else if (lower.contains('lab')) {
-        fromWp = 'Lab';
-      } else {
-        fromWp = availableWaypoints.isNotEmpty ? availableWaypoints.first : 'Pharmacy';
-      }
-    }
-
-    if (toWp.isEmpty) {
-      final roomMatch = RegExp(r'room\s*(\d+)').firstMatch(lower);
-      if (roomMatch != null) {
-        toWp = 'Room ${roomMatch.group(1)}';
-      } else if (lower.contains('patient')) {
-        toWp = 'Room 102';
-      } else if (lower.contains('reception')) {
-        toWp = 'Reception';
-      } else if (availableWaypoints.length > 1) {
-        toWp = availableWaypoints[1];
-      } else {
-        toWp = 'Room 102';
-      }
-    }
-
-    final hasMedicineOrDelivery = lower.contains('medicine') ||
-        lower.contains('delivery') ||
-        lower.contains('deliver') ||
-        lower.contains('pharmacy');
+    tryExtract(RegExp(r'bay\s*(\d+)'), (m) => 'Bay ${m.group(1)}');
+    tryExtract(RegExp(r'store\s*room'), (_) => 'Store Room');
+    tryExtract(RegExp(r'workstation(?:\s*(\w+))?'), (m) => m.group(1) != null ? 'Workstation ${m.group(1)!.toUpperCase()}' : 'Workstation');
+    tryExtract(RegExp(r'room\s*(\d+)'), (m) => 'Room ${m.group(1)}');
+    tryExtract(RegExp(r'pharmacy'), (_) => 'Pharmacy');
+    tryExtract(RegExp(r'reception'), (_) => 'Reception');
+    tryExtract(RegExp(r'lab(?:oratory)?'), (_) => 'Lab');
+    tryExtract(RegExp(r'warehouse'), (_) => 'Warehouse');
+    tryExtract(RegExp(r'assembly'), (_) => 'Assembly');
 
     // Detect interval or clock alarm trigger from prompt
     String startTrigger = 'manual';
@@ -844,8 +891,138 @@ Your task is to convert human natural language workflow instructions into a comp
             ? 'Start (Alarm ${startParams['schedule_hour']}:${startParams['schedule_minute'].toString().padLeft(2, '0')})'
             : 'Start Mission');
 
-    // Build delivery / pharmacy workflow with full safety branchings
-    if (hasMedicineOrDelivery) {
+    // 3. Industrial Workflow Generation
+    if (isIndustrial) {
+      final bayLoc = extractedLocations.firstWhere(
+        (l) => l.toLowerCase().contains('bay'),
+        orElse: () => extractedLocations.isNotEmpty ? extractedLocations.first : 'Bay 1',
+      );
+      final storeLoc = extractedLocations.firstWhere(
+        (l) => l.toLowerCase().contains('store') || l.toLowerCase().contains('warehouse'),
+        orElse: () => 'Store Room',
+      );
+      final workLoc = extractedLocations.firstWhere(
+        (l) => l.toLowerCase().contains('work') || l.toLowerCase().contains('station'),
+        orElse: () => 'Workstation',
+      );
+
+      return {
+        'name': 'Industrial Material Logistics: $bayLoc & $storeLoc',
+        'description': 'Autonomous industrial logistics: verify stock at $bayLoc, procure raw materials & parts from $storeLoc, deliver to $bayLoc and $workLoc, and dock.',
+        'nodes': [
+          {'id': 'n_start', 'type': 'start', 'label': startLabel, 'params': startParams},
+          {'id': 'n_bat', 'type': 'battery_guard', 'label': 'Battery Guard (>20%)', 'params': {'min_battery': 20.0}},
+          {
+            'id': 'n_go_bay',
+            'type': 'navigate_waypoint',
+            'label': 'Go to $bayLoc',
+            'params': {'waypoint': bayLoc, 'tolerance_m': 0.25}
+          },
+          {
+            'id': 'n_ask_stock',
+            'type': 'ui_choice',
+            'label': 'Stock & Material Check',
+            'params': {
+              'title': '$bayLoc Inventory Check',
+              'message': 'Are any raw materials out of stock or needing procurement?',
+              'options': ['Out of Stock (Procure)', 'Stock Sufficient'],
+              'timeout_seconds': 60
+            }
+          },
+          {
+            'id': 'n_go_store',
+            'type': 'navigate_waypoint',
+            'label': 'Go to $storeLoc',
+            'params': {'waypoint': storeLoc, 'tolerance_m': 0.25}
+          },
+          {
+            'id': 'n_procure_form',
+            'type': 'ui_interaction',
+            'label': 'Material Procurement Dispatch',
+            'params': {
+              'title': '$storeLoc Procurement',
+              'message': 'Confirm procurement of raw materials and units (Raspberry Pi 5) loaded onto AMR.',
+              'subtype': 'dynamic_form',
+              'fields': [
+                {'key': 'loaded', 'label': 'Materials Loaded into AMR Cargo', 'type': 'switch', 'required': true, 'default_value': true},
+                {'key': 'item_qty', 'label': 'Quantity Loaded (e.g. 10 Units Raspberry Pi 5)', 'type': 'number', 'required': true, 'default_value': '10'},
+                {'key': 'procurement_notes', 'label': 'Requisition / Material Notes', 'type': 'text', 'required': false}
+              ],
+              'timeout_seconds': 90
+            }
+          },
+          {
+            'id': 'n_deliver_bay',
+            'type': 'navigate_waypoint',
+            'label': 'Deliver to $bayLoc',
+            'params': {'waypoint': bayLoc, 'tolerance_m': 0.25}
+          },
+          {
+            'id': 'n_deliver_workstation',
+            'type': 'navigate_waypoint',
+            'label': 'Deliver to $workLoc',
+            'params': {'waypoint': workLoc, 'tolerance_m': 0.25}
+          },
+          {
+            'id': 'n_dock_success',
+            'type': 'dock',
+            'label': 'Return to Charging Dock',
+            'params': {}
+          },
+          {
+            'id': 'n_voice_nav_fail',
+            'type': 'ui_speech',
+            'label': 'Industrial Hazard Warning',
+            'params': {'text': 'Navigation blocked or timed out in workspace. Returning safely to dock.', 'voice': 'female'}
+          },
+          {
+            'id': 'n_dock_abort',
+            'type': 'dock',
+            'label': 'Abort: Return to Dock',
+            'params': {}
+          },
+          {'id': 'n_end_safe', 'type': 'end', 'label': 'Mission Finished', 'params': {}},
+        ],
+        'edges': [
+          {'id': 'e_1', 'from_node': 'n_start', 'from_port': 'next', 'to_node': 'n_bat', 'to_port': 'in'},
+          {'id': 'e_2', 'from_node': 'n_bat', 'from_port': 'ok', 'to_node': 'n_go_bay', 'to_port': 'in'},
+          {'id': 'e_3', 'from_node': 'n_bat', 'from_port': 'low_battery', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_4', 'from_node': 'n_go_bay', 'from_port': 'arrived', 'to_node': 'n_ask_stock', 'to_port': 'in'},
+          {'id': 'e_5', 'from_node': 'n_go_bay', 'from_port': 'failed', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
+          {'id': 'e_6', 'from_node': 'n_go_bay', 'from_port': 'timeout', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
+          {'id': 'e_7', 'from_node': 'n_ask_stock', 'from_port': 'out of stock (procure)', 'to_node': 'n_go_store', 'to_port': 'in'},
+          {'id': 'e_8', 'from_node': 'n_ask_stock', 'from_port': 'stock sufficient', 'to_node': 'n_dock_success', 'to_port': 'in'},
+          {'id': 'e_9', 'from_node': 'n_ask_stock', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_10', 'from_node': 'n_go_store', 'from_port': 'arrived', 'to_node': 'n_procure_form', 'to_port': 'in'},
+          {'id': 'e_11', 'from_node': 'n_go_store', 'from_port': 'failed', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
+          {'id': 'e_12', 'from_node': 'n_go_store', 'from_port': 'timeout', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
+          {'id': 'e_13', 'from_node': 'n_procure_form', 'from_port': 'submitted', 'to_node': 'n_deliver_bay', 'to_port': 'in'},
+          {'id': 'e_14', 'from_node': 'n_procure_form', 'from_port': 'cancelled', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_15', 'from_node': 'n_procure_form', 'from_port': 'timeout', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+          {'id': 'e_16', 'from_node': 'n_deliver_bay', 'from_port': 'arrived', 'to_node': 'n_deliver_workstation', 'to_port': 'in'},
+          {'id': 'e_17', 'from_node': 'n_deliver_bay', 'from_port': 'failed', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
+          {'id': 'e_18', 'from_node': 'n_deliver_bay', 'from_port': 'timeout', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
+          {'id': 'e_19', 'from_node': 'n_deliver_workstation', 'from_port': 'arrived', 'to_node': 'n_dock_success', 'to_port': 'in'},
+          {'id': 'e_20', 'from_node': 'n_deliver_workstation', 'from_port': 'failed', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
+          {'id': 'e_21', 'from_node': 'n_deliver_workstation', 'from_port': 'timeout', 'to_node': 'n_voice_nav_fail', 'to_port': 'in'},
+          {'id': 'e_22', 'from_node': 'n_dock_success', 'from_port': 'docked', 'to_node': 'n_end_safe', 'to_port': 'in'},
+          {'id': 'e_23', 'from_node': 'n_dock_abort', 'from_port': 'docked', 'to_node': 'n_end_safe', 'to_port': 'in'},
+          {'id': 'e_24', 'from_node': 'n_voice_nav_fail', 'from_port': 'done', 'to_node': 'n_dock_abort', 'to_port': 'in'},
+        ],
+      };
+    }
+
+    // 4. Medical / Hospital Delivery Workflow
+    if (isMedical) {
+      String fromWp = extractedLocations.firstWhere(
+        (l) => l.toLowerCase().contains('pharmacy') || l.toLowerCase().contains('dispensary') || l.toLowerCase().contains('lab'),
+        orElse: () => extractedLocations.isNotEmpty ? extractedLocations.first : 'Pharmacy',
+      );
+      String toWp = extractedLocations.firstWhere(
+        (l) => l.toLowerCase().contains('room') || l.toLowerCase().contains('patient') || l.toLowerCase().contains('triage'),
+        orElse: () => extractedLocations.length > 1 ? extractedLocations[1] : 'Room 102',
+      );
+
       return {
         'name': 'Medical Delivery: $fromWp to $toWp',
         'description': 'Autonomous delivery with battery guard, pharmacist confirmation, patient verification, feedback collection, and safe dock return.',
@@ -950,20 +1127,23 @@ Your task is to convert human natural language workflow instructions into a comp
           {'id': 'e_19', 'from_node': 'n_dock_success', 'from_port': 'docked', 'to_node': 'n_end_safe', 'to_port': 'in'},
           {'id': 'e_20', 'from_node': 'n_dock_abort', 'from_port': 'docked', 'to_node': 'n_end_safe', 'to_port': 'in'},
           {'id': 'e_21', 'from_node': 'n_voice_nav_fail', 'from_port': 'done', 'to_node': 'n_dock_abort', 'to_port': 'in'},
-        ]
+        ],
       };
     }
 
-    // Generic patrol / inspection workflow
+    // 5. Generic Patrol / Inspection / Multi-Stop Sequence
+    final wp1 = extractedLocations.isNotEmpty ? extractedLocations[0] : (availableWaypoints.isNotEmpty ? availableWaypoints[0] : 'Reception');
+    final wp2 = extractedLocations.length > 1 ? extractedLocations[1] : (availableWaypoints.length > 1 ? availableWaypoints[1] : 'Lab');
+
     return {
-      'name': 'Inspection & Patrol Mission',
+      'name': 'Inspection & Patrol: $wp1 & $wp2',
       'description': 'Patrol route with battery check, obstacle recovery, and dock completion.',
       'nodes': [
         {'id': 'n_start', 'type': 'start', 'label': startLabel, 'params': startParams},
         {'id': 'n_bat', 'type': 'battery_guard', 'label': 'Battery Guard (>25%)', 'params': {'min_battery': 25.0}},
-        {'id': 'n_wp1', 'type': 'navigate_waypoint', 'label': 'Inspect $fromWp', 'params': {'waypoint': fromWp, 'tolerance_m': 0.25}},
+        {'id': 'n_wp1', 'type': 'navigate_waypoint', 'label': 'Inspect $wp1', 'params': {'waypoint': wp1, 'tolerance_m': 0.25}},
         {'id': 'n_wait', 'type': 'wait', 'label': 'Scan Area (5s)', 'params': {'seconds': 5}},
-        {'id': 'n_wp2', 'type': 'navigate_waypoint', 'label': 'Inspect $toWp', 'params': {'waypoint': toWp, 'tolerance_m': 0.25}},
+        {'id': 'n_wp2', 'type': 'navigate_waypoint', 'label': 'Inspect $wp2', 'params': {'waypoint': wp2, 'tolerance_m': 0.25}},
         {'id': 'n_dock', 'type': 'dock', 'label': 'Auto Dock', 'params': {}},
         {'id': 'n_end', 'type': 'end', 'label': 'Mission Complete', 'params': {}},
       ],
