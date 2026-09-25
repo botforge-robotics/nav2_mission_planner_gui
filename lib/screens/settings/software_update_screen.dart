@@ -24,6 +24,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
   // Robot state
   bool _loadingRobot = false;
   bool _checkingRemote = false;
+  bool _isApplyingUpdate = false;
   Map<String, dynamic>? _robotUpdates;
   String? _robotError;
   Timer? _statusTimer;
@@ -157,12 +158,15 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
         _logTail = logs;
       });
 
-      // ONLY if a polling timer is active (meaning an update was running)
-      if (_statusTimer != null && _statusTimer!.isActive) {
+      // If an update was running or being initiated
+      if ((_statusTimer != null && _statusTimer!.isActive) || _isApplyingUpdate) {
         if (!isUpdating) {
           // Update completed or failed! Stop timer immediately
           _statusTimer?.cancel();
           _statusTimer = null;
+          setState(() {
+            _isApplyingUpdate = false;
+          });
           // Refresh updates state once to reflect the new commit
           _checkRobotUpdates(fetchRemote: false);
         }
@@ -227,9 +231,15 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
     if (confirmed != true || !mounted) return;
 
     setState(() {
+      _isApplyingUpdate = true;
       _loadingRobot = true;
       _dismissedLastFailure = true;
       _showLogsConsole = true;
+      _liveStatus = {
+        'phase': 'pulling',
+        'progress': 10,
+        'message': 'Starting companion software update...',
+      };
     });
 
     try {
@@ -242,8 +252,10 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
         ),
       );
       _startStatusPolling();
+      _pollStatusOnce();
     } catch (exc) {
       if (!mounted) return;
+      setState(() => _isApplyingUpdate = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to start update: $exc'),
@@ -304,7 +316,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
     final updates = _robotUpdates;
     final live = _liveStatus;
     final phase = live?['phase'] as String? ?? 'idle';
-    final isUpdating = phase == 'pulling' || phase == 'building' || phase == 'restarting';
+    final isUpdating = _isApplyingUpdate || phase == 'pulling' || phase == 'building' || phase == 'restarting';
 
     final updateAvailable = updates?['update_available'] as bool? ?? false;
     final currentCommit = updates?['current_commit_short'] as String? ?? '---';
