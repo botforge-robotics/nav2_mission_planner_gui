@@ -965,7 +965,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Mission Planner Client App',
+                        'NavPro Mini GUI',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
