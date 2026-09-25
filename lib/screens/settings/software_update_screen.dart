@@ -25,6 +25,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
   bool _loadingRobot = false;
   bool _checkingRemote = false;
   bool _isApplyingUpdate = false;
+  bool _hasSeenActivePhase = false;
   Map<String, dynamic>? _robotUpdates;
   String? _robotError;
   Timer? _statusTimer;
@@ -114,6 +115,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
       final lastUpdate = data['last_update'] as Map<String, dynamic>?;
       final phase = lastUpdate?['phase'] as String? ?? 'idle';
       if (phase == 'pulling' || phase == 'building' || phase == 'restarting') {
+        _hasSeenActivePhase = true;
         _liveStatus = lastUpdate;
         _startStatusPolling();
       } else {
@@ -153,23 +155,26 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
       final phase = status['phase'] as String? ?? 'idle';
       final isUpdating = phase == 'pulling' || phase == 'building' || phase == 'restarting';
 
+      if (isUpdating) {
+        _hasSeenActivePhase = true;
+      }
+
       setState(() {
         _liveStatus = status;
         _logTail = logs;
       });
 
-      // If an update was running or being initiated
-      if ((_statusTimer != null && _statusTimer!.isActive) || _isApplyingUpdate) {
-        if (!isUpdating) {
-          // Update completed or failed! Stop timer immediately
-          _statusTimer?.cancel();
-          _statusTimer = null;
-          setState(() {
-            _isApplyingUpdate = false;
-          });
-          // Refresh updates state once to reflect the new commit
-          _checkRobotUpdates(fetchRemote: false);
-        }
+      // ONLY stop polling and mark finished if we have actively witnessed the update running
+      // and it has now reached 'success' or 'failed'.
+      if (_hasSeenActivePhase && (phase == 'success' || phase == 'failed')) {
+        _statusTimer?.cancel();
+        _statusTimer = null;
+        setState(() {
+          _isApplyingUpdate = false;
+          _hasSeenActivePhase = false;
+        });
+        // Refresh updates state once to reflect the new commit
+        _checkRobotUpdates(fetchRemote: false);
       }
     } catch (_) {
       // SDK might be restarting during service restart phase
@@ -232,6 +237,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
 
     setState(() {
       _isApplyingUpdate = true;
+      _hasSeenActivePhase = false;
       _loadingRobot = true;
       _dismissedLastFailure = true;
       _showLogsConsole = true;
