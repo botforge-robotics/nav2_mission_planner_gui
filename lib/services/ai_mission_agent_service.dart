@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -258,13 +260,83 @@ class AiMissionAgentService {
   static const String _prefKey = 'navpro_ai_agent_config';
   AiAgentConfig? _cachedConfig;
 
+  File? _getFallbackConfigFile() {
+    if (kIsWeb) return null;
+    try {
+      final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+      if (home == null || home.isEmpty) return null;
+      final dir = Directory('$home/.config/navpromini');
+      if (!dir.existsSync()) {
+        dir.createSync(recursive: true);
+      }
+      return File('${dir.path}/ai_agent_config.json');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _readLegacyConfigJson() {
+    if (kIsWeb) return null;
+    try {
+      final home = Platform.environment['HOME'];
+      if (home == null || home.isEmpty) return null;
+      final legacyCandidates = [
+        File('$home/.local/share/com.example.nav2_mission_planner/shared_preferences.json'),
+        File('$home/.local/share/com.botforge.navpromini/shared_preferences.json'),
+        File('$home/.local/share/nav2_mission_planner/shared_preferences.json'),
+      ];
+      for (final f in legacyCandidates) {
+        if (f.existsSync()) {
+          final content = f.readAsStringSync();
+          final data = jsonDecode(content);
+          if (data is Map && data.containsKey('flutter.$_prefKey')) {
+            final val = data['flutter.$_prefKey'];
+            if (val is String && val.trim().isNotEmpty) {
+              return val;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[AI Agent] Error reading legacy preferences: $e');
+    }
+    return null;
+  }
+
   Future<AiAgentConfig> getConfig() async {
     if (_cachedConfig != null) return _cachedConfig!;
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_prefKey);
+    String? raw = prefs.getString(_prefKey);
+
+    // 1. If not found in SharedPreferences, check persistent fallback config file
+    if (raw == null || raw.isEmpty) {
+      final fallbackFile = _getFallbackConfigFile();
+      if (fallbackFile != null && fallbackFile.existsSync()) {
+        try {
+          raw = fallbackFile.readAsStringSync();
+        } catch (_) {}
+      }
+    }
+
+    // 2. If still not found, check legacy GTK application preferences from before rename
+    if (raw == null || raw.isEmpty) {
+      raw = _readLegacyConfigJson();
+      if (raw != null && raw.isNotEmpty) {
+        debugPrint('[AI Agent] Migrated AI workflow config from legacy preferences.');
+      }
+    }
+
     if (raw != null && raw.isNotEmpty) {
       try {
         _cachedConfig = AiAgentConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+        // Ensure it's persisted in the current SharedPreferences store and file
+        await prefs.setString(_prefKey, raw);
+        final file = _getFallbackConfigFile();
+        if (file != null) {
+          try {
+            await file.writeAsString(raw);
+          } catch (_) {}
+        }
         return _cachedConfig!;
       } catch (e) {
         debugPrint('[AI Agent] Failed to parse saved config: $e');
@@ -276,8 +348,43 @@ class AiMissionAgentService {
 
   Future<void> saveConfig(AiAgentConfig config) async {
     _cachedConfig = config;
+    final jsonStr = jsonEncode(config.toJson());
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefKey, jsonEncode(config.toJson()));
+    await prefs.setString(_prefKey, jsonStr);
+
+    // Also persist to standard ~/.config/navpromini/ai_agent_config.json so
+    // restarting the app, renaming the binary, or clearing app cache never loses AI config.
+    final fallbackFile = _getFallbackConfigFile();
+    if (fallbackFile != null) {
+      try {
+        await fallbackFile.writeAsString(jsonStr);
+      } catch (e) {
+        debugPrint('[AI Agent] Failed to write fallback config: $e');
+      }
+    }
+
+    // Mirror to legacy preferences if the directories exist so any older launcher/build also finds it
+    if (!kIsWeb) {
+      try {
+        final home = Platform.environment['HOME'];
+        if (home != null && home.isNotEmpty) {
+          final legacyFiles = [
+            File('$home/.local/share/com.botforge.navpromini/shared_preferences.json'),
+            File('$home/.local/share/com.example.nav2_mission_planner/shared_preferences.json'),
+          ];
+          for (final f in legacyFiles) {
+            if (f.existsSync()) {
+              final content = f.readAsStringSync();
+              final data = jsonDecode(content);
+              if (data is Map) {
+                data['flutter.$_prefKey'] = jsonStr;
+                await f.writeAsString(jsonEncode(data));
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
   }
 
   /// Transcribes recorded speech audio using Groq Whisper or OpenAI Whisper models.

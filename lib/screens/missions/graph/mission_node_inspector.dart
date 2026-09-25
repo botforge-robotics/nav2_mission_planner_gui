@@ -133,7 +133,20 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             ),
             child: Row(
               children: [
-                const Icon(Icons.tune, size: 18, color: AppColors.primary),
+                Builder(
+                  builder: (context) {
+                    final (headerIcon, headerColor) = _getNodeHeaderMeta(node);
+                    return Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: headerColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: headerColor.withValues(alpha: 0.3), width: 1.0),
+                      ),
+                      child: Icon(headerIcon, size: 18, color: headerColor),
+                    );
+                  },
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -211,6 +224,82 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     );
   }
 
+  (IconData, Color) _getNodeHeaderMeta(GraphNode node) {
+    final status = (node.params['status'] as String? ?? '').toLowerCase();
+    final isAborted = node.type == 'abort' ||
+        node.type == 'abort_and_end' ||
+        status == 'failed' ||
+        status == 'aborted';
+    if (isAborted) return (Icons.stop_rounded, const Color(0xFFEF4444));
+    if (node.type == 'dock_and_end' || node.params['dock_on_end'] == true) {
+      return (Icons.charging_station_rounded, const Color(0xFF10B981));
+    }
+    switch (node.type) {
+      case 'start':
+        return (Icons.play_arrow_rounded, AppColors.success);
+      case 'end':
+      case 'mission_end':
+        return (Icons.task_alt_rounded, const Color(0xFF0D9488));
+      case 'navigate_waypoint':
+        return (Icons.navigation_rounded, const Color(0xFF2563EB));
+      case 'navigate_coordinates':
+        return (Icons.explore_rounded, const Color(0xFF2563EB));
+      case 'patrol_loop':
+        return (Icons.sync_rounded, const Color(0xFF3B82F6));
+      case 'relocalize':
+        return (Icons.my_location_rounded, const Color(0xFF0284C7));
+      case 'cancel_navigation':
+        return (Icons.cancel_rounded, const Color(0xFFDC2626));
+      case 'wait':
+        return (Icons.timer_outlined, const Color(0xFFD97706));
+      case 'dock':
+        return (Icons.charging_station_rounded, const Color(0xFF16A34A));
+      case 'undock':
+        return (Icons.power_settings_new_rounded, const Color(0xFF059669));
+      case 'jog_motion':
+        return (Icons.gamepad_outlined, const Color(0xFFD97706));
+      case 'emergency_stop':
+        return (Icons.emergency_rounded, const Color(0xFFDC2626));
+      case 'loop':
+      case 'loop_counter':
+        return (Icons.loop_rounded, const Color(0xFF7C3AED));
+      case 'condition':
+        return (Icons.alt_route_rounded, const Color(0xFFEA580C));
+      case 'parallel':
+      case 'parallel_fork':
+        return (Icons.call_split_rounded, const Color(0xFF00ACC1));
+      case 'battery_guard':
+        return (Icons.battery_saver_rounded, const Color(0xFF059669));
+      case 'set_variable':
+        return (Icons.data_object_rounded, const Color(0xFF9333EA));
+      case 'ui_interaction':
+        return (Icons.touch_app_rounded, AppColors.primary);
+      case 'ui_notification':
+        return (Icons.notifications_active_rounded, const Color(0xFF0284C7));
+      case 'ui_choice':
+        return (Icons.ads_click_rounded, AppColors.primary);
+      case 'ui_media':
+        return (Icons.smart_display_rounded, const Color(0xFF0284C7));
+      case 'ui_speech':
+        return (Icons.record_voice_over_rounded, const Color(0xFF8B5CF6));
+      case 'notify':
+        return (Icons.lightbulb_rounded, const Color(0xFF0D9488));
+      case 'call_api':
+        return (Icons.http_rounded, const Color(0xFF7C3AED));
+      case 'call_service':
+        return (Icons.precision_manufacturing_rounded, const Color(0xFF4F46E5));
+      case 'call_action':
+        return (Icons.settings_input_component_rounded, const Color(0xFF4F46E5));
+      case 'publish_topic':
+        return (Icons.podcasts_rounded, const Color(0xFF4F46E5));
+      case 'switch_mission':
+      case 'redirect_mission':
+        return (Icons.shuffle_rounded, const Color(0xFF009688));
+      default:
+        return (Icons.tune, AppColors.primary);
+    }
+  }
+
   String _getNodeFriendlyTitle(GraphNode node) {
     if (node.label.isNotEmpty) return node.label;
     switch (node.type) {
@@ -219,6 +308,14 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       case 'end':
       case 'mission_end':
       case 'dock_and_end':
+      case 'abort':
+      case 'abort_and_end':
+        final isAborted = node.type == 'abort' ||
+            node.type == 'abort_and_end' ||
+            (node.params['status'] as String? ?? '').toLowerCase() == 'failed' ||
+            (node.params['status'] as String? ?? '').toLowerCase() == 'aborted';
+        if (isAborted) return 'Abort / Halt Mission';
+        if (node.type == 'dock_and_end' || node.params['dock_on_end'] == true) return 'Dock & Finish Mission';
         return 'Finish Mission';
       case 'navigate_waypoint':
         return 'Drive to Saved Place';
@@ -287,6 +384,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       case 'end':
       case 'mission_end':
       case 'dock_and_end':
+      case 'abort':
+      case 'abort_and_end':
+        final isAb = node.type == 'abort' ||
+            node.type == 'abort_and_end' ||
+            (node.params['status'] as String? ?? '').toLowerCase() == 'failed' ||
+            (node.params['status'] as String? ?? '').toLowerCase() == 'aborted';
+        if (isAb) return 'Immediately stops and halts the workflow with an aborted/error outcome.';
         return 'Safely finishes the mission. The robot stops and can optionally drive back to its charger.';
       case 'navigate_waypoint':
         return 'Tells the robot to safely drive across the room to a place saved on your map.';
@@ -439,7 +543,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           _buildSetVariableInspector()
         else if (node.type == 'notify')
           _buildNotifyInspector()
-        else if (node.type == 'end' || node.type == 'mission_end' || node.type == 'dock_and_end')
+        else if (node.type == 'end' ||
+            node.type == 'mission_end' ||
+            node.type == 'dock_and_end' ||
+            node.type == 'abort' ||
+            node.type == 'abort_and_end')
           _buildEndMissionInspector()
         else if (node.type == 'loop' || node.type == 'loop_counter')
           _buildLoopInspector()

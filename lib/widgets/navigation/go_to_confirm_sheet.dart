@@ -1,8 +1,10 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 
+import '../../providers/robot_telemetry_provider.dart';
 import '../../services/locations_controller.dart';
 import '../../services/route_estimate_service.dart';
 import '../../services/sdk_api_service.dart';
@@ -116,14 +118,31 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
     try {
       await widget.api.goToWaypoint(widget.locationName, replace: true);
     } on SdkApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _sending = false;
-        _sendError = e.isUnreachable
-            ? "Navigation needs navpro-sdk.service — it isn't reachable right now."
-            : e.message;
-      });
-      return;
+      // If the robot accepted the goal and started moving despite an HTTP timeout or transient error, proceed.
+      bool activated = false;
+      try {
+        final status = await widget.api.navigationStatus();
+        final dockStatus = await widget.api.dockStatus();
+        final navState = status['state'] as String?;
+        final dockOp = dockStatus['operation'] as String?;
+        if (navState == 'active' ||
+            dockOp == 'undocking' ||
+            dockOp == 'navigating' ||
+            dockOp == 'staging') {
+          activated = true;
+        }
+      } catch (_) {}
+
+      if (!activated) {
+        if (!mounted) return;
+        setState(() {
+          _sending = false;
+          _sendError = e.isUnreachable
+              ? "Navigation needs navpro-sdk.service — it isn't reachable right now."
+              : e.message;
+        });
+        return;
+      }
     }
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -168,6 +187,11 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
         );
       },
     );
+    if (caller.mounted) {
+      try {
+        caller.read<RobotTelemetryProvider>().clearPath();
+      } catch (_) {}
+    }
     if (!mounted) return;
   }
 

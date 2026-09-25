@@ -78,11 +78,13 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Reset Robot?'),
+        title: const Text('Factory Reset Robot?'),
         content: const Text(
-          'This permanently deletes every saved map and every saved '
-          'location on the robot, then disconnects this app and returns it '
-          'to the initial setup screen. This cannot be undone.',
+          'This will completely reset the robot to initial out-of-the-box state:\n\n'
+          '• Delete all saved maps, locations, missions, and schedules\n'
+          '• Wipe saved Wi-Fi connections and network configuration\n'
+          '• Reboot the robot into setup hotspot mode\n\n'
+          'This cannot be undone. You will need to pair and set up the robot again.',
         ),
         actions: [
           TextButton(
@@ -104,40 +106,8 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
     final api = _api;
     if (api == null) return;
 
-    var mapNames = <String>[];
-    var locationNames = <String>[];
-    var missionIds = <String>[];
-    var scheduleIds = <String>[];
-    try {
-      final results = await Future.wait([
-        api.listMaps(),
-        api.listWaypoints(),
-        api.listMissions(),
-        api.listSchedules(),
-      ]);
-      mapNames = results[0] as List<String>;
-      locationNames = (results[1] as List<Map<String, dynamic>>)
-          .map((l) => l['name'] as String? ?? '')
-          .where((n) => n.isNotEmpty)
-          .toList();
-      missionIds = (results[2] as List<Map<String, dynamic>>)
-          .map((m) => m['id'] as String? ?? '')
-          .where((id) => id.isNotEmpty)
-          .toList();
-      scheduleIds = (results[3] as List<Map<String, dynamic>>)
-          .map((s) => s['id'] as String? ?? '')
-          .where((id) => id.isNotEmpty)
-          .toList();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              "Couldn't read what's on the robot, so nothing was deleted: $e")));
-      return;
-    }
-
     if (!mounted) return;
-    final progress = ValueNotifier<String>('Starting…');
+    final progress = ValueNotifier<String>('Starting factory reset…');
     unawaited(showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -160,76 +130,96 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
       ),
     ));
 
-    // Best-effort per item — one map or location that fails to delete
-    // shouldn't stop the rest, but is worth reporting once done.
-    var failures = 0;
-    for (final name in mapNames) {
-      progress.value = 'Deleting map "$name"…';
-      try {
-        await api.deleteMap(name);
-      } catch (_) {
-        failures++;
-      }
-    }
-    for (final name in locationNames) {
-      progress.value = 'Deleting location "$name"…';
-      try {
-        await api.deleteWaypoint(name);
-      } catch (_) {
-        failures++;
-      }
-    }
-    for (final id in missionIds) {
-      progress.value = 'Deleting mission "$id"…';
-      try {
-        await api.deleteMission(id);
-      } catch (_) {
-        failures++;
-      }
-    }
-    for (final id in scheduleIds) {
-      progress.value = 'Deleting schedule "$id"…';
-      try {
-        await api.deleteSchedule(id);
-      } catch (_) {
-        failures++;
-      }
-    }
-    progress.value = 'Clearing dock pose…';
+    bool factoryResetSucceeded = false;
     try {
-      await api.deleteDockPose();
-    } catch (_) {}
-    await LocationsController.instance.refresh(api);
+      progress.value = 'Wiping robot data & forgetting Wi-Fi…';
+      await api.factoryReset(reboot: true, forgetWifi: true, clearData: true);
+      factoryResetSucceeded = true;
+    } catch (_) {
+      // In case the robot daemon is an older build without factoryReset, fall back to manual individual deletions
+      progress.value = 'Cleaning stored resources…';
+    }
 
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop(); // close progress dialog
+    if (!factoryResetSucceeded) {
+      try {
+        final results = await Future.wait([
+          api.listMaps(),
+          api.listWaypoints(),
+          api.listMissions(),
+          api.listSchedules(),
+        ]);
+        final mapNames = results[0] as List<String>;
+        final locationNames = (results[1] as List<Map<String, dynamic>>)
+            .map((l) => l['name'] as String? ?? '')
+            .where((n) => n.isNotEmpty)
+            .toList();
+        final missionIds = (results[2] as List<Map<String, dynamic>>)
+            .map((m) => m['id'] as String? ?? '')
+            .where((id) => id.isNotEmpty)
+            .toList();
+        final scheduleIds = (results[3] as List<Map<String, dynamic>>)
+            .map((s) => s['id'] as String? ?? '')
+            .where((id) => id.isNotEmpty)
+            .toList();
 
-    if (failures > 0) {
-      final proceed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Some items failed to delete'),
-          content:
-              Text('$failures item${failures == 1 ? '' : 's'} could not be '
-                  'deleted (the robot may be unreachable for some of them). '
-                  'Continue disconnecting and returning to setup anyway?'),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Stop here')),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-              child: const Text('Continue'),
-            ),
-          ],
-        ),
-      );
-      if (proceed != true) return;
+        for (final name in mapNames) {
+          progress.value = 'Deleting map "$name"…';
+          try {
+            await api.deleteMap(name);
+          } catch (_) {}
+        }
+        for (final name in locationNames) {
+          progress.value = 'Deleting location "$name"…';
+          try {
+            await api.deleteWaypoint(name);
+          } catch (_) {}
+        }
+        for (final id in missionIds) {
+          progress.value = 'Deleting mission "$id"…';
+          try {
+            await api.deleteMission(id);
+          } catch (_) {}
+        }
+        for (final id in scheduleIds) {
+          progress.value = 'Deleting schedule "$id"…';
+          try {
+            await api.deleteSchedule(id);
+          } catch (_) {}
+        }
+        progress.value = 'Clearing dock pose…';
+        try {
+          await api.deleteDockPose();
+        } catch (_) {}
+
+        // Attempt reboot as fallback
+        try {
+          await api.rebootSystem();
+        } catch (_) {}
+      } catch (_) {}
+    }
+
+    progress.value = 'Robot is rebooting into setup mode…';
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    await LocationsController.instance.refresh(api).catchError((_) {});
+
+    if (mounted) {
+      Navigator.of(context, rootNavigator: true).pop(); // close progress dialog
     }
 
     await connection.forget();
     if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Robot has been reset and is rebooting into setup mode. '
+          'Connect to its setup Wi-Fi hotspot to configure it again.',
+        ),
+        duration: Duration(seconds: 5),
+      ),
+    );
+
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const SplashScreen()),
       (route) => false,

@@ -74,11 +74,40 @@ class RobotTelemetryProvider extends ChangeNotifier {
   bool localized = false;
   String? dockStatus;
   Map<String, dynamic>? batteryDetail;
+  double? batteryTemperature;
+  double? cpuTemperature;
+  double? cpuLoad;
+
+  void updateSystemMetrics({double? cpuLoadPct, double? cpuTempC, double? batteryTempC}) {
+    bool changed = false;
+    if (cpuLoadPct != null && cpuLoadPct != cpuLoad) {
+      cpuLoad = cpuLoadPct;
+      changed = true;
+    }
+    if (cpuTempC != null && cpuTempC != cpuTemperature) {
+      cpuTemperature = cpuTempC;
+      changed = true;
+    }
+    if (batteryTempC != null && batteryTempC != batteryTemperature) {
+      batteryTemperature = batteryTempC;
+      changed = true;
+    }
+    if (changed) notifyListeners();
+  }
+
   double? poseX;
   double? poseY;
 
+
   geometry_msgs.PoseWithCovarianceStamped? rawPose;
   nav_msgs.Path? currentPath;
+
+  void clearPath() {
+    if (currentPath != null) {
+      currentPath = null;
+      notifyListeners();
+    }
+  }
 
   /// Yaw, radians, derived from `/amcl_pose`'s quaternion — same formula
   /// `occupancy_grid_view.dart`'s painter already uses for the robot marker,
@@ -199,6 +228,11 @@ class RobotTelemetryProvider extends ChangeNotifier {
           final pct = msg.percentage;
           batteryPercentage = pct <= 1.0 ? pct * 100.0 : pct;
           chargeStatus = _chargeStatusOf(msg.power_supply_status);
+          if (!msg.temperature.isNaN &&
+              msg.temperature > -40 &&
+              msg.temperature < 150) {
+            batteryTemperature = msg.temperature;
+          }
           notifyListeners();
         },
       ),
@@ -272,8 +306,15 @@ class RobotTelemetryProvider extends ChangeNotifier {
         ros2: ros2,
         prototype: nav_msgs.Path(),
         callback: (msg) {
-          currentPath = msg;
-          notifyListeners();
+          if (msg.poses.isEmpty) {
+            if (currentPath != null) {
+              currentPath = null;
+              notifyListeners();
+            }
+          } else {
+            currentPath = msg;
+            notifyListeners();
+          }
         },
       ),
       Subscriber<std_msgs.StringMessage>(

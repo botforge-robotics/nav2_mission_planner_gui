@@ -215,7 +215,11 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
   }
 
   static bool _isTerminalBadge(GraphNode node) =>
-      node.type == 'end' || node.type == 'mission_end' || node.type == 'dock_and_end';
+      node.type == 'end' ||
+      node.type == 'mission_end' ||
+      node.type == 'dock_and_end' ||
+      node.type == 'abort' ||
+      node.type == 'abort_and_end';
 
   static const double _compactNodeDiameter = 76.0;
   static const double _terminalBadgeSize = 56.0;
@@ -1375,7 +1379,11 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
 
     final dockOnEnd = node.type == 'dock_and_end' || node.params['dock_on_end'] == true;
     final status = (node.params['status'] as String? ?? 'success').toLowerCase();
-    final isAborted = status == 'failed' || status == 'aborted';
+    final isAborted =
+        node.type == 'abort' ||
+        node.type == 'abort_and_end' ||
+        status == 'failed' ||
+        status == 'aborted';
 
     final Color badgeColor = isAborted
         ? const Color(0xFFEF4444)
@@ -1753,12 +1761,15 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
   (String, IconData, Color) _getNodeCategoryMeta(String type) {
     switch (type) {
       case 'start':
-        return ('Trigger', Icons.bolt_rounded, AppColors.success);
+        return ('Trigger', Icons.play_arrow_rounded, AppColors.success);
       case 'end':
       case 'mission_end':
         return ('Terminal', Icons.task_alt_rounded, const Color(0xFF0D9488));
       case 'dock_and_end':
         return ('Terminal', Icons.charging_station_rounded, const Color(0xFF10B981));
+      case 'abort':
+      case 'abort_and_end':
+        return ('Terminal', Icons.stop_rounded, const Color(0xFFEF4444));
       case 'navigate_waypoint':
         return ('Navigation', Icons.navigation_rounded, const Color(0xFF2563EB));
       case 'navigate_coordinates':
@@ -1783,10 +1794,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       case 'loop_counter':
         return ('Logic Flow', Icons.loop_rounded, const Color(0xFF7C3AED));
       case 'condition':
-        return ('Branch Logic', Icons.call_split_rounded, const Color(0xFFEA580C));
+        return ('Branch Logic', Icons.alt_route_rounded, const Color(0xFFEA580C));
       case 'parallel':
       case 'parallel_fork':
-        return ('Parallel Flow', Icons.alt_route_rounded, const Color(0xFF00ACC1));
+        return ('Parallel Flow', Icons.call_split_rounded, const Color(0xFF00ACC1));
       case 'battery_guard':
         return ('Safety Guard', Icons.battery_saver_rounded, const Color(0xFF059669));
       case 'set_variable':
@@ -1838,6 +1849,13 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       case 'end':
       case 'mission_end':
       case 'dock_and_end':
+      case 'abort':
+      case 'abort_and_end':
+        final isAb = node.type == 'abort' ||
+            node.type == 'abort_and_end' ||
+            (node.params['status'] as String? ?? '').toLowerCase() == 'failed' ||
+            (node.params['status'] as String? ?? '').toLowerCase() == 'aborted';
+        if (isAb) return 'Abort flow';
         return (node.type == 'dock_and_end' || node.params['dock_on_end'] == true) ? 'Finish & Dock' : 'Finish';
       case 'navigate_waypoint':
         final wp = node.params['waypoint']?.toString() ?? '';

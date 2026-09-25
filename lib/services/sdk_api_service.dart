@@ -80,6 +80,11 @@ class SdkApiService {
         _ => throw ArgumentError('Unsupported method $method'),
       };
       resp = await future.timeout(timeout);
+    } on TimeoutException {
+      throw SdkApiException(
+        'timeout',
+        'Request to robot SDK ($method $path) timed out after ${timeout.inSeconds}s.',
+      );
     } catch (exc) {
       throw SdkApiException(
         'unreachable',
@@ -121,6 +126,38 @@ class SdkApiService {
       _send('GET', '/api/v1/system/info');
   Future<Map<String, dynamic>> systemHealth() =>
       _send('GET', '/api/v1/system/health');
+  Future<Map<String, dynamic>> systemTemperature() =>
+      _send('GET', '/api/v1/state/temperature');
+
+
+  /// Factory-resets the robot: wipes all saved maps, waypoints, missions,
+  /// and schedules, forgets saved Wi-Fi connections, resets robot identity,
+  /// and reboots into out-of-the-box AP setup hotspot mode.
+  Future<Map<String, dynamic>> factoryReset({
+    bool reboot = true,
+    bool forgetWifi = true,
+    bool clearData = true,
+    double delay = 1.5,
+  }) =>
+      _send(
+        'POST',
+        '/api/v1/system/reset',
+        body: {
+          'reboot': reboot,
+          'forget_wifi': forgetWifi,
+          'clear_data': clearData,
+          'delay': delay,
+        },
+        timeout: const Duration(seconds: 15),
+      );
+
+  /// Requests the robot system to reboot.
+  Future<Map<String, dynamic>> rebootSystem({double delay = 1.5}) => _send(
+        'POST',
+        '/api/v1/system/reboot',
+        body: {'delay': delay},
+        timeout: const Duration(seconds: 10),
+      );
 
   // -- state -----------------------------------------------------------------
 
@@ -168,7 +205,7 @@ class SdkApiService {
   Future<void> goToWaypoint(String name, {bool replace = false}) =>
       _send('POST', '/api/v1/navigation/goto',
           body: {'waypoint': name, if (replace) 'replace': true},
-          timeout: const Duration(seconds: 20));
+          timeout: const Duration(seconds: 35));
 
   Future<void> goToPose(double x, double y,
           {double theta = 0.0, bool replace = false}) =>
@@ -176,19 +213,21 @@ class SdkApiService {
         'POST',
         '/api/v1/navigation/goto',
         body: {'x': x, 'y': y, 'theta': theta, if (replace) 'replace': true},
-        timeout: const Duration(seconds: 20),
+        timeout: const Duration(seconds: 35),
       );
 
   Future<Map<String, dynamic>> navigationStatus() =>
       _send('GET', '/api/v1/navigation/status');
 
-  Future<void> cancelNavigation() => _send('DELETE', '/api/v1/navigation/goal');
+  Future<void> cancelNavigation() =>
+      _send('DELETE', '/api/v1/navigation/goal', timeout: const Duration(seconds: 15));
 
   /// Cancels an in-progress dock/undock goal — a separate route from
   /// [cancelNavigation] since dock/undock goals are tracked separately on
   /// the robot (handlers/docking.py's own TRACKER, distinct from
   /// navigation.py's). Used by the auto-retry loop's "Cancel" action.
-  Future<void> cancelDock() => _send('DELETE', '/api/v1/dock/goal');
+  Future<void> cancelDock() =>
+      _send('DELETE', '/api/v1/dock/goal', timeout: const Duration(seconds: 15));
 
   /// Seeds AMCL's belief of where the robot is — the "2D Pose Estimate"
   /// equivalent. Doesn't move the robot; only corrects localization.
@@ -205,9 +244,11 @@ class SdkApiService {
 
   Future<void> dock({bool navigateToStaging = true}) =>
       _send('POST', '/api/v1/dock',
-          body: {'navigate_to_staging': navigateToStaging});
+          body: {'navigate_to_staging': navigateToStaging},
+          timeout: const Duration(seconds: 45));
 
-  Future<void> undock() => _send('POST', '/api/v1/undock');
+  Future<void> undock() =>
+      _send('POST', '/api/v1/undock', timeout: const Duration(seconds: 45));
 
   Future<Map<String, dynamic>> dockStatus() =>
       _send('GET', '/api/v1/dock/status');
@@ -260,7 +301,22 @@ class SdkApiService {
     final resp = await _send('GET', '/api/v1/maps');
     final maps = resp['maps'];
     if (maps is List) {
-      return maps.map((e) => e.toString()).toList();
+      return maps
+          .map((e) => e.toString())
+          .where((m) {
+            if (m.isEmpty || m.startsWith('.')) return false;
+            final lower = m.toLowerCase();
+            return !const [
+              '_keepout',
+              '_mask',
+              '_filter',
+              '_speed',
+              '_zone',
+              '_restricted',
+              '_costmap',
+            ].any((tok) => lower.contains(tok));
+          })
+          .toList();
     }
     return const [];
   }
@@ -324,7 +380,41 @@ class SdkApiService {
     }
   }
 
+  // -- zones -------------------------------------------------------------------
+
+  Future<List<Map<String, dynamic>>> listZones({String? map}) async {
+    final path = map != null && map.isNotEmpty
+        ? '/api/v1/maps/${Uri.encodeComponent(map)}/zones'
+        : '/api/v1/zones';
+    final resp = await _send('GET', path);
+    final raw = resp['zones'] as List? ?? const [];
+    return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<Map<String, dynamic>> getZone(String zoneId, {String? map}) async {
+    final path = map != null && map.isNotEmpty
+        ? '/api/v1/maps/${Uri.encodeComponent(map)}/zones/${Uri.encodeComponent(zoneId)}'
+        : '/api/v1/zones/${Uri.encodeComponent(zoneId)}';
+    return await _send('GET', path);
+  }
+
+  Future<Map<String, dynamic>> saveZone(Map<String, dynamic> zone,
+      {String? map}) async {
+    final path = map != null && map.isNotEmpty
+        ? '/api/v1/maps/${Uri.encodeComponent(map)}/zones'
+        : '/api/v1/zones';
+    return await _send('POST', path, body: zone);
+  }
+
+  Future<Map<String, dynamic>> deleteZone(String zoneId, {String? map}) async {
+    final path = map != null && map.isNotEmpty
+        ? '/api/v1/maps/${Uri.encodeComponent(map)}/zones/${Uri.encodeComponent(zoneId)}'
+        : '/api/v1/zones/${Uri.encodeComponent(zoneId)}';
+    return await _send('DELETE', path);
+  }
+
   // -- missions ----------------------------------------------------------------
+
 
   Future<List<Map<String, dynamic>>> listMissions({String? map}) async {
     final path = map != null && map.isNotEmpty

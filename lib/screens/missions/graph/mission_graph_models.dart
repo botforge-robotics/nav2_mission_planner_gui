@@ -111,6 +111,8 @@ class GraphNode {
       case 'end':
       case 'mission_end':
       case 'dock_and_end':
+      case 'abort':
+      case 'abort_and_end':
         return const []; // Terminal node (Mission finishes)
       case 'loop':
       case 'loop_counter':

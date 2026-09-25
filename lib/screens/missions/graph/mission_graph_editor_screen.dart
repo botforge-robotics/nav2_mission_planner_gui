@@ -76,9 +76,24 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     return ip == null ? null : SdkApiService(ip);
   }
 
+  void _setLandscapeOrientation() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+
+  void _restorePortraitOrientation() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
+
   @override
   void initState() {
     super.initState();
+    _setLandscapeOrientation();
     _initGraph();
     _nameController = TextEditingController(text: _graph.name);
     _nameFocusNode = FocusNode();
@@ -125,6 +140,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
   @override
   void dispose() {
+    _restorePortraitOrientation();
     _statusPoller?.cancel();
     _nameController.dispose();
     _nameFocusNode.dispose();
@@ -424,6 +440,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Mission "${_graph.name}" deleted')),
         );
+        _restorePortraitOrientation();
         Navigator.of(context).pop(true);
       }
     } catch (e) {
@@ -611,7 +628,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
   void _addNodeFromCatalog(String type, {Offset? position}) {
     final timestamp = DateTime.now().millisecondsSinceEpoch.remainder(10000);
-    final newId = '${type}_$timestamp';
+    final isAbort = type == 'abort' || type == 'abort_and_end';
+    final nodeType = isAbort ? 'end' : type;
+    final newId = '${isAbort ? 'abort' : type}_$timestamp';
     Offset pos;
 
     if (position != null) {
@@ -658,6 +677,11 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       case 'mission_end':
         defaultLabel = 'Finish Mission';
         defaultParams = {'status': 'success', 'message': 'Mission completed successfully.', 'dock_on_end': false};
+        break;
+      case 'abort':
+      case 'abort_and_end':
+        defaultLabel = 'Abort Mission';
+        defaultParams = {'status': 'aborted', 'dock_on_end': false, 'message': 'Mission aborted on error.'};
         break;
       case 'loop':
       case 'loop_counter':
@@ -822,7 +846,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
     final newNode = GraphNode(
       id: newId,
-      type: type,
+      type: nodeType,
       label: defaultLabel,
       position: pos,
       params: defaultParams,
@@ -908,9 +932,16 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: _buildAppBar(),
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          _restorePortraitOrientation();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: _buildAppBar(),
       body: Row(
         children: [
           // Left Sidebar with Tabs (Node Library & Variables)
@@ -1059,6 +1090,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           _buildRightSidebar(_selectedNode),
         ],
       ),
+      ),
     );
   }
 
@@ -1073,7 +1105,10 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       ),
       leading: IconButton(
         icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-        onPressed: () => Navigator.of(context).pop(),
+        onPressed: () {
+          _restorePortraitOrientation();
+          Navigator.of(context).pop();
+        },
       ),
       title: Row(
         children: [
@@ -1440,11 +1475,11 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     {
       'title': 'Where to Drive',
       'items': [
-        _PaletteItem('navigate_waypoint', 'Drive to Saved Place', 'Go to named room or spot', Icons.place_outlined, Color(0xFF2563EB)),
-        _PaletteItem('navigate_coordinates', 'Drive to Coordinates', 'Drive to exact (X, Y) map spot', Icons.navigation_outlined, Color(0xFF0284C7)),
+        _PaletteItem('navigate_waypoint', 'Drive to Saved Place', 'Go to named room or spot', Icons.navigation_rounded, Color(0xFF2563EB)),
+        _PaletteItem('navigate_coordinates', 'Drive to Coordinates', 'Drive to exact (X, Y) map spot', Icons.explore_rounded, Color(0xFF2563EB)),
         _PaletteItem('patrol_loop', 'Patrol Route', 'Visit places in sequence (rounds)', Icons.sync_rounded, Color(0xFF3B82F6)),
-        _PaletteItem('relocalize', 'Find My Position', 'Scan room with laser to locate self', Icons.my_location, Color(0xFF2563EB)),
-        _PaletteItem('cancel_navigation', 'Stop Driving', 'Cancel current drive & halt', Icons.cancel_outlined, Color(0xFFDC2626)),
+        _PaletteItem('relocalize', 'Find My Position', 'Scan room with laser to locate self', Icons.my_location_rounded, Color(0xFF0284C7)),
+        _PaletteItem('cancel_navigation', 'Stop Driving', 'Cancel current drive & halt', Icons.cancel_rounded, Color(0xFFDC2626)),
       ],
     },
     {
@@ -1452,44 +1487,45 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       'items': [
         _PaletteItem('dock_and_end', 'Dock & Finish', 'Dock at charger and complete mission', Icons.charging_station_rounded, Color(0xFF10B981)),
         _PaletteItem('dock', 'Go to Charger', 'Drive to dock and start charging', Icons.charging_station_rounded, Color(0xFF16A34A)),
-        _PaletteItem('undock', 'Leave Charger', 'Safely back away from dock', Icons.power_settings_new, Color(0xFF059669)),
+        _PaletteItem('undock', 'Leave Charger', 'Safely back away from dock', Icons.power_settings_new_rounded, Color(0xFF059669)),
         _PaletteItem('jog_motion', 'Nudge / Turn Wheels', 'Drive forward/back or turn briefly', Icons.gamepad_outlined, Color(0xFFD97706)),
-        _PaletteItem('emergency_stop', 'Safety Stop (E-Stop)', 'Immediately cut motor power', Icons.warning_amber_rounded, Color(0xFFDC2626)),
+        _PaletteItem('emergency_stop', 'Safety Stop (E-Stop)', 'Immediately cut motor power', Icons.emergency_rounded, Color(0xFFDC2626)),
       ],
     },
     {
       'title': 'Rules & Flow Control',
       'items': [
-        _PaletteItem('start', 'Start Mission', 'Where the mission begins', Icons.play_circle_outline, Color(0xFF16A34A)),
+        _PaletteItem('start', 'Start Mission', 'Where the mission begins', Icons.play_arrow_rounded, Color(0xFF16A34A)),
         _PaletteItem('dock_and_end', 'Dock & Finish', 'Dock at charger and complete mission', Icons.charging_station_rounded, Color(0xFF10B981)),
         _PaletteItem('end', 'Finish Mission', 'Complete mission and stop safely', Icons.task_alt_rounded, Color(0xFF0D9488)),
+        _PaletteItem('abort', 'Abort / Stop Flow', 'Halt workflow immediately on failure', Icons.stop_rounded, Color(0xFFEF4444)),
         _PaletteItem('loop', 'Repeat Steps', 'Repeat connected steps multiple times', Icons.loop_rounded, Color(0xFF7C3AED)),
         _PaletteItem('parallel', 'Run in Parallel', 'Execute multiple steps simultaneously', Icons.call_split_rounded, Color(0xFF00ACC1)),
-        _PaletteItem('condition', 'Check / If-Else', 'Branch path based on condition', Icons.alt_route, Color(0xFFEA580C)),
+        _PaletteItem('condition', 'Check / If-Else', 'Branch path based on condition', Icons.alt_route_rounded, Color(0xFFEA580C)),
         _PaletteItem('wait', 'Pause & Wait', 'Wait a few seconds before next step', Icons.timer_outlined, Color(0xFFD97706)),
-        _PaletteItem('battery_guard', 'Check Battery Level', 'Recharge if battery drops too low', Icons.battery_saver, Color(0xFF059669)),
-        _PaletteItem('set_variable', 'Remember a Value', 'Save a number, text, or counter', Icons.data_object, Color(0xFF9333EA)),
-        _PaletteItem('switch_mission', 'Switch Mission', 'Hand off to another saved mission', Icons.alt_route_rounded, Color(0xFF009688)),
+        _PaletteItem('battery_guard', 'Check Battery Level', 'Recharge if battery drops too low', Icons.battery_saver_rounded, Color(0xFF059669)),
+        _PaletteItem('set_variable', 'Remember a Value', 'Save a number, text, or counter', Icons.data_object_rounded, Color(0xFF9333EA)),
+        _PaletteItem('switch_mission', 'Switch Mission', 'Hand off to another saved mission', Icons.shuffle_rounded, Color(0xFF009688)),
       ],
     },
     {
       'title': 'Screen, Voice & Signals',
       'items': [
-        _PaletteItem('ui_notification', 'Show Notification', 'Show notice banner with OK button', Icons.notification_important_outlined, Color(0xFF0284C7)),
-        _PaletteItem('ui_interaction', 'Ask for Information', 'Show form on screen to fill out', Icons.touch_app_outlined, AppColors.primary),
-        _PaletteItem('ui_choice', 'Ask Choice (Buttons)', 'Show tap buttons on robot screen', Icons.ads_click, AppColors.primary),
-        _PaletteItem('ui_media', 'Show Picture or Video', 'Display image/video on robot screen', Icons.perm_media_outlined, Color(0xFF0284C7)),
-        _PaletteItem('ui_speech', 'Speak Aloud', 'Say message aloud via speakers', Icons.record_voice_over_outlined, Color(0xFF8B5CF6)),
-        _PaletteItem('notify', 'Lights & Chime Signal', 'Play chime or flash LED lights', Icons.tv, Color(0xFF0D9488)),
+        _PaletteItem('ui_notification', 'Show Notification', 'Show notice banner with OK button', Icons.notifications_active_rounded, Color(0xFF0284C7)),
+        _PaletteItem('ui_interaction', 'Ask for Information', 'Show form on screen to fill out', Icons.touch_app_rounded, AppColors.primary),
+        _PaletteItem('ui_choice', 'Ask Choice (Buttons)', 'Show tap buttons on robot screen', Icons.ads_click_rounded, AppColors.primary),
+        _PaletteItem('ui_media', 'Show Picture or Video', 'Display image/video on robot screen', Icons.smart_display_rounded, Color(0xFF0284C7)),
+        _PaletteItem('ui_speech', 'Speak Aloud', 'Say message aloud via speakers', Icons.record_voice_over_rounded, Color(0xFF8B5CF6)),
+        _PaletteItem('notify', 'Lights & Chime Signal', 'Play chime or flash LED lights', Icons.lightbulb_rounded, Color(0xFF0D9488)),
       ],
     },
     {
       'title': 'External Tools & Signals',
       'items': [
-        _PaletteItem('call_api', 'Send Web Notice', 'Send alert/data to a website or app', Icons.http, Color(0xFF7C3AED)),
-        _PaletteItem('call_service', 'Trigger Robot Tool', 'Run internal robot function/tool', Icons.settings_remote, Color(0xFF4F46E5)),
-        _PaletteItem('call_action', 'Run Background Task', 'Start long task and wait for it', Icons.bolt, Color(0xFF0284C7)),
-        _PaletteItem('publish_topic', 'Broadcast Signal', 'Send message to other robot parts', Icons.podcasts, Color(0xFF4F46E5)),
+        _PaletteItem('call_api', 'Send Web Notice', 'Send alert/data to a website or app', Icons.http_rounded, Color(0xFF7C3AED)),
+        _PaletteItem('call_service', 'Trigger Robot Tool', 'Run internal robot function/tool', Icons.precision_manufacturing_rounded, Color(0xFF4F46E5)),
+        _PaletteItem('call_action', 'Run Background Task', 'Start long task and wait for it', Icons.settings_input_component_rounded, Color(0xFF4F46E5)),
+        _PaletteItem('publish_topic', 'Broadcast Signal', 'Send message to other robot parts', Icons.podcasts_rounded, Color(0xFF4F46E5)),
       ],
     },
   ];

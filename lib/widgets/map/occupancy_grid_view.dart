@@ -1,18 +1,22 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
+import 'package:http/http.dart' as http;
 import 'package:nav_msgs/msg.dart' as nav_msgs;
 import 'package:nav_msgs/srv.dart' as nav_msgs_srv;
 import 'package:ros2_api/ros2_api.dart';
 import 'package:sensor_msgs/msg.dart' as sensor_msgs;
 import 'package:tf2_msgs/msg.dart' as tf2_msgs;
 
+import '../../models/map_zone.dart';
 import '../../theme/app_theme.dart';
 import '../design/fade_in.dart';
+
 import '../design/skeleton.dart';
 
 /// Converts a map-frame world point to the base map's own pixel space —
@@ -21,7 +25,7 @@ import '../design/skeleton.dart';
 /// resolution/origin (costmaps in particular are a different footprint than
 /// the base map). Assumes an unrotated origin — true for every map this app
 /// will ever see in practice.
-Offset _worldToPixel(nav_msgs.OccupancyGrid baseGrid, double x, double y) {
+Offset worldToPixel(nav_msgs.OccupancyGrid baseGrid, double x, double y) {
   final resolution = baseGrid.info.resolution;
   final originX = baseGrid.info.origin.position.x;
   final originY = baseGrid.info.origin.position.y;
@@ -30,7 +34,10 @@ Offset _worldToPixel(nav_msgs.OccupancyGrid baseGrid, double x, double y) {
   return Offset(colFromLeft, baseGrid.info.height - rowFromBottom);
 }
 
-Offset _pixelToWorld(nav_msgs.OccupancyGrid baseGrid, Offset px) {
+Offset _worldToPixel(nav_msgs.OccupancyGrid baseGrid, double x, double y) =>
+    worldToPixel(baseGrid, x, y);
+
+Offset pixelToWorld(nav_msgs.OccupancyGrid baseGrid, Offset px) {
   final resolution = baseGrid.info.resolution;
   final originX = baseGrid.info.origin.position.x;
   final originY = baseGrid.info.origin.position.y;
@@ -38,6 +45,9 @@ Offset _pixelToWorld(nav_msgs.OccupancyGrid baseGrid, Offset px) {
   final y = originY + (baseGrid.info.height - px.dy) * resolution;
   return Offset(x, y);
 }
+
+Offset _pixelToWorld(nav_msgs.OccupancyGrid baseGrid, Offset px) =>
+    pixelToWorld(baseGrid, px);
 
 double _yawOf(geometry_msgs.Quaternion q) =>
     atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
@@ -184,7 +194,25 @@ class OccupancyGridView extends StatefulWidget {
     this.dockEditorActiveIndex = 0,
     this.onDockEditorTap,
     this.onMapLoaded,
+    this.zones = const [],
+    this.showZones = true,
+    this.zoneEditorMode = false,
+    this.selectedZoneId,
+    this.activeZoneVertexIndex,
+    this.onZoneTap,
+    this.onZoneVertexMoved,
+    this.onZoneVertexAdded,
+    this.onZoneVertexSelected,
+    this.onZoneVertexMoveEnd,
+    this.drawingLaneMode = false,
+    this.laneDraftPoints = const [],
+    this.laneDraftWidth = 1.2,
+    this.mouseHoverWorld,
+    this.onMapHoverWorld,
+    this.onMapClickWorld,
+    this.onFinishLane,
   });
+
 
   final Ros2 ros2;
   final bool interactive;
@@ -297,8 +325,26 @@ class OccupancyGridView extends StatefulWidget {
   final ({double x, double y})? dockEditorStandoffPoint;
   final int dockEditorActiveIndex;
   final void Function(double x, double y)? onDockEditorTap;
+  final List<MapZone> zones;
+  final bool showZones;
+  final bool zoneEditorMode;
+  final String? selectedZoneId;
+  final int? activeZoneVertexIndex;
+  final void Function(MapZone zone)? onZoneTap;
+  final void Function(int vertexIndex, double x, double y)? onZoneVertexMoved;
+  final void Function(int insertAfterIndex, double x, double y)? onZoneVertexAdded;
+  final void Function(int vertexIndex)? onZoneVertexSelected;
+  final VoidCallback? onZoneVertexMoveEnd;
+  final bool drawingLaneMode;
+  final List<Offset> laneDraftPoints;
+  final double laneDraftWidth;
+  final Offset? mouseHoverWorld;
+  final ValueChanged<Offset?>? onMapHoverWorld;
+  final ValueChanged<Offset>? onMapClickWorld;
+  final VoidCallback? onFinishLane;
 
   @override
+
   State<OccupancyGridView> createState() => _OccupancyGridViewState();
 }
 
@@ -314,6 +360,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   sensor_msgs.LaserScan? _scan;
   Subscriber<nav_msgs.Odometry>? _odomSub;
   geometry_msgs.PoseWithCovarianceStamped? _odomPose;
+  int? _draggingVertexIndex;
+
 
   /// The live `map` -> `odom` transform, tracked only while the local
   /// costmap is shown (it's the only thing here that needs it — see the
@@ -324,6 +372,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   _RigidTransform2D? _mapOdomTransform;
 
   Subscriber<geometry_msgs.PoseWithCovarianceStamped>? _slamPoseSub;
+  static nav_msgs.OccupancyGrid? _cachedGrid;
+  static ui.Image? _cachedImage;
 
   nav_msgs.OccupancyGrid? _grid;
   ui.Image? _image;
@@ -479,6 +529,16 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     _path = widget.initialPath;
     if (widget.isMapping) {
       _initMappingPlaceholderGrid();
+    } else if (_cachedGrid != null && _cachedImage != null) {
+      _grid = _cachedGrid;
+      _image = _cachedImage;
+      if (widget.onMapLoaded != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _grid != null) {
+            widget.onMapLoaded?.call(_grid!);
+          }
+        });
+      }
     }
     // Listened to so the robot marker can counter-scale against the current
     // zoom (see _onViewTransformChanged) — a marker drawn at a fixed size in
@@ -501,17 +561,73 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       callback: _onGrid,
     );
 
-    // Actively query the Nav2 map service immediately on subscription.
+    // Actively query the Nav2 map service and SDK HTTP API fallback immediately.
     // This solves the common rosbridge issue where late-connecting WebSocket
     // clients do not receive latched transient_local DDS topics after cold restart.
     _fetchMapViaService();
+    _fetchMapViaHttp();
 
-    // Secondary safety retry in case rosbridge was still establishing channel connection
+    // Secondary safety retry in case rosbridge/network was still establishing connection
     Future.delayed(const Duration(milliseconds: 1400), () {
       if (mounted && (_grid == null || _isPlaceholderGrid)) {
         _fetchMapViaService();
+        _fetchMapViaHttp();
       }
     });
+  }
+
+  Future<void> _fetchMapViaHttp() async {
+    if (_grid != null && !_isPlaceholderGrid) return;
+    try {
+      final ros2Url = widget.ros2.url?.toString();
+      if (ros2Url == null || ros2Url.isEmpty) return;
+      final uri = Uri.tryParse(ros2Url);
+      final host = uri?.host;
+      if (host == null || host.isEmpty) return;
+
+      final httpUri = Uri.parse('http://$host:8090/api/v1/maps/current/info?include_data=1');
+      final resp = await http.get(httpUri).timeout(const Duration(seconds: 4));
+      if (resp.statusCode != 200 || !mounted) return;
+      if (_grid != null && !_isPlaceholderGrid) return;
+
+      final dynamic data = jsonDecode(resp.body);
+      if (data is! Map || data['loaded'] != true) return;
+      final width = (data['width'] as num?)?.toInt() ?? 0;
+      final height = (data['height'] as num?)?.toInt() ?? 0;
+      final resolution = (data['resolution'] as num?)?.toDouble() ?? 0.05;
+      final originMap = data['origin'] as Map?;
+      final originX = (originMap?['x'] as num?)?.toDouble() ?? 0.0;
+      final originY = (originMap?['y'] as num?)?.toDouble() ?? 0.0;
+      final gridDataRaw = data['data'];
+      if (width <= 0 || height <= 0 || gridDataRaw is! List || gridDataRaw.isEmpty) return;
+
+      final gridData = <int>[];
+      for (final e in gridDataRaw) {
+        if (e is int) {
+          gridData.add(e);
+        } else if (e is num) {
+          gridData.add(e.toInt());
+        }
+      }
+
+      final grid = nav_msgs.OccupancyGrid(
+        info: nav_msgs.MapMetaData(
+          width: width,
+          height: height,
+          resolution: resolution,
+          origin: geometry_msgs.Pose(
+            position: geometry_msgs.Point(x: originX, y: originY, z: 0.0),
+          ),
+        ),
+        data: gridData,
+      );
+
+      if (mounted && (_grid == null || _isPlaceholderGrid)) {
+        await _onGrid(grid);
+      }
+    } catch (e) {
+      debugPrint('HTTP map fetch skipped/failed: $e');
+    }
   }
 
   Future<void> _fetchMapViaService() async {
@@ -674,7 +790,12 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       ros2: widget.ros2,
       prototype: nav_msgs.Path(),
       callback: (msg) {
-        if (mounted) setState(() => _path = msg);
+        if (!mounted) return;
+        if (msg.poses.isEmpty) {
+          setState(() => _path = null);
+        } else {
+          setState(() => _path = msg);
+        }
       },
     );
   }
@@ -778,9 +899,12 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         (_pose == null || widget.initialPose != oldWidget.initialPose)) {
       _pose = widget.initialPose;
     }
-    if (widget.initialPath != null &&
-        (_path == null || widget.initialPath != oldWidget.initialPath)) {
-      _path = widget.initialPath;
+    if (widget.initialPath != oldWidget.initialPath) {
+      if (!widget.showPath) {
+        _path = null;
+      } else if (widget.initialPath != null) {
+        _path = widget.initialPath;
+      }
     }
     if (widget.showRobot != oldWidget.showRobot) {
       if (widget.showRobot) {
@@ -933,6 +1057,11 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           matrix.translateByDouble(-deltaX, -deltaY, 0.0, 1.0);
           _controller.value = matrix;
         }
+      }
+
+      if (!widget.isMapping) {
+        _cachedGrid = grid;
+        _cachedImage = image;
       }
 
       setState(() {
@@ -1143,7 +1272,163 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       widget.onDockEditorTap?.call(tapWorld.dx, tapWorld.dy);
       return;
     }
+    if (widget.zoneEditorMode) {
+      final selectedZone = widget.zones
+          .where((z) => z.id == widget.selectedZoneId)
+          .firstOrNull;
+      if (selectedZone != null && selectedZone.points.isNotEmpty) {
+        final viewScale = _controller.value.getMaxScaleOnAxis();
+        final effectiveScale = viewScale > 0 ? viewScale : 1.0;
+
+        if (selectedZone.isCorridorLane) {
+          // Preferred Lane: hit test against centerline turn nodes and segments!
+          final cl = selectedZone.laneCenterline;
+          final clPx = cl.map((p) => _worldToPixel(grid, p.dx, p.dy)).toList();
+
+          // 1. Check if tap is on an existing centerline vertex (tolerance ~26px)
+          int? tappedVertexIdx;
+          double minVertexDist = double.infinity;
+          for (int i = 0; i < clPx.length; i++) {
+            final screenDist = (clPx[i] - contentPoint).distance * effectiveScale;
+            if (screenDist <= 26.0 && screenDist < minVertexDist) {
+              minVertexDist = screenDist;
+              tappedVertexIdx = i;
+            }
+          }
+          if (tappedVertexIdx != null) {
+            widget.onZoneVertexSelected?.call(tappedVertexIdx);
+            return;
+          }
+
+          // 2. Check if tap is on or near a centerline segment or midpoint "+" handle
+          int? bestSegIdx;
+          Offset? bestSegProjPx;
+          double minSegDist = double.infinity;
+
+          for (int i = 0; i < clPx.length - 1; i++) {
+            final p1 = clPx[i];
+            final p2 = clPx[i + 1];
+            final midPx = (p1 + p2) / 2;
+
+            // Check midpoint "+" handle
+            final midDist = (midPx - contentPoint).distance * effectiveScale;
+            if (midDist <= 24.0 && midDist < minSegDist) {
+              minSegDist = midDist;
+              bestSegIdx = i;
+              bestSegProjPx = midPx;
+            }
+
+            // Check segment projection
+            final seg = p2 - p1;
+            final lenSq = seg.dx * seg.dx + seg.dy * seg.dy;
+            if (lenSq > 0) {
+              final t = ((contentPoint.dx - p1.dx) * seg.dx + (contentPoint.dy - p1.dy) * seg.dy) / lenSq;
+              if (t >= 0.02 && t <= 0.98) {
+                final proj = p1 + seg * t;
+                final segDist = (proj - contentPoint).distance * effectiveScale;
+                if (segDist <= 22.0 && segDist < minSegDist) {
+                  minSegDist = segDist;
+                  bestSegIdx = i;
+                  bestSegProjPx = proj;
+                }
+              }
+            }
+          }
+
+          if (bestSegIdx != null && bestSegProjPx != null) {
+            final projWorld = _pixelToWorld(grid, bestSegProjPx);
+            widget.onZoneVertexAdded?.call(bestSegIdx, projWorld.dx, projWorld.dy);
+            return;
+          }
+
+          // Deselect active vertex
+          widget.onZoneVertexSelected?.call(-1);
+        } else {
+          // Regular polygon zone hit-testing
+          final ptsPx = selectedZone.points
+              .map((p) => _worldToPixel(grid, p.dx, p.dy))
+              .toList();
+
+          // 1. Check if tap is on/near an existing vertex handle (screen tolerance ~24px)
+          int? tappedVertexIdx;
+          double minVertexDist = double.infinity;
+          for (int i = 0; i < ptsPx.length; i++) {
+            final screenDist = (ptsPx[i] - contentPoint).distance * effectiveScale;
+            if (screenDist <= 24.0 && screenDist < minVertexDist) {
+              minVertexDist = screenDist;
+              tappedVertexIdx = i;
+            }
+          }
+          if (tappedVertexIdx != null) {
+            widget.onZoneVertexSelected?.call(tappedVertexIdx);
+            return;
+          }
+
+          // 2. Check if tap is on or near an edge or midpoint "+" handle
+          int? bestEdgeIdx;
+          Offset? bestEdgeProjPx;
+          double minEdgeDist = double.infinity;
+
+          for (int i = 0; i < ptsPx.length; i++) {
+            final nextIdx = (i + 1) % ptsPx.length;
+            final p1 = ptsPx[i];
+            final p2 = ptsPx[nextIdx];
+            final midPx = (p1 + p2) / 2;
+
+            // Check distance to the midpoint "+" handle
+            final midDist = (midPx - contentPoint).distance * effectiveScale;
+            if (midDist <= 24.0 && midDist < minEdgeDist) {
+              minEdgeDist = midDist;
+              bestEdgeIdx = i;
+              bestEdgeProjPx = midPx;
+            }
+
+            // Check distance to edge segment (allows tapping along the edge to insert exactly there)
+            final seg = p2 - p1;
+            final lenSq = seg.dx * seg.dx + seg.dy * seg.dy;
+            if (lenSq > 0) {
+              final t = ((contentPoint.dx - p1.dx) * seg.dx + (contentPoint.dy - p1.dy) * seg.dy) / lenSq;
+              if (t >= 0.05 && t <= 0.95) {
+                final proj = p1 + seg * t;
+                final segDist = (proj - contentPoint).distance * effectiveScale;
+                if (segDist <= 20.0 && segDist < minEdgeDist) {
+                  minEdgeDist = segDist;
+                  bestEdgeIdx = i;
+                  bestEdgeProjPx = proj;
+                }
+              }
+            }
+          }
+
+          if (bestEdgeIdx != null && bestEdgeProjPx != null) {
+            final projWorld = _pixelToWorld(grid, bestEdgeProjPx);
+            widget.onZoneVertexAdded?.call(bestEdgeIdx, projWorld.dx, projWorld.dy);
+            return;
+          }
+
+          // 3. Tapping elsewhere in the zone editor deselects active vertex (prevents accidental jumps)
+          widget.onZoneVertexSelected?.call(-1);
+        }
+      }
+
+      // 4. Check if tap selects another zone
+      for (final z in widget.zones) {
+        if (z.contains(Offset(tapWorld.dx, tapWorld.dy))) {
+          widget.onZoneTap?.call(z);
+          return;
+        }
+      }
+      return;
+    } else if (widget.onZoneTap != null && widget.zones.isNotEmpty) {
+      for (final z in widget.zones) {
+        if (z.contains(Offset(tapWorld.dx, tapWorld.dy))) {
+          widget.onZoneTap?.call(z);
+          return;
+        }
+      }
+    }
     const toleranceMeters = 0.6;
+
 
     double? dockDist;
     if (widget.onDockTap != null) {
@@ -1252,6 +1537,15 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
             dockEditorDockPoint: widget.dockEditorDockPoint,
             dockEditorStandoffPoint: widget.dockEditorStandoffPoint,
             dockEditorActiveIndex: widget.dockEditorActiveIndex,
+            zones: (widget.showZones && showOverlays) ? widget.zones : const [],
+            zoneEditorMode: widget.zoneEditorMode,
+            selectedZoneId: widget.selectedZoneId,
+            activeZoneVertexIndex:
+                widget.activeZoneVertexIndex ?? _draggingVertexIndex,
+            drawingLaneMode: widget.drawingLaneMode,
+            laneDraftPoints: widget.laneDraftPoints,
+            laneDraftWidth: widget.laneDraftWidth,
+            mouseHoverWorld: widget.mouseHoverWorld,
           ),
         );
 
@@ -1293,34 +1587,24 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
               onTapUp: (details) => _placeDraft(details.globalPosition),
               child: InteractiveViewer(
                 transformationController: _controller,
-                minScale: 0.2,
-                maxScale: 8,
-                boundaryMargin: const EdgeInsets.all(200),
-                child: Center(
-                  // A second, inner Stack — not InteractiveViewer's own
-                  // child directly — so the CompositedTransformTarget below
-                  // can sit *inside* the transformed content (tracking the
-                  // marker through Center + InteractiveViewer's transform
-                  // automatically) while still being a completely inert,
-                  // non-hit-testing marker (no gesture recognizer of its
-                  // own, so unlike the handle itself, nesting it in here
-                  // doesn't risk the arena conflict the class doc warns
-                  // about).
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      contentFor(markerScale, key: _contentBoxKey),
-                      if (handleContentPos != null)
-                        Positioned(
-                          left: handleContentPos.dx,
-                          top: handleContentPos.dy,
-                          child: CompositedTransformTarget(
-                            link: _handleLink,
-                            child: const SizedBox.shrink(),
-                          ),
+                minScale: 0.02,
+                maxScale: 10,
+                boundaryMargin: const EdgeInsets.all(double.infinity),
+                constrained: false,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    contentFor(markerScale, key: _contentBoxKey),
+                    if (handleContentPos != null)
+                      Positioned(
+                        left: handleContentPos.dx,
+                        top: handleContentPos.dy,
+                        child: CompositedTransformTarget(
+                          link: _handleLink,
+                          child: const SizedBox.shrink(),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -1393,23 +1677,139 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       final markerScale = 1 / (viewScale <= 0 ? 1.0 : viewScale);
       final viewer = InteractiveViewer(
         transformationController: _controller,
-        minScale: 0.2,
-        maxScale: 8,
-        boundaryMargin: const EdgeInsets.all(200),
-        child: Center(child: revealedFor(markerScale, key: _contentBoxKey)),
+        panEnabled: _draggingVertexIndex == null,
+        scaleEnabled: _draggingVertexIndex == null,
+        minScale: 0.02,
+        maxScale: 10,
+        boundaryMargin: const EdgeInsets.all(double.infinity),
+        constrained: false,
+        child: revealedFor(markerScale, key: _contentBoxKey),
       );
-      if (widget.onLocationTap == null && widget.onDockTap == null && !widget.dockEditorMode) {
-        return _withLocalizationBadge(viewer);
+
+      Widget activeChild = viewer;
+      if (widget.zoneEditorMode) {
+        activeChild = Listener(
+          onPointerDown: (event) {
+            if (!widget.zoneEditorMode || widget.selectedZoneId == null) return;
+            final contentPoint = _globalToContent(event.position);
+            if (contentPoint == null || _grid == null) return;
+            final selZone = widget.zones
+                .where((z) => z.id == widget.selectedZoneId)
+                .firstOrNull;
+            if (selZone == null) return;
+            final viewScale = _controller.value.getMaxScaleOnAxis();
+            final effectiveScale = viewScale > 0 ? viewScale : 1.0;
+            int? hitIdx;
+            double minDist = double.infinity;
+            final targetPoints = selZone.isCorridorLane ? selZone.laneCenterline : selZone.points;
+            for (int i = 0; i < targetPoints.length; i++) {
+              final ptPx = _worldToPixel(_grid!, targetPoints[i].dx, targetPoints[i].dy);
+              final screenDist = (ptPx - contentPoint).distance * effectiveScale;
+              if (screenDist <= 26.0 && screenDist < minDist) {
+                minDist = screenDist;
+                hitIdx = i;
+              }
+            }
+            if (hitIdx != null) {
+              setState(() => _draggingVertexIndex = hitIdx);
+              widget.onZoneVertexSelected?.call(hitIdx);
+            }
+          },
+          onPointerMove: (event) {
+            if (_draggingVertexIndex == null || _grid == null) return;
+            final contentPoint = _globalToContent(event.position);
+            if (contentPoint == null) return;
+            final world = _pixelToWorld(_grid!, contentPoint);
+            widget.onZoneVertexMoved?.call(_draggingVertexIndex!, world.dx, world.dy);
+          },
+          onPointerUp: (event) {
+            if (_draggingVertexIndex != null) {
+              setState(() => _draggingVertexIndex = null);
+              widget.onZoneVertexMoveEnd?.call();
+            }
+          },
+          onPointerCancel: (event) {
+            if (_draggingVertexIndex != null) {
+              setState(() => _draggingVertexIndex = null);
+              widget.onZoneVertexMoveEnd?.call();
+            }
+          },
+          child: viewer,
+        );
       }
-      // A GestureDetector wrapping InteractiveViewer (rather than nested
-      // inside it) sees plain taps without competing with InteractiveViewer's
-      // own pan/zoom recognizer — the same "wrap, don't nest" reasoning the
-      // class doc gives for why posePicking swaps the whole tree instead.
-      return _withLocalizationBadge(GestureDetector(
-        onTapUp: (details) => _handleMapTap(details.globalPosition),
-        child: viewer,
+
+      if (widget.drawingLaneMode) {
+        activeChild = MouseRegion(
+          cursor: SystemMouseCursors.precise,
+          onHover: (event) {
+            if (_grid == null) return;
+            final contentPoint = _globalToContent(event.position);
+            if (contentPoint != null) {
+              final world = _pixelToWorld(_grid!, contentPoint);
+              widget.onMapHoverWorld?.call(world);
+            }
+          },
+          onExit: (_) {
+            widget.onMapHoverWorld?.call(null);
+          },
+          child: GestureDetector(
+            onTapUp: (details) {
+              if (_grid == null) return;
+              final contentPoint = _globalToContent(details.globalPosition);
+              if (contentPoint != null) {
+                final world = _pixelToWorld(_grid!, contentPoint);
+                widget.onMapClickWorld?.call(world);
+              }
+            },
+            onDoubleTap: () {
+              widget.onFinishLane?.call();
+            },
+            child: activeChild,
+          ),
+        );
+      }
+
+      Widget activeWidget = activeChild;
+      if (widget.drawingLaneMode) {
+        activeWidget = activeChild;
+      } else if (widget.onLocationTap != null ||
+          widget.onDockTap != null ||
+          widget.dockEditorMode ||
+          widget.zoneEditorMode ||
+          widget.onZoneTap != null) {
+        activeWidget = GestureDetector(
+          onTapUp: (details) => _handleMapTap(details.globalPosition),
+          child: activeChild,
+        );
+      }
+
+      return _withLocalizationBadge(LayoutBuilder(
+        builder: (context, constraints) {
+          final viewport = constraints.biggest;
+          if (viewport.isFinite &&
+              !viewport.isEmpty &&
+              _controller.value.isIdentity() &&
+              image.width > 0 &&
+              image.height > 0) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || !_controller.value.isIdentity()) return;
+              const pad = 36.0;
+              final availW = max(50.0, viewport.width - pad * 2);
+              final availH = max(50.0, viewport.height - pad * 2);
+              final s = min(availW / image.width, availH / image.height)
+                  .clamp(0.02, 8.0);
+              final tx = (viewport.width - image.width * s) / 2;
+              final ty = (viewport.height - image.height * s) / 2;
+              _controller.value = Matrix4.identity()
+                ..translateByDouble(tx, ty, 0, 1)
+                ..scaleByDouble(s, s, s, 1.0);
+            });
+          }
+          return activeWidget;
+        },
       ));
     }
+
 
     // Thumbnail views (Dashboard's live preview, Maps List's card): the
     // zoom level is always "fit the map's width to the container" — a
@@ -1529,6 +1929,14 @@ class _OccupancyGridPainter extends CustomPainter {
     this.dockEditorDockPoint,
     this.dockEditorStandoffPoint,
     this.dockEditorActiveIndex = 0,
+    this.zones = const [],
+    this.zoneEditorMode = false,
+    this.selectedZoneId,
+    this.activeZoneVertexIndex,
+    this.drawingLaneMode = false,
+    this.laneDraftPoints = const [],
+    this.laneDraftWidth = 1.2,
+    this.mouseHoverWorld,
   });
 
   final ui.Image image;
@@ -1550,6 +1958,14 @@ class _OccupancyGridPainter extends CustomPainter {
   final ({double x, double y})? dockEditorDockPoint;
   final ({double x, double y})? dockEditorStandoffPoint;
   final int dockEditorActiveIndex;
+  final List<MapZone> zones;
+  final bool zoneEditorMode;
+  final String? selectedZoneId;
+  final int? activeZoneVertexIndex;
+  final bool drawingLaneMode;
+  final List<Offset> laneDraftPoints;
+  final double laneDraftWidth;
+  final Offset? mouseHoverWorld;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1566,6 +1982,9 @@ class _OccupancyGridPainter extends CustomPainter {
 
     _drawPath(canvas);
     if (showWaypointRoute) _drawWaypointRoute(canvas);
+    if (zones.isNotEmpty) _drawZones(canvas);
+    if (drawingLaneMode) _drawLaneDraft(canvas);
+
 
     for (final loc in locations) {
       if (loc['x'] is! num || loc['y'] is! num) continue;
@@ -1654,7 +2073,397 @@ class _OccupancyGridPainter extends CustomPainter {
     }
   }
 
+  void _drawZones(Canvas canvas) {
+    final resolution = grid.info.resolution;
+    if (resolution <= 0) return;
+
+    for (final zone in zones) {
+      if (zone.points.length < 3) continue;
+      final isSelected = zone.id == selectedZoneId;
+      final pts =
+          zone.points.map((p) => _worldToPixel(grid, p.dx, p.dy)).toList();
+
+      final path = Path()..moveTo(pts[0].dx, pts[0].dy);
+      for (int i = 1; i < pts.length; i++) {
+        path.lineTo(pts[i].dx, pts[i].dy);
+      }
+      path.close();
+
+      // Translucent fill
+      final fillPaint = Paint()
+        ..color = zone.color.withValues(alpha: isSelected ? 0.32 : 0.18)
+        ..style = PaintingStyle.fill;
+      canvas.drawPath(path, fillPaint);
+
+      // Striped diagonal lines for restricted / keep-out areas (hazard safety pattern)
+      if (zone.type == ZoneType.restricted) {
+        canvas.save();
+        canvas.clipPath(path);
+        final bounds = path.getBounds();
+        final stripePaint = Paint()
+          ..color = zone.color.withValues(alpha: isSelected ? 0.55 : 0.35)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = (isSelected ? 2.2 : 1.6) * markerScale;
+        final step = (14.0 * markerScale).clamp(4.0, 50.0);
+        final h = bounds.height > 0 ? bounds.height : 1.0;
+        for (double d = -h; d <= bounds.width + h; d += step) {
+          canvas.drawLine(
+            Offset(bounds.left + d, bounds.bottom),
+            Offset(bounds.left + d + h, bounds.top),
+            stripePaint,
+          );
+        }
+        canvas.restore();
+      }
+
+      // Boundary stroke
+      final strokePaint = Paint()
+        ..color = zone.color.withValues(alpha: isSelected ? 0.95 : 0.75)
+        ..strokeWidth = (isSelected ? 2.5 : 1.5) * markerScale
+        ..style = PaintingStyle.stroke;
+      canvas.drawPath(path, strokePaint);
+
+      // Directional centerline & guide markings for Preferred Lane
+      if (zone.type == ZoneType.preferredLane && zone.isCorridorLane) {
+        final cl = zone.laneCenterline;
+        final clPx = cl.map((p) => _worldToPixel(grid, p.dx, p.dy)).toList();
+
+        final centerLinePaint = Paint()
+          ..color = zone.color.withValues(alpha: isSelected ? 0.95 : 0.75)
+          ..strokeWidth = 2.0 * markerScale
+          ..style = PaintingStyle.stroke;
+
+        // Draw dashed centerline along each segment
+        final dashLen = 8.0 * markerScale;
+        final gapLen = 6.0 * markerScale;
+
+        for (int i = 0; i < clPx.length - 1; i++) {
+          final p1 = clPx[i];
+          final p2 = clPx[i + 1];
+          final diff = p2 - p1;
+          final totalDist = diff.distance;
+          if (totalDist > 6.0 * markerScale) {
+            final dir = diff / totalDist;
+            double dist = 0.0;
+            while (dist < totalDist - 8.0 * markerScale) {
+              final startD = p1 + dir * dist;
+              final endD = p1 +
+                  dir * (dist + dashLen).clamp(0.0, totalDist - 8.0 * markerScale);
+              canvas.drawLine(startD, endD, centerLinePaint);
+              dist += dashLen + gapLen;
+            }
+
+            // Draw forward arrow head on each segment
+            final arrowLen = 9.0 * markerScale;
+            final norm = Offset(-dir.dy, dir.dx) * (4.5 * markerScale);
+            final arrowTip = p1 + dir * (totalDist * 0.7);
+            final arrowBase = arrowTip - dir * arrowLen;
+            final arrowPath = Path()
+              ..moveTo(arrowTip.dx, arrowTip.dy)
+              ..lineTo(arrowBase.dx + norm.dx, arrowBase.dy + norm.dy)
+              ..lineTo(arrowBase.dx - norm.dx, arrowBase.dy - norm.dy)
+              ..close();
+            canvas.drawPath(
+              arrowPath,
+              Paint()
+                ..color = zone.color.withValues(alpha: isSelected ? 0.95 : 0.80)
+                ..style = PaintingStyle.fill,
+            );
+          }
+        }
+      }
+
+      // Centroid label badge
+      final centroidWorld = zone.centroid;
+      final centroidPx =
+          _worldToPixel(grid, centroidWorld.dx, centroidWorld.dy);
+      final labelText = switch (zone.type) {
+        ZoneType.speedLimit =>
+          '${zone.name} (${zone.speedLimitMps?.toStringAsFixed(2) ?? '0.3'} m/s)',
+        ZoneType.preferredLane when zone.isCorridorLane =>
+          '${zone.name} (${zone.laneWidth.toStringAsFixed(1)}m)',
+        _ => zone.name,
+      };
+      _drawPillLabel(canvas, centroidPx, labelText, zone.color,
+          sizeScale: markerScale);
+
+      // If in zoneEditorMode and isSelected: draw vertices & edge midpoints
+      if (zoneEditorMode && isSelected) {
+        if (zone.isCorridorLane) {
+          // Preferred Lane: draw handles along the centerline turns!
+          final cl = zone.laneCenterline;
+          final clPx = cl.map((p) => _worldToPixel(grid, p.dx, p.dy)).toList();
+
+          // Edge midpoint "+" handles on centerline
+          for (int i = 0; i < clPx.length - 1; i++) {
+            final mid = (clPx[i] + clPx[i + 1]) / 2;
+            final radius = 7.0 * markerScale;
+            canvas.drawCircle(
+                mid, radius, Paint()..color = const Color(0xFF1E293B));
+            canvas.drawCircle(
+              mid,
+              radius,
+              Paint()
+                ..color = zone.color
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.4 * markerScale,
+            );
+            final crossLen = 3.6 * markerScale;
+            final crossPaint = Paint()
+              ..color = Colors.white
+              ..strokeWidth = 1.4 * markerScale
+              ..strokeCap = StrokeCap.round;
+            canvas.drawLine(
+                mid - Offset(crossLen, 0), mid + Offset(crossLen, 0), crossPaint);
+            canvas.drawLine(
+                mid - Offset(0, crossLen), mid + Offset(0, crossLen), crossPaint);
+          }
+
+          // Turn node handles on centerline
+          for (int i = 0; i < clPx.length; i++) {
+            final pt = clPx[i];
+            final isActive = i == activeZoneVertexIndex;
+            final radius = (isActive ? 9.5 : 7.5) * markerScale;
+
+            if (isActive) {
+              canvas.drawCircle(
+                pt,
+                radius + 5.0 * markerScale,
+                Paint()..color = zone.color.withValues(alpha: 0.35),
+              );
+            }
+
+            canvas.drawCircle(pt, radius, Paint()..color = Colors.white);
+            canvas.drawCircle(
+              pt,
+              radius,
+              Paint()
+                ..color = zone.color
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = (isActive ? 2.8 : 2.0) * markerScale,
+            );
+
+            if (isActive) {
+              canvas.drawCircle(pt, radius * 0.45, Paint()..color = zone.color);
+            } else {
+              final tp = TextPainter(
+                textDirection: TextDirection.ltr,
+                text: TextSpan(
+                  text: '${i + 1}',
+                  style: TextStyle(
+                    fontSize: 9.0 * markerScale,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              )..layout();
+              tp.paint(canvas, pt - Offset(tp.width / 2, tp.height / 2));
+            }
+          }
+        } else {
+          // Regular polygon zone handles
+          for (int i = 0; i < pts.length; i++) {
+            final nextIdx = (i + 1) % pts.length;
+            final mid = (pts[i] + pts[nextIdx]) / 2;
+            final radius = 7.0 * markerScale;
+
+            canvas.drawCircle(
+                mid, radius, Paint()..color = const Color(0xFF1E293B));
+            canvas.drawCircle(
+              mid,
+              radius,
+              Paint()
+                ..color = zone.color
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.4 * markerScale,
+            );
+            final crossLen = 3.6 * markerScale;
+            final crossPaint = Paint()
+              ..color = Colors.white
+              ..strokeWidth = 1.4 * markerScale
+              ..strokeCap = StrokeCap.round;
+            canvas.drawLine(
+                mid - Offset(crossLen, 0), mid + Offset(crossLen, 0), crossPaint);
+            canvas.drawLine(
+                mid - Offset(0, crossLen), mid + Offset(0, crossLen), crossPaint);
+          }
+
+          for (int i = 0; i < pts.length; i++) {
+            final pt = pts[i];
+            final isActive = i == activeZoneVertexIndex;
+            final radius = (isActive ? 9.5 : 7.5) * markerScale;
+
+            if (isActive) {
+              canvas.drawCircle(
+                pt,
+                radius + 5.0 * markerScale,
+                Paint()..color = zone.color.withValues(alpha: 0.35),
+              );
+            }
+
+            canvas.drawCircle(pt, radius, Paint()..color = Colors.white);
+            canvas.drawCircle(
+              pt,
+              radius,
+              Paint()
+                ..color = zone.color
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = (isActive ? 2.8 : 2.0) * markerScale,
+            );
+
+            if (isActive) {
+              canvas.drawCircle(pt, radius * 0.45, Paint()..color = zone.color);
+            } else {
+              final tp = TextPainter(
+                textDirection: TextDirection.ltr,
+                text: TextSpan(
+                  text: '${i + 1}',
+                  style: TextStyle(
+                    fontSize: 9.0 * markerScale,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              )..layout();
+              tp.paint(canvas, pt - Offset(tp.width / 2, tp.height / 2));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  void _drawLaneDraft(Canvas canvas) {
+    final points = List<Offset>.from(laneDraftPoints);
+    if (mouseHoverWorld != null) {
+      points.add(mouseHoverWorld!);
+    }
+
+    if (points.length >= 2) {
+      final corridor = MapZone.bufferPolyline(points, laneDraftWidth);
+      if (corridor.length >= 4) {
+        final corridorPx =
+            corridor.map((p) => _worldToPixel(grid, p.dx, p.dy)).toList();
+        final path = Path()..moveTo(corridorPx[0].dx, corridorPx[0].dy);
+        for (int i = 1; i < corridorPx.length; i++) {
+          path.lineTo(corridorPx[i].dx, corridorPx[i].dy);
+        }
+        path.close();
+
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = const Color(0xFF3B82F6).withValues(alpha: 0.22)
+            ..style = PaintingStyle.fill,
+        );
+
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = const Color(0xFF3B82F6).withValues(alpha: 0.85)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.0 * markerScale,
+        );
+      }
+
+      // Draw centerline segments and arrows
+      final ptsPx = points.map((p) => _worldToPixel(grid, p.dx, p.dy)).toList();
+      for (int i = 0; i < ptsPx.length - 1; i++) {
+        final p1 = ptsPx[i];
+        final p2 = ptsPx[i + 1];
+        final isLastPreview = (mouseHoverWorld != null && i == ptsPx.length - 2);
+
+        final linePaint = Paint()
+          ..color = const Color(0xFF3B82F6).withValues(alpha: isLastPreview ? 0.70 : 0.95)
+          ..strokeWidth = 2.2 * markerScale
+          ..style = PaintingStyle.stroke;
+
+        canvas.drawLine(p1, p2, linePaint);
+
+        final diff = p2 - p1;
+        final dist = diff.distance;
+        if (dist > 15.0 * markerScale) {
+          final dir = diff / dist;
+          final arrowLen = 9.0 * markerScale;
+          final norm = Offset(-dir.dy, dir.dx) * (4.5 * markerScale);
+          final mid = (p1 + p2) / 2;
+          final arrowPath = Path()
+            ..moveTo(mid.dx + dir.dx * arrowLen * 0.5, mid.dy + dir.dy * arrowLen * 0.5)
+            ..lineTo(mid.dx - dir.dx * arrowLen * 0.5 + norm.dx, mid.dy - dir.dy * arrowLen * 0.5 + norm.dy)
+            ..lineTo(mid.dx - dir.dx * arrowLen * 0.5 - norm.dx, mid.dy - dir.dy * arrowLen * 0.5 - norm.dy)
+            ..close();
+          canvas.drawPath(
+            arrowPath,
+            Paint()
+              ..color = const Color(0xFF3B82F6).withValues(alpha: isLastPreview ? 0.70 : 0.95)
+              ..style = PaintingStyle.fill,
+          );
+        }
+      }
+    }
+
+    // Draw placed nodes
+    for (int i = 0; i < laneDraftPoints.length; i++) {
+      final pt = laneDraftPoints[i];
+      final ptPx = _worldToPixel(grid, pt.dx, pt.dy);
+      final radius = 9.0 * markerScale;
+
+      canvas.drawCircle(
+        ptPx,
+        radius + 4.0 * markerScale,
+        Paint()..color = const Color(0xFF3B82F6).withValues(alpha: 0.30),
+      );
+      canvas.drawCircle(ptPx, radius, Paint()..color = Colors.white);
+      canvas.drawCircle(
+        ptPx,
+        radius,
+        Paint()
+          ..color = const Color(0xFF3B82F6)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4 * markerScale,
+      );
+
+      final tp = TextPainter(
+        textDirection: TextDirection.ltr,
+        text: TextSpan(
+          text: '${i + 1}',
+          style: TextStyle(
+            fontSize: 9.5 * markerScale,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF1E3A8A),
+          ),
+        ),
+      )..layout();
+      tp.paint(canvas, ptPx - Offset(tp.width / 2, tp.height / 2));
+    }
+
+    // Draw hover cursor guide
+    if (mouseHoverWorld != null) {
+      final hPx = _worldToPixel(grid, mouseHoverWorld!.dx, mouseHoverWorld!.dy);
+      canvas.drawCircle(
+        hPx,
+        6.0 * markerScale,
+        Paint()..color = const Color(0xFF3B82F6).withValues(alpha: 0.6),
+      );
+      canvas.drawCircle(
+        hPx,
+        2.5 * markerScale,
+        Paint()..color = Colors.white,
+      );
+
+      if (laneDraftPoints.isNotEmpty) {
+        final last = laneDraftPoints.last;
+        final distMeters = (mouseHoverWorld! - last).distance;
+        final label = '${distMeters.toStringAsFixed(2)} m';
+        final tagOffset = hPx + Offset(14.0 * markerScale, -14.0 * markerScale);
+        _drawPillLabel(canvas, tagOffset, label, const Color(0xFF3B82F6),
+            sizeScale: markerScale * 0.9);
+      }
+    }
+  }
+
   void _drawLaserScan(Canvas canvas, sensor_msgs.LaserScan s) {
+
     final p = pose;
     if (p == null) return;
     final robotX = p.pose.pose.position.x;
@@ -1861,10 +2670,20 @@ class _OccupancyGridPainter extends CustomPainter {
 
   void _drawPath(Canvas canvas) {
     final poses = path?.poses;
-    if (poses == null || poses.length < 2) return;
+    if (poses == null || poses.isEmpty) return;
     final points = poses
         .map((p) => _worldToPixel(grid, p.pose.position.x, p.pose.position.y))
         .toList();
+    if (points.length == 1) {
+      canvas.drawCircle(
+        points.first,
+        3.0,
+        Paint()
+          ..color = AppColors.stateExecuting
+          ..style = PaintingStyle.fill,
+      );
+      return;
+    }
     final linePath = Path()..moveTo(points.first.dx, points.first.dy);
     for (final pt in points.skip(1)) {
       linePath.lineTo(pt.dx, pt.dy);

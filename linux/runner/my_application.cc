@@ -48,6 +48,37 @@ static void my_application_activate(GApplication* application) {
   }
 
   gtk_window_set_default_size(window, 1280, 720);
+
+  // Set window icon — shows in taskbar, alt-tab switcher, and window titlebars.
+  gtk_window_set_default_icon_name(APPLICATION_ID);
+  gtk_window_set_icon_name(window, APPLICATION_ID);
+
+  {
+    g_autofree gchar* exe_path = g_file_read_link("/proc/self/exe", nullptr);
+    if (exe_path != nullptr) {
+      g_autofree gchar* exe_dir = g_path_get_dirname(exe_path);
+      gchar* icon_candidates[] = {
+        g_build_filename(exe_dir, "data", "navpromini.png", nullptr),
+        g_build_filename(exe_dir, "data", "flutter_assets", "assets", "icon", "app_icon.png", nullptr),
+        g_build_filename(exe_dir, "navpromini.png", nullptr),
+        g_strdup("/home/chaitu/Projects/nav2_mission_planner/assets/icon/app_icon.png"),
+        nullptr
+      };
+
+      for (int i = 0; icon_candidates[i] != nullptr; i++) {
+        if (g_file_test(icon_candidates[i], G_FILE_TEST_EXISTS)) {
+          gtk_window_set_icon_from_file(window, icon_candidates[i], nullptr);
+          gtk_window_set_default_icon_from_file(icon_candidates[i], nullptr);
+          break;
+        }
+      }
+
+      for (int i = 0; icon_candidates[i] != nullptr; i++) {
+        g_free(icon_candidates[i]);
+      }
+    }
+  }
+
   gtk_widget_show(GTK_WIDGET(window));
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();

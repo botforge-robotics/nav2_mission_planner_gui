@@ -61,12 +61,27 @@ class _SetupWifiScreenState extends State<SetupWifiScreen> {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<SetupFlowController>();
+    final canAdvance = controller.selectedRobot != null ||
+        controller.foundRobots.isNotEmpty ||
+        _ipController.text.trim().isNotEmpty;
 
     return SetupScaffold(
       step: 2,
       totalSteps: 5,
       title: 'Connect to Your Robot',
       subtitle: 'Robots found on your current network.',
+      primaryLabel: 'Next',
+      primaryEnabled: canAdvance,
+      onPrimary: () {
+        if (controller.selectedRobot != null) {
+          _selectAndContinue(controller.selectedRobot!);
+        } else if (controller.foundRobots.isNotEmpty) {
+          _selectAndContinue(controller.foundRobots.first);
+        } else if (_ipController.text.trim().isNotEmpty) {
+          _connectByIp();
+        }
+      },
+      onBack: () => Navigator.of(context).maybePop(),
       secondaryLabel: 'Set up a new robot',
       onSecondary: () => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const SetupApHotspotScreen()),

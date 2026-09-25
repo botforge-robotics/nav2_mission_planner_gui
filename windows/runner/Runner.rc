@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.botforge" "\0"
-            VALUE "FileDescription", "nav2_mission_planner" "\0"
+            VALUE "CompanyName", "BotForge Robotics" "\0"
+            VALUE "FileDescription", "NavPro Mini" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "nav2_mission_planner" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.botforge. All rights reserved." "\0"
-            VALUE "OriginalFilename", "nav2_mission_planner.exe" "\0"
-            VALUE "ProductName", "nav2_mission_planner" "\0"
+            VALUE "InternalName", "navpromini" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 BotForge Robotics. All rights reserved." "\0"
+            VALUE "OriginalFilename", "navpromini.exe" "\0"
+            VALUE "ProductName", "NavPro Mini" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

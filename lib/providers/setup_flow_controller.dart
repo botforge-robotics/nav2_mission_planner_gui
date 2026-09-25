@@ -104,7 +104,7 @@ class SetupFlowController extends ChangeNotifier {
       return false;
     }
 
-    for (var attempt = 0; attempt < 10; attempt++) {
+    for (var attempt = 0; attempt < 20; attempt++) {
       await Future.delayed(const Duration(milliseconds: 500));
       if (await wifiJoin.isOnSetupHotspotSubnet()) {
         apJoining = false;
@@ -123,33 +123,146 @@ class SetupFlowController extends ChangeNotifier {
     required String wifiSsid,
     required String wifiPassword,
     required String robotName,
+    String? timezone,
+    String? countryCode,
   }) async* {
     provisioningStatus = null;
     notifyListeners();
-    // Best-effort: the phone/tablet's own IANA zone, so the robot's clock
-    // reads correctly for wherever it's actually being set up — without
-    // this, schedules fire by whatever timezone the robot's OS image
-    // shipped with, not the site it's deployed at. Never blocks setup: if
-    // the platform call fails for any reason, submit proceeds without a
-    // timezone, same as leaving that field blank in the portal's own form.
-    String? timezone;
-    try {
-      timezone = await FlutterTimezone.getLocalTimezone();
-    } catch (_) {
-      timezone = null;
+
+    // Use passed timezone or best-effort platform timezone
+    String? effectiveTimezone = timezone;
+    if (effectiveTimezone == null || effectiveTimezone.isEmpty) {
+      try {
+        effectiveTimezone = await FlutterTimezone.getLocalTimezone();
+      } catch (_) {
+        effectiveTimezone = null;
+      }
     }
+
     await provisioning.submit(
       wifiSsid: wifiSsid,
       wifiPassword: wifiPassword,
       robotName: robotName,
-      timezone: timezone,
+      timezone: effectiveTimezone,
+      countryCode: countryCode,
     );
+
+    // Watch status stream from portal, and in parallel look for the robot on the site LAN.
+    bool foundOnLan = false;
+    DiscoveredRobot? discoveredRobot;
+
+    // Start background LAN discovery immediately
+    Future<void> runLanDiscovery() async {
+      for (var attempt = 0; attempt < 30; attempt++) {
+        if (foundOnLan) return;
+        await Future.delayed(const Duration(milliseconds: 1500));
+        try {
+          final prefixes = await discovery.allSubnetPrefixes();
+          for (final prefix in prefixes) {
+            if (prefix == '10.42.0') continue; // Skip AP subnet
+            await for (final robot in discovery.scan(subnetPrefix: prefix)) {
+              if (robot.name == robotName ||
+                  robot.name.toLowerCase() == robotName.toLowerCase() ||
+                  robot.serial.isNotEmpty) {
+                discoveredRobot = robot;
+                foundOnLan = true;
+                selectRobot(robot);
+                return;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Launch LAN discovery concurrently
+    runLanDiscovery();
+
     await for (final status in provisioning.watchStatus()) {
+      if (foundOnLan) break;
       provisioningStatus = status;
       notifyListeners();
       yield status;
-      if (status.isTerminal) return;
+      if (status.isTerminal) {
+        if (status.phase == 'success') {
+          return;
+        }
+      }
     }
+
+    // If portal stream ended (AP dropped because robot connected to site Wi-Fi),
+    // poll LAN until the robot is found on the site network or timeout.
+    final deadline = DateTime.now().add(const Duration(seconds: 40));
+    while (!foundOnLan && DateTime.now().isBefore(deadline)) {
+      await Future.delayed(const Duration(milliseconds: 1200));
+      if (foundOnLan) break;
+      yield ProvisioningStatus(
+        phase: 'joining_wifi',
+        message: 'Robot joined Wi-Fi! Locating "$robotName" on your network…',
+        wifiSsid: wifiSsid,
+        robotName: robotName,
+        wifiOk: true,
+        busy: true,
+        done: false,
+      );
+    }
+
+    if (foundOnLan && discoveredRobot != null) {
+      selectRobot(discoveredRobot!);
+      final successStatus = ProvisioningStatus(
+        phase: 'success',
+        message: 'Connected to $robotName on Wi-Fi!',
+        wifiSsid: wifiSsid,
+        robotName: robotName,
+        wifiOk: true,
+        busy: false,
+        done: true,
+      );
+      provisioningStatus = successStatus;
+      notifyListeners();
+      yield successStatus;
+      return;
+    }
+  }
+
+  /// Retrieves available site Wi-Fi networks by combining the robot's portal
+  /// scan results (networks the robot sees) and the client device's Wi-Fi scan results.
+  Future<List<String>> getAvailableSiteNetworks() async {
+    final seen = <String>{};
+    final networks = <String>[];
+
+    // 1. Robot visible networks from portal
+    try {
+      final robotNets = await provisioning.fetchRobotVisibleNetworks();
+      for (final s in robotNets) {
+        final trimmed = s.trim();
+        if (trimmed.isNotEmpty &&
+            !trimmed.startsWith(kSetupHotspotPrefix) &&
+            !trimmed.contains('/') &&
+            seen.add(trimmed)) {
+          networks.add(trimmed);
+        }
+      }
+    } catch (_) {}
+
+    // 2. Client device detected networks
+    try {
+      for (final s in wifiJoin.cachedSiteNetworks) {
+        final trimmed = s.trim();
+        if (trimmed.isNotEmpty &&
+            !trimmed.startsWith(kSetupHotspotPrefix) &&
+            !trimmed.contains('/') &&
+            seen.add(trimmed)) {
+          networks.add(trimmed);
+        }
+      }
+    } catch (_) {}
+
+    return networks;
+  }
+
+  Future<List<String>> getAvailableTimezones() async {
+    return provisioning.fetchAvailableTimezones();
   }
 
   void reset() {

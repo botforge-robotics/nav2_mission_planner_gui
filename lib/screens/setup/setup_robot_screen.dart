@@ -82,6 +82,8 @@ class _SetupRobotScreenState extends State<SetupRobotScreen> {
           _connecting && robot != null ? 'Connecting to ${robot.name}…' : null,
       primaryLabel: _error != null ? 'Retry' : null,
       onPrimary: _error != null ? _connect : null,
+      onBack: () => Navigator.of(context).maybePop(),
+      backLabel: 'Back to Robot List',
       child: Center(
         child: _error != null
             ? Column(

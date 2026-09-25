@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=NavPro Mini
+GenericName=ROS2 Navigation Mission Planner
+Comment=Comprehensive ROS2 navigation mission planning application
+Exec=/home/chaitu/Projects/nav2_mission_planner/linux/run_navpromini.sh %u
+Icon=com.botforge.navpromini
+Terminal=false
+Categories=Development;Robotics;Utility;
+StartupWMClass=com.botforge.navpromini
+StartupNotify=true
+Keywords=ROS2;Navigation;Robot;Nav2;Mission;Planner;

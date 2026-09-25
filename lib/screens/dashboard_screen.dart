@@ -16,7 +16,9 @@ import '../theme/app_motion.dart';
 import '../theme/app_theme.dart';
 import '../theme/breakpoints.dart';
 import '../utils/localize_at_dock.dart';
+import '../services/zones_controller.dart';
 import '../widgets/design/animated_metric.dart';
+
 import '../widgets/design/fade_in.dart';
 import '../widgets/design/status_pulse.dart';
 import '../utils/push_with_telemetry.dart';
@@ -89,78 +91,7 @@ class _DashboardContent extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
-          if (isDesktop) ...[
-            if (telemetry.localized)
-              Container(
-                margin: const EdgeInsets.only(right: AppSpacing.sm),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.gps_fixed_rounded, size: 14, color: AppColors.success),
-                    const SizedBox(width: 6),
-                    Text(
-                      'AMCL: (${telemetry.poseX?.toStringAsFixed(2) ?? '--'}, ${telemetry.poseY?.toStringAsFixed(2) ?? '--'})',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
-                    ),
-                  ],
-                ),
-              ),
-            if (telemetry.dockStatus != null)
-              Container(
-                margin: const EdgeInsets.only(right: AppSpacing.sm),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.dock_rounded, size: 14, color: AppColors.accent),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Dock: ${telemetry.dockStatus}',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent),
-                    ),
-                  ],
-                ),
-              ),
-            Container(
-              margin: const EdgeInsets.only(right: AppSpacing.md),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceSunken,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    telemetry.chargeStatus == ChargeStatus.charging
-                        ? Icons.bolt_rounded
-                        : Icons.battery_full_rounded,
-                    size: 14,
-                    color: (telemetry.batteryPercentage ?? 100) < 20
-                        ? AppColors.danger
-                        : AppColors.success,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    telemetry.formatBatteryPercent(),
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          _AppBarBatteryWidget(telemetry: telemetry),
         ],
       ),
       body: SafeArea(
@@ -485,32 +416,212 @@ class _StatRow extends StatelessWidget {
   }
 }
 
+void _showLocalizationActionSheet(BuildContext context,
+    {required SdkApiService api}) {
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: AppColors.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (sheetContext) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.my_location_rounded,
+                      color: AppColors.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Robot Localization',
+                    style:
+                        Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Seed or reset AMCL belief of the robot position:',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.ev_station_rounded,
+                      color: AppColors.accent, size: 22),
+                ),
+                title: const Text('Robot at Dock',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text(
+                    'Seed AMCL pose from known docking station coordinates',
+                    style: TextStyle(fontSize: 12)),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  final messenger = ScaffoldMessenger.of(context);
+                  messenger.showSnackBar(
+                    const SnackBar(
+                        content:
+                            Text('Seeding AMCL pose from dock station...')),
+                  );
+                  final ok = await localizeAtDock(context: context, api: api);
+                  if (ok) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                          content:
+                              Text('Successfully localized robot at dock.')),
+                    );
+                  }
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.pin_drop_rounded,
+                      color: AppColors.primary, size: 22),
+                ),
+                title: const Text('Set 2D Pose on Map',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text(
+                    'Tap & drag robot heading directly on the interactive map',
+                    style: TextStyle(fontSize: 12)),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const MapViewScreen(initialPosePicking: true),
+                    ),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.radar_rounded,
+                      color: AppColors.warning, size: 22),
+                ),
+                title: const Text('Global Relocalization',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text(
+                    'Disperse particles across entire map; drive to converge',
+                    style: TextStyle(fontSize: 12)),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  final messenger = ScaffoldMessenger.of(context);
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          'Global relocalization initiated. Jog robot to let particles converge.'),
+                      duration: Duration(seconds: 4),
+                    ),
+                  );
+                  try {
+                    await api.reinitializeGlobalLocalization();
+                  } catch (e) {
+                    messenger.showSnackBar(SnackBar(
+                        content: Text('Relocalization request error: $e')));
+                  }
+                },
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 class _Stat extends StatelessWidget {
-  const _Stat({required this.icon, required this.label, required this.value});
+  const _Stat({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.onTap,
+    this.trailing,
+  });
 
   final IconData icon;
   final String label;
   final Widget value;
+  final VoidCallback? onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: AppColors.primary),
-            const SizedBox(height: AppSpacing.xs),
-            value,
-            Text(label,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
-          ],
-        ),
+    final body = Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, size: 18, color: AppColors.primary),
+              if (trailing != null) trailing!,
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          value,
+          Text(label,
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 12)),
+        ],
       ),
     );
+
+    if (onTap != null) {
+      return Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: body,
+        ),
+      );
+    }
+
+    return Card(child: body);
   }
 }
 
@@ -566,22 +677,39 @@ class _StatGridDesktop extends StatelessWidget {
               child: _Stat(
                 icon: Icons.my_location_rounded,
                 label: 'AMCL Localization',
-                value: Text(
-                  telemetry.localized
-                      ? 'LOCALIZED'
-                      : (sdkState.mode == 'navigation'
-                          ? 'UNLOCALIZED'
-                          : 'OFF (IDLE)'),
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: telemetry.localized
-                        ? AppColors.success
-                        : (sdkState.mode == 'navigation'
-                            ? AppColors.warning
-                            : AppColors.textTertiary),
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                trailing: const Icon(Icons.touch_app_rounded,
+                    size: 14, color: AppColors.textTertiary),
+                onTap: () {
+                  final ip = context.read<ConnectionProvider>().robot?.ip;
+                  if (ip != null) {
+                    _showLocalizationActionSheet(context,
+                        api: SdkApiService(ip));
+                  }
+                },
+                value: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        telemetry.localized
+                            ? 'LOCALIZED'
+                            : (sdkState.mode == 'navigation'
+                                ? 'UNLOCALIZED'
+                                : 'OFF (IDLE)'),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: telemetry.localized
+                              ? AppColors.success
+                              : (sdkState.mode == 'navigation'
+                                  ? AppColors.warning
+                                  : AppColors.textTertiary),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios_rounded,
+                        size: 11, color: AppColors.textTertiary),
+                  ],
                 ),
               ),
             ),
@@ -601,6 +729,7 @@ class _StatGridDesktop extends StatelessWidget {
         ),
       ],
     );
+
   }
 }
 
@@ -632,7 +761,11 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDockPose());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDockPose();
+      ZonesController.instance
+          .refresh(SdkApiService(widget.robotIp), map: widget.mapName);
+    });
   }
 
   Future<void> _loadDockPose() async {
@@ -778,7 +911,12 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                                     showLocalCostmap: visibleLayers
                                         .contains(MapLayer.localCostmap),
                                     dockPoseOverride: _dockPose,
+                                    zones: visibleLayers.contains(MapLayer.zones)
+                                        ? ZonesController.instance.value
+                                        : const [],
+                                    showZones: visibleLayers.contains(MapLayer.zones),
                                     showLocalizationBadge: false,
+
                                     onMapLoaded: (_) {
                                       if (mounted && !_gridLoaded) {
                                         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1060,6 +1198,136 @@ class _AlertsCardState extends State<_AlertsCard> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AppBarBatteryWidget extends StatelessWidget {
+  const _AppBarBatteryWidget({
+    required this.telemetry,
+  });
+
+  final RobotTelemetryProvider telemetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = telemetry.batteryPercentage;
+    final isCharging = telemetry.chargeStatus == ChargeStatus.charging;
+    final isLow = pct != null && pct < 20;
+
+    final Color statusColor = isCharging
+        ? AppColors.accent
+        : isLow
+            ? AppColors.danger
+            : (pct != null && pct < 45)
+                ? AppColors.warning
+                : AppColors.success;
+
+    final voltage = (telemetry.batteryDetail?['voltage'] as num?)?.toDouble();
+    final String tooltip = [
+      if (pct != null) 'Battery: ${pct.toStringAsFixed(0)}%',
+      if (isCharging) 'Status: Charging ⚡' else 'Status: Discharging',
+      if (voltage != null) 'Voltage: ${voltage.toStringAsFixed(2)} V',
+      if (telemetry.batteryTemperature != null)
+        'Temperature: ${telemetry.batteryTemperature!.toStringAsFixed(0)}°C',
+    ].join('\n');
+
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const DockChargeScreen()),
+        ),
+        child: Container(
+          margin: const EdgeInsets.only(right: AppSpacing.md),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: statusColor.withValues(alpha: isCharging || isLow ? 0.6 : 0.28),
+              width: isCharging || isLow ? 1.5 : 1.0,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _MiniBatteryGauge(
+                percent: pct ?? 0,
+                isCharging: isCharging,
+                color: statusColor,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                telemetry.formatBatteryPercent(),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: statusColor,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              if (isCharging) ...[
+                const SizedBox(width: 3),
+                Icon(Icons.bolt_rounded, size: 14, color: statusColor),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniBatteryGauge extends StatelessWidget {
+  const _MiniBatteryGauge({
+    required this.percent,
+    required this.isCharging,
+    required this.color,
+  });
+
+  final double percent;
+  final bool isCharging;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final fillFraction = (percent / 100.0).clamp(0.0, 1.0);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 20,
+          height: 11,
+          padding: const EdgeInsets.all(1.2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(2.5),
+            border: Border.all(color: color, width: 1.2),
+          ),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              width: (20 - 2.4 - 2.4) * fillFraction,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(1.2),
+                color: color,
+              ),
+            ),
+          ),
+        ),
+        Container(
+          width: 1.5,
+          height: 4.5,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: const BorderRadius.only(
+              topRight: Radius.circular(1),
+              bottomRight: Radius.circular(1),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

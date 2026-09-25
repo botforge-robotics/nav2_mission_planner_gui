@@ -43,6 +43,15 @@ class MapsListScreen extends StatefulWidget {
 class _MapsListScreenState extends State<MapsListScreen> {
   // Matches navpromini_sdk's own handlers/maps.py MAP_PATH exactly.
   static const _mapPath = 'navpromini_mapping/maps';
+  static const _filterTokens = [
+    '_keepout',
+    '_mask',
+    '_filter',
+    '_speed',
+    '_zone',
+    '_restricted',
+    '_costmap',
+  ];
 
   List<String>? _maps;
   String? _error;
@@ -72,7 +81,14 @@ class _MapsListScreenState extends State<MapsListScreen> {
     try {
       final resp = await client.call(GetMapListRequest(path: _mapPath));
       if (!mounted) return;
-      setState(() => _maps = resp.success ? resp.maplist : const []);
+      final filtered = resp.success
+          ? resp.maplist.where((m) {
+              if (m.isEmpty || m.startsWith('.')) return false;
+              final lower = m.toLowerCase();
+              return !_filterTokens.any((tok) => lower.contains(tok));
+            }).toList()
+          : const <String>[];
+      setState(() => _maps = filtered);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = 'Could not load maps: $e');

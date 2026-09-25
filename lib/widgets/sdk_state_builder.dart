@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/robot_telemetry_provider.dart';
 import '../services/sdk_state_service.dart';
 
 /// Wraps [SdkStateService]'s poll in a builder that creates the underlying
@@ -55,8 +57,27 @@ class _SdkStateBuilderState extends State<SdkStateBuilder> {
     return StreamBuilder<SdkState>(
       initialData: SdkState.unknown,
       stream: _stream,
-      builder: (context, snapshot) =>
-          widget.builder(context, snapshot.data ?? SdkState.unknown),
+      builder: (context, snapshot) {
+        final state = snapshot.data ?? SdkState.unknown;
+        if (snapshot.hasData && snapshot.data != null) {
+          final s = snapshot.data!;
+          if (s.cpuLoadPct != null || s.cpuTempC != null || s.batteryTempC != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                try {
+                  context.read<RobotTelemetryProvider>().updateSystemMetrics(
+                        cpuLoadPct: s.cpuLoadPct,
+                        cpuTempC: s.cpuTempC,
+                        batteryTempC: s.batteryTempC,
+                      );
+                } catch (_) {}
+              }
+            });
+          }
+        }
+        return widget.builder(context, state);
+      },
     );
   }
 }
+

@@ -16,6 +16,9 @@ class SdkState {
     this.missionStatus,
     this.pauseReason,
     this.lifecycle,
+    this.cpuLoadPct,
+    this.cpuTempC,
+    this.batteryTempC,
   });
 
   final String? mode;
@@ -23,14 +26,33 @@ class SdkState {
   final String? missionStatus;
   final String? pauseReason;
   final String? lifecycle;
+  final double? cpuLoadPct;
+  final double? cpuTempC;
+  final double? batteryTempC;
 
-  factory SdkState.fromJson(Map<String, dynamic> json) => SdkState(
-        mode: json['mode'] as String?,
-        mapName: (json['map'] as Map?)?['name'] as String?,
-        missionStatus: (json['mission'] as Map?)?['status'] as String?,
-        pauseReason: (json['mission'] as Map?)?['pause_reason'] as String?,
-        lifecycle: json['lifecycle'] as String?,
-      );
+  factory SdkState.fromJson(Map<String, dynamic> json) {
+    final sys = json['system'] as Map?;
+    final temp = json['temperature'] as Map?;
+    final cpuLoad = (sys?['cpu_load_pct'] as num?)?.toDouble() ??
+        (json['cpu_load_pct'] as num?)?.toDouble();
+    final cpuTemp = (sys?['cpu_temperature_c'] as num?)?.toDouble() ??
+        (json['cpu_temperature_c'] as num?)?.toDouble() ??
+        (temp?['cpu_c'] as num?)?.toDouble();
+    final battTemp = (sys?['battery_temperature_c'] as num?)?.toDouble() ??
+        (json['battery_temperature_c'] as num?)?.toDouble() ??
+        (temp?['battery_c'] as num?)?.toDouble();
+
+    return SdkState(
+      mode: json['mode'] as String?,
+      mapName: (json['map'] as Map?)?['name'] as String?,
+      missionStatus: (json['mission'] as Map?)?['status'] as String?,
+      pauseReason: (json['mission'] as Map?)?['pause_reason'] as String?,
+      lifecycle: json['lifecycle'] as String?,
+      cpuLoadPct: cpuLoad,
+      cpuTempC: cpuTemp,
+      batteryTempC: battTemp,
+    );
+  }
 
   static const unknown = SdkState();
 }

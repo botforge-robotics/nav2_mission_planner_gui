@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'map_layers_store.dart';
 
 /// Which optional map overlays can be shown — dock, saved locations, the
-/// planner's current path, both costmaps, and real-time laser scan.
-enum MapLayer { dock, locations, path, globalCostmap, localCostmap, laserScan }
+/// planner's current path, both costmaps, real-time laser scan, and zones.
+enum MapLayer { dock, locations, path, globalCostmap, localCostmap, laserScan, zones }
 
 /// The single, app-wide "which overlays are visible" selection — shared by
 /// every live map view (Map View, Teleop, Create Map, Dashboard's
@@ -25,9 +25,16 @@ enum MapLayer { dock, locations, path, globalCostmap, localCostmap, laserScan }
 /// construction instead.
 class MapLayersController extends ValueNotifier<Set<MapLayer>> {
   MapLayersController._()
-      : super({MapLayer.dock, MapLayer.locations, MapLayer.path, MapLayer.laserScan}) {
+      : super({
+          MapLayer.dock,
+          MapLayer.locations,
+          MapLayer.path,
+          MapLayer.laserScan,
+          MapLayer.zones,
+        }) {
     _load();
   }
+
 
   static final instance = MapLayersController._();
 
@@ -41,10 +48,16 @@ class MapLayersController extends ValueNotifier<Set<MapLayer>> {
   Future<void> _load() async {
     final saved = await _store.load();
     if (saved == null) return;
-    value = saved
+    final loaded = saved
         .map((name) => MapLayer.values.asNameMap()[name])
         .whereType<MapLayer>()
         .toSet();
+    // Ensure MapLayer.zones is visible by default even if user previously saved
+    // layer preferences before zones was introduced
+    if (!saved.contains('zones')) {
+      loaded.add(MapLayer.zones);
+    }
+    value = loaded;
   }
 
   bool contains(MapLayer layer) => value.contains(layer);

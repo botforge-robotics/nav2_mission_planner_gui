@@ -74,7 +74,7 @@ class RouteEstimateService {
         use_start: true,
       );
       final result =
-          await client.sendGoal(goal).timeout(const Duration(seconds: 8));
+          await client.sendGoal(goal).timeout(const Duration(seconds: 4));
       final poses = result.path.poses;
       if (poses.length < 2) return null;
       var distance = 0.0;

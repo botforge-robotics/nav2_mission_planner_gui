@@ -119,6 +119,22 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
       await _refresh();
     } on SdkApiException catch (e) {
       if (!mounted) return;
+      try {
+        final status = await api.dockStatus();
+        final op = status['operation'] as String? ?? '';
+        if (const {
+          'docking',
+          'staging',
+          'searching',
+          'servo',
+          'undocking',
+          'docked',
+          'undocked'
+        }.contains(op)) {
+          await _refresh();
+          return;
+        }
+      } catch (_) {}
       setState(() => _actionError = e.message);
     } finally {
       if (mounted) setState(() => _busy = false);

@@ -11,6 +11,7 @@ import '../../providers/robot_telemetry_provider.dart';
 import '../../services/locations_controller.dart';
 import '../../services/map_layers_controller.dart';
 import '../../services/sdk_api_service.dart';
+import '../../services/zones_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../../utils/action_feedback.dart';
@@ -147,6 +148,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
       await api.cancelNavigation();
       await _stop();
       if (!mounted) return;
+      context.read<RobotTelemetryProvider>().clearPath();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Navigation goal canceled')),
       );
@@ -244,15 +246,26 @@ class _TeleopScreenState extends State<TeleopScreen> {
         try {
           await api.dock();
         } on SdkApiException catch (e) {
-          if (!mounted) return ActionOutcome.failed;
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-              e.isUnreachable
-                  ? "Docking needs navpro-sdk.service — it isn't reachable right now."
-                  : e.message,
-            ),
-          ));
-          return ActionOutcome.failed;
+          bool active = false;
+          try {
+            final st = await api.dockStatus();
+            final op = st['operation'] as String?;
+            if (op == 'docking' || op == 'staging' || op == 'docked') {
+              active = true;
+            }
+          } catch (_) {}
+
+          if (!active) {
+            if (!mounted) return ActionOutcome.failed;
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(
+                e.isUnreachable
+                    ? "Docking needs navpro-sdk.service — it isn't reachable right now."
+                    : e.message,
+              ),
+            ));
+            return ActionOutcome.failed;
+          }
         }
         if (!mounted) return ActionOutcome.timedOut;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -279,15 +292,26 @@ class _TeleopScreenState extends State<TeleopScreen> {
         try {
           await api.undock();
         } on SdkApiException catch (e) {
-          if (!mounted) return ActionOutcome.failed;
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-              e.isUnreachable
-                  ? "Undocking needs navpro-sdk.service — it isn't reachable right now."
-                  : e.message,
-            ),
-          ));
-          return ActionOutcome.failed;
+          bool active = false;
+          try {
+            final st = await api.dockStatus();
+            final op = st['operation'] as String?;
+            if (op == 'undocking' || op == 'undocked') {
+              active = true;
+            }
+          } catch (_) {}
+
+          if (!active) {
+            if (!mounted) return ActionOutcome.failed;
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(
+                e.isUnreachable
+                    ? "Undocking needs navpro-sdk.service — it isn't reachable right now."
+                    : e.message,
+              ),
+            ));
+            return ActionOutcome.failed;
+          }
         }
         if (!mounted) return ActionOutcome.timedOut;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -363,6 +387,86 @@ class _TeleopScreenState extends State<TeleopScreen> {
     showDockActionSheet(context: context, api: api, dockPose: _dockPose);
   }
 
+  Future<void> _loadZonesAndLocations() async {
+    final api = _api;
+    if (api == null) return;
+    try {
+      final mapName = await api.getCurrentMap();
+      await ZonesController.instance.refresh(api, map: mapName);
+    } catch (_) {
+      await ZonesController.instance.refresh(api);
+    }
+    try {
+      await LocationsController.instance.refresh(api);
+    } catch (_) {}
+    await _loadDockPose();
+  }
+
+  Future<void> _openLayersPanel() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          child: Material(
+            color: Colors.transparent,
+            child: ValueListenableBuilder<Set<MapLayer>>(
+          valueListenable: MapLayersController.instance,
+          builder: (context, visible, _) {
+            Widget tile(
+                MapLayer layer, IconData icon, String title, String subtitle) {
+              return CheckboxListTile(
+                secondary: Icon(icon, color: AppColors.textSecondary),
+                title: Text(title),
+                subtitle: Text(subtitle),
+                value: visible.contains(layer),
+                onChanged: (checked) => MapLayersController.instance
+                    .setVisible(layer, checked ?? false),
+              );
+            }
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(
+                      AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Layers',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 16)),
+                  ),
+                ),
+                tile(MapLayer.dock, Icons.ev_station_rounded, 'Dock',
+                    "The robot's saved dock position"),
+                tile(MapLayer.locations, Icons.place_rounded, 'Saved Locations',
+                    'Pins for every saved location'),
+                tile(MapLayer.zones, Icons.polyline_rounded, 'Map Zones',
+                    'Restricted areas, speed limits & corridors'),
+                tile(MapLayer.path, Icons.route_rounded, 'Planned Path',
+                    "The navigation stack's current route"),
+                tile(
+                    MapLayer.globalCostmap,
+                    Icons.grid_on_rounded,
+                    'Global Costmap',
+                    'Where the planner treats the map as blocked'),
+                tile(MapLayer.localCostmap, Icons.grid_4x4_rounded,
+                    'Local Costmap', 'Live obstacles the robot sees right now'),
+                tile(MapLayer.laserScan, Icons.radar_rounded, 'Laser Scan',
+                    'Raw lidar points in robot frame'),
+                const SizedBox(height: AppSpacing.md),
+              ],
+            );
+          },
+        ),
+      ),
+    ),
+  ),
+);
+  }
+
   @override
   Widget build(BuildContext context) {
     final connection = context.watch<ConnectionProvider>();
@@ -370,9 +474,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
     if (!_requestedLocations && robotIp != null) {
       _requestedLocations = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        final api = _api;
-        if (api != null) LocationsController.instance.refresh(api);
-        _loadDockPose();
+        _loadZonesAndLocations();
       });
     }
     final telemetry = context.watch<RobotTelemetryProvider>();
@@ -385,17 +487,11 @@ class _TeleopScreenState extends State<TeleopScreen> {
         appBar: AppBar(
           title: const Text('Teleoperation Cockpit'),
           actions: [
-            if (telemetry.localized)
-              Padding(
-                padding: const EdgeInsets.only(right: AppSpacing.sm),
-                child: Chip(
-                  avatar: const Icon(Icons.my_location_rounded,
-                      size: 16, color: AppColors.success),
-                  label: Text(
-                      'Pose: (${telemetry.poseX?.toStringAsFixed(2)}, ${telemetry.poseY?.toStringAsFixed(2)})'),
-                  backgroundColor: AppColors.surfaceSunken,
-                ),
-              ),
+            IconButton(
+              icon: const Icon(Icons.layers_outlined),
+              tooltip: 'Map Layers',
+              onPressed: _openLayersPanel,
+            ),
             if (telemetry.linearSpeedMps != null)
               Padding(
                 padding: const EdgeInsets.only(right: AppSpacing.md),
@@ -533,7 +629,16 @@ class _TeleopScreenState extends State<TeleopScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Teleoperation')),
+      appBar: AppBar(
+        title: const Text('Teleoperation'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.layers_outlined),
+            tooltip: 'Map Layers',
+            onPressed: _openLayersPanel,
+          ),
+        ],
+      ),
       body: SafeArea(
         child: robotIp == null
             ? const Center(child: Text('Not connected.'))
@@ -715,48 +820,42 @@ class _LiveMapSection extends StatelessWidget {
                   // The layer selection is shared app-wide (see
                   // MapLayersController) — this map shows whatever's
                   // toggled on from any screen, not a fixed subset.
-                  child: ValueListenableBuilder<Set<MapLayer>>(
+                   child: ValueListenableBuilder<Set<MapLayer>>(
                     valueListenable: MapLayersController.instance,
-                    builder: (context, visibleLayers, _) => OccupancyGridView(
-                      ros2: ros2!,
-                      interactive: true,
-                      showRobot: true,
-                      showDock: visibleLayers.contains(MapLayer.dock),
-                      showPath: visibleLayers.contains(MapLayer.path),
-                      showLaserScan: visibleLayers.contains(MapLayer.laserScan),
-                      initialPose: telemetry.rawPose,
-                      initialPath: telemetry.currentPath,
-                      showGlobalCostmap:
-                          visibleLayers.contains(MapLayer.globalCostmap),
-                      showLocalCostmap:
-                          visibleLayers.contains(MapLayer.localCostmap),
-                      locations: visibleLayers.contains(MapLayer.locations)
-                          ? (locations ?? const [])
-                          : const [],
-                      dockPoseOverride: dockPoseOverride,
-                      onLocationTap: onLocationTap,
-                      onDockTap: onDockTap,
-                      // The banner below takes over "not localized"
-                      // messaging here.
-                      showLocalizationBadge: false,
+                    builder: (context, visibleLayers, _) =>
+                        ListenableBuilder(
+                      listenable: ZonesController.instance,
+                      builder: (context, _) => OccupancyGridView(
+                        ros2: ros2!,
+                        interactive: true,
+                        showRobot: true,
+                        showDock: visibleLayers.contains(MapLayer.dock),
+                        showPath: visibleLayers.contains(MapLayer.path),
+                        showLaserScan:
+                            visibleLayers.contains(MapLayer.laserScan),
+                        initialPose: telemetry.rawPose,
+                        initialPath: telemetry.currentPath,
+                        showGlobalCostmap:
+                            visibleLayers.contains(MapLayer.globalCostmap),
+                        showLocalCostmap:
+                            visibleLayers.contains(MapLayer.localCostmap),
+                        locations: visibleLayers.contains(MapLayer.locations)
+                            ? (locations ?? const [])
+                            : const [],
+                        zones: visibleLayers.contains(MapLayer.zones)
+                            ? ZonesController.instance.value
+                            : const [],
+                        showZones: visibleLayers.contains(MapLayer.zones),
+                        dockPoseOverride: dockPoseOverride,
+                        onLocationTap: onLocationTap,
+                        onDockTap: onDockTap,
+                        // The banner below takes over "not localized"
+                        // messaging here.
+                        showLocalizationBadge: false,
+                      ),
                     ),
                   ),
                 ),
-                if (navStatus != null &&
-                    navStatus!['state'] == 'active' &&
-                    isDesktop)
-                  Positioned(
-                    left: AppSpacing.lg,
-                    right: AppSpacing.lg,
-                    bottom: AppSpacing.lg,
-                    child: _NavProgressCard(
-                      navStatus: navStatus!,
-                      distanceTraveled: distanceTraveled,
-                      linearSpeed: telemetry.linearSpeedMps,
-                      onCancel: onCancelNavigation ?? () {},
-                      floating: true,
-                    ),
-                  ),
                 if (telemetry.localized)
                   Positioned(
                     left: AppSpacing.sm,
@@ -1029,14 +1128,12 @@ class _NavProgressCard extends StatelessWidget {
     required this.distanceTraveled,
     this.linearSpeed,
     required this.onCancel,
-    this.floating = false,
   });
 
   final Map<String, dynamic> navStatus;
   final double distanceTraveled;
   final double? linearSpeed;
   final VoidCallback onCancel;
-  final bool floating;
 
   @override
   Widget build(BuildContext context) {
@@ -1052,10 +1149,8 @@ class _NavProgressCard extends StatelessWidget {
         '${(elapsedSec ~/ 60).toString().padLeft(2, '0')}:${(elapsedSec % 60).toString().padLeft(2, '0')}';
 
     return Card(
-      elevation: floating ? 6 : 2,
-      color: floating
-          ? AppColors.surface.withValues(alpha: 0.96)
-          : AppColors.surface,
+      elevation: 2,
+      color: AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: const BorderSide(color: AppColors.primary, width: 1.5),

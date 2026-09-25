@@ -42,6 +42,8 @@ class SetupDockMapScreen extends StatelessWidget {
           ),
         );
       },
+      onBack: () => Navigator.of(context).maybePop(),
+      backLabel: 'Back',
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

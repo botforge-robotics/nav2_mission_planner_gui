@@ -111,14 +111,41 @@ Future<void> showDockActionSheet({
         await action();
       } on SdkApiException catch (e) {
         if (!context.mounted) return ActionOutcome.failed;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-            e.isUnreachable
-                ? "Needs navpro-sdk.service — it isn't reachable right now."
-                : e.message,
-          ),
-        ));
-        return ActionOutcome.failed;
+        bool active = false;
+        try {
+          final s = choice == 'goto'
+              ? await api.navigationStatus()
+              : await api.dockStatus();
+          final state =
+              (choice == 'goto' ? s['state'] : s['operation']) as String? ??
+                  '';
+          final activeStates = choice == 'goto'
+              ? const {'active', 'succeeded'}
+              : const {
+                  'docking',
+                  'staging',
+                  'searching',
+                  'servo',
+                  'undocking',
+                  'docked',
+                  'undocked'
+                };
+          if (activeStates.contains(state)) {
+            active = true;
+          }
+        } catch (_) {}
+
+        if (!active) {
+          if (!context.mounted) return ActionOutcome.failed;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+              e.isUnreachable
+                  ? "Needs navpro-sdk.service — it isn't reachable right now."
+                  : e.message,
+            ),
+          ));
+          return ActionOutcome.failed;
+        }
       }
       if (!context.mounted) return ActionOutcome.timedOut;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
