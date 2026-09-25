@@ -206,7 +206,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh',
-            onPressed: _refreshAll,
+            onPressed: (_loadingRobot || _loadingGui) ? null : _refreshAll,
           ),
         ],
       ),
@@ -461,9 +461,15 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
             Row(
               children: [
                 OutlinedButton.icon(
-                  icon: const Icon(Icons.search_rounded),
-                  label: const Text('Check Remote'),
-                  onPressed: isUpdating
+                  icon: _loadingRobot
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.search_rounded),
+                  label: Text(_loadingRobot ? 'Checking...' : 'Check Remote'),
+                  onPressed: (isUpdating || _loadingRobot)
                       ? null
                       : () => _checkRobotUpdates(fetchRemote: true),
                 ),
@@ -471,7 +477,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                 FilledButton.icon(
                   icon: const Icon(Icons.system_update_alt_rounded),
                   label: const Text('Update Robot'),
-                  onPressed: (!isUpdating && updateAvailable && canUpdate)
+                  onPressed: (!isUpdating && !_loadingRobot && updateAvailable && canUpdate)
                       ? _applyRobotUpdate
                       : null,
                 ),
