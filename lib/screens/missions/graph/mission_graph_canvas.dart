@@ -752,11 +752,11 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
 
     return Positioned(
       top: 16,
-      left: 0,
-      right: 0,
+      left: 16,
+      right: 16,
       child: Center(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
             color: AppColors.surfaceElevated,
             borderRadius: BorderRadius.circular(24),
@@ -774,12 +774,16 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
             children: [
               Icon(icon, color: color, size: 16),
               const SizedBox(width: 8),
-              Text(
-                text,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+              Flexible(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -899,44 +903,52 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
             Positioned(
               top: 16,
               left: 16,
-              child: Card(
-                color: AppColors.surface,
-                elevation: 4,
-                shadowColor: AppColors.shadowTint.withValues(alpha: 0.15),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: AppColors.danger),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.link_off, color: AppColors.danger, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Connection selected: ${_selectedEdge!.fromNode} (${_selectedEdge!.fromPort}) → ${_selectedEdge!.toNode}',
-                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(width: 12),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.danger,
-                          visualDensity: VisualDensity.compact,
+              right: 16,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Card(
+                  color: AppColors.surface,
+                  elevation: 4,
+                  shadowColor: AppColors.shadowTint.withValues(alpha: 0.15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(color: AppColors.danger),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        const Icon(Icons.link_off, color: AppColors.danger, size: 18),
+                        Text(
+                          'Connection: ${_selectedEdge!.fromNode} (${_selectedEdge!.fromPort}) → ${_selectedEdge!.toNode}',
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
                         ),
-                        onPressed: () {
-                          if (_selectedEdge != null) {
-                            _deleteEdge(_selectedEdge!);
-                          }
-                        },
-                        icon: const Icon(Icons.delete_outline, size: 14),
-                        label: const Text('Delete Edge'),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 16, color: AppColors.textSecondary),
-                        onPressed: () => _setSelectedEdge(null),
-                      ),
-                    ],
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.danger,
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          onPressed: () {
+                            if (_selectedEdge != null) {
+                              _deleteEdge(_selectedEdge!);
+                            }
+                          },
+                          icon: const Icon(Icons.delete_outline, size: 14),
+                          label: const Text('Delete Edge', style: TextStyle(fontSize: 11.5)),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 16, color: AppColors.textSecondary),
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                          onPressed: () => _setSelectedEdge(null),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

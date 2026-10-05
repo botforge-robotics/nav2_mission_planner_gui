@@ -930,8 +930,346 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     });
   }
 
+  (IconData, Color) _getNodeVisuals(String type) {
+    for (final cat in _catalogCategories) {
+      final items = cat['items'] as List<_PaletteItem>;
+      for (final item in items) {
+        if (item.type == type) {
+          return (item.icon, item.color);
+        }
+      }
+    }
+    return (Icons.account_tree_outlined, AppColors.primary);
+  }
+
+  void _openNodeLibraryModal() {
+    _leftTabIndex = 0;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.85,
+                child: _buildLeftSidebarContent(isModal: true),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _openVariablesModal() {
+    _leftTabIndex = 1;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.85,
+                child: _buildLeftSidebarContent(isModal: true),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _openNodeInspectorSheet(GraphNode selectedNode) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.85,
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: const BoxDecoration(
+                        border: Border(bottom: BorderSide(color: AppColors.border)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: AppColors.border,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            selectedNode.label.isNotEmpty ? selectedNode.label : selectedNode.id,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: MissionNodeInspector(
+                        node: selectedNode,
+                        graph: _graph,
+                        onChanged: () {
+                          setState(() {});
+                          setSheetState(() {});
+                        },
+                        onDelete: () {
+                          Navigator.of(context).pop();
+                          _deleteNode(selectedNode);
+                        },
+                        availableMissions: _availableMissions,
+                        api: _api,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMobileSelectedNodeBar(GraphNode node) {
+    final (icon, color) = _getNodeVisuals(node.type);
+    return Positioned(
+      top: 12,
+      left: 12,
+      right: 12,
+      child: Card(
+        color: AppColors.surface,
+        elevation: 6,
+        shadowColor: AppColors.shadowTint.withValues(alpha: 0.18),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 18, color: color),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: InkWell(
+                  onTap: () => _openNodeInspectorSheet(node),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        node.label.isNotEmpty ? node.label : node.id,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Text(
+                        'Tap to configure properties',
+                        style: TextStyle(fontSize: 10.5, color: AppColors.primary, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              FilledButton.tonal(
+                style: FilledButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: const Size(0, 32),
+                ),
+                onPressed: () => _openNodeInspectorSheet(node),
+                child: const Text('Edit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 2),
+              IconButton(
+                icon: const Icon(Icons.rotate_right_rounded, size: 19, color: AppColors.textSecondary),
+                tooltip: 'Rotate 90°',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                onPressed: () {
+                  setState(() {
+                    node.rotationDegrees = (node.rotationDegrees + 90) % 360;
+                    _canvasRevision++;
+                  });
+                },
+              ),
+              if (node.type != 'start')
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, size: 19, color: AppColors.danger),
+                  tooltip: 'Delete Node',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  onPressed: () => _deleteNode(node),
+                ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
+                tooltip: 'Deselect',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                onPressed: () => setState(() => _selectedNode = null),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showRenameMissionDialog() {
+    _nameController.text = _graph.name;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('Rename Mission', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          content: TextField(
+            controller: _nameController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Mission Name',
+              filled: true,
+              fillColor: AppColors.surfaceSunken,
+            ),
+            onSubmitted: (val) {
+              setState(() {
+                final name = val.trim();
+                _graph.name = name.isNotEmpty ? name : 'Untitled Mission';
+              });
+              Navigator.of(ctx).pop();
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                setState(() {
+                  final name = _nameController.text.trim();
+                  _graph.name = name.isNotEmpty ? name : 'Untitled Mission';
+                });
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showMapPickerDialog() {
+    final mapSet = <String>{
+      ..._availableMaps,
+      if (_currentMap != null && _currentMap!.isNotEmpty) _currentMap!,
+      if (_graph.map != null && _graph.map!.isNotEmpty) _graph.map!,
+    };
+    final mapList = mapSet.toList();
+    final selectedMap = mapSet.contains(_graph.map)
+        ? _graph.map
+        : (mapSet.contains(_currentMap)
+            ? _currentMap
+            : (mapList.isNotEmpty ? mapList.first : null));
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Row(
+            children: const [
+              Icon(Icons.map_outlined, color: AppColors.primary, size: 20),
+              SizedBox(width: 8),
+              Text('Select Mission Map', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: mapList.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('No maps available.', style: TextStyle(color: AppColors.textSecondary)),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: mapList.length,
+                    itemBuilder: (context, i) {
+                      final m = mapList[i];
+                      final isSelected = m == selectedMap;
+                      return ListTile(
+                        leading: Icon(
+                          isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                          color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                        ),
+                        title: Text(m, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                        onTap: () {
+                          setState(() => _graph.map = m);
+                          Navigator.of(ctx).pop();
+                        },
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    final isCompact = screenWidth < 960;
+
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, result) {
@@ -941,11 +1279,11 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       },
       child: Scaffold(
         backgroundColor: AppColors.background,
-        appBar: _buildAppBar(),
+        appBar: _buildAppBar(isCompact: isCompact),
       body: Row(
         children: [
-          // Left Sidebar with Tabs (Node Library & Variables)
-          _buildLeftSidebar(),
+          // Left Sidebar with Tabs (Node Library & Variables) - only on desktop
+          if (!isCompact) _buildLeftSidebar(),
 
           // Center Graph Canvas with robot interaction banner
           Expanded(
@@ -1034,6 +1372,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                           child: AiMissionAssistantWidget(
                             availableWaypoints: _getAvailableWaypointNames(),
                             existingGraph: _graph,
+                            isCompact: isCompact,
                             onGraphGenerated: (newGraph) {
                               setState(() {
                                 _graph = newGraph;
@@ -1078,6 +1417,53 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                             },
                           ),
                         ),
+                        // On mobile: Floating "+ Add Node" button next to Zoom controls
+                        if (isCompact)
+                          Positioned(
+                            bottom: 16,
+                            left: 72,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _openNodeLibraryModal,
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                  height: 38,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.45), width: 1.2),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.shadowTint.withValues(alpha: 0.12),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: const [
+                                      Icon(Icons.add_rounded, color: AppColors.primary, size: 18),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Add Node',
+                                        style: TextStyle(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        // On mobile: Floating Selected Node Card at top when a node is selected
+                        if (isCompact && _selectedNode != null)
+                          _buildMobileSelectedNodeBar(_selectedNode!),
                       ],
                     ),
                   ),
@@ -1086,15 +1472,239 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             ),
           ),
 
-          // Right Inspector
-          _buildRightSidebar(_selectedNode),
+          // Right Inspector - only on desktop
+          if (!isCompact) _buildRightSidebar(_selectedNode),
         ],
       ),
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  PreferredSizeWidget _buildAppBar({required bool isCompact}) {
+    if (isCompact) {
+      return AppBar(
+        backgroundColor: AppColors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 0.5,
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, thickness: 1, color: AppColors.border),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () {
+            _restorePortraitOrientation();
+            Navigator.of(context).pop();
+          },
+        ),
+        titleSpacing: 0,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.account_tree_outlined, color: AppColors.primary, size: 20),
+            const SizedBox(width: 6),
+            Flexible(
+              child: InkWell(
+                onTap: _showRenameMissionDialog,
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _graph.name.isNotEmpty ? _graph.name : 'Untitled',
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13.5,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.edit_outlined, size: 12, color: AppColors.primary),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (_missionState != null && _missionState != 'idle') ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _running ? AppColors.primary.withValues(alpha: 0.12) : AppColors.success.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _running ? AppColors.primary : AppColors.success,
+                    width: 1.0,
+                  ),
+                ),
+                child: Text(
+                  _missionState!.toUpperCase(),
+                  style: TextStyle(
+                    color: _running ? AppColors.primary : AppColors.success,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary),
+            tooltip: 'Add Node',
+            onPressed: _openNodeLibraryModal,
+          ),
+          IconButton(
+            icon: _saving
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                  )
+                : const Icon(Icons.save_outlined, color: AppColors.textPrimary),
+            tooltip: 'Save Mission',
+            onPressed: _saving ? null : _saveMission,
+          ),
+          if (_running)
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 32),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                backgroundColor: AppColors.danger,
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.stop_rounded, size: 16),
+              label: const Text('Abort', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+              onPressed: _cancelMission,
+            )
+          else
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 32),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.textOnPrimary,
+              ),
+              icon: const Icon(Icons.play_arrow_rounded, size: 16),
+              label: const Text('Run', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+              onPressed: _runMission,
+            ),
+          const SizedBox(width: 2),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
+            tooltip: 'More actions',
+            color: AppColors.surface,
+            onSelected: (val) {
+              switch (val) {
+                case 'map':
+                  _showMapPickerDialog();
+                  break;
+                case 'auto_align':
+                  setState(() {
+                    AiMissionAgentService.applyCleanGraphLayout(_graph);
+                    _canvasRevision++;
+                  });
+                  _centerCanvasOnMission();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Graph layout neatly aligned and reorganized.'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  break;
+                case 'validate':
+                  final validation = _validateGraph();
+                  if (validation.isValid) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Graph structure is valid!'), backgroundColor: AppColors.success),
+                    );
+                  } else {
+                    _showValidationDialog(
+                      errors: validation.errors,
+                      warnings: validation.warnings,
+                      canProceed: !validation.hasErrors,
+                    );
+                  }
+                  break;
+                case 'variables':
+                  _openVariablesModal();
+                  break;
+                case 'delete':
+                  _deleteMission();
+                  break;
+              }
+            },
+            itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'map',
+                child: Row(
+                  children: [
+                    const Icon(Icons.map_outlined, size: 18, color: AppColors.textSecondary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Map: ${_graph.map?.isNotEmpty == true ? _graph.map : (_currentMap ?? "None")}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'auto_align',
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_fix_high_rounded, size: 18, color: AppColors.primary),
+                    SizedBox(width: 10),
+                    Text('Auto-Align Layout', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'validate',
+                child: Row(
+                  children: [
+                    Icon(Icons.verified_outlined, size: 18, color: AppColors.textSecondary),
+                    SizedBox(width: 10),
+                    Text('Validate Graph', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'variables',
+                child: Row(
+                  children: [
+                    Icon(Icons.data_object_rounded, size: 18, color: Color(0xFF9333EA)),
+                    SizedBox(width: 10),
+                    Text('Variables & Context', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              if (widget.existingMission != null)
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.danger),
+                      SizedBox(width: 10),
+                      Text('Delete Mission', style: TextStyle(fontSize: 13, color: AppColors.danger)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 4),
+        ],
+      );
+    }
+
     return AppBar(
       backgroundColor: AppColors.surface,
       elevation: 0,
@@ -1531,149 +2141,176 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   ];
 
   Widget _buildLeftSidebar() {
-    final allVars = _graph.getAllVariables();
     return Container(
       width: 320,
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(right: BorderSide(color: AppColors.border, width: 1.0)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Segmented Tab Switcher (Node Library vs Variables)
-          Container(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: AppColors.border)),
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceSunken,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  // Tab 0: Node Library
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => setState(() => _leftTabIndex = 0),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        decoration: BoxDecoration(
-                          color: _leftTabIndex == 0 ? AppColors.surface : Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: _leftTabIndex == 0
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.08),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 1),
-                                  )
-                                ]
-                              : null,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.widgets_outlined,
-                              size: 16,
-                              color: _leftTabIndex == 0 ? AppColors.primary : AppColors.textSecondary,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Node Library',
-                              style: TextStyle(
-                                color: _leftTabIndex == 0 ? AppColors.textPrimary : AppColors.textSecondary,
-                                fontWeight: _leftTabIndex == 0 ? FontWeight.bold : FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Tab 1: Variables
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => setState(() => _leftTabIndex = 1),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        decoration: BoxDecoration(
-                          color: _leftTabIndex == 1 ? AppColors.surface : Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: _leftTabIndex == 1
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.08),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 1),
-                                  )
-                                ]
-                              : null,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.data_object_rounded,
-                              size: 16,
-                              color: _leftTabIndex == 1 ? const Color(0xFF9333EA) : AppColors.textSecondary,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Variables',
-                              style: TextStyle(
-                                color: _leftTabIndex == 1 ? AppColors.textPrimary : AppColors.textSecondary,
-                                fontWeight: _leftTabIndex == 1 ? FontWeight.bold : FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: _leftTabIndex == 1
-                                    ? const Color(0xFF9333EA).withValues(alpha: 0.15)
-                                    : AppColors.surfaceElevated,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                '${allVars.length}',
-                                style: TextStyle(
-                                  color: _leftTabIndex == 1 ? const Color(0xFF9333EA) : AppColors.textTertiary,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Body: Tab 0 or Tab 1
-          Expanded(
-            child: _leftTabIndex == 0 ? _buildNodeLibraryTab() : _buildVariablesTab(),
-          ),
-        ],
-      ),
+      child: _buildLeftSidebarContent(isModal: false),
     );
   }
 
-  Widget _buildNodeLibraryTab() {
+  Widget _buildLeftSidebarContent({bool isModal = false}) {
+    final allVars = _graph.getAllVariables();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (isModal)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.border)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.widgets_outlined, color: AppColors.primary, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'Add Node & Variables',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+          ),
+
+        // Segmented Tab Switcher (Node Library vs Variables)
+        Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: AppColors.border)),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceSunken,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                // Tab 0: Node Library
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _leftTabIndex = 0),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _leftTabIndex == 0 ? AppColors.surface : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: _leftTabIndex == 0
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.widgets_outlined,
+                            size: 16,
+                            color: _leftTabIndex == 0 ? AppColors.primary : AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Node Library',
+                            style: TextStyle(
+                              color: _leftTabIndex == 0 ? AppColors.textPrimary : AppColors.textSecondary,
+                              fontWeight: _leftTabIndex == 0 ? FontWeight.bold : FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Tab 1: Variables
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _leftTabIndex = 1),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _leftTabIndex == 1 ? AppColors.surface : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: _leftTabIndex == 1
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.data_object_rounded,
+                            size: 16,
+                            color: _leftTabIndex == 1 ? const Color(0xFF9333EA) : AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Variables',
+                            style: TextStyle(
+                              color: _leftTabIndex == 1 ? AppColors.textPrimary : AppColors.textSecondary,
+                              fontWeight: _leftTabIndex == 1 ? FontWeight.bold : FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: _leftTabIndex == 1
+                                  ? const Color(0xFF9333EA).withValues(alpha: 0.15)
+                                  : AppColors.surfaceElevated,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${allVars.length}',
+                              style: TextStyle(
+                                color: _leftTabIndex == 1 ? const Color(0xFF9333EA) : AppColors.textTertiary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Body: Tab 0 or Tab 1
+        Expanded(
+          child: _leftTabIndex == 0 ? _buildNodeLibraryTab(isModal: isModal) : _buildVariablesTab(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNodeLibraryTab({bool isModal = false}) {
     final query = _nodeSearchQuery.trim().toLowerCase();
 
     final allCategories = _catalogCategories;
@@ -1762,7 +2399,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                             style: const TextStyle(color: AppColors.textTertiary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
                           ),
                         ),
-                        for (final item in filteredItems) _buildPaletteCard(item),
+                        for (final item in filteredItems) _buildPaletteCard(item, isModal: isModal),
                       ],
                     ))
               : ListView(
@@ -1772,6 +2409,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                       _buildPaletteCategory(
                         cat['title'] as String,
                         cat['items'] as List<_PaletteItem>,
+                        isModal: isModal,
                       ),
                   ],
                 ),
@@ -1780,7 +2418,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     );
   }
 
-  Widget _buildPaletteCategory(String title, List<_PaletteItem> items) {
+  Widget _buildPaletteCategory(String title, List<_PaletteItem> items, {bool isModal = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1791,7 +2429,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             style: const TextStyle(color: AppColors.textTertiary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
           ),
         ),
-        for (final item in items) _buildPaletteCard(item),
+        for (final item in items) _buildPaletteCard(item, isModal: isModal),
       ],
     );
   }
@@ -1831,7 +2469,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     );
   }
 
-  Widget _buildPaletteCard(_PaletteItem item) {
+  Widget _buildPaletteCard(_PaletteItem item, {bool isModal = false}) {
     return Draggable<String>(
       data: item.type,
       feedback: Material(
@@ -1890,7 +2528,19 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         child: _buildPaletteCardContent(item),
       ),
       child: InkWell(
-        onTap: () => _addNodeFromCatalog(item.type),
+        onTap: () {
+          _addNodeFromCatalog(item.type);
+          if (isModal) {
+            Navigator.of(context).pop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Added "${item.title}" to canvas'),
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        },
         borderRadius: BorderRadius.circular(10),
         hoverColor: AppColors.surfaceSunken,
         child: _buildPaletteCardContent(item),

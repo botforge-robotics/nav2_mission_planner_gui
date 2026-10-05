@@ -17,11 +17,13 @@ class AiMissionAssistantWidget extends StatefulWidget {
     required this.availableWaypoints,
     required this.onGraphGenerated,
     this.existingGraph,
+    this.isCompact,
   });
 
   final List<String> availableWaypoints;
   final ValueChanged<MissionGraph> onGraphGenerated;
   final MissionGraph? existingGraph;
+  final bool? isCompact;
 
   @override
   State<AiMissionAssistantWidget> createState() => _AiMissionAssistantWidgetState();
@@ -307,7 +309,100 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
     return _buildExpandedCard();
   }
 
+  bool get _effectiveIsCompact =>
+      widget.isCompact ?? ((MediaQuery.maybeOf(context)?.size.width ?? 1000) < 960);
+
   Widget _buildCollapsedButton() {
+    if (_effectiveIsCompact) {
+      return Material(
+        color: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          height: 38,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: _isAiConfigured
+                  ? AppColors.primary.withValues(alpha: 0.4)
+                  : const Color(0xFFF59E0B).withValues(alpha: 0.5),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.shadowTint.withValues(alpha: 0.12),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              InkWell(
+                onTap: () => setState(() => _isExpanded = true),
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: _isAiConfigured
+                              ? AppColors.primary.withValues(alpha: 0.12)
+                              : const Color(0xFFFEF3C7),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.auto_awesome,
+                          color: _isAiConfigured ? AppColors.primary : const Color(0xFFD97706),
+                          size: 14,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'AI Assistant',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_isAiConfigured)
+                Tooltip(
+                  message: 'Voice Input',
+                  child: InkWell(
+                    onTap: () {
+                      setState(() => _isExpanded = true);
+                      _toggleListening();
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                      child: Icon(Icons.mic_none_rounded, color: AppColors.primary, size: 16),
+                    ),
+                  ),
+                ),
+              InkWell(
+                onTap: () => setState(() => _isExpanded = true),
+                borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
+                child: const Padding(
+                  padding: EdgeInsets.fromLTRB(2, 6, 10, 6),
+                  child: Icon(Icons.keyboard_arrow_up_rounded, color: AppColors.textSecondary, size: 18),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Material(
       color: Colors.transparent,
       elevation: 0,
@@ -441,12 +536,19 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
 
   Widget _buildExpandedCard() {
     final screenWidth = MediaQuery.maybeOf(context)?.size.width ?? 500;
-    final cardWidth = (screenWidth < 520 ? screenWidth - 32 : 480.0).clamp(320.0, 500.0);
+    final screenHeight = MediaQuery.maybeOf(context)?.size.height ?? 700;
+    final cardWidth = (screenWidth < 520 ? screenWidth - 24 : 480.0).clamp(280.0, 500.0);
+    final maxHeight = (screenHeight - 24).clamp(260.0, 680.0);
+    final isSmallHeight = screenHeight < 520;
     return Material(
       color: Colors.transparent,
       elevation: 0,
       child: Container(
         width: cardWidth,
+        constraints: BoxConstraints(
+          maxWidth: cardWidth,
+          maxHeight: maxHeight,
+        ),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
@@ -588,12 +690,13 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
             ),
 
             // Content Body
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
+            Flexible(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(isSmallHeight ? 10 : 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                   // Prominent configuration warning banner when AI is unconfigured
                   if (!_isAiConfigured)
                     Container(
@@ -990,6 +1093,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                 ],
               ),
             ),
+          ),
           ],
         ),
       ),
