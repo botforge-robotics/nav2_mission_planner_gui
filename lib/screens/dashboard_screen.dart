@@ -545,6 +545,49 @@ void _showLocalizationActionSheet(BuildContext context,
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.sync_rounded,
+                      color: AppColors.accent, size: 22),
+                ),
+                title: const Text('Auto-Relocalize (360° Spin)',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text(
+                    'Autonomous in-place rotation to disperse and converge particles',
+                    style: TextStyle(fontSize: 12)),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  final messenger = ScaffoldMessenger.of(context);
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          'Starting autonomous 360° relocalization spin…'),
+                      duration: Duration(seconds: 4),
+                    ),
+                  );
+                  try {
+                    final res = await api.recoverRelocalization();
+                    final converged = res['converged'] == true;
+                    messenger.showSnackBar(SnackBar(
+                      content: Text(converged
+                          ? 'Relocalized successfully! AMCL particles converged.'
+                          : '360° spin finished. Check robot pose on map.'),
+                      backgroundColor: converged ? AppColors.success : null,
+                    ));
+                  } catch (e) {
+                    messenger.showSnackBar(SnackBar(
+                        content: Text('Auto-relocalization failed: $e')));
+                  }
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
                     color: AppColors.warning.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -702,18 +745,22 @@ class _StatGridDesktop extends StatelessWidget {
                     Expanded(
                       child: Text(
                         telemetry.localized
-                            ? 'LOCALIZED'
+                            ? (telemetry.localizationHealth == 'degraded'
+                                ? 'DEGRADED'
+                                : 'LOCALIZED')
                             : (sdkState.mode == 'navigation'
                                 ? 'UNLOCALIZED'
                                 : 'OFF (IDLE)'),
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: telemetry.localized
-                              ? AppColors.success
-                              : (sdkState.mode == 'navigation'
+                          color: !telemetry.localized
+                              ? (sdkState.mode == 'navigation'
+                                  ? AppColors.danger
+                                  : AppColors.textTertiary)
+                              : (telemetry.localizationHealth == 'degraded'
                                   ? AppColors.warning
-                                  : AppColors.textTertiary),
+                                  : AppColors.success),
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),

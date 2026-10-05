@@ -240,6 +240,22 @@ class SdkApiService {
   Future<void> reinitializeGlobalLocalization() =>
       _send('POST', '/api/v1/navigation/relocalize/global');
 
+  /// Autonomous 360° relocalization recovery: disperses AMCL particles and
+  /// smoothly rotates the robot in place until particles converge below threshold.
+  Future<Map<String, dynamic>> recoverRelocalization({
+    double angularVel = 0.35,
+    double timeoutSec = 22.0,
+  }) =>
+      _send(
+        'POST',
+        '/api/v1/navigation/relocalize/recover',
+        body: {
+          'angular_vel': angularVel,
+          'timeout_sec': timeoutSec,
+        },
+        timeout: Duration(seconds: (timeoutSec + 10).toInt()),
+      );
+
   // -- docking ---------------------------------------------------------------
 
   Future<void> dock({bool navigateToStaging = true}) =>

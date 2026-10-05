@@ -56,6 +56,41 @@ class _NotLocalizedBannerState extends State<NotLocalizedBanner> {
     if (ok) dockLocalizeDismissed.value = true;
   }
 
+  Future<void> _autoRelocalize360() async {
+    setState(() => _busy = true);
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Starting autonomous 360° spin to relocalize…'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      final res = await widget.api.recoverRelocalization();
+      if (!mounted) return;
+      final converged = res['converged'] == true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            converged
+                ? 'Relocalized successfully! AMCL particles converged.'
+                : '360° spin finished. Check robot pose on map.',
+          ),
+          backgroundColor: converged ? AppColors.success : null,
+        ),
+      );
+      if (converged) {
+        dockLocalizeDismissed.value = true;
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Auto relocalization failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _globalRelocalize() async {
     setState(() => _busy = true);
     try {
@@ -64,7 +99,7 @@ class _NotLocalizedBannerState extends State<NotLocalizedBanner> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              '360° global relocalization initiated. Rotate or drive robot to let particles converge.'),
+              'Global particles dispersed. Rotate or drive robot to let particles converge.'),
           duration: Duration(seconds: 4),
         ),
       );
@@ -135,6 +170,17 @@ class _NotLocalizedBannerState extends State<NotLocalizedBanner> {
                         style: TextStyle(fontSize: 11)),
                   ),
                   const SizedBox(width: 6),
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                        minimumSize: Size.zero,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6)),
+                    onPressed: _autoRelocalize360,
+                    icon: const Icon(Icons.sync_rounded, size: 13),
+                    label: const Text('Auto 360° Spin',
+                        style: TextStyle(fontSize: 11)),
+                  ),
+                  const SizedBox(width: 6),
                   OutlinedButton(
                     style: OutlinedButton.styleFrom(
                         minimumSize: Size.zero,
@@ -151,7 +197,7 @@ class _NotLocalizedBannerState extends State<NotLocalizedBanner> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 6)),
                     onPressed: _globalRelocalize,
-                    child: const Text('Global Relocalize',
+                    child: const Text('Disperse Only',
                         style: TextStyle(fontSize: 11)),
                   ),
                   const SizedBox(width: 4),

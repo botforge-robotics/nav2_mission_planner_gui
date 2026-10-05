@@ -72,6 +72,17 @@ class RobotTelemetryProvider extends ChangeNotifier {
   ChargeStatus? chargeStatus;
   double? linearSpeedMps;
   bool localized = false;
+  double covX = 0.0;
+  double covY = 0.0;
+  double covYaw = 0.0;
+
+  /// Localization quality: 'healthy', 'degraded', or 'unlocalized'
+  String get localizationHealth {
+    if (!localized || rawPose == null) return 'unlocalized';
+    if (covX > 0.15 || covY > 0.15 || covYaw > 0.12) return 'degraded';
+    return 'healthy';
+  }
+
   String? dockStatus;
   Map<String, dynamic>? batteryDetail;
   double? batteryTemperature;
@@ -279,10 +290,11 @@ class RobotTelemetryProvider extends ChangeNotifier {
         qos: const {'durability': 'transient_local'},
         callback: (msg) {
           final cov = msg.pose.covariance;
-          final covX = (cov.isNotEmpty) ? cov[0] : 0.0;
-          final covY = (cov.length > 7) ? cov[7] : 0.0;
-          // When particle dispersion/drift happens, variance rises (> 0.35 m^2)
-          final isAccurate = (covX <= 0.35 && covY <= 0.35);
+          covX = (cov.isNotEmpty) ? cov[0] : 0.0;
+          covY = (cov.length > 7) ? cov[7] : 0.0;
+          covYaw = (cov.length > 35) ? cov[35] : 0.0;
+          // When particle dispersion/drift happens, variance rises (> 0.35 m^2 or yaw > 0.35 rad^2)
+          final isAccurate = (covX <= 0.35 && covY <= 0.35 && covYaw <= 0.35);
 
           if (localized != isAccurate) {
             localized = isAccurate;
