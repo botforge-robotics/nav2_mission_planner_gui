@@ -21,6 +21,7 @@ import 'help_about_screen.dart';
 import 'software_update_screen.dart';
 import 'tools_api_screen.dart';
 import '../setup/setup_power_screen.dart';
+import '../media/robot_media_screen.dart';
 
 /// Reference §13/§16 (Settings). Only entries backed by something real are
 /// full screens here: Alerts & Fault Log (already built — reused, not
@@ -116,6 +117,13 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   child: Divider(),
+                ),
+                _SettingsTile(
+                  icon: Icons.perm_media_rounded,
+                  title: 'Robot Media & Signage (DND)',
+                  subtitle: 'Share images/videos to robot display & manage media',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const RobotMediaScreen())),
                 ),
                 _SettingsTile(
                   icon: Icons.system_update_alt_rounded,

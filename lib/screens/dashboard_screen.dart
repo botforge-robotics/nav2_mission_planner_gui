@@ -30,6 +30,7 @@ import 'dock/dock_charge_screen.dart';
 import 'maps/map_view_screen.dart';
 import 'maps/maps_list_screen.dart';
 import 'maps/create_map_screen.dart';
+import 'media/robot_media_screen.dart';
 
 /// Reference §4 (Dashboard & Home). Core telemetry (battery, speed,
 /// localization, dock) comes from direct rosbridge subscriptions via
@@ -91,6 +92,15 @@ class _DashboardContent extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.perm_media_outlined),
+            tooltip: 'Robot Media & Signage (DND)',
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const RobotMediaScreen(),
+              ));
+            },
+          ),
           _AppBarBatteryWidget(telemetry: telemetry),
         ],
       ),

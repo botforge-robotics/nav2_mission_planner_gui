@@ -601,4 +601,41 @@ class SdkApiService {
         'sound': sound,
         if (speech != null && speech.isNotEmpty) 'speech': speech,
       });
+
+  // -- Robot Media & Signage (DND Screen Display) ----------------------------
+
+  Future<List<Map<String, dynamic>>> listRobotMedia() async {
+    final res = await _send('GET', '/api/v1/media');
+    final list = res['media'] as List?;
+    if (list == null) return [];
+    return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<Map<String, dynamic>> uploadRobotMediaFile({
+    required List<int> bytes,
+    required String filename,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/v1/media/upload');
+    final request = http.MultipartRequest('POST', uri);
+    request.files.add(http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: filename,
+    ));
+    final streamedResponse =
+        await request.send().timeout(const Duration(seconds: 45));
+    final resp = await http.Response.fromStream(streamedResponse);
+    if (resp.statusCode >= 200 && resp.statusCode < 300) {
+      return jsonDecode(resp.body) as Map<String, dynamic>;
+    }
+    throw SdkApiException(
+      'upload_failed',
+      'Failed to upload media file (${resp.statusCode}): ${resp.body}',
+      {},
+      resp.statusCode,
+    );
+  }
+
+  Future<void> deleteRobotMedia(String filename) =>
+      _send('DELETE', '/api/v1/media/${Uri.encodeComponent(filename)}');
 }
