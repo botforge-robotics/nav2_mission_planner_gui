@@ -789,8 +789,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       case 'ui_browser':
         defaultLabel = 'Open Web Page (Browser)';
         defaultParams = {
-          'url': 'http://localhost:5050',
-          'title': 'Restaurant Menu & Ordering',
+          'url': '',
+          'title': 'Web Browser',
           'target': 'robot_screen',
           'timeout_sec': 0.0,
         };

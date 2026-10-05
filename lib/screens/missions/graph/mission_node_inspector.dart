@@ -3945,7 +3945,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
 
   Widget _buildUiBrowserInspector() {
     final url = (widget.node.params['url'] as String? ?? '').trim();
-    final title = (widget.node.params['title'] as String? ?? 'Restaurant Menu').trim();
+    final title = (widget.node.params['title'] as String? ?? '').trim();
     final target = widget.node.params['target'] as String? ?? 'robot_screen';
     final timeout = (widget.node.params['timeout_sec'] as num?)?.toInt() ?? 0;
 
@@ -3990,51 +3990,6 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
         const SizedBox(height: 16),
 
-        // Quick Presets
-        const Text(
-          'Quick Presets:',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ActionChip(
-              avatar: const Icon(Icons.restaurant_menu, size: 16, color: Color(0xFF0D9488)),
-              label: const Text('Mock Restaurant Menu (:5050)', style: TextStyle(fontSize: 12)),
-              backgroundColor: AppColors.surfaceElevated,
-              side: const BorderSide(color: Color(0xFF0D9488)),
-              onPressed: widget.readOnly
-                  ? null
-                  : () {
-                      setState(() {
-                        widget.node.params['url'] = 'http://localhost:5050';
-                        widget.node.params['title'] = 'Restaurant Menu';
-                      });
-                      widget.onChanged();
-                    },
-            ),
-            ActionChip(
-              avatar: const Icon(Icons.router_outlined, size: 16, color: AppColors.primary),
-              label: const Text('Robot IP Menu (:5050)', style: TextStyle(fontSize: 12)),
-              backgroundColor: AppColors.surfaceElevated,
-              side: const BorderSide(color: AppColors.border),
-              onPressed: widget.readOnly
-                  ? null
-                  : () {
-                      final host = widget.api?.robotIp ?? '192.168.0.128';
-                      setState(() {
-                        widget.node.params['url'] = 'http://$host:5050';
-                        widget.node.params['title'] = 'Restaurant Menu';
-                      });
-                      widget.onChanged();
-                    },
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-
         // URL Field
         _buildVariableInputField(
           label: 'Website / Web App URL',
@@ -4052,7 +4007,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         _buildVariableInputField(
           label: 'Page Title (Shown in AppBar)',
           initialValue: title,
-          hintText: 'e.g. Restaurant Menu, Customer Check-in',
+          hintText: 'e.g. Web Browser, Customer Check-in',
           helperText: 'Displayed in the top navigation bar',
           onChanged: (v) {
             widget.node.params['title'] = v.trim();
