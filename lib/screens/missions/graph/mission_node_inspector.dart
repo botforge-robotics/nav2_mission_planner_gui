@@ -3726,6 +3726,31 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           ),
         ),
 
+        if (mediaType == 'video') ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Icon(Icons.video_settings_rounded, size: 16, color: AppColors.accent),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Smooth Video Tip: Best formats are MP4 (H.264/AVC, 8-bit YUV420p, AAC audio, 720p/1080p @ 30/60fps). Robot automatically optimizes MP4 files with faststart for zero-latency streaming.',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w500, height: 1.3),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           key: ValueKey('${widget.node.id}_media_type_$mediaType'),
