@@ -6,6 +6,7 @@ import '../providers/connection_provider.dart';
 import '../providers/robot_status.dart';
 import '../providers/robot_telemetry_provider.dart';
 import '../services/alerts_controller.dart';
+import '../services/dock_pose_controller.dart';
 import '../services/map_layers_controller.dart';
 import '../services/mode_transition_tracker.dart';
 import '../services/robot_connection_store.dart';
@@ -771,11 +772,23 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
   @override
   void initState() {
     super.initState();
+    DockPoseController.instance.addListener(_onDockPoseChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadDockPose();
+      DockPoseController.instance.refresh(SdkApiService(widget.robotIp));
       ZonesController.instance
           .refresh(SdkApiService(widget.robotIp), map: widget.mapName);
     });
+  }
+
+  void _onDockPoseChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    DockPoseController.instance.removeListener(_onDockPoseChanged);
+    super.dispose();
   }
 
   Future<void> _loadDockPose() async {
@@ -920,7 +933,8 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                                         .contains(MapLayer.globalCostmap),
                                     showLocalCostmap: visibleLayers
                                         .contains(MapLayer.localCostmap),
-                                    dockPoseOverride: _dockPose,
+                                    dockPoseOverride: DockPoseController.instance.value.dock ?? _dockPose,
+                                    standoffPoseOverride: DockPoseController.instance.value.standoff,
                                     zones: visibleLayers.contains(MapLayer.zones)
                                         ? ZonesController.instance.value
                                         : const [],

@@ -8,6 +8,7 @@ import 'package:ros2_api/ros2_api.dart';
 
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
+import '../../services/dock_pose_controller.dart';
 import '../../services/locations_controller.dart';
 import '../../services/map_layers_controller.dart';
 import '../../services/sdk_api_service.dart';
@@ -76,9 +77,14 @@ class _TeleopScreenState extends State<TeleopScreen> {
   @override
   void initState() {
     super.initState();
+    DockPoseController.instance.addListener(_onDockPoseChanged);
     _pollNavigationStatus();
     _navStatusTimer = Timer.periodic(
         const Duration(seconds: 3), (_) => _pollNavigationStatus());
+  }
+
+  void _onDockPoseChanged() {
+    if (mounted) setState(() {});
   }
 
   Publisher<geometry_msgs.Twist>? _cmdVelPub;
@@ -106,6 +112,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
 
   @override
   void dispose() {
+    DockPoseController.instance.removeListener(_onDockPoseChanged);
     _navStatusTimer?.cancel();
     _cmdVelPub?.shutdown();
     super.dispose();
@@ -400,6 +407,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
       await LocationsController.instance.refresh(api);
     } catch (_) {}
     await _loadDockPose();
+    await DockPoseController.instance.refresh(api);
   }
 
   Future<void> _openLayersPanel() async {
@@ -523,7 +531,8 @@ class _TeleopScreenState extends State<TeleopScreen> {
                           fullBleed: true,
                           isDesktop: true,
                           locations: locations,
-                          dockPoseOverride: _dockPose,
+                          dockPoseOverride: DockPoseController.instance.value.dock ?? _dockPose,
+                          standoffPoseOverride: DockPoseController.instance.value.standoff,
                           onLocationTap: _goTo,
                           onDockTap: _onDockTapped,
                           navStatus: _navStatus,
@@ -657,7 +666,8 @@ class _TeleopScreenState extends State<TeleopScreen> {
                       api: _api,
                       fullBleed: isMobile,
                       locations: locations,
-                      dockPoseOverride: _dockPose,
+                      dockPoseOverride: DockPoseController.instance.value.dock ?? _dockPose,
+                      standoffPoseOverride: DockPoseController.instance.value.standoff,
                       onLocationTap: _goTo,
                       onDockTap: _onDockTapped,
                       navStatus: _navStatus,
@@ -783,6 +793,7 @@ class _LiveMapSection extends StatelessWidget {
     required this.fullBleed,
     required this.locations,
     required this.dockPoseOverride,
+    this.standoffPoseOverride,
     required this.onLocationTap,
     required this.onDockTap,
     this.isDesktop = false,
@@ -798,6 +809,7 @@ class _LiveMapSection extends StatelessWidget {
   final bool isDesktop;
   final List<Map<String, dynamic>>? locations;
   final ({double x, double y, double theta})? dockPoseOverride;
+  final ({double x, double y, double theta})? standoffPoseOverride;
   final Map<String, dynamic>? navStatus;
   final double distanceTraveled;
   final VoidCallback? onCancelNavigation;
@@ -847,6 +859,7 @@ class _LiveMapSection extends StatelessWidget {
                             : const [],
                         showZones: visibleLayers.contains(MapLayer.zones),
                         dockPoseOverride: dockPoseOverride,
+                        standoffPoseOverride: standoffPoseOverride,
                         onLocationTap: onLocationTap,
                         onDockTap: onDockTap,
                         // The banner below takes over "not localized"

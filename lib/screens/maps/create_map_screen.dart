@@ -47,6 +47,15 @@ class CreateMapScreen extends StatefulWidget {
 
   static bool isOpen = false;
 
+  static DateTime? _suppressAutoOpenUntil;
+  static bool get isSuppressingAutoOpen =>
+      _suppressAutoOpenUntil != null &&
+      DateTime.now().isBefore(_suppressAutoOpenUntil!);
+
+  static void suppressAutoOpen({Duration duration = const Duration(seconds: 25)}) {
+    _suppressAutoOpenUntil = DateTime.now().add(duration);
+  }
+
   final bool fromSetup;
 
   /// When true, mapping is already running on the robot — skip the
@@ -283,9 +292,11 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
     setState(() => _busyMessage = prevMap != null
         ? 'Restoring "$prevMap"…'
         : 'Stopping mapping…');
+    CreateMapScreen.suppressAutoOpen(duration: const Duration(seconds: 30));
     try {
       ModeTransitionTracker.instance.startStoppingMapping(
         targetMode: prevMap != null ? 'navigation' : 'idle',
+        duration: const Duration(seconds: 35),
       );
       if (prevMap != null) {
         await api
@@ -294,6 +305,24 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       } else {
         await api.setMode('idle').timeout(const Duration(seconds: 15));
       }
+
+      if (mounted) {
+        setState(() => _busyMessage = 'Completing mode transition…');
+      }
+
+      // Wait for robot mode to transition out of mapping
+      for (int i = 0; i < 30; i++) {
+        try {
+          final res = await api.modeStatus().timeout(const Duration(seconds: 2));
+          final m = res['mode'] as String?;
+          if (m != null && m != 'mapping') {
+            ModeTransitionTracker.instance.onSdkModeUpdated(m);
+            break;
+          }
+        } catch (_) {}
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
       ModeTransitionTracker.instance.clear();
       if (!mounted) return;
       context.read<RobotTelemetryProvider>().exitMappingMode();
@@ -333,9 +362,11 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
           'Saving "$name" and switching navigation onto it — this can take a few minutes…';
       _error = null;
     });
+    CreateMapScreen.suppressAutoOpen(duration: const Duration(seconds: 45));
     try {
       ModeTransitionTracker.instance.startStoppingMapping(
         targetMode: 'navigation',
+        duration: const Duration(seconds: 60),
       );
 
       // Persist dock pose and waypoints for the newly created map
@@ -359,6 +390,26 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       try {
         await api.activateMap(name);
       } catch (_) {}
+
+      if (mounted) {
+        setState(() {
+          _busyMessage = 'Activating navigation mode…';
+        });
+      }
+
+      // Wait for robot mode to transition out of mapping
+      for (int i = 0; i < 30; i++) {
+        try {
+          final res = await api.modeStatus().timeout(const Duration(seconds: 2));
+          final m = res['mode'] as String?;
+          if (m != null && m != 'mapping') {
+            ModeTransitionTracker.instance.onSdkModeUpdated(m);
+            break;
+          }
+        } catch (_) {}
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
       ModeTransitionTracker.instance.clear();
       if (!mounted) return;
       context.read<RobotTelemetryProvider>().exitMappingMode();

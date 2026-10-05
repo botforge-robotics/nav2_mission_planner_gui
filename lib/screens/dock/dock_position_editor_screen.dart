@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/connection_provider.dart';
+import '../../services/dock_pose_controller.dart';
 import '../../services/locations_controller.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
@@ -182,8 +183,25 @@ class _DockPositionEditorScreenState extends State<DockPositionEditorScreen> {
         x: _standoffPoint!.x,
         y: _standoffPoint!.y,
         theta: _standoffAngle,
+        type: 'dock',
+      );
+
+      // 3. Save/update "Charging Dock" waypoint
+      await api.saveWaypoint(
+        'Charging Dock',
+        x: _dockPoint!.x,
+        y: _dockPoint!.y,
+        theta: _dockAngle,
+        type: 'dock',
+      );
+
+      // Instantly update shared controllers for immediate live UI feedback
+      DockPoseController.instance.update(
+        dock: (x: _dockPoint!.x, y: _dockPoint!.y, theta: _dockAngle),
+        standoff: (x: _standoffPoint!.x, y: _standoffPoint!.y, theta: _standoffAngle),
       );
       await LocationsController.instance.refresh(api);
+      await DockPoseController.instance.refresh(api);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

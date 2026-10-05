@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../screens/dock/dock_position_editor_screen.dart';
+import '../../services/dock_pose_controller.dart';
+import '../../services/locations_controller.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/action_feedback.dart';
@@ -65,9 +67,11 @@ Future<void> showDockActionSheet({
   if (choice == null || !context.mounted) return;
 
   if (choice == 'edit_dock') {
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const DockPositionEditorScreen()),
     );
+    await DockPoseController.instance.refresh(api);
+    await LocationsController.instance.refresh(api);
     return;
   }
 

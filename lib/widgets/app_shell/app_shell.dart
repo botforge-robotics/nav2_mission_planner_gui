@@ -120,7 +120,10 @@ class _ShellNavState extends State<_ShellNav> {
     ModeTransitionTracker.instance.onSdkModeUpdated(newMode);
 
     // Auto-navigate to CreateMapScreen when mapping starts externally and not already opened
-    if (newMode == 'mapping' && !CreateMapScreen.isOpen) {
+    if (newMode == 'mapping' &&
+        !CreateMapScreen.isOpen &&
+        !CreateMapScreen.isSuppressingAutoOpen &&
+        !ModeTransitionTracker.instance.isStoppingMapping) {
       if (mounted) {
         context.read<RobotTelemetryProvider>().resetForMapping();
       }
