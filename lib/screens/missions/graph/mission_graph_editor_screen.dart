@@ -221,9 +221,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           final inter = await api.fetchActiveUiInteraction();
           if (inter != null && mounted) {
             final p = inter['params'] as Map<String, dynamic>?;
+            final subtype = (inter['subtype'] ?? p?['subtype'] ?? '').toString().toLowerCase();
             final target = (inter['target'] ?? p?['target'] ?? 'robot_screen').toString().toLowerCase();
 
-            if (target == 'robot_screen') {
+            // Browser node MUST ONLY run on the robot side UI!
+            // In Mission Planner, we keep showing live mission progress on the graph canvas.
+            if (subtype == 'browser' || target == 'robot_screen') {
               if (_activeRobotInteraction?['interaction_id'] != inter['interaction_id']) {
                 setState(() => _activeRobotInteraction = inter);
               }
@@ -869,23 +872,33 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
   Widget _buildRobotInteractionBanner() {
     final title = _activeRobotInteraction?['title'] ?? 'Operator Action';
-    final subtype = _activeRobotInteraction?['subtype'] ?? 'form';
+    final subtype = (_activeRobotInteraction?['subtype'] ?? 'form').toString().toLowerCase();
+    final isBrowser = subtype == 'browser';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFF3EE),
-        border: Border(bottom: BorderSide(color: Color(0xFFFFD4C2), width: 1.2)),
+      decoration: BoxDecoration(
+        color: isBrowser ? const Color(0xFFF0FDFA) : const Color(0xFFFFF3EE),
+        border: Border(
+          bottom: BorderSide(
+            color: isBrowser ? const Color(0xFF99F6E4) : const Color(0xFFFFD4C2),
+            width: 1.2,
+          ),
+        ),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.12),
+              color: (isBrowser ? const Color(0xFF0D9488) : AppColors.primary).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.tablet_mac_rounded, color: AppColors.primary, size: 18),
+            child: Icon(
+              isBrowser ? Icons.language_rounded : Icons.tablet_mac_rounded,
+              color: isBrowser ? const Color(0xFF0D9488) : AppColors.primary,
+              size: 18,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -893,33 +906,61 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Active on Robot Screen ($subtype): $title',
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
+                  isBrowser ? 'Active on Robot Screen (Browser): $title' : 'Active on Robot Screen ($subtype): $title',
+                  style: TextStyle(
+                    color: isBrowser ? const Color(0xFF0F766E) : AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                const Text(
-                  'Awaiting physical interaction from on-site user on the robot screen terminal.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                Text(
+                  isBrowser
+                      ? 'Embedded browser is open on the robot touchscreen. Mission will automatically resume once closed on the robot.'
+                      : 'Awaiting physical interaction from on-site user on the robot screen terminal.',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                 ),
               ],
             ),
           ),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(0, 32),
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              side: const BorderSide(color: AppColors.primary),
-              foregroundColor: AppColors.primary,
+          if (isBrowser)
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 32),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                side: const BorderSide(color: Color(0xFF0D9488)),
+                foregroundColor: const Color(0xFF0D9488),
+              ),
+              icon: const Icon(Icons.skip_next_rounded, size: 16),
+              label: const Text('Bypass Step', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              onPressed: () async {
+                final api = _api;
+                final inter = _activeRobotInteraction;
+                if (api != null && inter != null) {
+                  final id = inter['interaction_id']?.toString() ?? inter['node_id']?.toString() ?? '';
+                  if (id.isNotEmpty) {
+                    await api.submitUiResponse(id, action: 'closed');
+                  }
+                }
+              },
+            )
+          else
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 32),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                side: const BorderSide(color: AppColors.primary),
+                foregroundColor: AppColors.primary,
+              ),
+              icon: const Icon(Icons.open_in_new, size: 14),
+              label: const Text('Respond on Desktop', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              onPressed: () async {
+                final api = _api;
+                final inter = _activeRobotInteraction;
+                if (api != null && inter != null) {
+                  await UiInteractionDialog.show(context, api: api, interaction: inter);
+                }
+              },
             ),
-            icon: const Icon(Icons.open_in_new, size: 14),
-            label: const Text('Respond on Desktop', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-            onPressed: () async {
-              final api = _api;
-              final inter = _activeRobotInteraction;
-              if (api != null && inter != null) {
-                await UiInteractionDialog.show(context, api: api, interaction: inter);
-              }
-            },
-          ),
         ],
       ),
     );

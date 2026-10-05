@@ -92,6 +92,7 @@ class _DashboardContent extends StatefulWidget {
 class _DashboardContentState extends State<_DashboardContent> {
   bool _isShowingUiInteraction = false;
   String? _lastShownInteractionId;
+  Map<String, dynamic>? _activeRobotInteraction;
 
   void _checkUiInteraction(SdkState sdkState) {
     if (sdkState.missionStatus == 'waiting_for_user') {
@@ -103,6 +104,21 @@ class _DashboardContentState extends State<_DashboardContent> {
           final api = SdkApiService(widget.robot.ip);
           final inter = await api.fetchActiveUiInteraction();
           if (inter != null && mounted) {
+            final p = inter['params'] as Map<String, dynamic>? ?? {};
+            final subtype = (inter['subtype'] ?? p['subtype'] ?? '').toString().toLowerCase();
+            final target = (inter['target'] ?? p['target'] ?? 'robot_screen').toString().toLowerCase();
+
+            // Browser node (and any prompt targeted at the robot screen) MUST ONLY run
+            // on the robot screen UI, never taking over the Mission Planner dashboard.
+            // Mission Planner continues displaying mission progress.
+            if (subtype == 'browser' || target == 'robot_screen') {
+              if (_activeRobotInteraction?['interaction_id'] != inter['interaction_id']) {
+                setState(() => _activeRobotInteraction = inter);
+              }
+              _isShowingUiInteraction = false;
+              return;
+            }
+
             final id = inter['interaction_id']?.toString() ?? inter['node_id']?.toString() ?? '';
             if (id.isNotEmpty && id != _lastShownInteractionId) {
               _lastShownInteractionId = id;
@@ -125,9 +141,110 @@ class _DashboardContentState extends State<_DashboardContent> {
         }
       });
     } else {
+      if (_activeRobotInteraction != null && mounted) {
+        setState(() => _activeRobotInteraction = null);
+      }
       _lastShownInteractionId = null;
       _isShowingUiInteraction = false;
     }
+  }
+
+  Widget _buildRobotScreenActiveBanner() {
+    final inter = _activeRobotInteraction;
+    final p = inter?['params'] as Map<String, dynamic>? ?? {};
+    final title = inter?['title']?.toString() ?? p['title']?.toString() ?? 'Web Browser';
+    final subtype = (inter?['subtype'] ?? p['subtype'] ?? 'browser').toString().toLowerCase();
+    final isBrowser = subtype == 'browser';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isBrowser ? const Color(0xFFF0FDFA) : const Color(0xFFFFF3EE),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        border: Border.all(
+          color: isBrowser ? const Color(0xFF99F6E4) : const Color(0xFFFFD4C2),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: (isBrowser ? const Color(0xFF0D9488) : AppColors.primary).withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isBrowser ? Icons.language_rounded : Icons.tablet_mac_rounded,
+              color: isBrowser ? const Color(0xFF0D9488) : AppColors.primary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      isBrowser ? 'Mission In Progress: Web Browser on Robot Screen' : 'Active on Robot Screen ($subtype)',
+                      style: TextStyle(
+                        color: isBrowser ? const Color(0xFF0F766E) : AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: (isBrowser ? const Color(0xFF0D9488) : AppColors.primary).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'ROBOT SCREEN',
+                        style: TextStyle(
+                          color: isBrowser ? const Color(0xFF0D9488) : AppColors.primary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  isBrowser
+                      ? 'The robot is currently presenting "$title" on its physical touchscreen. Mission will automatically advance once closed on the robot.'
+                      : 'Awaiting physical interaction on the robot screen terminal.',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5),
+                ),
+              ],
+            ),
+          ),
+          if (isBrowser)
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 32),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                side: const BorderSide(color: Color(0xFF0D9488)),
+                foregroundColor: const Color(0xFF0D9488),
+              ),
+              icon: const Icon(Icons.skip_next_rounded, size: 16),
+              label: const Text('Bypass Step', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              onPressed: () async {
+                final id = inter?['interaction_id']?.toString() ?? inter?['node_id']?.toString() ?? '';
+                if (id.isNotEmpty) {
+                  try {
+                    await SdkApiService(widget.robot.ip).submitUiResponse(id, action: 'closed');
+                  } catch (_) {}
+                }
+              },
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -173,6 +290,10 @@ class _DashboardContentState extends State<_DashboardContent> {
                           child: ListView(
                             padding: EdgeInsets.zero,
                             children: [
+                              if (_activeRobotInteraction != null) ...[
+                                _buildRobotScreenActiveBanner(),
+                                const SizedBox(height: AppSpacing.lg),
+                              ],
                               if (battery != null &&
                                   battery <= 15 &&
                                   !charging) ...[
@@ -231,6 +352,10 @@ class _DashboardContentState extends State<_DashboardContent> {
                     return ListView(
                       padding: const EdgeInsets.all(AppSpacing.lg),
                       children: [
+                        if (_activeRobotInteraction != null) ...[
+                          _buildRobotScreenActiveBanner(),
+                          const SizedBox(height: AppSpacing.lg),
+                        ],
                         if (battery != null && battery <= 15 && !charging) ...[
                           FadeSlideIn(
                             delay: nextDelay(),
