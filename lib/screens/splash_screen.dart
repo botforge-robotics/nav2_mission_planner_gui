@@ -60,40 +60,51 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.primaryDark,
-      body: Center(
-        child: FadeSlideIn(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              RadiatingIcon(
-                iconBackground: AppColors.textOnPrimary.withValues(alpha: 0.16),
-                iconColor: AppColors.textOnPrimary,
-                ringColor: AppColors.textOnPrimary,
-                size: 160,
-                coreSize: 120,
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Image.asset('assets/robot_photo.png',
-                      fit: BoxFit.contain),
-                ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: FadeSlideIn(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  RadiatingIcon(
+                    iconBackground: AppColors.textOnPrimary.withValues(alpha: 0.16),
+                    iconColor: AppColors.textOnPrimary,
+                    ringColor: AppColors.textOnPrimary,
+                    size: 160,
+                    coreSize: 120,
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Image.asset(
+                        'assets/robot_photo.png',
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  const Text(
+                    'NavPro Mini',
+                    style: TextStyle(
+                      color: AppColors.textOnPrimary,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Checking for your robot…',
+                    style: TextStyle(
+                        color: AppColors.textOnPrimary.withValues(alpha: 0.7)),
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.lg),
-              const Text(
-                'NavPro Mini',
-                style: TextStyle(
-                  color: AppColors.textOnPrimary,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Checking for your robot…',
-                style: TextStyle(
-                    color: AppColors.textOnPrimary.withValues(alpha: 0.7)),
-              ),
-            ],
+            ),
           ),
         ),
       ),
