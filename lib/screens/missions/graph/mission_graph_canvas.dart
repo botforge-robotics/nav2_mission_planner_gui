@@ -1822,6 +1822,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         return ('Kiosk Dialog', Icons.ads_click_rounded, AppColors.primary);
       case 'ui_media':
         return ('Kiosk Media', Icons.smart_display_rounded, const Color(0xFF0284C7));
+      case 'ui_browser':
+        return ('Web Browser', Icons.language_rounded, const Color(0xFF0D9488));
       case 'ui_speech':
         return ('Voice TTS', Icons.record_voice_over_rounded, const Color(0xFF8B5CF6));
       case 'notify':
@@ -1929,6 +1931,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         return node.params['title']?.toString() ?? 'Notice';
       case 'ui_media':
         return node.params['media_type']?.toString() ?? 'Media display';
+      case 'ui_browser':
+        final url = node.params['url']?.toString() ?? '';
+        return url.isNotEmpty ? url.replaceAll('http://', '').replaceAll('https://', '') : 'Web page';
       case 'ui_speech':
         final text = node.params['text']?.toString() ?? '';
         return text.isNotEmpty ? '"$text"' : 'Voice speak';

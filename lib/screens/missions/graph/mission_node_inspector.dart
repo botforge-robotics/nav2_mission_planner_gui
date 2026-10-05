@@ -3,6 +3,7 @@ import 'dart:typed_data' show Uint8List;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../services/locations_controller.dart';
 import '../../../services/sdk_api_service.dart';
 import '../../../theme/app_theme.dart';
@@ -316,6 +317,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         return (Icons.ads_click_rounded, AppColors.primary);
       case 'ui_media':
         return (Icons.smart_display_rounded, const Color(0xFF0284C7));
+      case 'ui_browser':
+        return (Icons.language_rounded, const Color(0xFF0D9488));
       case 'ui_speech':
         return (Icons.record_voice_over_rounded, const Color(0xFF8B5CF6));
       case 'notify':
@@ -393,6 +396,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         return 'Ask Choice (Buttons)';
       case 'ui_media':
         return 'Show Picture / Video';
+      case 'ui_browser':
+        return 'Embedded Web Browser';
       case 'ui_speech':
         return 'Speak Aloud';
       case 'notify':
@@ -468,6 +473,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         return 'Shows large touch buttons on the robot screen (like Yes or No) for someone to tap.';
       case 'ui_media':
         return 'Shows an image, diagram, or video on the robot screen for people nearby.';
+      case 'ui_browser':
+        return 'Displays an embedded web page or app on the robot screen below the AppBar. The mission holds until the user taps the Close button at the bottom-left.';
       case 'ui_speech':
         return 'Reads a message out loud through the robot speakers in clear voice.';
       case 'notify':
@@ -595,6 +602,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           _buildPatrolLoopInspector()
         else if (node.type == 'ui_media')
           _buildUiMediaInspector()
+        else if (node.type == 'ui_browser')
+          _buildUiBrowserInspector()
         else if (node.type == 'ui_speech')
           _buildUiSpeechInspector()
         else if (node.type == 'call_service')
@@ -3930,6 +3939,195 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildUiBrowserInspector() {
+    final url = (widget.node.params['url'] as String? ?? '').trim();
+    final title = (widget.node.params['title'] as String? ?? 'Restaurant Menu').trim();
+    final target = widget.node.params['target'] as String? ?? 'robot_screen';
+    final timeout = (widget.node.params['timeout_sec'] as num?)?.toInt() ?? 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Informational header card
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0D9488).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+            border: Border.all(color: const Color(0xFF0D9488).withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.language_rounded, color: Color(0xFF0D9488), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Embedded Robot Screen Browser',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Color(0xFF0D9488),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Renders the web page directly below the AppBar without showing the URL bar. A Close button is anchored at the bottom-left. The robot strictly stays on this screen until the Close button is pressed.',
+                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.3),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Quick Presets
+        const Text(
+          'Quick Presets:',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ActionChip(
+              avatar: const Icon(Icons.restaurant_menu, size: 16, color: Color(0xFF0D9488)),
+              label: const Text('Mock Restaurant Menu (:5050)', style: TextStyle(fontSize: 12)),
+              backgroundColor: AppColors.surfaceElevated,
+              side: const BorderSide(color: Color(0xFF0D9488)),
+              onPressed: widget.readOnly
+                  ? null
+                  : () {
+                      setState(() {
+                        widget.node.params['url'] = 'http://localhost:5050';
+                        widget.node.params['title'] = 'Restaurant Menu';
+                      });
+                      widget.onChanged();
+                    },
+            ),
+            ActionChip(
+              avatar: const Icon(Icons.router_outlined, size: 16, color: AppColors.primary),
+              label: const Text('Robot IP Menu (:5050)', style: TextStyle(fontSize: 12)),
+              backgroundColor: AppColors.surfaceElevated,
+              side: const BorderSide(color: AppColors.border),
+              onPressed: widget.readOnly
+                  ? null
+                  : () {
+                      final host = widget.api?.robotIp ?? '192.168.0.128';
+                      setState(() {
+                        widget.node.params['url'] = 'http://$host:5050';
+                        widget.node.params['title'] = 'Restaurant Menu';
+                      });
+                      widget.onChanged();
+                    },
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // URL Field
+        _buildVariableInputField(
+          label: 'Website / Web App URL',
+          initialValue: url,
+          hintText: 'e.g. http://localhost:5050 or https://example.com',
+          helperText: 'Full HTTP/HTTPS URL to load on the robot display',
+          onChanged: (v) {
+            widget.node.params['url'] = v.trim();
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 14),
+
+        // Title Field
+        _buildVariableInputField(
+          label: 'Page Title (Shown in AppBar)',
+          initialValue: title,
+          hintText: 'e.g. Restaurant Menu, Customer Check-in',
+          helperText: 'Displayed in the top navigation bar',
+          onChanged: (v) {
+            widget.node.params['title'] = v.trim();
+            widget.onChanged();
+          },
+        ),
+        const SizedBox(height: 14),
+
+        // Target Device
+        DropdownButtonFormField<String>(
+          initialValue: ['robot_screen', 'operator_app', 'both'].contains(target) ? target : 'robot_screen',
+          decoration: InputDecoration(
+            labelText: 'Target Screen',
+            helperText: 'Where the embedded browser should appear',
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          items: const [
+            DropdownMenuItem(value: 'robot_screen', child: Text('Robot Screen (Touchscreen)')),
+            DropdownMenuItem(value: 'operator_app', child: Text('Operator App / Tablet')),
+            DropdownMenuItem(value: 'both', child: Text('Both Robot Screen & Operator App')),
+          ],
+          onChanged: widget.readOnly
+              ? null
+              : (val) {
+                  if (val != null) {
+                    setState(() => widget.node.params['target'] = val);
+                    widget.onChanged();
+                  }
+                },
+        ),
+        const SizedBox(height: 14),
+
+        // Timeout (Optional, 0 = indefinite until close)
+        TextFormField(
+          initialValue: timeout.toString(),
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Auto-close Timeout (seconds)',
+            helperText: '0 = Wait indefinitely until user taps the Close button',
+            filled: true,
+            fillColor: AppColors.surfaceSunken,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+            suffixText: 'sec',
+          ),
+          onChanged: widget.readOnly
+              ? null
+              : (v) {
+                  final parsed = int.tryParse(v.trim()) ?? 0;
+                  widget.node.params['timeout_sec'] = parsed;
+                  widget.onChanged();
+                },
+        ),
+        const SizedBox(height: 16),
+
+        // Test Open Button
+        if (url.isNotEmpty)
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 42),
+              side: const BorderSide(color: Color(0xFF0D9488)),
+              foregroundColor: const Color(0xFF0D9488),
+            ),
+            icon: const Icon(Icons.open_in_browser_rounded, size: 18),
+            label: const Text('Preview / Open URL Externally'),
+            onPressed: () async {
+              try {
+                final uri = Uri.parse(url);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              } catch (_) {}
+            },
+          ),
       ],
     );
   }

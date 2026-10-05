@@ -786,6 +786,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           'target': 'robot_screen',
         };
         break;
+      case 'ui_browser':
+        defaultLabel = 'Open Web Page (Browser)';
+        defaultParams = {
+          'url': 'http://localhost:5050',
+          'title': 'Restaurant Menu & Ordering',
+          'target': 'robot_screen',
+          'timeout_sec': 0.0,
+        };
+        break;
       case 'ui_speech':
         defaultLabel = 'Speak Aloud';
         defaultParams = {'text': 'NavPro Mini has arrived at your station.', 'wait_completion': true};
@@ -2125,6 +2134,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         _PaletteItem('ui_interaction', 'Ask for Information', 'Show form on screen to fill out', Icons.touch_app_rounded, AppColors.primary),
         _PaletteItem('ui_choice', 'Ask Choice (Buttons)', 'Show tap buttons on robot screen', Icons.ads_click_rounded, AppColors.primary),
         _PaletteItem('ui_media', 'Show Picture or Video', 'Display image/video on robot screen', Icons.smart_display_rounded, Color(0xFF0284C7)),
+        _PaletteItem('ui_browser', 'Open Web Page (Browser)', 'Display interactive web page on robot screen', Icons.language_rounded, Color(0xFF0D9488)),
         _PaletteItem('ui_speech', 'Speak Aloud', 'Say message aloud via speakers', Icons.record_voice_over_rounded, Color(0xFF8B5CF6)),
         _PaletteItem('notify', 'Lights & Chime Signal', 'Play chime or flash LED lights', Icons.lightbulb_rounded, Color(0xFF0D9488)),
       ],

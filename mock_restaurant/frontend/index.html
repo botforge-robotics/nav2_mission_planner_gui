@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BistroBot Kiosk • Autonomous Restaurant Ordering</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="kiosk-container">
+    <!-- Top Persistent Robot Header -->
+    <header class="kiosk-header">
+      <div class="brand">
+        <div class="brand-logo">🤖</div>
+        <div>
+          <h1 class="brand-title">BistroBot Kiosk</h1>
+          <p class="brand-sub">Table 4 • Autonomous Robot Station</p>
+        </div>
+      </div>
+
+      <div class="search-bar-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="Search gourmet burgers, pizza, drinks..." autocomplete="off">
+        <button id="clearSearch" class="clear-search-btn" style="display: none;">✕</button>
+      </div>
+
+      <div class="header-actions">
+        <button id="openCartBtn" class="cart-btn" aria-label="View Cart">
+          <span class="cart-icon">🛒</span>
+          <span class="cart-text">Cart</span>
+          <span id="cartCountBadge" class="cart-badge">0</span>
+          <span id="cartTotalSummary" class="cart-total">$0.00</span>
+        </button>
+
+        <button id="missionCloseBtn" class="mission-close-btn" title="Close kiosk and signal robot to proceed">
+          <span class="close-icon">✕</span>
+          <span class="close-text">Close & Continue</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Categories Ribbon -->
+    <nav class="categories-bar" id="categoriesBar">
+      <!-- Injected by JavaScript -->
+    </nav>
+
+    <!-- Main Menu Area -->
+    <main class="menu-content">
+      <div class="section-header">
+        <h2 id="activeCategoryTitle">All Specialties</h2>
+        <span id="resultsCount" class="results-count">17 delicious items</span>
+      </div>
+
+      <div id="menuGrid" class="menu-grid">
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading fresh chef menu...</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Slide-over Cart Drawer -->
+    <div id="cartBackdrop" class="cart-backdrop"></div>
+    <aside id="cartDrawer" class="cart-drawer">
+      <div class="cart-drawer-header">
+        <div class="cart-header-title">
+          <h3>Your Order Summary</h3>
+          <p>Table 4 • Pay Later / Demo Mode</p>
+        </div>
+        <button id="closeCartDrawerBtn" class="icon-close-btn">✕</button>
+      </div>
+
+      <div id="cartItemsList" class="cart-items-list">
+        <!-- Injected by JavaScript -->
+      </div>
+
+      <div class="cart-footer">
+        <div class="price-row">
+          <span>Subtotal</span>
+          <span id="cartSubtotal">$0.00</span>
+        </div>
+        <div class="price-row">
+          <span>Estimated Tax (5%)</span>
+          <span id="cartTax">$0.00</span>
+        </div>
+        <div class="price-row total-row">
+          <span>Total (Demo: $0 Due)</span>
+          <span id="cartGrandTotal">$0.00</span>
+        </div>
+
+        <button id="placeOrderBtn" class="place-order-btn" disabled>
+          <span>Confirm & Place Order</span>
+          <span class="arrow-icon">→</span>
+        </button>
+        <p class="demo-tag">🎉 Demo Mode: Instant order confirmation without real payment.</p>
+      </div>
+    </aside>
+
+    <!-- Order Confirmed Modal -->
+    <div id="orderSuccessModal" class="order-modal-backdrop">
+      <div class="order-modal-card">
+        <div class="success-animation">
+          <div class="checkmark-circle">✓</div>
+        </div>
+        <h2 class="order-success-title">Order Placed Successfully!</h2>
+        <p class="order-success-sub">The kitchen is preparing your dishes.</p>
+
+        <div class="order-meta-box">
+          <div class="meta-item">
+            <span class="meta-label">Order Number</span>
+            <span id="confirmedOrderId" class="meta-value">#ROBOT-8921</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Station</span>
+            <span class="meta-value">Table 4</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Est. Delivery</span>
+            <span id="confirmedEstTime" class="meta-value">12-15 Mins</span>
+          </div>
+        </div>
+
+        <div id="orderedItemsPreview" class="ordered-items-preview"></div>
+
+        <div class="modal-actions">
+          <button id="finishOrderAndContinueBtn" class="finish-order-btn">
+            <span>Done • Robot Go to Next Mission Stop</span>
+            <span class="arrow-icon">➔</span>
+          </button>
+          <button id="closeModalOnlyBtn" class="order-more-btn">
+            Order More / Keep Viewing Menu
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

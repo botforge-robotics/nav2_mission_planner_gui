@@ -32,6 +32,7 @@ import 'maps/map_view_screen.dart';
 import 'maps/maps_list_screen.dart';
 import 'maps/create_map_screen.dart';
 import 'media/robot_media_screen.dart';
+import 'missions/graph/ui_interaction_dialog.dart';
 
 /// Reference §4 (Dashboard & Home). Core telemetry (battery, speed,
 /// localization, dock) comes from direct rosbridge subscriptions via
@@ -73,7 +74,7 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-class _DashboardContent extends StatelessWidget {
+class _DashboardContent extends StatefulWidget {
   const _DashboardContent({
     required this.connection,
     required this.robot,
@@ -83,6 +84,51 @@ class _DashboardContent extends StatelessWidget {
   final ConnectionProvider connection;
   final SavedRobot robot;
   final Ros2 ros2;
+
+  @override
+  State<_DashboardContent> createState() => _DashboardContentState();
+}
+
+class _DashboardContentState extends State<_DashboardContent> {
+  bool _isShowingUiInteraction = false;
+  String? _lastShownInteractionId;
+
+  void _checkUiInteraction(SdkState sdkState) {
+    if (sdkState.missionStatus == 'waiting_for_user') {
+      if (_isShowingUiInteraction) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted || _isShowingUiInteraction) return;
+        _isShowingUiInteraction = true;
+        try {
+          final api = SdkApiService(widget.robot.ip);
+          final inter = await api.fetchActiveUiInteraction();
+          if (inter != null && mounted) {
+            final id = inter['interaction_id']?.toString() ?? inter['node_id']?.toString() ?? '';
+            if (id.isNotEmpty && id != _lastShownInteractionId) {
+              _lastShownInteractionId = id;
+              await UiInteractionDialog.show(
+                context,
+                api: api,
+                interaction: inter,
+                onDismissed: () {
+                  if (mounted) {
+                    setState(() => _isShowingUiInteraction = false);
+                  }
+                },
+              );
+              return;
+            }
+          }
+        } catch (_) {}
+        if (mounted) {
+          setState(() => _isShowingUiInteraction = false);
+        }
+      });
+    } else {
+      _lastShownInteractionId = null;
+      _isShowingUiInteraction = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,8 +154,9 @@ class _DashboardContent extends StatelessWidget {
       body: SafeArea(
         child: isDesktop
             ? SdkStateBuilder(
-                robotIp: robot.ip,
+                robotIp: widget.robot.ip,
                 builder: (context, sdkState) {
+                  _checkUiInteraction(sdkState);
                   final battery = telemetry.batteryPercentage;
                   final charging =
                       telemetry.chargeStatus == ChargeStatus.charging ||
@@ -133,15 +180,15 @@ class _DashboardContent extends StatelessWidget {
                                 const SizedBox(height: AppSpacing.lg),
                               ],
                               _RobotCard(
-                                  robot: robot,
+                                  robot: widget.robot,
                                   telemetry: telemetry,
                                   sdkState: sdkState),
                               const SizedBox(height: AppSpacing.lg),
                               _MapPreviewCard(
-                                ros2: ros2,
+                                ros2: widget.ros2,
                                 mapName: sdkState.mapName,
                                 sdkMode: sdkState.mode,
-                                robotIp: robot.ip,
+                                robotIp: widget.robot.ip,
                                 height: 440,
                                 interactive: true,
                               ),
@@ -158,7 +205,7 @@ class _DashboardContent extends StatelessWidget {
                               _StatGridDesktop(
                                   telemetry: telemetry, sdkState: sdkState),
                               const SizedBox(height: AppSpacing.lg),
-                              _AlertsCard(robotIp: robot.ip),
+                              _AlertsCard(robotIp: widget.robot.ip),
                             ],
                           ),
                         ),
@@ -170,8 +217,9 @@ class _DashboardContent extends StatelessWidget {
             : CenteredFormColumn(
                 maxWidth: 720,
                 child: SdkStateBuilder(
-                  robotIp: robot.ip,
+                  robotIp: widget.robot.ip,
                   builder: (context, sdkState) {
+                    _checkUiInteraction(sdkState);
                     final battery = telemetry.batteryPercentage;
                     final charging =
                         telemetry.chargeStatus == ChargeStatus.charging ||
@@ -193,7 +241,7 @@ class _DashboardContent extends StatelessWidget {
                         FadeSlideIn(
                           delay: nextDelay(),
                           child: _RobotCard(
-                              robot: robot,
+                              robot: widget.robot,
                               telemetry: telemetry,
                               sdkState: sdkState),
                         ),
@@ -207,15 +255,15 @@ class _DashboardContent extends StatelessWidget {
                         FadeSlideIn(
                           delay: nextDelay(),
                           child: _MapPreviewCard(
-                              ros2: ros2,
+                              ros2: widget.ros2,
                               mapName: sdkState.mapName,
                               sdkMode: sdkState.mode,
-                              robotIp: robot.ip),
+                              robotIp: widget.robot.ip),
                         ),
                         const SizedBox(height: AppSpacing.lg),
                         FadeSlideIn(
                           delay: nextDelay(),
-                          child: _AlertsCard(robotIp: robot.ip),
+                          child: _AlertsCard(robotIp: widget.robot.ip),
                         ),
                       ],
                     );

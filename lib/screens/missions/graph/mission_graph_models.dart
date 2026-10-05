@@ -183,6 +183,10 @@ class GraphNode {
           NodePort(id: 'skipped', label: 'If Person Skipped', isInput: false, color: Color(0xFF9E9E9E)),
           NodePort(id: 'timeout', label: 'If Timed Out', isInput: false, color: Color(0xFFFF9800)),
         ];
+      case 'ui_browser':
+        return const [
+          NodePort(id: 'closed', label: 'When Closed', isInput: false, color: Color(0xFF4CAF50)),
+        ];
       case 'ui_speech':
         return const [
           NodePort(id: 'done', label: 'When Done Speaking', isInput: false, color: Color(0xFF4CAF50)),

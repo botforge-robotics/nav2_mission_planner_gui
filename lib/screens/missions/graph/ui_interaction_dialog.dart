@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../services/locations_controller.dart';
 import '../../../services/sdk_api_service.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/embedded_browser/browser_frame.dart';
+import '../../../widgets/embedded_browser/robot_embedded_browser_screen.dart';
 import 'mission_graph_models.dart';
 
 /// Modal dialog presented to users/operators when an executing mission
@@ -24,13 +26,34 @@ class UiInteractionDialog extends StatefulWidget {
     BuildContext context, {
     required SdkApiService api,
     required Map<String, dynamic> interaction,
+    VoidCallback? onDismissed,
   }) {
+    final p = interaction['params'] as Map<String, dynamic>? ?? {};
+    final subtype = interaction['subtype']?.toString() ?? p['subtype']?.toString() ?? '';
+
+    if (subtype == 'browser') {
+      final interactionId = interaction['interaction_id']?.toString() ??
+          interaction['node_id']?.toString() ??
+          '';
+      final url = interaction['url']?.toString() ?? p['url']?.toString() ?? '';
+      final title = interaction['title']?.toString() ?? p['title']?.toString() ?? 'Web Browser';
+      return RobotEmbeddedBrowserScreen.show(
+        context,
+        api: api,
+        interactionId: interactionId,
+        url: url,
+        title: title,
+        onDismissed: onDismissed,
+      );
+    }
+
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => UiInteractionDialog(
         api: api,
         interaction: interaction,
+        onDismissed: onDismissed,
       ),
     );
   }
@@ -66,10 +89,12 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
     _subtype = widget.interaction['subtype']?.toString() ?? p['subtype']?.toString() ?? 'modal';
     _title = widget.interaction['title']?.toString() ?? p['title']?.toString() ?? 'Operator Action Required';
     _message = widget.interaction['message']?.toString() ?? p['message']?.toString() ?? '';
-    _timeoutSec = (widget.interaction['timeout_sec'] as num?)?.toDouble() ??
-        (widget.interaction['duration_sec'] as num?)?.toDouble() ??
-        (p['timeout_sec'] as num?)?.toDouble() ??
-        60.0;
+    final rawTimeout = widget.interaction['timeout_sec'] ??
+        widget.interaction['duration_sec'] ??
+        p['timeout_sec'];
+    _timeoutSec = rawTimeout != null
+        ? (rawTimeout as num).toDouble()
+        : (_subtype == 'browser' ? 0.0 : 60.0);
     _choices = (widget.interaction['options'] as List<dynamic>?) ??
         (p['choices'] as List<dynamic>?) ?? ['confirm'];
     _imageUrl = widget.interaction['media_url']?.toString() ??
@@ -152,8 +177,8 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
         side: const BorderSide(color: AppColors.border, width: 1.2),
       ),
       child: Container(
-        width: 520,
-        constraints: const BoxConstraints(maxHeight: 700),
+        width: _subtype == 'browser' ? 950 : 520,
+        constraints: BoxConstraints(maxHeight: _subtype == 'browser' ? 800 : 700),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -172,10 +197,14 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
+                      color: (_subtype == 'browser' ? const Color(0xFF0D9488) : AppColors.primary).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.touch_app, color: AppColors.primary, size: 20),
+                    child: Icon(
+                      _subtype == 'browser' ? Icons.language_rounded : Icons.touch_app,
+                      color: _subtype == 'browser' ? const Color(0xFF0D9488) : AppColors.primary,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -284,6 +313,8 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                       _buildChoicesBody()
                     else if (_subtype == 'kiosk_destination_picker')
                       _buildKioskPickerBody()
+                    else if (_subtype == 'browser')
+                      _buildBrowserBody()
                     else
                       _buildModalBody(),
                   ],
@@ -325,6 +356,33 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
                           : Text(_subtype == 'form' ? 'Submit Form' : 'Acknowledge'),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Pinned Bottom-Left Close Button for Embedded Browser
+            if (_subtype == 'browser')
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: const BoxDecoration(
+                  color: AppColors.surfaceElevated,
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(AppSpacing.cardRadius)),
+                  border: Border(top: BorderSide(color: AppColors.border)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFDC2626),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
+                      ),
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      label: const Text('Close & Continue', style: TextStyle(fontWeight: FontWeight.bold)),
+                      onPressed: _submitting ? null : () => _sendResponse(action: 'closed'),
                     ),
                   ],
                 ),
@@ -528,6 +586,19 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildBrowserBody() {
+    final p = widget.interaction['params'] as Map<String, dynamic>? ?? {};
+    final url = (widget.interaction['url'] ?? p['url'] ?? '').toString();
+    return SizedBox(
+      height: 520,
+      width: double.infinity,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+        child: buildBrowserFrame(url),
+      ),
     );
   }
 
