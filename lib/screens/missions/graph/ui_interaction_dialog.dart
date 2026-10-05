@@ -63,12 +63,18 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
         widget.interaction['node_id']?.toString() ??
         '';
     final p = widget.interaction['params'] as Map<String, dynamic>? ?? {};
-    _subtype = p['subtype']?.toString() ?? 'modal';
-    _title = p['title']?.toString() ?? 'Operator Action Required';
-    _message = p['message']?.toString() ?? '';
-    _timeoutSec = (p['timeout_sec'] as num?)?.toDouble() ?? 60.0;
-    _choices = (p['choices'] as List<dynamic>?) ?? ['confirm'];
-    _imageUrl = p['image_url']?.toString();
+    _subtype = widget.interaction['subtype']?.toString() ?? p['subtype']?.toString() ?? 'modal';
+    _title = widget.interaction['title']?.toString() ?? p['title']?.toString() ?? 'Operator Action Required';
+    _message = widget.interaction['message']?.toString() ?? p['message']?.toString() ?? '';
+    _timeoutSec = (widget.interaction['timeout_sec'] as num?)?.toDouble() ??
+        (widget.interaction['duration_sec'] as num?)?.toDouble() ??
+        (p['timeout_sec'] as num?)?.toDouble() ??
+        60.0;
+    _choices = (widget.interaction['options'] as List<dynamic>?) ??
+        (p['choices'] as List<dynamic>?) ?? ['confirm'];
+    _imageUrl = widget.interaction['media_url']?.toString() ??
+        p['media_url']?.toString() ??
+        p['image_url']?.toString();
 
     // Parse form fields if any
     final rawFields = p['fields'] as List<dynamic>? ?? [];
@@ -253,8 +259,17 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                           errorBuilder: (_, __, ___) => Container(
                             height: 120,
                             color: AppColors.surfaceSunken,
-                            child: const Center(
-                              child: Icon(Icons.broken_image, color: AppColors.textTertiary),
+                            padding: const EdgeInsets.all(12),
+                            child: const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.broken_image_rounded, color: AppColors.warning, size: 32),
+                                SizedBox(height: 6),
+                                Text(
+                                  'Media file not found or deleted from robot',
+                                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -276,8 +291,8 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
               ),
             ),
 
-            // Bottom Actions (for form or modal)
-            if (_subtype == 'form' || _subtype == 'modal')
+            // Bottom Actions (for form, modal, or media_display)
+            if (_subtype == 'form' || _subtype == 'modal' || _subtype == 'media_display')
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 decoration: const BoxDecoration(

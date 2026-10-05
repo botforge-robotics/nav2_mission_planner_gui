@@ -39,12 +39,45 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   late TextEditingController _labelController;
   late FocusNode _labelFocusNode;
 
+  List<Map<String, dynamic>> _robotMediaFiles = [];
+  bool _isLoadingMediaList = false;
+  bool _useCustomMediaUrl = false;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _labelController = TextEditingController(text: widget.node.label);
     _labelFocusNode = FocusNode();
+    if (widget.node.type == 'ui_media') {
+      _fetchRobotMediaFiles();
+    }
+  }
+
+  Future<void> _fetchRobotMediaFiles() async {
+    final api = widget.api;
+    if (api == null || _isLoadingMediaList) return;
+    setState(() => _isLoadingMediaList = true);
+    try {
+      final list = await api.listRobotMedia();
+      if (mounted) {
+        setState(() {
+          _robotMediaFiles = list;
+          _isLoadingMediaList = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingMediaList = false);
+      }
+    }
+  }
+
+  String _formatMediaFileSize(num? bytes) {
+    if (bytes == null || bytes <= 0) return '';
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   void _setActiveField({
@@ -103,6 +136,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.node.id != widget.node.id) {
       _labelController.text = widget.node.label;
+    }
+    if (widget.node.type == 'ui_media' && _robotMediaFiles.isEmpty && !_isLoadingMediaList) {
+      _fetchRobotMediaFiles();
     }
   }
 
@@ -3165,7 +3201,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi', 'mkv', 'webm'],
+        allowedExtensions: [
+          'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg',
+          'mp4', 'mov', 'avi', 'mkv', 'webm',
+        ],
         withData: true,
       );
       if (result == null || result.files.isEmpty) return;
@@ -3184,26 +3223,30 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       }
 
       setState(() => _isUploadingMedia = true);
-      final res = await api.uploadMedia(bytes, picked.name);
-      final relUrl = res['url']?.toString() ?? '/media/${picked.name}';
-      final fullUrl = '${api.baseUrl}$relUrl';
+      final res = await api.uploadRobotMediaFile(bytes: bytes, filename: picked.name);
+      final uploadedFilename = res['filename']?.toString() ?? picked.name;
+      String fullUrl = res['url']?.toString() ?? '';
+      if (fullUrl.isEmpty || !fullUrl.startsWith('http')) {
+        fullUrl = '${api.baseUrl}/media/$uploadedFilename';
+      }
+
+      final ext = uploadedFilename.split('.').last.toLowerCase();
+      final isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext);
 
       setState(() {
         _isUploadingMedia = false;
+        _useCustomMediaUrl = false;
         widget.node.params['url'] = fullUrl;
-        final ext = picked.name.split('.').last.toLowerCase();
-        if (['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext)) {
-          widget.node.params['media_type'] = 'video';
-        } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
-          widget.node.params['media_type'] = 'image';
-        }
+        widget.node.params['filename'] = uploadedFilename;
+        widget.node.params['media_type'] = isVideo ? 'video' : 'image';
       });
+      await _fetchRobotMediaFiles();
       widget.onChanged();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Uploaded ${picked.name} to robot successfully!'),
+            content: Text('Uploaded "$uploadedFilename" to robot shared media library!'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -3221,16 +3264,460 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     }
   }
 
+  Widget _buildMediaPreviewCard({
+    required String url,
+    required String filename,
+    required String mediaType,
+  }) {
+    final isVideo = (mediaType == 'video') ||
+        filename.endsWith('.mp4') ||
+        filename.endsWith('.webm') ||
+        url.endsWith('.mp4') ||
+        url.endsWith('.webm');
+
+    if (isVideo) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.play_circle_fill_rounded, color: AppColors.primary, size: 28),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    filename.isNotEmpty ? filename : url.split('/').last,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  const Text(
+                    'Video Preview • Plays full-screen on robot onboard touchscreen',
+                    style: TextStyle(color: Colors.white60, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Image preview
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 180),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceSunken,
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Image.network(
+              url,
+              fit: BoxFit.contain,
+              loadingBuilder: (_, child, progress) {
+                if (progress == null) return child;
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                );
+              },
+              errorBuilder: (_, __, ___) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                color: AppColors.surfaceSunken,
+                child: Row(
+                  children: [
+                    const Icon(Icons.broken_image_rounded, color: AppColors.warning, size: 26),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Text(
+                            'Media file missing or deleted on robot',
+                            style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Safe protection active: Mission will safely bypass this missing media node without failing.',
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'Preview',
+                  style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildUiMediaInspector() {
     final mediaType = widget.node.params['media_type'] as String? ?? 'image';
-    final url = widget.node.params['url'] as String? ?? '';
+    final url = (widget.node.params['url'] as String? ?? '').trim();
+    final filename = widget.node.params['filename'] as String? ??
+        (url.contains('/media/') ? url.split('/media/').last.split('?').first : '');
     final duration = (widget.node.params['duration_sec'] as num?)?.toDouble() ?? 15.0;
     final showSkip = widget.node.params['show_skip'] as bool? ?? true;
     final target = widget.node.params['target'] as String? ?? 'robot_screen';
 
+    // Auto-fetch robot media library if empty
+    if (_robotMediaFiles.isEmpty && !_isLoadingMediaList && widget.api != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _robotMediaFiles.isEmpty && !_isLoadingMediaList) {
+          _fetchRobotMediaFiles();
+        }
+      });
+    }
+
+    // Determine if current selection matches an existing file in robot library
+    final hasMatchingFile = _robotMediaFiles.any((m) =>
+        m['filename'] == filename ||
+        (m['url'] != null && m['url'] == url) ||
+        (filename.isNotEmpty && m['filename'].toString().endsWith(filename)));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Mode selector: Robot Shared Library vs Custom URL
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceSunken,
+            borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+            border: Border.all(color: AppColors.border),
+          ),
+          padding: const EdgeInsets.all(3),
+          child: Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius - 2),
+                  onTap: widget.readOnly
+                      ? null
+                      : () {
+                          setState(() => _useCustomMediaUrl = false);
+                        },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: !_useCustomMediaUrl ? AppColors.primary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppSpacing.inputRadius - 2),
+                    ),
+                    alignment: Alignment.center,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.folder_shared_outlined,
+                          size: 16,
+                          color: !_useCustomMediaUrl ? Colors.white : AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Robot Media Folder${_robotMediaFiles.isNotEmpty ? ' (${_robotMediaFiles.length})' : ''}',
+                          style: TextStyle(
+                            color: !_useCustomMediaUrl ? Colors.white : AppColors.textSecondary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius - 2),
+                  onTap: widget.readOnly
+                      ? null
+                      : () {
+                          setState(() => _useCustomMediaUrl = true);
+                        },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _useCustomMediaUrl ? AppColors.primary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppSpacing.inputRadius - 2),
+                    ),
+                    alignment: Alignment.center,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.link_rounded,
+                          size: 16,
+                          color: _useCustomMediaUrl ? Colors.white : AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Custom URL / Link',
+                          style: TextStyle(
+                            color: _useCustomMediaUrl ? Colors.white : AppColors.textSecondary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        if (!_useCustomMediaUrl) ...[
+          // Dropdown for robot media library
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('${widget.node.id}_robot_media_${filename}_${_robotMediaFiles.length}'),
+                  isExpanded: true,
+                  initialValue: hasMatchingFile
+                      ? _robotMediaFiles
+                          .firstWhere((m) =>
+                              m['filename'] == filename ||
+                              m['url'] == url ||
+                              (filename.isNotEmpty && m['filename'].toString().endsWith(filename)))['filename']
+                          ?.toString()
+                      : null,
+                  hint: Text(
+                    _isLoadingMediaList
+                        ? 'Loading files from robot...'
+                        : _robotMediaFiles.isEmpty
+                            ? 'No media files on robot yet'
+                            : 'Choose file from robot media folder...',
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  dropdownColor: AppColors.surface,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                  decoration: InputDecoration(
+                    labelText: 'Select Robot File',
+                    labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    filled: true,
+                    fillColor: AppColors.surfaceSunken,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                  ),
+                  items: _robotMediaFiles.map((m) {
+                    final fName = m['filename']?.toString() ?? '';
+                    final displayName = m['name']?.toString() ?? fName;
+                    final isVid = (m['type'] == 'video') || fName.endsWith('.mp4') || fName.endsWith('.webm');
+                    final sizeStr = _formatMediaFileSize(m['size'] as num?);
+                    return DropdownMenuItem<String>(
+                      value: fName,
+                      child: Row(
+                        children: [
+                          Icon(
+                            isVid ? Icons.videocam_rounded : Icons.image_rounded,
+                            size: 16,
+                            color: isVid ? AppColors.accent : AppColors.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              displayName,
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (sizeStr.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              sizeStr,
+                              style: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: widget.readOnly
+                      ? null
+                      : (val) {
+                          if (val == null) return;
+                          final match = _robotMediaFiles.firstWhere(
+                            (m) => m['filename'] == val,
+                            orElse: () => {'filename': val},
+                          );
+                          final fullUrl = match['url']?.toString() ?? '${widget.api?.baseUrl}/media/$val';
+                          final isVid = (match['type'] == 'video') || val.endsWith('.mp4') || val.endsWith('.webm');
+
+                          setState(() {
+                            widget.node.params['url'] = fullUrl;
+                            widget.node.params['filename'] = val;
+                            widget.node.params['media_type'] = isVid ? 'video' : 'image';
+                          });
+                          widget.onChanged();
+                        },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Tooltip(
+                message: 'Refresh robot media files',
+                child: IconButton.outlined(
+                  style: IconButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+                    side: const BorderSide(color: AppColors.border),
+                  ),
+                  onPressed: _isLoadingMediaList ? null : _fetchRobotMediaFiles,
+                  icon: _isLoadingMediaList
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.refresh_rounded, size: 18),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Upload button in robot library mode
+          SizedBox(
+            width: double.infinity,
+            height: 38,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+              ),
+              onPressed: (widget.readOnly || _isUploadingMedia) ? null : _handleUploadMedia,
+              icon: _isUploadingMedia
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                  : const Icon(Icons.cloud_upload_outlined, size: 18),
+              label: Text(_isUploadingMedia ? 'Uploading to Robot Media...' : 'Upload New Image or Video to Robot'),
+            ),
+          ),
+        ] else ...[
+          // Custom URL text input with quick upload button
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextFormField(
+                  key: ValueKey('${widget.node.id}_url_${widget.node.params['url']}'),
+                  initialValue: url,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                  decoration: InputDecoration(
+                    labelText: 'Custom Web Link or Media URL',
+                    hintText: 'https://... or http://<robot>:8090/media/...',
+                    labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    filled: true,
+                    fillColor: AppColors.surfaceSunken,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                  ),
+                  onChanged: (v) {
+                    widget.node.params['url'] = v.trim();
+                    widget.node.params['filename'] = v.trim().split('/').last.split('?').first;
+                    widget.onChanged();
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 42,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+                  ),
+                  onPressed: (widget.readOnly || _isUploadingMedia) ? null : _handleUploadMedia,
+                  icon: _isUploadingMedia
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                      : const Icon(Icons.cloud_upload_outlined, size: 18),
+                  label: Text(_isUploadingMedia ? '...' : 'Upload'),
+                ),
+              ),
+            ],
+          ),
+        ],
+
+        // Media Live Preview Box
+        if (url.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _buildMediaPreviewCard(url: url, filename: filename, mediaType: mediaType),
+        ],
+
+        const SizedBox(height: 12),
+        // Mission Safe Handle Badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.success.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.success.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Icon(Icons.shield_outlined, size: 16, color: AppColors.success),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Mission Safe Handle: If this file is deleted from the robot screen, the mission automatically closes this node safely and continues to the next step without stalling.',
+                  style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w500, height: 1.3),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           key: ValueKey('${widget.node.id}_media_type_$mediaType'),
           isExpanded: true,
@@ -3287,51 +3774,6 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   setState(() => widget.node.params['target'] = val);
                   widget.onChanged();
                 },
-        ),
-        const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: TextFormField(
-                key: ValueKey('${widget.node.id}_url_${widget.node.params['url']}'),
-                initialValue: url,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-                decoration: InputDecoration(
-                  labelText: 'Web Link or Robot File URL',
-                  hintText: 'https://... or http://robot:8080/media/...',
-                  labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  filled: true,
-                  fillColor: AppColors.surfaceSunken,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-                ),
-                onChanged: (v) {
-                  widget.node.params['url'] = v.trim();
-                  widget.onChanged();
-                },
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              height: 42,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
-                ),
-                onPressed: (widget.readOnly || _isUploadingMedia) ? null : _handleUploadMedia,
-                icon: _isUploadingMedia
-                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
-                    : const Icon(Icons.cloud_upload_outlined, size: 18),
-                label: Text(_isUploadingMedia ? '...' : 'Upload'),
-              ),
-            ),
-          ],
         ),
         const SizedBox(height: 12),
         _buildNumberSlider(
