@@ -692,103 +692,223 @@ class _Body extends StatelessWidget {
               ),
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.md),
-                child: Row(
-                  children: [
-                    StatusPulseDot(
-                      color: _statusColor(activeState),
-                      live: activeState == 'running',
-                      size: 10,
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                child: LayoutBuilder(
+                  builder: (context, bannerConstraints) {
+                    final isCompact = bannerConstraints.maxWidth < 640;
+
+                    return isCompact
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                activeMission['name'] as String? ?? activeId!,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 16),
+                              Row(
+                                children: [
+                                  StatusPulseDot(
+                                    color: _statusColor(activeState),
+                                    live: activeState == 'running',
+                                    size: 10,
+                                  ),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Expanded(
+                                    child: Wrap(
+                                      spacing: AppSpacing.sm,
+                                      runSpacing: 4,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      children: [
+                                        Text(
+                                          activeMission['name'] as String? ??
+                                              activeId!,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16),
+                                        ),
+                                        Chip(
+                                          avatar: isLowBattery
+                                              ? const Icon(Icons.bolt_rounded,
+                                                  size: 14,
+                                                  color: AppColors.warning)
+                                              : null,
+                                          label: Text(
+                                              isLowBattery
+                                                  ? 'PAUSED (CHARGING)'
+                                                  : activeState.toUpperCase(),
+                                              style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold)),
+                                          backgroundColor:
+                                              _statusColor(activeState)
+                                                  .withValues(alpha: 0.15),
+                                          labelStyle: TextStyle(
+                                              color: _statusColor(activeState)),
+                                          side: BorderSide.none,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Chip(
-                                avatar: isLowBattery
-                                    ? const Icon(Icons.bolt_rounded,
-                                        size: 14, color: AppColors.warning)
-                                    : null,
-                                label: Text(
-                                    isLowBattery
-                                        ? 'PAUSED (CHARGING)'
-                                        : activeState.toUpperCase(),
+                              const SizedBox(height: 6),
+                              if (isLowBattery)
+                                const Text(
+                                  'Battery low (≤ 5%) · Auto-docked to recharge · Auto-resumes at 95%',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      color: AppColors.warning,
+                                      fontWeight: FontWeight.w600),
+                                )
+                              else
+                                Builder(builder: (context) {
+                                  final totalSteps = (activeMission['steps']
+                                          as List? ??
+                                      []).length;
+                                  final stepIdx = (runnerStatus?['step_index']
+                                          as int? ??
+                                      0);
+                                  final currentStepNum = (stepIdx + 1)
+                                      .clamp(1, totalSteps > 0 ? totalSteps : 1);
+                                  return Text(
+                                    'Step $currentStepNum of $totalSteps currently executing',
                                     style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold)),
-                                backgroundColor: _statusColor(activeState)
-                                    .withValues(alpha: 0.15),
-                                labelStyle: TextStyle(
-                                    color: _statusColor(activeState)),
-                                side: BorderSide.none,
+                                        fontSize: 13,
+                                        color: AppColors.textSecondary),
+                                  );
+                                }),
+                              const SizedBox(height: AppSpacing.sm),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: () => onOpen(activeMission),
+                                  icon: const Icon(Icons.fullscreen_rounded,
+                                      size: 18),
+                                  label: const Text('View Live Execution'),
+                                ),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 4),
-                          if (isLowBattery)
-                            const Text(
-                              'Battery low (≤ 5%) · Auto-docked to recharge · Auto-resumes at 95%',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.warning,
-                                  fontWeight: FontWeight.w600),
-                            )
-                          else
-                            Builder(builder: (context) {
-                              final totalSteps =
-                                  (activeMission['steps'] as List? ?? []).length;
-                              final stepIdx =
-                                  (runnerStatus?['step_index'] as int? ?? 0);
-                              final currentStepNum = (stepIdx + 1)
-                                  .clamp(1, totalSteps > 0 ? totalSteps : 1);
-                              return Text(
-                                'Step $currentStepNum of $totalSteps currently executing',
-                                style: const TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.textSecondary),
-                              );
-                            }),
-                        ],
-                      ),
-                    ),
-                    FilledButton.icon(
-                      onPressed: () => onOpen(activeMission),
-                      icon: const Icon(Icons.fullscreen_rounded, size: 18),
-                      label: const Text('View Live Execution'),
-                    ),
-                  ],
+                          )
+                        : Row(
+                            children: [
+                              StatusPulseDot(
+                                color: _statusColor(activeState),
+                                live: activeState == 'running',
+                                size: 10,
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Wrap(
+                                      spacing: AppSpacing.sm,
+                                      runSpacing: 4,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      children: [
+                                        Text(
+                                          activeMission['name'] as String? ??
+                                              activeId!,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16),
+                                        ),
+                                        Chip(
+                                          avatar: isLowBattery
+                                              ? const Icon(Icons.bolt_rounded,
+                                                  size: 14,
+                                                  color: AppColors.warning)
+                                              : null,
+                                          label: Text(
+                                              isLowBattery
+                                                  ? 'PAUSED (CHARGING)'
+                                                  : activeState.toUpperCase(),
+                                              style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold)),
+                                          backgroundColor:
+                                              _statusColor(activeState)
+                                                  .withValues(alpha: 0.15),
+                                          labelStyle: TextStyle(
+                                              color: _statusColor(activeState)),
+                                          side: BorderSide.none,
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    if (isLowBattery)
+                                      const Text(
+                                        'Battery low (≤ 5%) · Auto-docked to recharge · Auto-resumes at 95%',
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            color: AppColors.warning,
+                                            fontWeight: FontWeight.w600),
+                                      )
+                                    else
+                                      Builder(builder: (context) {
+                                        final totalSteps =
+                                            (activeMission['steps'] as List? ??
+                                                    [])
+                                                .length;
+                                        final stepIdx =
+                                            (runnerStatus?['step_index']
+                                                    as int? ??
+                                                0);
+                                        final currentStepNum = (stepIdx + 1)
+                                            .clamp(
+                                                1,
+                                                totalSteps > 0
+                                                    ? totalSteps
+                                                    : 1);
+                                        return Text(
+                                          'Step $currentStepNum of $totalSteps currently executing',
+                                          style: const TextStyle(
+                                              fontSize: 13,
+                                              color: AppColors.textSecondary),
+                                        );
+                                      }),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              FilledButton.icon(
+                                onPressed: () => onOpen(activeMission),
+                                icon: const Icon(Icons.fullscreen_rounded,
+                                    size: 18),
+                                label: const Text('View Live Execution'),
+                              ),
+                            ],
+                          );
+                  },
                 ),
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
           ],
-          Row(
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            alignment: WrapAlignment.spaceBetween,
             children: [
-              Text(
-                'All Missions (${missions.length})',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'All Missions (${missions.length})',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  if (currentMap != null) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    Chip(
+                      avatar: const Icon(Icons.map_outlined,
+                          size: 14, color: AppColors.primary),
+                      label: Text('Map: $currentMap'),
+                      backgroundColor: AppColors.surface,
+                    ),
+                  ],
+                ],
               ),
-              if (currentMap != null) ...[
-                const SizedBox(width: AppSpacing.sm),
-                Chip(
-                  avatar: const Icon(Icons.map_outlined,
-                      size: 14, color: AppColors.primary),
-                  label: Text('Map: $currentMap'),
-                  backgroundColor: AppColors.surface,
-                ),
-              ],
-              const Spacer(),
               Chip(
                 avatar: const Icon(Icons.tune_rounded,
                     size: 14, color: AppColors.primary),
@@ -799,214 +919,294 @@ class _Body extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Expanded(
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 440,
-                mainAxisExtent: 220,
-                crossAxisSpacing: AppSpacing.md,
-                mainAxisSpacing: AppSpacing.md,
-              ),
-              itemCount: missions.length,
-              itemBuilder: (context, i) {
-                final mission = missions[i];
-                final id = mission['id'] as String;
-                final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
-                final steps = (mission['steps'] as List? ?? const [])
-                    .cast<Map<String, dynamic>>();
-                final nodes = (mission['nodes'] as List? ?? const [])
-                    .cast<Map<String, dynamic>>();
-                final isActive = id == activeId && isRunning;
-                final isCompletedCard = id == activeId && isCompleted;
-                final status = isActive
-                    ? activeState
-                    : (isCompletedCard ? 'completed' : null);
-                final loopForever = mission['loop_forever'] == true;
-                final loopCount =
-                    (mission['loop_count'] as num?)?.toInt() ?? 1;
-                final color =
-                    status == null ? (isGraph ? const Color(0xFF00E5FF) : AppColors.primary) : _statusColor(status);
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final availableWidth = constraints.maxWidth;
+                final isNarrow = availableWidth < 680;
+                final maxCrossAxisExtent = isNarrow ? availableWidth : 440.0;
+                final mainAxisExtent = isNarrow ? 218.0 : 224.0;
 
-                var subtitle = isGraph
-                    ? '${nodes.length} node${nodes.length == 1 ? '' : 's'} · Visual Graph'
-                    : '${steps.length} step${steps.length == 1 ? '' : 's'}';
-                if (loopForever) {
-                  subtitle += ' · repeats forever';
-                } else if (loopCount > 1) {
-                  subtitle += ' · repeats ${loopCount}x';
-                }
-
-                final missionMap = mission['map'] as String?;
-                final isMismatch = missionMap != null &&
-                    currentMap != null &&
-                    missionMap != currentMap;
-
-                return Card(
-                  elevation: isActive ? 2 : 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(AppSpacing.cardRadius),
-                    side: BorderSide(
-                      color: isActive ? color : AppColors.border,
-                      width: isActive ? 2 : 1,
-                    ),
+                return GridView.builder(
+                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: maxCrossAxisExtent,
+                    mainAxisExtent: mainAxisExtent,
+                    crossAxisSpacing: AppSpacing.md,
+                    mainAxisSpacing: AppSpacing.md,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 18,
-                              backgroundColor: color.withValues(alpha: 0.12),
-                              child: Icon(
-                                  isGraph ? Icons.account_tree_outlined : Icons.route_rounded,
-                                  color: color,
-                                  size: 20),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    mission['name'] as String? ?? id,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(
-                                            fontWeight: FontWeight.bold),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    subtitle,
-                                    style: const TextStyle(
-                                        color: AppColors.textSecondary,
-                                        fontSize: 12),
-                                  ),
-                                  if (missionMap != null) ...[
-                                    const SizedBox(height: 2),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 6, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: isMismatch
-                                            ? AppColors.warning.withValues(alpha: 0.12)
-                                            : AppColors.primary.withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(
-                                          color: isMismatch
-                                              ? AppColors.warning.withValues(alpha: 0.4)
-                                              : AppColors.primary.withValues(alpha: 0.2),
-                                        ),
-                                      ),
-                                      child: Row(
+                  itemCount: missions.length,
+                  itemBuilder: (context, i) {
+                    final mission = missions[i];
+                    final id = mission['id'] as String;
+                    final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
+                    final steps = (mission['steps'] as List? ?? const [])
+                        .cast<Map<String, dynamic>>();
+                    final nodes = (mission['nodes'] as List? ?? const [])
+                        .cast<Map<String, dynamic>>();
+                    final isActive = id == activeId && isRunning;
+                    final isCompletedCard = id == activeId && isCompleted;
+                    final status = isActive
+                        ? activeState
+                        : (isCompletedCard ? 'completed' : null);
+                    final loopForever = mission['loop_forever'] == true;
+                    final loopCount =
+                        (mission['loop_count'] as num?)?.toInt() ?? 1;
+                    final color =
+                        status == null ? (isGraph ? const Color(0xFF00E5FF) : AppColors.primary) : _statusColor(status);
+
+                    var subtitle = isGraph
+                        ? '${nodes.length} node${nodes.length == 1 ? '' : 's'} · Visual Graph'
+                        : '${steps.length} step${steps.length == 1 ? '' : 's'}';
+                    if (loopForever) {
+                      subtitle += ' · repeats forever';
+                    } else if (loopCount > 1) {
+                      subtitle += ' · repeats ${loopCount}x';
+                    }
+
+                    final missionMap = mission['map'] as String?;
+                    final isMismatch = missionMap != null &&
+                        currentMap != null &&
+                        missionMap != currentMap;
+
+                    return Card(
+                      elevation: isActive ? 2 : 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.cardRadius),
+                        side: BorderSide(
+                          color: isActive ? color : AppColors.border,
+                          width: isActive ? 2 : 1,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: LayoutBuilder(
+                          builder: (context, cardConstraints) {
+                            final isCompactCard = cardConstraints.maxWidth < 360;
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor: color.withValues(alpha: 0.12),
+                                      child: Icon(
+                                          isGraph ? Icons.account_tree_outlined : Icons.route_rounded,
+                                          color: color,
+                                          size: 20),
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(
-                                            isMismatch
-                                                ? Icons.warning_amber_rounded
-                                                : Icons.map_outlined,
-                                            size: 10,
-                                            color: isMismatch
-                                                ? AppColors.warning
-                                                : AppColors.primary,
-                                          ),
-                                          const SizedBox(width: 4),
                                           Text(
-                                            isMismatch
-                                                ? '$missionMap (Inactive)'
-                                                : 'Map: $missionMap',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w600,
-                                              color: isMismatch
-                                                  ? AppColors.warning
-                                                  : AppColors.primary,
-                                            ),
+                                            mission['name'] as String? ?? id,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.copyWith(
+                                                    fontWeight: FontWeight.bold),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
+                                          Text(
+                                            subtitle,
+                                            style: const TextStyle(
+                                                color: AppColors.textSecondary,
+                                                fontSize: 12),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          if (missionMap != null) ...[
+                                            const SizedBox(height: 2),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 6, vertical: 1),
+                                              decoration: BoxDecoration(
+                                                color: isMismatch
+                                                    ? AppColors.warning.withValues(alpha: 0.12)
+                                                    : AppColors.primary.withValues(alpha: 0.08),
+                                                borderRadius: BorderRadius.circular(4),
+                                                border: Border.all(
+                                                  color: isMismatch
+                                                      ? AppColors.warning.withValues(alpha: 0.4)
+                                                      : AppColors.primary.withValues(alpha: 0.2),
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    isMismatch
+                                                        ? Icons.warning_amber_rounded
+                                                        : Icons.map_outlined,
+                                                    size: 10,
+                                                    color: isMismatch
+                                                        ? AppColors.warning
+                                                        : AppColors.primary,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Flexible(
+                                                    child: Text(
+                                                      isMismatch
+                                                          ? '$missionMap (Inactive)'
+                                                          : 'Map: $missionMap',
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: isMismatch
+                                                            ? AppColors.warning
+                                                            : AppColors.primary,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),
+                                    if (status != null) ...[
+                                      const SizedBox(width: AppSpacing.xs),
+                                      Chip(
+                                        avatar: status == 'running'
+                                            ? StatusPulseDot(
+                                                color: _statusColor(status),
+                                                live: true,
+                                                size: 6)
+                                            : (isActive && isLowBattery
+                                                ? const Icon(Icons.bolt_rounded,
+                                                    size: 12, color: AppColors.warning)
+                                                : null),
+                                        label: Text(
+                                            isActive && isLowBattery
+                                                ? 'CHARGING'
+                                                : status.toUpperCase(),
+                                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                        backgroundColor: _statusColor(status)
+                                            .withValues(alpha: 0.12),
+                                        labelStyle: TextStyle(
+                                            color: _statusColor(status)),
+                                        side: BorderSide.none,
+                                        visualDensity: VisualDensity.compact,
+                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                                      ),
+                                    ],
                                   ],
-                                ],
-                              ),
-                            ),
-                            if (status != null)
-                              Chip(
-                                avatar: status == 'running'
-                                    ? StatusPulseDot(
-                                        color: _statusColor(status),
-                                        live: true,
-                                        size: 6)
-                                    : (isActive && isLowBattery
-                                        ? const Icon(Icons.bolt_rounded,
-                                            size: 12, color: AppColors.warning)
-                                        : null),
-                                label: Text(
-                                    isActive && isLowBattery
-                                        ? 'CHARGING'
-                                        : status.toUpperCase(),
-                                    style: const TextStyle(fontSize: 11)),
-                                backgroundColor: _statusColor(status)
-                                    .withValues(alpha: 0.12),
-                                labelStyle: TextStyle(
-                                    color: _statusColor(status)),
-                                side: BorderSide.none,
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        const Text(
-                          'Step Route:',
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textSecondary),
-                        ),
-                        const SizedBox(height: 4),
-                        _StepPreviewRow(steps: steps),
-                        const Spacer(),
-                        Row(
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: () => onEdit(mission),
-                              icon: const Icon(Icons.edit_outlined, size: 16),
-                              label: const Text('Edit'),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.danger,
-                                side: BorderSide(
-                                  color: AppColors.danger.withValues(alpha: 0.35),
                                 ),
-                              ),
-                              onPressed: () => onDelete(mission),
-                              icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                              label: const Text('Delete'),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: () => onOpen(mission),
-                                icon: Icon(
-                                    isActive
-                                        ? Icons.open_in_new_rounded
-                                        : Icons.play_arrow_rounded,
-                                    size: 16),
-                                label: Text(isActive
-                                    ? 'View Live'
-                                    : 'Details & Run'),
-                              ),
-                            ),
-                          ],
+                                const SizedBox(height: AppSpacing.sm),
+                                const Text(
+                                  'Step Route:',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textSecondary),
+                                ),
+                                const SizedBox(height: 2),
+                                _StepPreviewRow(steps: steps),
+                                const Spacer(),
+                                Row(
+                                  children: [
+                                    if (isCompactCard) ...[
+                                      Tooltip(
+                                        message: 'Edit Mission',
+                                        child: OutlinedButton(
+                                          style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                                            minimumSize: const Size(36, 36),
+                                          ),
+                                          onPressed: () => onEdit(mission),
+                                          child: const Icon(Icons.edit_outlined, size: 16),
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppSpacing.xs),
+                                      Tooltip(
+                                        message: 'Delete Mission',
+                                        child: OutlinedButton(
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: AppColors.danger,
+                                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                                            minimumSize: const Size(36, 36),
+                                            side: BorderSide(
+                                              color: AppColors.danger.withValues(alpha: 0.35),
+                                            ),
+                                          ),
+                                          onPressed: () => onDelete(mission),
+                                          child: const Icon(Icons.delete_outline_rounded, size: 16),
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppSpacing.xs),
+                                      Expanded(
+                                        child: FilledButton.icon(
+                                          style: FilledButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                                            minimumSize: const Size(0, 36),
+                                          ),
+                                          onPressed: () => onOpen(mission),
+                                          icon: Icon(
+                                              isActive
+                                                  ? Icons.open_in_new_rounded
+                                                  : Icons.play_arrow_rounded,
+                                              size: 16),
+                                          label: Text(
+                                            isActive ? 'View' : 'Run',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ),
+                                    ] else ...[
+                                      OutlinedButton.icon(
+                                        onPressed: () => onEdit(mission),
+                                        icon: const Icon(Icons.edit_outlined, size: 16),
+                                        label: const Text('Edit'),
+                                      ),
+                                      const SizedBox(width: AppSpacing.sm),
+                                      OutlinedButton.icon(
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AppColors.danger,
+                                          side: BorderSide(
+                                            color: AppColors.danger.withValues(alpha: 0.35),
+                                          ),
+                                        ),
+                                        onPressed: () => onDelete(mission),
+                                        icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                                        label: const Text('Delete'),
+                                      ),
+                                      const SizedBox(width: AppSpacing.sm),
+                                      Expanded(
+                                        child: FilledButton.icon(
+                                          onPressed: () => onOpen(mission),
+                                          icon: Icon(
+                                              isActive
+                                                  ? Icons.open_in_new_rounded
+                                                  : Icons.play_arrow_rounded,
+                                              size: 16),
+                                          label: Text(
+                                            isActive
+                                                ? 'View Live'
+                                                : 'Details & Run',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            );
+                          },
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
