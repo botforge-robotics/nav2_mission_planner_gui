@@ -161,62 +161,52 @@ class _ShellNavState extends State<_ShellNav> {
 
     final device = Breakpoints.of(context);
 
-    // 1. Mobile Layout: Bottom NavigationBar
-    if (device == DeviceClass.mobile) {
-      return Scaffold(
-        body: body,
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
-          destinations: [
-            for (final d in _destinations)
-              NavigationDestination(
-                  icon: Icon(d.icon),
-                  selectedIcon: Icon(d.selectedIcon),
-                  label: d.label),
-          ],
-        ),
-      );
-    }
-
-    // 2. Desktop Layout: Modern, dedicated sidebar with branding and live status
-    if (device == DeviceClass.desktop) {
-      return Scaffold(
-        body: Row(
-          children: [
+    // Keep the Scaffold and IndexedStack structure stable across mobile,
+    // tablet, and desktop breakpoints so the active screens and their states
+    // are preserved without triggering element deactivation during resizing or window minimize.
+    return Scaffold(
+      body: Row(
+        children: [
+          if (device == DeviceClass.desktop)
             _DesktopSidebar(
               selectedIndex: _index,
               onDestinationSelected: (i) => setState(() => _index = i),
               destinations: _destinations,
+            )
+          else if (device == DeviceClass.tablet) ...[
+            NavigationRail(
+              selectedIndex: _index,
+              onDestinationSelected: (i) => setState(() => _index = i),
+              labelType: NavigationRailLabelType.all,
+              backgroundColor: AppColors.surface,
+              destinations: [
+                for (final d in _destinations)
+                  NavigationRailDestination(
+                    icon: Icon(d.icon),
+                    selectedIcon: Icon(d.selectedIcon),
+                    label: Text(d.label),
+                  ),
+              ],
             ),
-            Expanded(child: body),
+            const VerticalDivider(width: 1, color: AppColors.border),
           ],
-        ),
-      );
-    }
-
-    // 3. Tablet Layout: Compact NavigationRail
-    return Scaffold(
-      body: Row(
-        children: [
-          NavigationRail(
-            selectedIndex: _index,
-            onDestinationSelected: (i) => setState(() => _index = i),
-            labelType: NavigationRailLabelType.all,
-            backgroundColor: AppColors.surface,
-            destinations: [
-              for (final d in _destinations)
-                NavigationRailDestination(
-                  icon: Icon(d.icon),
-                  selectedIcon: Icon(d.selectedIcon),
-                  label: Text(d.label),
-                ),
-            ],
-          ),
-          const VerticalDivider(width: 1, color: AppColors.border),
           Expanded(child: body),
         ],
       ),
+      bottomNavigationBar: device == DeviceClass.mobile
+          ? NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (i) => setState(() => _index = i),
+              destinations: [
+                for (final d in _destinations)
+                  NavigationDestination(
+                    icon: Icon(d.icon),
+                    selectedIcon: Icon(d.selectedIcon),
+                    label: d.label,
+                  ),
+              ],
+            )
+          : null,
     );
   }
 }

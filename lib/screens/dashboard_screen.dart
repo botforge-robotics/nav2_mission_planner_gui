@@ -142,7 +142,11 @@ class _DashboardContentState extends State<_DashboardContent> {
       });
     } else {
       if (_activeRobotInteraction != null && mounted) {
-        setState(() => _activeRobotInteraction = null);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _activeRobotInteraction != null) {
+            setState(() => _activeRobotInteraction = null);
+          }
+        });
       }
       _lastShownInteractionId = null;
       _isShowingUiInteraction = false;
@@ -269,132 +273,124 @@ class _DashboardContentState extends State<_DashboardContent> {
         ],
       ),
       body: SafeArea(
-        child: isDesktop
-            ? SdkStateBuilder(
-                robotIp: widget.robot.ip,
-                builder: (context, sdkState) {
-                  _checkUiInteraction(sdkState);
-                  final battery = telemetry.batteryPercentage;
-                  final charging =
-                      telemetry.chargeStatus == ChargeStatus.charging ||
-                          telemetry.chargeStatus == ChargeStatus.full;
+        child: SdkStateBuilder(
+          robotIp: widget.robot.ip,
+          builder: (context, sdkState) {
+            _checkUiInteraction(sdkState);
+            final battery = telemetry.batteryPercentage;
+            final charging =
+                telemetry.chargeStatus == ChargeStatus.charging ||
+                    telemetry.chargeStatus == ChargeStatus.full;
 
-                  return Padding(
-                    padding: const EdgeInsets.all(AppSpacing.xl),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Left Column (flex: 6): Robot Hero & Large Live Map
-                        Expanded(
-                          flex: 6,
-                          child: ListView(
-                            padding: EdgeInsets.zero,
-                            children: [
-                              if (_activeRobotInteraction != null) ...[
-                                _buildRobotScreenActiveBanner(),
-                                const SizedBox(height: AppSpacing.lg),
-                              ],
-                              if (battery != null &&
-                                  battery <= 15 &&
-                                  !charging) ...[
-                                _LowBatteryBanner(percentage: battery),
-                                const SizedBox(height: AppSpacing.lg),
-                              ],
-                              _RobotCard(
-                                  robot: widget.robot,
-                                  telemetry: telemetry,
-                                  sdkState: sdkState),
-                              const SizedBox(height: AppSpacing.lg),
-                              _MapPreviewCard(
-                                ros2: widget.ros2,
-                                mapName: sdkState.mapName,
-                                sdkMode: sdkState.mode,
-                                robotIp: widget.robot.ip,
-                                height: 440,
-                                interactive: true,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.xl),
-                        // Right Column (flex: 4): Telemetry Grid & Alerts Stream
-                        Expanded(
-                          flex: 4,
-                          child: ListView(
-                            padding: EdgeInsets.zero,
-                            children: [
-                              _StatGridDesktop(
-                                  telemetry: telemetry, sdkState: sdkState),
-                              const SizedBox(height: AppSpacing.lg),
-                              _AlertsCard(robotIp: widget.robot.ip),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              )
-            : CenteredFormColumn(
-                maxWidth: 720,
-                child: SdkStateBuilder(
-                  robotIp: widget.robot.ip,
-                  builder: (context, sdkState) {
-                    _checkUiInteraction(sdkState);
-                    final battery = telemetry.batteryPercentage;
-                    final charging =
-                        telemetry.chargeStatus == ChargeStatus.charging ||
-                            telemetry.chargeStatus == ChargeStatus.full;
-                    var step = 0;
-                    Duration nextDelay() =>
-                        Duration(milliseconds: 60 * step++);
-
-                    return ListView(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      children: [
-                        if (_activeRobotInteraction != null) ...[
-                          _buildRobotScreenActiveBanner(),
-                          const SizedBox(height: AppSpacing.lg),
-                        ],
-                        if (battery != null && battery <= 15 && !charging) ...[
-                          FadeSlideIn(
-                            delay: nextDelay(),
-                            child: _LowBatteryBanner(percentage: battery),
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                        ],
-                        FadeSlideIn(
-                          delay: nextDelay(),
-                          child: _RobotCard(
+            if (isDesktop) {
+              return Padding(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Left Column (flex: 6): Robot Hero & Large Live Map
+                    Expanded(
+                      flex: 6,
+                      child: ListView(
+                        padding: EdgeInsets.zero,
+                        children: [
+                          if (_activeRobotInteraction != null) ...[
+                            _buildRobotScreenActiveBanner(),
+                            const SizedBox(height: AppSpacing.lg),
+                          ],
+                          if (battery != null &&
+                              battery <= 15 &&
+                              !charging) ...[
+                            _LowBatteryBanner(percentage: battery),
+                            const SizedBox(height: AppSpacing.lg),
+                          ],
+                          _RobotCard(
                               robot: widget.robot,
                               telemetry: telemetry,
                               sdkState: sdkState),
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                        FadeSlideIn(
-                          delay: nextDelay(),
-                          child: _StatRow(
+                          const SizedBox(height: AppSpacing.lg),
+                          _MapPreviewCard(
+                            ros2: widget.ros2,
+                            mapName: sdkState.mapName,
+                            sdkMode: sdkState.mode,
+                            robotIp: widget.robot.ip,
+                            height: 440,
+                            interactive: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xl),
+                    // Right Column (flex: 4): Telemetry Grid & Alerts Stream
+                    Expanded(
+                      flex: 4,
+                      child: ListView(
+                        padding: EdgeInsets.zero,
+                        children: [
+                          _StatGridDesktop(
                               telemetry: telemetry, sdkState: sdkState),
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                        FadeSlideIn(
-                          delay: nextDelay(),
-                          child: _MapPreviewCard(
-                              ros2: widget.ros2,
-                              mapName: sdkState.mapName,
-                              sdkMode: sdkState.mode,
-                              robotIp: widget.robot.ip),
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                        FadeSlideIn(
-                          delay: nextDelay(),
-                          child: _AlertsCard(robotIp: widget.robot.ip),
-                        ),
-                      ],
-                    );
-                  },
+                          const SizedBox(height: AppSpacing.lg),
+                          _AlertsCard(robotIp: widget.robot.ip),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
+              );
+            }
+
+            var step = 0;
+            Duration nextDelay() =>
+                Duration(milliseconds: 60 * step++);
+
+            return CenteredFormColumn(
+              maxWidth: 720,
+              child: ListView(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: [
+                  if (_activeRobotInteraction != null) ...[
+                    _buildRobotScreenActiveBanner(),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                  if (battery != null && battery <= 15 && !charging) ...[
+                    FadeSlideIn(
+                      delay: nextDelay(),
+                      child: _LowBatteryBanner(percentage: battery),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                  FadeSlideIn(
+                    delay: nextDelay(),
+                    child: _RobotCard(
+                        robot: widget.robot,
+                        telemetry: telemetry,
+                        sdkState: sdkState),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  FadeSlideIn(
+                    delay: nextDelay(),
+                    child: _StatRow(
+                        telemetry: telemetry, sdkState: sdkState),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  FadeSlideIn(
+                    delay: nextDelay(),
+                    child: _MapPreviewCard(
+                        ros2: widget.ros2,
+                        mapName: sdkState.mapName,
+                        sdkMode: sdkState.mode,
+                        robotIp: widget.robot.ip),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  FadeSlideIn(
+                    delay: nextDelay(),
+                    child: _AlertsCard(robotIp: widget.robot.ip),
+                  ),
+                ],
               ),
+            );
+          },
+        ),
       ),
     );
   }

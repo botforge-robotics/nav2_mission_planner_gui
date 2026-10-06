@@ -675,13 +675,22 @@ class _Body extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (isRunning &&
-              activeMission != null &&
-              activeMission.isNotEmpty) ...[
-            Card(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth;
+          final isNarrow = availableWidth < 680;
+          final maxCrossAxisExtent = isNarrow ? availableWidth : 440.0;
+          final mainAxisExtent = isNarrow ? 218.0 : 224.0;
+
+          return CustomScrollView(
+            slivers: [
+              if (isRunning &&
+                  activeMission != null &&
+                  activeMission.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                    child: Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
@@ -879,62 +888,58 @@ class _Body extends StatelessWidget {
                   },
                 ),
               ),
+              ),
             ),
-            const SizedBox(height: AppSpacing.lg),
-          ],
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.xs,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            alignment: WrapAlignment.spaceBetween,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                alignment: WrapAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'All Missions (${missions.length})',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'All Missions (${missions.length})',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      if (currentMap != null) ...[
+                        const SizedBox(width: AppSpacing.sm),
+                        Chip(
+                          avatar: const Icon(Icons.map_outlined,
+                              size: 14, color: AppColors.primary),
+                          label: Text('Map: $currentMap'),
+                          backgroundColor: AppColors.surface,
+                        ),
+                      ],
+                    ],
                   ),
-                  if (currentMap != null) ...[
-                    const SizedBox(width: AppSpacing.sm),
-                    Chip(
-                      avatar: const Icon(Icons.map_outlined,
-                          size: 14, color: AppColors.primary),
-                      label: Text('Map: $currentMap'),
-                      backgroundColor: AppColors.surface,
-                    ),
-                  ],
+                  Chip(
+                    avatar: const Icon(Icons.tune_rounded,
+                        size: 14, color: AppColors.primary),
+                    label: Text('Mission Runner: ${activeState ?? 'idle'}'),
+                    backgroundColor: AppColors.surface,
+                  ),
                 ],
               ),
-              Chip(
-                avatar: const Icon(Icons.tune_rounded,
-                    size: 14, color: AppColors.primary),
-                label: Text('Mission Runner: ${activeState ?? 'idle'}'),
-                backgroundColor: AppColors.surface,
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: AppSpacing.md),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final availableWidth = constraints.maxWidth;
-                final isNarrow = availableWidth < 680;
-                final maxCrossAxisExtent = isNarrow ? availableWidth : 440.0;
-                final mainAxisExtent = isNarrow ? 218.0 : 224.0;
-
-                return GridView.builder(
-                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: maxCrossAxisExtent,
-                    mainAxisExtent: mainAxisExtent,
-                    crossAxisSpacing: AppSpacing.md,
-                    mainAxisSpacing: AppSpacing.md,
-                  ),
-                  itemCount: missions.length,
-                  itemBuilder: (context, i) {
+          SliverGrid(
+            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: maxCrossAxisExtent,
+              mainAxisExtent: mainAxisExtent,
+              crossAxisSpacing: AppSpacing.md,
+              mainAxisSpacing: AppSpacing.md,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, i) {
                     final mission = missions[i];
                     final id = mission['id'] as String;
                     final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
@@ -1207,11 +1212,12 @@ class _Body extends StatelessWidget {
                       ),
                     );
                   },
-                );
-              },
-            ),
-          ),
-        ],
+                  childCount: missions.length,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

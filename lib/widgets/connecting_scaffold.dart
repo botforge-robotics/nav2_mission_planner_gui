@@ -172,15 +172,16 @@ class _ConnectingState extends StatelessWidget {
         const Text('Reaching the robot over the network',
             style: TextStyle(color: AppColors.textSecondary)),
         const SizedBox(height: AppSpacing.xl),
-        Row(
-          mainAxisSize: MainAxisSize.min,
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          alignment: WrapAlignment.center,
           children: [
             OutlinedButton.icon(
               onPressed: () => _showChangeIpDialog(context, connection),
               icon: const Icon(Icons.edit_rounded, size: 16),
               label: const Text('Change IP'),
             ),
-            const SizedBox(width: AppSpacing.sm),
             TextButton.icon(
               onPressed: () => _switchRobot(context),
               icon: const Icon(Icons.refresh_rounded, size: 16),
@@ -227,12 +228,13 @@ class _ErrorState extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
-        Row(
-          mainAxisSize: MainAxisSize.min,
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          alignment: WrapAlignment.center,
           children: [
             ElevatedButton(
                 onPressed: connection.reconnect, child: const Text('Retry')),
-            const SizedBox(width: AppSpacing.sm),
             OutlinedButton.icon(
               onPressed: () => _showChangeIpDialog(context, connection),
               icon: const Icon(Icons.edit_rounded, size: 16),

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:http/http.dart' as http;
 import 'package:nav_msgs/msg.dart' as nav_msgs;
@@ -507,12 +508,12 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   /// else in between, since it reflects however the tree actually laid out
   /// and painted, not a re-derivation of it. Reused by both [posePicking]
   /// and the plain [interactive] branch's own [_handleMapTap].
-  final _contentBoxKey = GlobalKey();
+  RenderBox? _contentRenderBox;
 
   /// Anchors the heading handle (see [posePicking]'s picking branch) to the
   /// draft marker's actual painted position via Flutter's compositing layer
   /// (`CompositedTransformTarget`/`Follower`) instead of computing that
-  /// position by hand — the same class of bug [_contentBoxKey] fixes for
+  /// position by hand — the same class of bug [_contentRenderBox] fixes for
   /// taps applied to *where the handle itself ends up drawn*: get it from
   /// Flutter's own transform pipeline, don't re-derive it.
   final _handleLink = LayerLink();
@@ -1145,12 +1146,12 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
 
   /// Converts a raw global pointer position into the base map's own
   /// content-pixel space — the space [_draftPixel], [_pixelToWorld], and
-  /// the painted image itself all already share — via [_contentBoxKey]'s
-  /// real `RenderBox`. See that field's doc for why this replaced hand
+  /// the painted image itself all already share — via [_contentRenderBox].
+  /// See that field's doc for why this replaced hand
   /// rolled matrix math against [_controller.value].
   Offset? _globalToContent(Offset globalPosition) {
-    final box = _contentBoxKey.currentContext?.findRenderObject();
-    if (box is! RenderBox || !box.attached) return null;
+    final box = _contentRenderBox;
+    if (box == null || !box.attached || !box.hasSize) return null;
     return box.globalToLocal(globalPosition);
   }
 
@@ -1475,6 +1476,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     _tfSub?.unsubscribe();
     _controller.removeListener(_onViewTransformChanged);
     _ownedController?.dispose();
+    _contentRenderBox = null;
     super.dispose();
   }
 
@@ -1502,52 +1504,59 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     // Builds the painted map for a given marker counter-scale — a function
     // rather than a single built-once widget, because the right
     // counter-scale differs per branch below and, for the thumbnail branch,
-    // isn't known until its LayoutBuilder resolves the viewport size. Takes
-    // an optional key so [_contentBoxKey] can mark the actual CustomPaint
-    // (its own local space *is* content-pixel space) — see that field's
-    // doc.
-    Widget contentFor(double markerScale, {Key? key}) => CustomPaint(
-          key: key,
-          size: Size(image.width.toDouble(), image.height.toDouble()),
-          painter: _OccupancyGridPainter(
-            image: image,
-            grid: grid,
-            pose: widget.showRobot ? (_effectivePose ?? widget.initialPose) : null,
-            dockPose:
-                (widget.showDock && showOverlays && !widget.dockEditorMode) ? _resolvedDockPose : null,
-            standoffPose:
-                (widget.showDock && showOverlays && !widget.dockEditorMode) ? widget.standoffPoseOverride : null,
-            path: (widget.showPath && showOverlays)
-                ? (_path ?? widget.initialPath)
-                : null,
-            globalCostmap: (widget.showGlobalCostmap && showOverlays)
-                ? _globalCostmap
-                : null,
-            localCostmap: (widget.showLocalCostmap && showOverlays)
-                ? _localCostmap
-                : null,
-            mapOdomTransform: _mapOdomTransform,
-            locations: showOverlays ? widget.locations : const [],
-            showWaypointRoute: widget.showWaypointRoute,
-            draftPixel: widget.posePicking ? effectiveDraftPixel : null,
-            draftYaw: effectiveDraftYaw,
-            markerScale: markerScale,
-            scan: (widget.showLaserScan && showOverlays) ? _scan : null,
-            dockEditorMode: widget.dockEditorMode,
-            dockEditorDockPoint: widget.dockEditorDockPoint,
-            dockEditorStandoffPoint: widget.dockEditorStandoffPoint,
-            dockEditorActiveIndex: widget.dockEditorActiveIndex,
-            zones: (widget.showZones && showOverlays) ? widget.zones : const [],
-            zoneEditorMode: widget.zoneEditorMode,
-            selectedZoneId: widget.selectedZoneId,
-            activeZoneVertexIndex:
-                widget.activeZoneVertexIndex ?? _draggingVertexIndex,
-            drawingLaneMode: widget.drawingLaneMode,
-            laneDraftPoints: widget.laneDraftPoints,
-            laneDraftWidth: widget.laneDraftWidth,
-            mouseHoverWorld: widget.mouseHoverWorld,
-          ),
+    // isn't known until its LayoutBuilder resolves the viewport size.
+    // [trackRenderBox] wraps the CustomPaint in [_RenderBoxReporter] so
+    // [_contentRenderBox] can capture the real RenderBox for [_globalToContent].
+    Widget contentFor(double markerScale, {bool trackRenderBox = false}) {
+      final paint = CustomPaint(
+        size: Size(image.width.toDouble(), image.height.toDouble()),
+        painter: _OccupancyGridPainter(
+          image: image,
+          grid: grid,
+          pose: widget.showRobot ? (_effectivePose ?? widget.initialPose) : null,
+          dockPose:
+              (widget.showDock && showOverlays && !widget.dockEditorMode) ? _resolvedDockPose : null,
+          standoffPose:
+              (widget.showDock && showOverlays && !widget.dockEditorMode) ? widget.standoffPoseOverride : null,
+          path: (widget.showPath && showOverlays)
+              ? (_path ?? widget.initialPath)
+              : null,
+          globalCostmap: (widget.showGlobalCostmap && showOverlays)
+              ? _globalCostmap
+              : null,
+          localCostmap: (widget.showLocalCostmap && showOverlays)
+              ? _localCostmap
+              : null,
+          mapOdomTransform: _mapOdomTransform,
+          locations: showOverlays ? widget.locations : const [],
+          showWaypointRoute: widget.showWaypointRoute,
+          draftPixel: widget.posePicking ? effectiveDraftPixel : null,
+          draftYaw: effectiveDraftYaw,
+          markerScale: markerScale,
+          scan: (widget.showLaserScan && showOverlays) ? _scan : null,
+          dockEditorMode: widget.dockEditorMode,
+          dockEditorDockPoint: widget.dockEditorDockPoint,
+          dockEditorStandoffPoint: widget.dockEditorStandoffPoint,
+          dockEditorActiveIndex: widget.dockEditorActiveIndex,
+          zones: (widget.showZones && showOverlays) ? widget.zones : const [],
+          zoneEditorMode: widget.zoneEditorMode,
+          selectedZoneId: widget.selectedZoneId,
+          activeZoneVertexIndex:
+              widget.activeZoneVertexIndex ?? _draggingVertexIndex,
+          drawingLaneMode: widget.drawingLaneMode,
+          laneDraftPoints: widget.laneDraftPoints,
+          laneDraftWidth: widget.laneDraftWidth,
+          mouseHoverWorld: widget.mouseHoverWorld,
+        ),
+      );
+      if (trackRenderBox) {
+        return _RenderBoxReporter(
+          onRenderBox: (box) => _contentRenderBox = box,
+          child: paint,
         );
+      }
+      return paint;
+    }
 
     if (widget.posePicking) {
       // Counter-scaled against the live zoom the same way the interactive
@@ -1594,7 +1603,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    contentFor(markerScale, key: _contentBoxKey),
+                    contentFor(markerScale, trackRenderBox: true),
                     if (handleContentPos != null)
                       Positioned(
                         left: handleContentPos.dx,
@@ -1660,11 +1669,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     }
 
     // Fades in once, the moment the first grid decodes — the map "arrives"
-    // rather than snapping in over the skeleton. Threads a key through to
-    // contentFor for the same reason posePicking's branch passes one —
-    // [_handleMapTap] below needs it.
-    Widget revealedFor(double markerScale, {Key? key}) {
-      final child = contentFor(markerScale, key: key);
+    // rather than snapping in over the skeleton.
+    Widget revealedFor(double markerScale, {bool trackRenderBox = false}) {
+      final child = contentFor(markerScale, trackRenderBox: trackRenderBox);
       if (widget.isMapping) return child;
       return FadeSlideIn(offset: 0, child: child);
     }
@@ -1683,7 +1690,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         maxScale: 10,
         boundaryMargin: const EdgeInsets.all(double.infinity),
         constrained: false,
-        child: revealedFor(markerScale, key: _contentBoxKey),
+        child: revealedFor(markerScale, trackRenderBox: true),
       );
 
       Widget activeChild = viewer;
@@ -3051,4 +3058,44 @@ class _OccupancyGridPainter extends CustomPainter {
       oldDelegate.dockEditorDockPoint != dockEditorDockPoint ||
       oldDelegate.dockEditorStandoffPoint != dockEditorStandoffPoint ||
       oldDelegate.dockEditorActiveIndex != dockEditorActiveIndex;
+}
+
+/// A lightweight render proxy that captures the painted map's [RenderBox]
+/// without requiring a [GlobalKey], avoiding element retake and deactivation
+/// assertions during responsive layouts or screen resizing.
+class _RenderBoxReporter extends SingleChildRenderObjectWidget {
+  const _RenderBoxReporter({
+    required super.child,
+    required this.onRenderBox,
+  });
+
+  final ValueSetter<RenderBox?> onRenderBox;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderReporter(onRenderBox);
+
+  @override
+  void updateRenderObject(
+      BuildContext context, covariant _RenderReporter renderObject) {
+    renderObject.onRenderBox = onRenderBox;
+  }
+}
+
+class _RenderReporter extends RenderProxyBox {
+  _RenderReporter(this.onRenderBox);
+
+  ValueSetter<RenderBox?> onRenderBox;
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    onRenderBox(this);
+  }
+
+  @override
+  void detach() {
+    onRenderBox(null);
+    super.detach();
+  }
 }
