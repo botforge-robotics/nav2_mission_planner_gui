@@ -54,7 +54,6 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
   final _wifiSsidController = TextEditingController();
   final _wifiPasswordController = TextEditingController();
   final _robotNameController = TextEditingController();
-  final _countryCodeController = TextEditingController();
   final _timezoneController = TextEditingController();
 
   bool _obscurePassword = true;
@@ -90,7 +89,6 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
     _wifiSsidController.dispose();
     _wifiPasswordController.dispose();
     _robotNameController.dispose();
-    _countryCodeController.dispose();
     _timezoneController.dispose();
     super.dispose();
   }
@@ -172,7 +170,6 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
     final wifiPassword = _wifiPasswordController.text;
     final robotName = _robotNameController.text.trim();
     final tz = _timezoneController.text.trim();
-    final cc = _countryCodeController.text.trim().toUpperCase();
     if (wifiSsid.isEmpty || wifiPassword.isEmpty || robotName.isEmpty) return;
 
     setState(() => _step = _ApStep.submitting);
@@ -181,7 +178,6 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
       wifiPassword: wifiPassword,
       robotName: robotName,
       timezone: tz.isNotEmpty ? tz : null,
-      countryCode: cc.isNotEmpty ? cc : null,
     )) {
       if (!mounted) return;
       setState(() => _lastStatus = status);
@@ -595,51 +591,15 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 4,
-                child: TextField(
-                  controller: _countryCodeController,
-                  maxLength: 2,
-                  textCapitalization: TextCapitalization.characters,
-                  onChanged: (val) {
-                    final upper = val.toUpperCase();
-                    if (upper != val) {
-                      _countryCodeController.value =
-                          _countryCodeController.value.copyWith(
-                        text: upper,
-                        selection:
-                            TextSelection.collapsed(offset: upper.length),
-                      );
-                    }
-                    setState(() {});
-                  },
-                  decoration: const InputDecoration(
-                    labelText: 'Country Code',
-                    hintText: 'Optional',
-                    counterText: '',
-                    prefixIcon: Icon(Icons.flag_outlined),
-                    helperText: 'Optional (Wi-Fi domain)',
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                flex: 6,
-                child: TextField(
-                  controller: _timezoneController,
-                  onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
-                    labelText: 'Timezone',
-                    hintText: 'Asia/Kolkata',
-                    prefixIcon: Icon(Icons.schedule_rounded),
-                    helperText: 'Schedules & clock',
-                  ),
-                ),
-              ),
-            ],
+          TextField(
+            controller: _timezoneController,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              labelText: 'Timezone',
+              hintText: 'Asia/Kolkata',
+              prefixIcon: Icon(Icons.schedule_rounded),
+              helperText: 'Schedules & clock',
+            ),
           ),
         ],
       ),
