@@ -96,13 +96,16 @@ class Ros2 {
   Future<void> close([int? code, String? reason]) async {
     await _channelListener?.cancel();
     _channelListener = null;
-    try {
-      await _channel?.sink.close(code, reason);
-    } catch (_) {}
+    final ch = _channel;
     _channel = null;
     _pending.clear();
     status = Status.closed;
     _statusController.add(Status.closed);
+    if (ch != null) {
+      try {
+        await ch.sink.close(code, reason).timeout(const Duration(milliseconds: 300));
+      } catch (_) {}
+    }
   }
 
   /// Queues while the handshake is still in flight ([Status.connecting])

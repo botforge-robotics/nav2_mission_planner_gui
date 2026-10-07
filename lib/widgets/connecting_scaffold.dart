@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/connection_provider.dart';
+import '../providers/setup_flow_controller.dart';
 import '../screens/setup/setup_power_screen.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_theme.dart';
@@ -53,13 +54,18 @@ class ConnectingScaffold extends StatelessWidget {
 }
 
 Future<void> _switchRobot(BuildContext context) async {
+  final navigator = Navigator.of(context, rootNavigator: true);
   final conn = context.read<ConnectionProvider>();
-  await conn.forget();
-  if (!context.mounted) return;
-  Navigator.of(context).pushAndRemoveUntil(
+  try {
+    context.read<SetupFlowController>().reset();
+  } catch (_) {}
+
+  navigator.pushAndRemoveUntil(
     MaterialPageRoute(builder: (_) => const SetupPowerScreen()),
     (route) => false,
   );
+
+  await conn.forget();
 }
 
 Future<void> _showChangeIpDialog(

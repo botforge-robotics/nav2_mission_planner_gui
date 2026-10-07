@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_status.dart';
 import '../../providers/robot_telemetry_provider.dart';
+import '../../providers/setup_flow_controller.dart';
 import '../../services/sdk_state_service.dart';
 import '../../theme/app_motion.dart';
 import '../../theme/app_theme.dart';
@@ -156,13 +157,17 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                     );
                     if (confirmed != true) return;
                     if (!context.mounted) return;
-                    await context.read<ConnectionProvider>().forget();
-                    if (!context.mounted) return;
-                    Navigator.of(context).pushAndRemoveUntil(
+                    final navigator = Navigator.of(context, rootNavigator: true);
+                    final conn = context.read<ConnectionProvider>();
+                    try {
+                      context.read<SetupFlowController>().reset();
+                    } catch (_) {}
+                    navigator.pushAndRemoveUntil(
                       MaterialPageRoute(
                           builder: (_) => const SetupPowerScreen()),
                       (route) => false,
                     );
+                    await conn.forget();
                   },
                 ),
                 _SettingsTile(

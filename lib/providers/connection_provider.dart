@@ -110,13 +110,19 @@ class ConnectionProvider extends ChangeNotifier {
   /// afterwards; this only clears connection state and persisted storage.
   Future<void> forget() async {
     _connectTimeoutTimer?.cancel();
-    await _ros2?.close();
-    await _statusSub?.cancel();
-    await _store.clear();
+    final ros2 = _ros2;
     _ros2 = null;
     robot = null;
     status = Status.none;
     error = 'No robot configured.';
+    await _store.clear();
+    await _statusSub?.cancel();
+    _statusSub = null;
+    if (ros2 != null) {
+      try {
+        await ros2.close().timeout(const Duration(milliseconds: 300));
+      } catch (_) {}
+    }
     notifyListeners();
   }
 

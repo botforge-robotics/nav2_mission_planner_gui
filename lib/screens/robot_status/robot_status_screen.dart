@@ -203,14 +203,14 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
 
     await LocationsController.instance.refresh(api).catchError((_) {});
 
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+
     if (mounted) {
-      Navigator.of(context, rootNavigator: true).pop(); // close progress dialog
+      navigator.pop(); // close progress dialog
     }
 
-    await connection.forget();
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger?.showSnackBar(
       const SnackBar(
         content: Text(
           'Robot has been reset and is rebooting into setup mode. '
@@ -220,10 +220,12 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
       ),
     );
 
-    Navigator.of(context).pushAndRemoveUntil(
+    navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const SplashScreen()),
       (route) => false,
     );
+
+    await connection.forget();
   }
 
   @override
