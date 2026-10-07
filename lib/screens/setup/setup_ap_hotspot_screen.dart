@@ -82,27 +82,6 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
       setState(() => _timezoneController.text = detectedTz);
     }
 
-    // 2. Wi-Fi Country Code detection (e.g. IN, US, GB, DE)
-    if (_countryCodeController.text.isEmpty && mounted) {
-      String cc = 'IN';
-      try {
-        final localeCc =
-            WidgetsBinding.instance.platformDispatcher.locale.countryCode;
-        if (localeCc != null && localeCc.isNotEmpty) {
-          cc = localeCc.toUpperCase();
-        } else if (detectedTz.contains('Kolkata') ||
-            detectedTz.contains('India')) {
-          cc = 'IN';
-        } else if (detectedTz.contains('New_York') ||
-            detectedTz.contains('Los_Angeles') ||
-            detectedTz.contains('Chicago')) {
-          cc = 'US';
-        } else if (detectedTz.contains('London')) {
-          cc = 'GB';
-        }
-      } catch (_) {}
-      setState(() => _countryCodeController.text = cc);
-    }
   }
 
   @override
@@ -639,10 +618,10 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
                   },
                   decoration: const InputDecoration(
                     labelText: 'Country Code',
-                    hintText: 'IN, US, GB',
+                    hintText: 'Optional',
                     counterText: '',
                     prefixIcon: Icon(Icons.flag_outlined),
-                    helperText: 'Wi-Fi domain',
+                    helperText: 'Optional (Wi-Fi domain)',
                   ),
                 ),
               ),
