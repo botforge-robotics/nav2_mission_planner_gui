@@ -88,6 +88,13 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                 const _RobotSummaryCard(),
                 const SizedBox(height: AppSpacing.lg),
                 _SettingsTile(
+                  icon: Icons.tune_rounded,
+                  title: 'Robot Settings & Power',
+                  subtitle: 'Hardware status, power off, reboot, reset',
+                  onTap: () => pushWithTelemetry(
+                      context, const RobotStatusScreen()),
+                ),
+                _SettingsTile(
                   icon: Icons.report_gmailerrorred_rounded,
                   title: 'Alerts & Fault Log',
                   subtitle: 'View live event history',

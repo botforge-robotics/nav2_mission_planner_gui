@@ -74,6 +74,161 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
     }
   }
 
+  Future<void> _confirmShutdownRobot() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.power_settings_new_rounded, color: AppColors.danger),
+            SizedBox(width: AppSpacing.sm),
+            Text('Power Off Robot?'),
+          ],
+        ),
+        content: const Text(
+          'This will safely shut down the robot host computer and turn off power.\n\n'
+          'To turn the robot back on later, press its physical power button.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.power_settings_new_rounded, size: 18),
+            label: const Text('Power Off'),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _shutdownRobot();
+  }
+
+  Future<void> _shutdownRobot() async {
+    final api = _api;
+    if (api == null || !mounted) return;
+
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final navigator = Navigator.of(context, rootNavigator: true);
+
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => const AlertDialog(
+        content: Row(
+          children: [
+            SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: AppSpacing.md),
+            Expanded(child: Text('Powering off robot…')),
+          ],
+        ),
+      ),
+    ));
+
+    try {
+      await api.shutdownSystem(delay: 1.5);
+    } catch (_) {}
+
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    if (mounted) {
+      navigator.pop();
+      Navigator.of(context).maybePop();
+    }
+
+    messenger?.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Robot is shutting down. Press the hardware power button to start it back up.',
+        ),
+        duration: Duration(seconds: 6),
+      ),
+    );
+  }
+
+  Future<void> _confirmRebootRobot() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.restart_alt_rounded, color: AppColors.warning),
+            SizedBox(width: AppSpacing.sm),
+            Text('Reboot Robot?'),
+          ],
+        ),
+        content: const Text(
+          'This will restart the robot host computer and all navigation services.\n\n'
+          'The app will temporarily disconnect while the system restarts.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.restart_alt_rounded, size: 18),
+            label: const Text('Reboot'),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.warning),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _rebootRobot();
+  }
+
+  Future<void> _rebootRobot() async {
+    final api = _api;
+    if (api == null || !mounted) return;
+
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final navigator = Navigator.of(context, rootNavigator: true);
+
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => const AlertDialog(
+        content: Row(
+          children: [
+            SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: AppSpacing.md),
+            Expanded(child: Text('Rebooting robot…')),
+          ],
+        ),
+      ),
+    ));
+
+    try {
+      await api.rebootSystem(delay: 1.5);
+    } catch (_) {}
+
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    if (mounted) {
+      navigator.pop();
+    }
+
+    messenger?.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Robot is rebooting. It will be back online in about 30–60 seconds.',
+        ),
+        duration: Duration(seconds: 5),
+      ),
+    );
+  }
+
   Future<void> _confirmResetRobot() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -203,12 +358,11 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
 
     await LocationsController.instance.refresh(api).catchError((_) {});
 
+    if (!mounted) return;
     final navigator = Navigator.of(context, rootNavigator: true);
     final messenger = ScaffoldMessenger.maybeOf(context);
 
-    if (mounted) {
-      navigator.pop(); // close progress dialog
-    }
+    navigator.pop(); // close progress dialog
 
     messenger?.showSnackBar(
       const SnackBar(
@@ -464,11 +618,83 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
                         FadeSlideIn(
                           delay: const Duration(milliseconds: 180),
                           child: Card(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                      AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xs),
+                                  child: Text(
+                                    'System Power',
+                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                          color: AppColors.textSecondary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                ),
+                                ListTile(
+                                  leading: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.danger.withValues(alpha: 0.12),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.power_settings_new_rounded,
+                                      color: AppColors.danger,
+                                      size: 22,
+                                    ),
+                                  ),
+                                  title: const Text(
+                                    'Power Off Robot',
+                                    style: TextStyle(
+                                      color: AppColors.danger,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  subtitle: const Text(
+                                    'Safely shut down the robot computer',
+                                  ),
+                                  trailing: const Icon(Icons.chevron_right_rounded),
+                                  onTap: _confirmShutdownRobot,
+                                ),
+                                const Divider(height: 1),
+                                ListTile(
+                                  leading: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.warning.withValues(alpha: 0.12),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.restart_alt_rounded,
+                                      color: AppColors.warning,
+                                      size: 22,
+                                    ),
+                                  ),
+                                  title: const Text(
+                                    'Reboot Robot',
+                                    style: TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  subtitle: const Text(
+                                    'Restart onboard computer and services',
+                                  ),
+                                  trailing: const Icon(Icons.chevron_right_rounded),
+                                  onTap: _confirmRebootRobot,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        FadeSlideIn(
+                          delay: const Duration(milliseconds: 200),
+                          child: Card(
                             color: AppColors.danger.withValues(alpha: 0.05),
                             child: ListTile(
-                              leading: const Icon(Icons.restart_alt_rounded,
+                              leading: const Icon(Icons.delete_forever_rounded,
                                   color: AppColors.danger),
-                              title: const Text('Reset Robot',
+                              title: const Text('Factory Reset Robot',
                                   style: TextStyle(color: AppColors.danger)),
                               subtitle: const Text(
                                   'Delete all maps and locations, then '

@@ -159,6 +159,14 @@ class SdkApiService {
         timeout: const Duration(seconds: 10),
       );
 
+  /// Requests the robot system to power off / shut down.
+  Future<Map<String, dynamic>> shutdownSystem({double delay = 1.5}) => _send(
+        'POST',
+        '/api/v1/system/shutdown',
+        body: {'delay': delay},
+        timeout: const Duration(seconds: 10),
+      );
+
   // -- state -----------------------------------------------------------------
 
   /// Full BMS telemetry — `data` carries percentage/voltage/current/
