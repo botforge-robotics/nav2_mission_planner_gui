@@ -104,7 +104,7 @@ class SetupFlowController extends ChangeNotifier {
       return false;
     }
 
-    for (var attempt = 0; attempt < 20; attempt++) {
+    for (var attempt = 0; attempt < 30; attempt++) {
       await Future.delayed(const Duration(milliseconds: 500));
       if (await wifiJoin.isOnSetupHotspotSubnet()) {
         apJoining = false;

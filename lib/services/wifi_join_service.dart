@@ -40,7 +40,13 @@ class WifiJoinService {
       }
     }
     if (Platform.isWindows) {
-      return true;
+      try {
+        final res = await Process.run('netsh', ['wlan', 'show', 'interfaces']);
+        return res.exitCode == 0 &&
+            !(res.stdout as String).toLowerCase().contains('no wireless interface');
+      } catch (_) {
+        return false;
+      }
     }
     try {
       final can = await WiFiScan.instance.canStartScan(askPermissions: true);
@@ -125,29 +131,34 @@ class WifiJoinService {
   }
 
   Future<List<String>> _scanHotspotsWindows() async {
+    final firstTry = await _doScanHotspotsWindows();
+    if (firstTry.isNotEmpty) return firstTry;
+    // Brief retry if first scan was during adapter wake-up
+    await Future.delayed(const Duration(milliseconds: 1200));
+    return _doScanHotspotsWindows();
+  }
+
+  Future<List<String>> _doScanHotspotsWindows() async {
     try {
-      final result = await Process.run('netsh', ['wlan', 'show', 'networks']);
+      var result = await Process.run('netsh', [
+        'wlan',
+        'show',
+        'networks',
+        'mode=bssid',
+      ]);
+      if (result.exitCode != 0) {
+        result = await Process.run('netsh', [
+          'wlan',
+          'show',
+          'networks',
+        ]);
+      }
       if (result.exitCode != 0) return [];
-      final lines = (result.stdout as String).split('\n');
-      final found = <String>{};
-      final site = <String>{};
-      for (final rawLine in lines) {
-        final line = rawLine.trim();
-        if (line.startsWith('SSID ') && line.contains(':')) {
-          final ssid = line.split(':').sublist(1).join(':').trim();
-          if (ssid.isNotEmpty) {
-            if (ssid.startsWith(kSetupHotspotPrefix)) {
-              found.add(ssid);
-            } else {
-              site.add(ssid);
-            }
-          }
-        }
+      final parsed = parseNetshNetworks(result.stdout as String);
+      if (parsed.siteNetworks.isNotEmpty) {
+        _cachedSiteNetworks = parsed.siteNetworks;
       }
-      if (site.isNotEmpty) {
-        _cachedSiteNetworks = site.toList();
-      }
-      return found.toList();
+      return parsed.hotspots;
     } catch (_) {
       return [];
     }
@@ -199,6 +210,9 @@ class WifiJoinService {
     if (Platform.isLinux) {
       return _connectHotspotLinux(ssid);
     }
+    if (Platform.isWindows) {
+      return _connectHotspotWindows(ssid);
+    }
     try {
       return await WiFiForIoTPlugin.connect(
         ssid,
@@ -242,10 +256,95 @@ class WifiJoinService {
     }
   }
 
+  Future<bool> _connectHotspotWindows(String ssid) async {
+    final tempDir = Directory.systemTemp;
+    final tempFile = File(
+      '${tempDir.path}${Platform.pathSeparator}navpro_wlan_${DateTime.now().millisecondsSinceEpoch}.xml',
+    );
+    try {
+      final xml = buildWlanProfileXml(ssid);
+      await tempFile.writeAsString(xml);
+      final absPath = tempFile.absolute.path;
+
+      // 1. Add profile: try user=current first (does not require administrator elevation),
+      // fallback to all-user profile.
+      var addRes = await Process.run('netsh', [
+        'wlan',
+        'add',
+        'profile',
+        'filename=$absPath',
+        'user=current',
+      ]);
+      if (addRes.exitCode != 0) {
+        addRes = await Process.run('netsh', [
+          'wlan',
+          'add',
+          'profile',
+          'filename=$absPath',
+        ]);
+      }
+      if (addRes.exitCode != 0) {
+        return false;
+      }
+
+      // 2. Connect to the network profile
+      var connRes = await Process.run('netsh', [
+        'wlan',
+        'connect',
+        'name=$ssid',
+      ]);
+      if (connRes.exitCode != 0) {
+        connRes = await Process.run('netsh', [
+          'wlan',
+          'connect',
+          'name=$ssid',
+          'ssid=$ssid',
+        ]);
+      }
+      if (connRes.exitCode != 0) {
+        return false;
+      }
+
+      // 3. Poll briefly to see if connection settles
+      for (var i = 0; i < 20; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (await isOnSetupHotspotSubnet()) {
+          return true;
+        }
+        final current = await currentSsid();
+        if (current == ssid) {
+          return true;
+        }
+      }
+
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      try {
+        if (await tempFile.exists()) {
+          await tempFile.delete();
+        }
+      } catch (_) {}
+    }
+  }
+
   /// True once the device has actually landed on the hotspot's own subnet —
   /// checked rather than trusting connect()'s return value alone, since a
   /// "successful" OS-level join can still leave DHCP not yet settled.
   Future<bool> isOnSetupHotspotSubnet() async {
+    // 1. First probe if the setup portal IP is directly reachable via TCP
+    try {
+      final sock = await Socket.connect(
+        kSetupHotspotGatewayIp,
+        80,
+        timeout: const Duration(milliseconds: 600),
+      );
+      sock.destroy();
+      return true;
+    } catch (_) {}
+
+    // 2. Check local network interfaces for 10.42.0.*
     if (!kIsWeb) {
       try {
         final interfaces = await NetworkInterface.list();
@@ -259,6 +358,7 @@ class WifiJoinService {
       } catch (_) {}
     }
 
+    // 3. Fallback to network_info_plus
     try {
       final ip = await _network.getWifiIP();
       return ip != null && ip.startsWith('10.42.0.');
@@ -282,10 +382,166 @@ class WifiJoinService {
       } catch (_) {}
     }
 
+    if (!kIsWeb && Platform.isWindows) {
+      try {
+        final res = await Process.run('netsh', ['wlan', 'show', 'interfaces']);
+        if (res.exitCode == 0) {
+          final ssid = parseNetshInterfaceSsid(res.stdout as String);
+          if (ssid != null && ssid.isNotEmpty) return ssid;
+        }
+      } catch (_) {}
+    }
+
     try {
       return await _network.getWifiName();
     } catch (_) {
       return null;
     }
+  }
+
+  /// Escapes special XML characters for Windows WLANProfile XML documents.
+  static String escapeXml(String string) {
+    return string
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&apos;');
+  }
+
+  /// Builds a Windows WLANProfile v1 XML document for a WPA2-PSK network.
+  static String buildWlanProfileXml(
+    String ssid, {
+    String password = kSetupHotspotPassword,
+  }) {
+    final escapedSsid = escapeXml(ssid);
+    final ssidHex = ssid.codeUnits
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join()
+        .toUpperCase();
+    final escapedPass = escapeXml(password);
+
+    return '''<?xml version="1.0"?>
+<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
+    <name>$escapedSsid</name>
+    <SSIDConfig>
+        <SSID>
+            <hex>$ssidHex</hex>
+            <name>$escapedSsid</name>
+        </SSID>
+    </SSIDConfig>
+    <connectionType>ESS</connectionType>
+    <connectionMode>manual</connectionMode>
+    <MSM>
+        <security>
+            <authEncryption>
+                <authentication>WPA2PSK</authentication>
+                <encryption>AES</encryption>
+                <useOneX>false</useOneX>
+            </authEncryption>
+            <sharedKey>
+                <keyType>passPhrase</keyType>
+                <protected>false</protected>
+                <keyMaterial>$escapedPass</keyMaterial>
+            </sharedKey>
+        </security>
+    </MSM>
+</WLANProfile>''';
+  }
+
+  /// Parses `netsh wlan show networks mode=bssid` output, separating
+  /// robot setup hotspots from regular site Wi-Fi networks and ordering by
+  /// signal strength descending.
+  static ({List<String> hotspots, List<String> siteNetworks}) parseNetshNetworks(
+    String stdout,
+  ) {
+    final lines = stdout.split('\n');
+    final Map<String, int> hotspots = {};
+    final Map<String, int> siteNetworks = {};
+
+    String? activeSsid;
+
+    for (final rawLine in lines) {
+      final line = rawLine.trim();
+      if (line.isEmpty) continue;
+
+      // Match "SSID 1 : <name>" or "SSID : <name>"
+      // Caret ensures we do NOT match "BSSID 1 : xx:xx:..."
+      final ssidMatch = RegExp(
+        r'^SSID(?:\s+\d+)?\s*:\s*(.*)$',
+        caseSensitive: false,
+      ).firstMatch(line);
+
+      if (ssidMatch != null) {
+        final ssid = ssidMatch.group(1)?.trim() ?? '';
+        if (ssid.isNotEmpty) {
+          activeSsid = ssid;
+          if (activeSsid.startsWith(kSetupHotspotPrefix)) {
+            hotspots.putIfAbsent(activeSsid, () => 0);
+          } else {
+            siteNetworks.putIfAbsent(activeSsid, () => 0);
+          }
+        } else {
+          activeSsid = null;
+        }
+        continue;
+      }
+
+      // Match signal line e.g. "Signal : 85%" or localized ": 85%"
+      if (activeSsid != null) {
+        final signalMatch = RegExp(r':\s*(\d+)%').firstMatch(line);
+        if (signalMatch != null) {
+          final sig = int.tryParse(signalMatch.group(1) ?? '0') ?? 0;
+          if (activeSsid.startsWith(kSetupHotspotPrefix)) {
+            if ((hotspots[activeSsid] ?? 0) < sig) {
+              hotspots[activeSsid] = sig;
+            }
+          } else {
+            if ((siteNetworks[activeSsid] ?? 0) < sig) {
+              siteNetworks[activeSsid] = sig;
+            }
+          }
+        }
+      }
+    }
+
+    final sortedSite = siteNetworks.keys.toList()
+      ..sort((a, b) => (siteNetworks[b] ?? 0).compareTo(siteNetworks[a] ?? 0));
+
+    final sortedHotspots = hotspots.keys.toList()
+      ..sort((a, b) => (hotspots[b] ?? 0).compareTo(hotspots[a] ?? 0));
+
+    return (hotspots: sortedHotspots, siteNetworks: sortedSite);
+  }
+
+  /// Parses `netsh wlan show interfaces` output to find the currently
+  /// connected Wi-Fi SSID, if any.
+  static String? parseNetshInterfaceSsid(String stdout) {
+    final lines = stdout.split('\n');
+    bool connected = false;
+    String? currentInterfaceSsid;
+    for (final rawLine in lines) {
+      final line = rawLine.trim();
+      if (line.toLowerCase().contains('state') && line.contains(':')) {
+        final val = line.split(':').sublist(1).join(':').trim().toLowerCase();
+        connected = val == 'connected';
+      }
+      final ssidMatch = RegExp(
+        r'^SSID\s*:\s*(.+)$',
+        caseSensitive: false,
+      ).firstMatch(line);
+      if (ssidMatch != null) {
+        currentInterfaceSsid = ssidMatch.group(1)?.trim();
+        if (connected &&
+            currentInterfaceSsid != null &&
+            currentInterfaceSsid.isNotEmpty) {
+          return currentInterfaceSsid;
+        }
+      }
+    }
+    if (currentInterfaceSsid != null && currentInterfaceSsid.isNotEmpty) {
+      return currentInterfaceSsid;
+    }
+    return null;
   }
 }
