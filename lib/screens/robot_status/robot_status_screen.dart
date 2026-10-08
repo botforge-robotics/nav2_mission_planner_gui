@@ -131,25 +131,42 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
       ),
     ));
 
+    String? error;
     try {
       await api.shutdownSystem(delay: 1.5);
-    } catch (_) {}
+    } catch (e) {
+      if (e is SdkApiException) {
+        error = e.message;
+      }
+    }
 
     await Future.delayed(const Duration(milliseconds: 1500));
 
     if (mounted) {
       navigator.pop();
-      Navigator.of(context).maybePop();
+      if (error == null) {
+        Navigator.of(context).maybePop();
+      }
     }
 
-    messenger?.showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Robot is shutting down. Press the hardware power button to start it back up.',
+    if (error != null) {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text('Power off failed: $error'),
+          backgroundColor: AppColors.danger,
+          duration: const Duration(seconds: 5),
         ),
-        duration: Duration(seconds: 6),
-      ),
-    );
+      );
+    } else {
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Robot is shutting down. Press the hardware power button to start it back up.',
+          ),
+          duration: Duration(seconds: 6),
+        ),
+      );
+    }
   }
 
   Future<void> _confirmRebootRobot() async {
@@ -209,9 +226,14 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
       ),
     ));
 
+    String? error;
     try {
       await api.rebootSystem(delay: 1.5);
-    } catch (_) {}
+    } catch (e) {
+      if (e is SdkApiException) {
+        error = e.message;
+      }
+    }
 
     await Future.delayed(const Duration(milliseconds: 1500));
 
@@ -219,14 +241,24 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
       navigator.pop();
     }
 
-    messenger?.showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Robot is rebooting. It will be back online in about 30–60 seconds.',
+    if (error != null) {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text('Reboot failed: $error'),
+          backgroundColor: AppColors.danger,
+          duration: const Duration(seconds: 5),
         ),
-        duration: Duration(seconds: 5),
-      ),
-    );
+      );
+    } else {
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Robot is rebooting. It will be back online in about 30–60 seconds.',
+          ),
+          duration: Duration(seconds: 5),
+        ),
+      );
+    }
   }
 
   Future<void> _confirmResetRobot() async {
