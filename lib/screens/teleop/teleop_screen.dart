@@ -13,6 +13,8 @@ import '../../services/locations_controller.dart';
 import '../../services/map_layers_controller.dart';
 import '../../services/sdk_api_service.dart';
 import '../../services/zones_controller.dart';
+import '../../services/gamepad_service.dart';
+import '../settings/gamepad_settings_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../../utils/action_feedback.dart';
@@ -77,6 +79,17 @@ class _TeleopScreenState extends State<TeleopScreen> {
   @override
   void initState() {
     super.initState();
+    GamepadService.instance.hudEvents.listen((msg) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    });
     DockPoseController.instance.addListener(_onDockPoseChanged);
     _pollNavigationStatus();
     _navStatusTimer = Timer.periodic(
@@ -477,7 +490,11 @@ class _TeleopScreenState extends State<TeleopScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final connection = context.watch<ConnectionProvider>();
+        final connection = context.watch<ConnectionProvider>();
+    GamepadService.instance.updateConnection(
+      ros2: connection.ros2,
+      sdkApi: _api,
+    );
     final robotIp = connection.robot?.ip;
     if (!_requestedLocations && robotIp != null) {
       _requestedLocations = true;
@@ -495,6 +512,22 @@ class _TeleopScreenState extends State<TeleopScreen> {
         appBar: AppBar(
           title: const Text('Teleoperation Cockpit'),
           actions: [
+            AnimatedBuilder(
+              animation: GamepadService.instance,
+              builder: (context, _) {
+                final connected = GamepadService.instance.isConnected;
+                return IconButton(
+                  icon: Icon(
+                    Icons.sports_esports_rounded,
+                    color: connected ? Colors.green : AppColors.textSecondary,
+                  ),
+                  tooltip: connected ? 'Gamepad Connected: ${GamepadService.instance.controllerName}' : 'Gamepad Disconnected',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const GamepadSettingsScreen()),
+                  ),
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.layers_outlined),
               tooltip: 'Map Layers',
@@ -641,6 +674,22 @@ class _TeleopScreenState extends State<TeleopScreen> {
       appBar: AppBar(
         title: const Text('Teleoperation'),
         actions: [
+          AnimatedBuilder(
+            animation: GamepadService.instance,
+            builder: (context, _) {
+              final connected = GamepadService.instance.isConnected;
+              return IconButton(
+                icon: Icon(
+                  Icons.sports_esports_rounded,
+                  color: connected ? Colors.green : AppColors.textSecondary,
+                ),
+                tooltip: connected ? 'Gamepad Connected: ${GamepadService.instance.controllerName}' : 'Gamepad Disconnected',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const GamepadSettingsScreen()),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.layers_outlined),
             tooltip: 'Map Layers',

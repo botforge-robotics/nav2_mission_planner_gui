@@ -18,6 +18,8 @@ import '../../widgets/design/status_pulse.dart';
 import '../alerts/alerts_log_screen.dart';
 import '../dock/dock_charge_screen.dart';
 import '../robot_status/robot_status_screen.dart';
+import 'gamepad_settings_screen.dart';
+import '../../services/gamepad_service.dart';
 import 'help_about_screen.dart';
 import 'software_update_screen.dart';
 import 'tools_api_screen.dart';
@@ -93,6 +95,33 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                   subtitle: 'Hardware status, power off, reboot, reset',
                   onTap: () => pushWithTelemetry(
                       context, const RobotStatusScreen()),
+                ),
+                AnimatedBuilder(
+                  animation: GamepadService.instance,
+                  builder: (context, _) {
+                    final connected = GamepadService.instance.isConnected;
+                    return _SettingsTile(
+                      icon: Icons.sports_esports_rounded,
+                      title: 'Gamepad Controls',
+                      subtitle: connected
+                          ? 'Connected (${GamepadService.instance.controllerName}) — Ready to drive & remap'
+                          : 'No controller detected — connect via Bluetooth or USB to enable',
+                      trailing: connected
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.green),
+                              ),
+                              child: const Text('ACTIVE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green)),
+                            )
+                          : const Icon(Icons.bluetooth_disabled_rounded, size: 20, color: Colors.grey),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const GamepadSettingsScreen()),
+                      ),
+                    );
+                  },
                 ),
                 _SettingsTile(
                   icon: Icons.report_gmailerrorred_rounded,
@@ -337,12 +366,14 @@ class _SettingsTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.trailing,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -353,7 +384,7 @@ class _SettingsTile extends StatelessWidget {
         title: Text(title),
         subtitle: Text(subtitle,
             style: const TextStyle(color: AppColors.textSecondary)),
-        trailing: const Icon(Icons.chevron_right_rounded),
+        trailing: trailing ?? const Icon(Icons.chevron_right_rounded),
         onTap: onTap,
       ),
     );

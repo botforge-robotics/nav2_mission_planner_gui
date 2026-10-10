@@ -5,11 +5,13 @@ import 'package:provider/provider.dart';
 import 'providers/connection_provider.dart';
 import 'providers/robot_telemetry_provider.dart';
 import 'providers/setup_flow_controller.dart';
+import 'services/gamepad_service.dart';
 import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  GamepadService.instance.init();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
