@@ -722,6 +722,19 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   // freshly-checked layer subscribed to nothing. didUpdateWidget (below)
   // calls these the same way initState() does, just reacting to a flag
   // that changed rather than one that started true.
+  void _checkGoalArrival(geometry_msgs.PoseWithCovarianceStamped msg) {
+    final currentPath = _path;
+    if (currentPath == null || currentPath.poses.isEmpty) return;
+    final lastPose = currentPath.poses.last.pose.position;
+    final rx = msg.pose.pose.position.x;
+    final ry = msg.pose.pose.position.y;
+    final dx = lastPose.x - rx;
+    final dy = lastPose.y - ry;
+    if (dx * dx + dy * dy < 0.05) {
+      _path = null;
+    }
+  }
+
   void _subscribeRobot() {
     _poseSub = Subscriber<geometry_msgs.PoseWithCovarianceStamped>(
       name: '/amcl_pose',
@@ -733,7 +746,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       // receives the latched pose until the robot physically moves.
       qos: const {'durability': 'transient_local'},
       callback: (msg) {
-        if (mounted) setState(() => _pose = msg);
+        if (!mounted) return;
+        _checkGoalArrival(msg);
+        setState(() => _pose = msg);
       },
     );
     _slamPoseSub = Subscriber<geometry_msgs.PoseWithCovarianceStamped>(
@@ -742,7 +757,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       ros2: widget.ros2,
       prototype: geometry_msgs.PoseWithCovarianceStamped(),
       callback: (msg) {
-        if (mounted) setState(() => _pose = msg);
+        if (!mounted) return;
+        _checkGoalArrival(msg);
+        setState(() => _pose = msg);
       },
     );
     _odomSub = Subscriber<nav_msgs.Odometry>(
@@ -2681,29 +2698,117 @@ class _OccupancyGridPainter extends CustomPainter {
     final points = poses
         .map((p) => _worldToPixel(grid, p.pose.position.x, p.pose.position.y))
         .toList();
+    if (points.isEmpty) return;
+
     if (points.length == 1) {
       canvas.drawCircle(
         points.first,
-        3.0,
+        4.0 * markerScale,
         Paint()
           ..color = AppColors.stateExecuting
           ..style = PaintingStyle.fill,
       );
       return;
     }
-    final linePath = Path()..moveTo(points.first.dx, points.first.dy);
-    for (final pt in points.skip(1)) {
-      linePath.lineTo(pt.dx, pt.dy);
+
+    final p = pose;
+    int closestIdx = -1;
+    Offset? robotPixel;
+
+    if (p != null) {
+      final rx = p.pose.pose.position.x;
+      final ry = p.pose.pose.position.y;
+      robotPixel = _worldToPixel(grid, rx, ry);
+
+      // Check distance to goal (last pose)
+      final lastPose = poses.last.pose.position;
+      final dxGoal = lastPose.x - rx;
+      final dyGoal = lastPose.y - ry;
+      final distToGoalSq = dxGoal * dxGoal + dyGoal * dyGoal;
+
+      // Find closest point along the path
+      double minDistSq = double.infinity;
+      for (int i = 0; i < poses.length; i++) {
+        final dx = poses[i].pose.position.x - rx;
+        final dy = poses[i].pose.position.y - ry;
+        final dSq = dx * dx + dy * dy;
+        if (dSq < minDistSq) {
+          minDistSq = dSq;
+          closestIdx = i;
+        }
+      }
+
+      // If robot is at goal (within 22 cm of the last waypoint and near the end of path),
+      // the path is completed — disappear completely!
+      if (closestIdx >= poses.length - 2 && distToGoalSq < 0.05) {
+        return;
+      }
+
+      // If the robot is more than 2.0m away from the path, fall back to drawing full path
+      if (minDistSq > 4.0) {
+        closestIdx = -1;
+      }
     }
-    canvas.drawPath(
-      linePath,
-      Paint()
-        ..color = AppColors.stateExecuting
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
+
+    if (closestIdx >= 0 && robotPixel != null) {
+      // Always start directly from the live robot marker and draw forward to the goal
+      final nextIdx = (closestIdx + 1 < points.length) ? closestIdx + 1 : closestIdx;
+      final remainingPath = Path()..moveTo(robotPixel.dx, robotPixel.dy);
+      for (int i = nextIdx; i < points.length; i++) {
+        remainingPath.lineTo(points[i].dx, points[i].dy);
+      }
+      canvas.drawPath(
+        remainingPath,
+        Paint()
+          ..color = AppColors.stateExecuting
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.5 * markerScale
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+
+      // Destination beacon dot at the goal point
+      final goalPt = points.last;
+      canvas.drawCircle(
+        goalPt,
+        4.0 * markerScale,
+        Paint()
+          ..color = AppColors.stateExecuting
+          ..style = PaintingStyle.fill,
+      );
+      canvas.drawCircle(
+        goalPt,
+        6.0 * markerScale,
+        Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6 * markerScale,
+      );
+    } else {
+      // Fallback: draw full path from start to end
+      final linePath = Path()..moveTo(points.first.dx, points.first.dy);
+      for (final pt in points.skip(1)) {
+        linePath.lineTo(pt.dx, pt.dy);
+      }
+      canvas.drawPath(
+        linePath,
+        Paint()
+          ..color = AppColors.stateExecuting
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.0 * markerScale
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+
+      final goalPt = points.last;
+      canvas.drawCircle(
+        goalPt,
+        4.0 * markerScale,
+        Paint()
+          ..color = AppColors.stateExecuting
+          ..style = PaintingStyle.fill,
+      );
+    }
   }
 
   /// A straight-line, dashed connector between [locations] in list order —
