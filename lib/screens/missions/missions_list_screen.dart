@@ -16,7 +16,6 @@ import '../../widgets/design/skeleton.dart';
 import '../../widgets/design/status_pulse.dart';
 import 'mission_detail_screen.dart';
 import 'mission_editor_screen.dart';
-import 'schedules_list_screen.dart';
 import 'graph/mission_graph_editor_screen.dart';
 
 /// Reference §7 (Mission Planner). Missions — named, ordered step sequences
@@ -262,50 +261,7 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
       appBar: AppBar(
         title: Text(isDesktop ? 'Missions & Task Overview' : 'Missions'),
         actions: [
-          if (fleet.isFleetMode) ...[
-            Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.xs),
-              child: FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                ),
-                icon: const Icon(Icons.send_rounded, size: 16),
-                label: const Text('Dispatch Task'),
-                onPressed: () => DispatchFleetTaskDialog.show(context),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                ),
-                icon: const Icon(Icons.hub_rounded, size: 16, color: Colors.blue),
-                label: Text('Fleet (${fleet.robots.length})'),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
-                ),
-              ),
-            ),
-          ],
           if (isDesktop) ...[
-            Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                ),
-                icon: const Icon(Icons.alarm_rounded, size: 18),
-                label: const Text('Scheduler'),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => const SchedulesListScreen()),
-                ),
-              ),
-            ),
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.md),
               child: FilledButton.icon(
@@ -335,13 +291,6 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
                 );
                 _load();
               },
-            ),
-            IconButton(
-              tooltip: 'Scheduler',
-              icon: const Icon(Icons.alarm_rounded),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SchedulesListScreen()),
-              ),
             ),
           ],
         ],
@@ -783,11 +732,15 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           LinearProgressIndicator(
-                            value: task.statusGroup == 'history' && task.rawStatus == 'completed'
-                                ? 1.0
-                                : (task.progress > 0 ? task.progress : null),
+                            value: (task.rawStatus == 'canceled' || task.rawStatus == 'cancelled' || task.rawStatus == 'failed')
+                                ? 0.0
+                                : (task.statusGroup == 'history' && (task.rawStatus == 'completed' || task.rawStatus == 'succeeded')
+                                    ? 1.0
+                                    : (task.progress > 0 ? task.progress : null)),
                             backgroundColor: AppColors.surfaceSunken,
-                            color: task.statusGroup == 'active' ? AppColors.stateExecuting : AppColors.primary,
+                            color: (task.rawStatus == 'canceled' || task.rawStatus == 'cancelled' || task.rawStatus == 'failed')
+                                ? AppColors.danger
+                                : (task.statusGroup == 'active' ? AppColors.stateExecuting : AppColors.primary),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -886,11 +839,15 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(2),
                     child: LinearProgressIndicator(
-                      value: task.statusGroup == 'history' && task.rawStatus == 'completed'
-                          ? 1.0
-                          : (task.progress > 0 ? task.progress : null),
+                      value: (task.rawStatus == 'canceled' || task.rawStatus == 'cancelled' || task.rawStatus == 'failed')
+                          ? 0.0
+                          : (task.statusGroup == 'history' && (task.rawStatus == 'completed' || task.rawStatus == 'succeeded')
+                              ? 1.0
+                              : (task.progress > 0 ? task.progress : null)),
                       backgroundColor: AppColors.surfaceSunken,
-                      color: task.statusGroup == 'active' ? AppColors.stateExecuting : AppColors.primary,
+                      color: (task.rawStatus == 'canceled' || task.rawStatus == 'cancelled' || task.rawStatus == 'failed')
+                          ? AppColors.danger
+                          : (task.statusGroup == 'active' ? AppColors.stateExecuting : AppColors.primary),
                       minHeight: 4,
                     ),
                   ),

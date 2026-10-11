@@ -194,14 +194,26 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
           });
 
           // Sync dock pose to robot if connected
+          final dockTheta = atan2(sY - v.y, sX - v.x);
           if (api != null) {
-            final dockTheta = atan2(sY - v.y, sX - v.x);
             api.setDockPose(x: v.x, y: v.y, theta: dockTheta).catchError((_) {});
-            DockPoseController.instance.update(
-              dock: (x: v.x, y: v.y, theta: dockTheta),
-              standoff: (x: sX, y: sY, theta: sTheta),
-            );
           }
+
+          // Sync dock pose to Fleet Server if in fleet mode
+          if (fleet.isFleetMode && fleet.api != null) {
+            fleet.api!.saveFleetDockPose(
+              x: v.x,
+              y: v.y,
+              theta: dockTheta,
+              dockName: locName,
+              levelName: levelName,
+            ).catchError((_) => <String, dynamic>{});
+          }
+
+          DockPoseController.instance.update(
+            dock: (x: v.x, y: v.y, theta: dockTheta),
+            standoff: (x: sX, y: sY, theta: sTheta),
+          );
         }
       }
       LocationsController.instance.value = newLocationsList;

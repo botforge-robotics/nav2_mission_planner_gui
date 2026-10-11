@@ -522,12 +522,6 @@ class _RobotCard extends StatelessWidget {
                     icon: const Icon(Icons.add_rounded, size: 16),
                     label: const Text('Add Robot'),
                   ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    onPressed: () => DispatchFleetTaskDialog.show(context),
-                    icon: const Icon(Icons.alt_route_rounded, size: 16),
-                    label: const Text('Dispatch Task'),
-                  ),
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
@@ -839,13 +833,15 @@ class _DashboardTasksOverviewCardState extends State<_DashboardTasksOverviewCard
       } else if (status == 'completed' || status == 'succeeded' || status == 'failed' || status == 'canceled' || status == 'cancelled') {
         group = 'history';
       }
+      final isCancelled = status == 'canceled' || status == 'cancelled' || status == 'failed';
+      final isCompleted = status == 'completed' || status == 'succeeded';
       allTasks.add({
         'id': t['id']?.toString() ?? 'task_${allTasks.length}',
         'name': t['type'] ?? t['task_type'] ?? t['name'] ?? 'RMF Task',
         'robot': t['robot'] ?? t['robot_id'] ?? 'AMR',
         'status': status,
         'group': group,
-        'progress': (t['progress'] as num?)?.toDouble() ?? (group == 'history' ? 1.0 : 0.4),
+        'progress': isCancelled ? 0.0 : ((t['progress'] as num?)?.toDouble() ?? (isCompleted ? 1.0 : 0.4)),
         'time': t['start_time'] ?? t['timestamp'] ?? 'Active',
       });
     }

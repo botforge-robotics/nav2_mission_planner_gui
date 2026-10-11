@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/connection_provider.dart';
+import '../../../providers/fleet_provider.dart';
 import '../../../services/locations_controller.dart';
 import '../../../services/sdk_api_service.dart';
 import '../../../theme/app_theme.dart';
@@ -258,13 +259,23 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
   Future<void> _saveMission() async {
     final api = _api;
-    if (api == null) return;
+    final fleet = context.read<FleetProvider>();
+
+    if (api == null && (!fleet.isFleetMode || fleet.api == null)) return;
 
     setState(() => _saving = true);
     _graph.name = _nameController.text.trim().isEmpty ? 'Untitled Graph' : _nameController.text.trim();
 
     try {
-      await api.putGraphMission(_graph.toJson());
+      // 1. If fleet server is connected, save as Fleet Workflow
+      if (fleet.isFleetMode && fleet.api != null) {
+        await fleet.api!.saveWorkflow(_graph.toJson());
+      }
+
+      // 2. Also save to connected robot if available
+      if (api != null) {
+        await api.putGraphMission(_graph.toJson());
+      }
 
       // Auto-sync start node trigger/schedule to robot schedule store
       final startNode = _graph.nodes.cast<GraphNode?>().firstWhere(
@@ -286,7 +297,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           final date = startNode.params['schedule_date'] as String?;
 
           try {
-            await api.putSchedule(
+            await api?.putSchedule(
               schedId,
               missionId: _graph.id,
               name: '${_graph.name} (${isInterval ? "Every ${intervalMins}m" : schedType})',
@@ -304,7 +315,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         } else {
           // If trigger is manual or disabled, remove any existing schedule record
           try {
-            await api.deleteSchedule(schedId);
+            await api?.deleteSchedule(schedId);
           } catch (_) {}
         }
       }

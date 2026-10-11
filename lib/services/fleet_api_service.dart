@@ -364,5 +364,30 @@ class FleetApiService {
       'mode': mode,
     });
   }
+
+  // --- Workflow & Mission Persistence on Fleet Server ---
+  Future<Map<String, dynamic>> saveWorkflow(Map<String, dynamic> workflowData) async {
+    final res = await _post('/api/v1/workflows', body: workflowData);
+    return res as Map<String, dynamic>? ?? {};
+  }
+
+  Future<Map<String, dynamic>> saveFleetDockPose({
+    required double x,
+    required double y,
+    double theta = 0.0,
+    String? dockName,
+    String? levelName,
+    String? robotId,
+  }) async {
+    final res = await _post('/api/v1/site/dock-pose', body: {
+      'x': x,
+      'y': y,
+      'theta': theta,
+      if (dockName != null) 'dockName': dockName,
+      if (levelName != null) 'levelName': levelName,
+      if (robotId != null) 'robotId': robotId,
+    });
+    return res as Map<String, dynamic>? ?? {};
+  }
 }
 

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../providers/connection_provider.dart';
+import '../../providers/fleet_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../services/locations_controller.dart';
 import '../../services/sdk_api_service.dart';
@@ -1064,7 +1065,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
       return;
     }
     final api = _api;
-    if (api == null) return;
+    final fleet = context.read<FleetProvider>();
+    if (api == null && (!fleet.isFleetMode || fleet.api == null)) return;
 
     setState(() {
       _saving = true;
@@ -1072,17 +1074,34 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
     });
     try {
       final id = widget.existing?['id'] as String? ?? const Uuid().v4();
-      await api.putMission(id, name, _steps,
-          loopCount: _repeat == _Repeat.count ? _loopCount : 1,
-          loopForever: _repeat == _Repeat.forever,
-          map: _missionMap ?? _currentActiveMap);
+      final mapName = _missionMap ?? _currentActiveMap;
+
+      // 1. If fleet server connected, save as Fleet Workflow
+      if (fleet.isFleetMode && fleet.api != null) {
+        await fleet.api!.saveWorkflow({
+          'id': id,
+          'name': name,
+          'steps': _steps,
+          'loop_count': _repeat == _Repeat.count ? _loopCount : 1,
+          'loop_forever': _repeat == _Repeat.forever,
+          if (mapName != null && mapName.isNotEmpty) 'map': mapName,
+        });
+      }
+
+      // 2. Also save to local robot if available
+      if (api != null) {
+        await api.putMission(id, name, _steps,
+            loopCount: _repeat == _Repeat.count ? _loopCount : 1,
+            loopForever: _repeat == _Repeat.forever,
+            map: mapName);
+      }
       if (!mounted) return;
       _goBack(true);
-    } on SdkApiException catch (e) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _saveError = e.message;
+        _saveError = e.toString();
       });
     }
   }
