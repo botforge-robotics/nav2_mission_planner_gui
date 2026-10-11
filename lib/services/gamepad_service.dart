@@ -90,7 +90,7 @@ class GamepadService extends ChangeNotifier {
   double _normalAngularSpeed = 0.45; // rad/s
   double _turboAngularSpeed = 0.75; // rad/s
   bool _invertLinear = false;
-  bool _requireDeadman = true;
+  bool _requireDeadman = false;
 
   // Remapping configuration: GamepadButton -> GamepadAction
   final Map<GamepadButton, GamepadAction> _buttonMapping = {
@@ -158,11 +158,11 @@ class GamepadService extends ChangeNotifier {
   }
 
   void updateConnection({Ros2? ros2, SdkApiService? sdkApi}) {
-    if (_ros2 != ros2) {
+    if (_ros2 != ros2 || _cmdVelPub == null) {
       _cmdVelPub?.shutdown();
       _cmdVelPub = null;
       _ros2 = ros2;
-      if (ros2 != null && ros2.status == Status.connected) {
+      if (ros2 != null) {
         _cmdVelPub = Publisher<geometry_msgs.Twist>(
           name: '/cmd_vel_teleop',
           type: geometry_msgs.Twist().fullType,
@@ -170,7 +170,9 @@ class GamepadService extends ChangeNotifier {
         );
       }
     }
-    _sdkApi = sdkApi;
+    if (sdkApi != null) {
+      _sdkApi = sdkApi;
+    }
     _refreshWaypoints();
   }
 
@@ -429,19 +431,40 @@ class GamepadService extends ChangeNotifier {
 
   void _publishTwist(double linear, double angular) {
     final pub = _cmdVelPub;
-    if (pub == null || _ros2 == null || _ros2!.status != Status.connected) return;
-    final twist = geometry_msgs.Twist();
-    twist.linear.x = linear;
-    twist.angular.z = angular;
-    pub.publish(twist);
+    final ros2 = _ros2;
+    if (pub != null && ros2 != null && ros2.status == Status.connected) {
+      final twist = geometry_msgs.Twist(
+        linear: geometry_msgs.Vector3(x: linear, y: 0.0, z: 0.0),
+        angular: geometry_msgs.Vector3(x: 0.0, y: 0.0, z: angular),
+      );
+      pub.publish(twist);
+      return;
+    }
+
+    // Fallback: SdkApiService HTTP teleop
+    final api = _sdkApi;
+    if (api != null) {
+      api.setVelocity(linear, angular).catchError((_) {});
+    }
   }
 
   void _publishZeroTwist() {
     final pub = _cmdVelPub;
-    if (pub == null || _ros2 == null || _ros2!.status != Status.connected) return;
-    final twist = geometry_msgs.Twist();
-    for (int i = 0; i < 2; i++) {
-      pub.publish(twist);
+    final ros2 = _ros2;
+    if (pub != null && ros2 != null && ros2.status == Status.connected) {
+      final stopTwist = geometry_msgs.Twist(
+        linear: geometry_msgs.Vector3(x: 0.0, y: 0.0, z: 0.0),
+        angular: geometry_msgs.Vector3(x: 0.0, y: 0.0, z: 0.0),
+      );
+      for (int i = 0; i < 2; i++) {
+        pub.publish(stopTwist);
+      }
+      return;
+    }
+
+    final api = _sdkApi;
+    if (api != null) {
+      api.setVelocity(0.0, 0.0).catchError((_) {});
     }
   }
 
@@ -589,7 +612,7 @@ class GamepadService extends ChangeNotifier {
     _normalAngularSpeed = 0.45;
     _turboAngularSpeed = 0.75;
     _invertLinear = false;
-    _requireDeadman = true;
+    _requireDeadman = false;
 
     _buttonMapping.clear();
     _buttonMapping.addAll({
@@ -634,7 +657,7 @@ class GamepadService extends ChangeNotifier {
     _normalAngularSpeed = prefs.getDouble('gamepad_normal_ang') ?? 0.45;
     _turboAngularSpeed = prefs.getDouble('gamepad_turbo_ang') ?? 0.75;
     _invertLinear = prefs.getBool('gamepad_invert_lin') ?? false;
-    _requireDeadman = prefs.getBool('gamepad_require_deadman') ?? true;
+    _requireDeadman = prefs.getBool('gamepad_require_deadman') ?? false;
 
     for (final btn in GamepadButton.values) {
       final savedAct = prefs.getString('gamepad_btn_${btn.name}');
