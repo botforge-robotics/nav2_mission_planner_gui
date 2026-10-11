@@ -4,6 +4,7 @@ import 'package:ros2_api/ros2_api.dart';
 import 'package:std_msgs/msg.dart' as std_msgs;
 
 import '../../providers/connection_provider.dart';
+import '../../providers/fleet_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../screens/dashboard_screen.dart';
 import '../../screens/maps/create_map_screen.dart';
@@ -226,7 +227,9 @@ class _DesktopSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final connection = context.watch<ConnectionProvider>();
     final telemetry = context.watch<RobotTelemetryProvider>();
+    final fleet = context.watch<FleetProvider>();
     final robot = connection.robot;
+    final isFleet = fleet.isFleetMode;
 
     return Container(
       width: 250,
@@ -246,12 +249,14 @@ class _DesktopSidebar extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceSunken,
+                    color: isFleet ? Colors.blue.withValues(alpha: 0.12) : AppColors.surfaceSunken,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
+                    border: Border.all(color: isFleet ? Colors.blue.withValues(alpha: 0.3) : AppColors.border),
                   ),
                   padding: const EdgeInsets.all(4),
-                  child: Image.asset('assets/robot_photo.png', fit: BoxFit.contain),
+                  child: isFleet
+                      ? const Icon(Icons.hub_rounded, color: Colors.blue, size: 24)
+                      : Image.asset('assets/robot_photo.png', fit: BoxFit.contain),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -259,9 +264,9 @@ class _DesktopSidebar extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        'NavPro Mini',
-                        style: TextStyle(
+                      Text(
+                        isFleet ? 'Open-RMF Fleet' : 'NavPro Mini',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                           color: AppColors.textPrimary,
@@ -270,10 +275,13 @@ class _DesktopSidebar extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        robot?.name ?? 'Robot Dashboard',
-                        style: const TextStyle(
+                        isFleet
+                            ? (fleet.selectedRobot != null ? 'Unit: ${fleet.selectedRobot!.name}' : '${fleet.robots.length} Robots Online')
+                            : (robot?.name ?? 'Robot Dashboard'),
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary,
+                          color: isFleet ? Colors.blue : AppColors.textSecondary,
+                          fontWeight: isFleet ? FontWeight.w600 : FontWeight.normal,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -305,7 +313,7 @@ class _DesktopSidebar extends StatelessWidget {
             ),
           ),
 
-          // 3. Bottom Robot Telemetry Card
+          // 3. Bottom Robot / Fleet Telemetry Card
           Padding(
             padding: const EdgeInsets.all(12),
             child: Container(
@@ -315,70 +323,124 @@ class _DesktopSidebar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.border),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: AppColors.success,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          robot?.ip ?? '127.0.0.1',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (telemetry.chargeStatus == ChargeStatus.charging ||
-                          telemetry.chargeStatus == ChargeStatus.full)
-                        const Icon(Icons.bolt_rounded, size: 16, color: AppColors.success),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: (telemetry.batteryPercentage ?? 0) / 100.0,
-                            backgroundColor: AppColors.border,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              (telemetry.batteryPercentage ?? 0) <= 20
-                                  ? AppColors.danger
-                                  : AppColors.success,
+              child: isFleet
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Colors.blue,
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                            minHeight: 6,
-                          ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${fleet.fleetServerHost}:${fleet.fleetServerPort}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text('FLEET',
+                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blue)),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        telemetry.batteryPercentage != null
-                            ? telemetry.formatBatteryPercent()
-                            : '—',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textSecondary,
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '${fleet.robots.length} Robots · ${fleet.levels.length} Levels',
+                              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                            ),
+                            Text(
+                              '${fleet.activeMissions.length} Tasks',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: AppColors.success,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                robot?.ip ?? '127.0.0.1',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (telemetry.chargeStatus == ChargeStatus.charging ||
+                                telemetry.chargeStatus == ChargeStatus.full)
+                              const Icon(Icons.bolt_rounded, size: 16, color: AppColors.success),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: (telemetry.batteryPercentage ?? 0) / 100.0,
+                                  backgroundColor: AppColors.border,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    (telemetry.batteryPercentage ?? 0) <= 20
+                                        ? AppColors.danger
+                                        : AppColors.success,
+                                  ),
+                                  minHeight: 6,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              telemetry.batteryPercentage != null
+                                  ? telemetry.formatBatteryPercent()
+                                  : '—',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
             ),
           ),
         ],

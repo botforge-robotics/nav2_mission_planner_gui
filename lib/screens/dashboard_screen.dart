@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 
 import '../providers/connection_provider.dart';
+import '../providers/fleet_provider.dart';
 import '../providers/robot_status.dart';
 import '../providers/robot_telemetry_provider.dart';
+import 'settings/fleet_settings_screen.dart';
 import '../services/alerts_controller.dart';
 import '../services/dock_pose_controller.dart';
 import '../services/map_layers_controller.dart';
@@ -256,10 +258,107 @@ class _DashboardContentState extends State<_DashboardContent> {
     final telemetry = context.watch<RobotTelemetryProvider>();
     final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
 
+    final fleet = context.watch<FleetProvider>();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(fleet.isFleetMode ? 'Fleet Dashboard' : 'Dashboard'),
+            if (fleet.isFleetMode) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${fleet.robots.length} ROBOTS',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
+          if (fleet.isFleetMode && fleet.robots.isNotEmpty)
+            PopupMenuButton<String>(
+              tooltip: 'Select Active Fleet Robot',
+              icon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.smart_toy_rounded, size: 20, color: Colors.blue),
+                  const SizedBox(width: 4),
+                  Text(
+                    fleet.selectedRobot?.name ?? 'Select',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue),
+                  ),
+                  const Icon(Icons.arrow_drop_down, color: Colors.blue),
+                ],
+              ),
+              onSelected: (robotId) {
+                if (robotId == '__fleet_settings__') {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
+                  );
+                } else {
+                  fleet.selectRobot(robotId);
+                }
+              },
+              itemBuilder: (ctx) => [
+                for (final r in fleet.robots)
+                  PopupMenuItem<String>(
+                    value: r.id,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.smart_toy_rounded,
+                          size: 18,
+                          color: fleet.selectedRobotId == r.id ? Colors.blue : Colors.grey,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            r.name,
+                            style: TextStyle(
+                              fontWeight: fleet.selectedRobotId == r.id ? FontWeight.bold : FontWeight.normal,
+                              color: fleet.selectedRobotId == r.id ? Colors.blue : null,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: r.isActive ? Colors.green.shade100 : Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            r.status.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: r.isActive ? Colors.green.shade900 : Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const PopupMenuDivider(),
+                const PopupMenuItem<String>(
+                  value: '__fleet_settings__',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings_suggest_rounded, size: 18, color: Colors.blue),
+                      SizedBox(width: 8),
+                      Text('Manage Fleet & Robots'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           IconButton(
             icon: const Icon(Icons.perm_media_outlined),
             tooltip: 'Robot Media & Signage (DND)',
@@ -441,6 +540,109 @@ class _RobotCard extends StatelessWidget {
         telemetry.chargeStatus == ChargeStatus.full;
     final isActive = _isActiveStatus(status);
 
+    final fleet = context.watch<FleetProvider>();
+
+    if (fleet.isFleetMode) {
+      final selected = fleet.selectedRobot;
+      final robots = fleet.robots;
+      final levels = fleet.levels;
+      final tasks = fleet.activeMissions;
+
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              selected != null ? selected.name : 'Open-RMF Fleet',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                selected != null ? selected.status.toUpperCase() : 'COORDINATING',
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const StatusPulseDot(color: Colors.blue, live: true, size: 8),
+                            const SizedBox(width: 6),
+                            Text(
+                              selected != null
+                                  ? 'Level: ${selected.levelName ?? selected.levelId ?? "L1"} · Dock: ${selected.dockWaypoint ?? "Auto"}'
+                                  : '${fleet.fleetServerHost}:${fleet.fleetServerPort} · Open-RMF Ingress',
+                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${robots.length} Robots Registered · ${levels.length} Building Levels · ${tasks.length} Active Tasks',
+                          style: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+                    ),
+                    child: const Icon(Icons.hub_rounded, size: 36, color: Colors.blue),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                children: [
+                  Text(selected != null ? 'Selected Robot Battery' : 'Fleet Active Tasks', style: Theme.of(context).textTheme.bodyMedium),
+                  const Spacer(),
+                  if (selected?.batteryPercent != null) ...[
+                    const Icon(Icons.battery_full_rounded, size: 16, color: AppColors.success),
+                    const SizedBox(width: 4),
+                    Text('${selected!.batteryPercent!.round()}%', style: AppTextStyles.metricSmall),
+                  ] else ...[
+                    const Icon(Icons.alt_route_rounded, size: 16, color: Colors.green),
+                    const SizedBox(width: 4),
+                    Text('${tasks.length} Active', style: AppTextStyles.metricSmall),
+                  ],
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              AnimatedMetricBar(
+                value: (selected?.batteryPercent != null ? selected!.batteryPercent! / 100 : (robots.isEmpty ? 0 : 1.0)),
+                backgroundColor: AppColors.border,
+                color: Colors.blue,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return ValueListenableBuilder<String?>(
       valueListenable: ModeTransitionTracker.instance.transitioningTo,
       builder: (context, transitioningTo, _) {
@@ -553,6 +755,42 @@ class _StatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fleet = context.watch<FleetProvider>();
+
+    if (fleet.isFleetMode) {
+      return Row(
+        children: [
+          Expanded(
+            child: _Stat(
+              icon: Icons.smart_toy_rounded,
+              label: 'Fleet Robots',
+              value: Text(
+                '${fleet.robots.length} Units',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: _Stat(
+              icon: Icons.alt_route_rounded,
+              label: 'Active Tasks',
+              value: Text(
+                '${fleet.activeMissions.length} In-Flight',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Row(
       children: [
         Expanded(
@@ -856,6 +1094,79 @@ class _StatGridDesktop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fleet = context.watch<FleetProvider>();
+
+    if (fleet.isFleetMode) {
+      final selected = fleet.selectedRobot;
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _Stat(
+                  icon: Icons.smart_toy_rounded,
+                  label: 'Fleet Size',
+                  value: Text(
+                    '${fleet.robots.length} Robots',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _Stat(
+                  icon: Icons.alt_route_rounded,
+                  label: 'Active Tasks',
+                  value: Text(
+                    '${fleet.activeMissions.length} In-Flight',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: _Stat(
+                  icon: Icons.layers_rounded,
+                  label: 'Building Levels',
+                  value: Text(
+                    '${fleet.levels.length} Levels',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _Stat(
+                  icon: Icons.tune_rounded,
+                  label: 'Selected Unit',
+                  value: Text(
+                    selected?.name ?? 'Auto Dispatch',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
     return Column(
       children: [
         Row(

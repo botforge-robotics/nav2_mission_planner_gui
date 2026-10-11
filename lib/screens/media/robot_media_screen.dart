@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/connection_provider.dart';
+import '../../providers/fleet_provider.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
@@ -321,10 +322,46 @@ class _RobotMediaScreenState extends State<RobotMediaScreen> {
       return type == _filter;
     }).toList();
 
+    final fleet = context.watch<FleetProvider>();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Robot Media & Signage'),
+        title: Text(
+          fleet.isFleetMode && fleet.selectedRobot != null
+              ? '${fleet.selectedRobot!.name} Media & Display'
+              : 'Robot Media & Signage',
+        ),
         actions: [
+          if (fleet.isFleetMode && fleet.robots.isNotEmpty)
+            PopupMenuButton<String>(
+              tooltip: 'Switch Robot',
+              icon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.smart_toy_rounded, size: 20, color: Colors.blue),
+                  const SizedBox(width: 4),
+                  Text(
+                    fleet.selectedRobot?.name ?? 'Select',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue),
+                  ),
+                  const Icon(Icons.arrow_drop_down, color: Colors.blue),
+                ],
+              ),
+              onSelected: (id) => fleet.selectRobot(id),
+              itemBuilder: (_) => [
+                for (final r in fleet.robots)
+                  PopupMenuItem<String>(
+                    value: r.id,
+                    child: Text(
+                      r.name,
+                      style: TextStyle(
+                        fontWeight: fleet.selectedRobotId == r.id ? FontWeight.bold : FontWeight.normal,
+                        color: fleet.selectedRobotId == r.id ? Colors.blue : null,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh Media List',

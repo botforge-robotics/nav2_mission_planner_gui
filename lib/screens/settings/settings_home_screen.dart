@@ -89,14 +89,51 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
             child: ListView(
               padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
-                const _RobotSummaryCard(),
+                Consumer<FleetProvider>(
+                  builder: (context, fleet, _) {
+                    if (fleet.isFleetMode) {
+                      return _FleetSummaryHeader(fleet: fleet);
+                    }
+                    return const _RobotSummaryCard();
+                  },
+                ),
                 const SizedBox(height: AppSpacing.lg),
                 _SettingsTile(
-                  icon: Icons.tune_rounded,
-                  title: 'Robot Settings & Power',
-                  subtitle: 'Hardware status, power off, reboot, reset',
-                  onTap: () => pushWithTelemetry(
-                      context, const RobotStatusScreen()),
+                  icon: Icons.hub_rounded,
+                  title: 'Open-RMF Fleet Management',
+                  subtitle: 'Multi-robot fleet coordination, levels, and commissioning',
+                  trailing: Consumer<FleetProvider>(
+                    builder: (_, fleet, __) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: fleet.isFleetMode ? Colors.blue.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: fleet.isFleetMode ? Colors.blue : Colors.grey),
+                      ),
+                      child: Text(
+                        fleet.isFleetMode ? 'FLEET ACTIVE' : 'DIRECT',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: fleet.isFleetMode ? Colors.blue : Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
+                  ),
+                ),
+                Consumer<FleetProvider>(
+                  builder: (context, fleet, _) => _SettingsTile(
+                    icon: Icons.tune_rounded,
+                    title: fleet.isFleetMode ? 'Selected Robot Settings & Power' : 'Robot Settings & Power',
+                    subtitle: fleet.isFleetMode
+                        ? 'Hardware status, power off, reboot for active robot'
+                        : 'Hardware status, power off, reboot, reset',
+                    onTap: () => pushWithTelemetry(
+                        context, const RobotStatusScreen()),
+                  ),
                 ),
                 AnimatedBuilder(
                   animation: GamepadService.instance,
@@ -124,32 +161,6 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                       ),
                     );
                   },
-                ),
-                _SettingsTile(
-                  icon: Icons.hub_rounded,
-                  title: 'Open-RMF Fleet Management',
-                  subtitle: 'Multi-robot fleet coordination, levels, and commissioning',
-                  trailing: Consumer<FleetProvider>(
-                    builder: (_, fleet, __) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: fleet.isFleetMode ? Colors.blue.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: fleet.isFleetMode ? Colors.blue : Colors.grey),
-                      ),
-                      child: Text(
-                        fleet.isFleetMode ? 'FLEET ACTIVE' : 'DIRECT',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: fleet.isFleetMode ? Colors.blue : Colors.grey,
-                        ),
-                      ),
-                    ),
-                  ),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
-                  ),
                 ),
                 _SettingsTile(
                   icon: Icons.report_gmailerrorred_rounded,
@@ -183,12 +194,14 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                   padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   child: Divider(),
                 ),
-                _SettingsTile(
-                  icon: Icons.perm_media_rounded,
-                  title: 'Robot Media & Signage (DND)',
-                  subtitle: 'Share images/videos to robot display & manage media',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const RobotMediaScreen())),
+                Consumer<FleetProvider>(
+                  builder: (context, fleet, _) => _SettingsTile(
+                    icon: Icons.perm_media_rounded,
+                    title: fleet.isFleetMode ? 'Robot Media & Signage (Selected Robot)' : 'Robot Media & Signage (DND)',
+                    subtitle: 'Share images/videos to robot display & manage media',
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const RobotMediaScreen())),
+                  ),
                 ),
                 _SettingsTile(
                   icon: Icons.system_update_alt_rounded,
@@ -197,41 +210,55 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const SoftwareUpdateScreen())),
                 ),
-                _SettingsTile(
-                  icon: Icons.swap_horiz_rounded,
-                  title: 'Change Robot',
-                  subtitle: 'Forget saved robot and connect to a different one',
-                  onTap: () async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Change Robot?'),
-                        content: const Text(
-                            'This will forget the currently saved robot. '
-                            'You can reconnect to it or scan for a new one.'),
-                        actions: [
-                          TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancel')),
-                          TextButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('Forget & Change')),
-                        ],
-                      ),
+                Consumer<FleetProvider>(
+                  builder: (context, fleet, _) {
+                    if (fleet.isFleetMode) {
+                      return _SettingsTile(
+                        icon: Icons.alt_route_rounded,
+                        title: 'Select Active Fleet Robot',
+                        subtitle: 'Currently: ${fleet.selectedRobot?.name ?? "Auto"} (${fleet.robots.length} online)',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
+                        ),
+                      );
+                    }
+                    return _SettingsTile(
+                      icon: Icons.swap_horiz_rounded,
+                      title: 'Change Robot',
+                      subtitle: 'Forget saved robot and connect to a different one',
+                      onTap: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Change Robot?'),
+                            content: const Text(
+                                'This will forget the currently saved robot. '
+                                'You can reconnect to it or scan for a new one.'),
+                            actions: [
+                              TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel')),
+                              TextButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Forget & Change')),
+                            ],
+                          ),
+                        );
+                        if (confirmed != true) return;
+                        if (!context.mounted) return;
+                        final navigator = Navigator.of(context, rootNavigator: true);
+                        final conn = context.read<ConnectionProvider>();
+                        try {
+                          context.read<SetupFlowController>().reset();
+                        } catch (_) {}
+                        navigator.pushAndRemoveUntil(
+                          MaterialPageRoute(
+                              builder: (_) => const SetupPowerScreen()),
+                          (route) => false,
+                        );
+                        await conn.forget();
+                      },
                     );
-                    if (confirmed != true) return;
-                    if (!context.mounted) return;
-                    final navigator = Navigator.of(context, rootNavigator: true);
-                    final conn = context.read<ConnectionProvider>();
-                    try {
-                      context.read<SetupFlowController>().reset();
-                    } catch (_) {}
-                    navigator.pushAndRemoveUntil(
-                      MaterialPageRoute(
-                          builder: (_) => const SetupPowerScreen()),
-                      (route) => false,
-                    );
-                    await conn.forget();
                   },
                 ),
                 _SettingsTile(
@@ -418,3 +445,145 @@ class _SettingsTile extends StatelessWidget {
     );
   }
 }
+
+class _FleetSummaryHeader extends StatelessWidget {
+  const _FleetSummaryHeader({required this.fleet});
+
+  final FleetProvider fleet;
+
+  @override
+  Widget build(BuildContext context) {
+    final robots = fleet.robots;
+    final levels = fleet.levels;
+    final missions = fleet.activeMissions;
+    final selected = fleet.selectedRobot;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.hub_rounded, color: Colors.blue, size: 28),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text('Open-RMF Fleet', style: Theme.of(context).textTheme.titleMedium),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text('FLEET MODE',
+                                  style: TextStyle(color: Colors.blue, fontSize: 10, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${fleet.fleetServerHost}:${fleet.fleetServerPort} · ${robots.length} robots online',
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
+                ],
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildMiniStat(
+                    context,
+                    label: 'Robots',
+                    value: '${robots.length}',
+                    icon: Icons.smart_toy_rounded,
+                    color: Colors.blue,
+                  ),
+                ),
+                Expanded(
+                  child: _buildMiniStat(
+                    context,
+                    label: 'Levels',
+                    value: '${levels.length}',
+                    icon: Icons.layers_rounded,
+                    color: Colors.orange,
+                  ),
+                ),
+                Expanded(
+                  child: _buildMiniStat(
+                    context,
+                    label: 'Active Tasks',
+                    value: '${missions.length}',
+                    icon: Icons.alt_route_rounded,
+                    color: Colors.green,
+                  ),
+                ),
+                if (selected != null)
+                  Expanded(
+                    child: _buildMiniStat(
+                      context,
+                      label: 'Active Unit',
+                      value: selected.name,
+                      icon: Icons.check_circle_outline_rounded,
+                      color: Colors.teal,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStat(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+      ],
+    );
+  }
+}
+

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 
 import '../../providers/connection_provider.dart';
+import '../../providers/fleet_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../services/dock_pose_controller.dart';
 import '../../services/locations_controller.dart';
@@ -508,12 +509,63 @@ class _TeleopScreenState extends State<TeleopScreen> {
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     final isDesktop = Breakpoints.of(context) == DeviceClass.desktop || isLandscape;
 
+    final fleet = context.watch<FleetProvider>();
+
     if (isDesktop) {
       return Scaffold(
         appBar: AppBar(
           toolbarHeight: isLandscape ? 40 : 46,
-          title: const Text('Teleoperation Cockpit'),
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Teleoperation Cockpit'),
+              if (fleet.isFleetMode && fleet.selectedRobot != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'ROBOT: ${fleet.selectedRobot!.name}',
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
+                  ),
+                ),
+              ],
+            ],
+          ),
           actions: [
+            if (fleet.isFleetMode && fleet.robots.isNotEmpty)
+              PopupMenuButton<String>(
+                tooltip: 'Switch Teleoperated Robot',
+                icon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.smart_toy_rounded, size: 20, color: Colors.blue),
+                    const SizedBox(width: 4),
+                    Text(
+                      fleet.selectedRobot?.name ?? 'Select Robot',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue),
+                    ),
+                    const Icon(Icons.arrow_drop_down, color: Colors.blue),
+                  ],
+                ),
+                onSelected: (id) => fleet.selectRobot(id),
+                itemBuilder: (_) => [
+                  for (final r in fleet.robots)
+                    PopupMenuItem<String>(
+                      value: r.id,
+                      child: Text(
+                        r.name,
+                        style: TextStyle(
+                          fontWeight: fleet.selectedRobotId == r.id ? FontWeight.bold : FontWeight.normal,
+                          color: fleet.selectedRobotId == r.id ? Colors.blue : null,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             AnimatedBuilder(
               animation: GamepadService.instance,
               builder: (context, _) {
@@ -675,8 +727,46 @@ class _TeleopScreenState extends State<TeleopScreen> {
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 46,
-        title: const Text('Teleoperation'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Teleoperation'),
+            if (fleet.isFleetMode && fleet.selectedRobot != null) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  fleet.selectedRobot!.name,
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
+          if (fleet.isFleetMode && fleet.robots.isNotEmpty)
+            PopupMenuButton<String>(
+              tooltip: 'Switch Robot',
+              icon: const Icon(Icons.smart_toy_rounded, size: 20, color: Colors.blue),
+              onSelected: (id) => fleet.selectRobot(id),
+              itemBuilder: (_) => [
+                for (final r in fleet.robots)
+                  PopupMenuItem<String>(
+                    value: r.id,
+                    child: Text(
+                      r.name,
+                      style: TextStyle(
+                        fontWeight: fleet.selectedRobotId == r.id ? FontWeight.bold : FontWeight.normal,
+                        color: fleet.selectedRobotId == r.id ? Colors.blue : null,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           AnimatedBuilder(
             animation: GamepadService.instance,
             builder: (context, _) {
