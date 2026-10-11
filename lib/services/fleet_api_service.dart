@@ -226,7 +226,7 @@ class FleetApiService {
     String? robot,
     int? version,
   }) async {
-    final res = await _post('/api/v1/workflows/missions', body: {
+    final res = await _post('/api/v1/missions', body: {
       'workflowId': workflowId,
       'fleet': fleet,
       if (robot != null) 'robot': robot,
@@ -236,12 +236,13 @@ class FleetApiService {
   }
 
   Future<List<Map<String, dynamic>>> getActiveMissions() async {
-    final res = await _get('/api/v1/workflows/missions');
+    final res = await _get('/api/v1/missions');
     if (res is List) return res.cast<Map<String, dynamic>>();
     return [];
   }
 
   Future<void> cancelMission(String missionId) async {
-    await _post('/api/v1/workflows/missions/$missionId/cancel');
+    await _post('/api/v1/missions/$missionId/cancel');
   }
 }
+
