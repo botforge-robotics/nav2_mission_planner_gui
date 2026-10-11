@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:nav_msgs/msg.dart' as nav_msgs;
 import 'package:provider/provider.dart';
 
+import '../../models/fleet_models.dart';
 import '../../models/map_zone.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/fleet_provider.dart';
@@ -20,6 +21,7 @@ import '../../widgets/map/occupancy_grid_view.dart';
 import '../../widgets/navigation/dock_action_sheet.dart';
 import '../../widgets/navigation/go_to_confirm_sheet.dart';
 import '../dock/dock_position_editor_screen.dart';
+import 'create_map_screen.dart';
 
 /// Reference §5's Map View (2D) — the currently-active map, live, with the
 /// robot's position, plus real controls: zoom, a Layers panel (dock,
@@ -1094,6 +1096,76 @@ class _MapViewScreenState extends State<MapViewScreen> {
     }
   }
 
+  Future<void> _showSelectRobotForMappingDialog(FleetProvider fleet, ConnectionProvider connection) async {
+    final robots = fleet.robots;
+    if (robots.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No AMR robots available in fleet to perform mapping.')),
+      );
+      return;
+    }
+
+    final selected = await showDialog<FleetRobotInfo>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.add_location_alt_rounded, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Select Robot to Map Floor'),
+          ],
+        ),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Choose which physical AMR will execute the SLAM mapping session for the new floor level:',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              ...robots.map((r) {
+                final ip = fleet.getRobotIp(r.id) ?? r.ip;
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  leading: const CircleAvatar(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    child: Icon(Icons.smart_toy_rounded, size: 20),
+                  ),
+                  title: Text(r.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  subtitle: Text(ip != null ? 'IP: $ip' : 'Serial: ${r.serial}', style: const TextStyle(fontSize: 11)),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                  onTap: () => Navigator.of(ctx).pop(r),
+                );
+              }),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (selected != null && mounted) {
+      final ip = fleet.getRobotIp(selected.id) ?? selected.ip;
+      if (ip != null && connection.robot?.ip != ip) {
+        await connection.updateRobotIp(ip, name: selected.name);
+      }
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const CreateMapScreen(fromSetup: false)),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final connection = context.watch<ConnectionProvider>();
@@ -1108,7 +1180,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
         title: Row(
           children: [
             Text(isDesktop ? '2D Map Cockpit' : 'Map View'),
-            if (fleet.isFleetMode && fleet.levels.isNotEmpty) ...[
+            if (fleet.isFleetMode) ...[
               const SizedBox(width: 12),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
@@ -1126,23 +1198,40 @@ class _MapViewScreenState extends State<MapViewScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                     icon: const Icon(Icons.layers_rounded, size: 16),
-                    items: fleet.levels.map((level) {
-                      return DropdownMenuItem<String>(
-                        value: level.id,
+                    items: [
+                      ...fleet.levels.map((level) {
+                        return DropdownMenuItem<String>(
+                          value: level.id,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.stairs_rounded, size: 16, color: Colors.blue),
+                              const SizedBox(width: 6),
+                              Text(level.name),
+                            ],
+                          ),
+                        );
+                      }),
+                      const DropdownMenuItem<String>(
+                        value: '__create_map__',
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.stairs_rounded, size: 16, color: Colors.blue),
-                            const SizedBox(width: 6),
-                            Text(level.name),
+                            Icon(Icons.add_circle_outline_rounded, size: 16, color: Colors.green),
+                            SizedBox(width: 6),
+                            Text(
+                              '+ Create New Map / Floor',
+                              style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                            ),
                           ],
                         ),
-                      );
-                    }).toList(),
+                      ),
+                    ],
                     onChanged: (newLevelId) {
-                      if (newLevelId != null) {
+                      if (newLevelId == '__create_map__') {
+                        _showSelectRobotForMappingDialog(fleet, connection);
+                      } else if (newLevelId != null) {
                         fleet.selectLevel(newLevelId);
-                        // In multi-floor setup, changing level updates the active view
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Switched to Level: ${fleet.selectedLevel?.name}'),

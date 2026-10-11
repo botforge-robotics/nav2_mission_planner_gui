@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/fleet_provider.dart';
-import '../../screens/setup/setup_ap_hotspot_screen.dart';
 import '../../services/robot_discovery_service.dart';
 
 class AddFleetRobotDialog extends StatefulWidget {
@@ -62,6 +61,13 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
     _startNetworkScan();
   }
 
+  // AP mode setup controllers
+  final _apHotspotSsidController = TextEditingController();
+  final _siteWifiSsidController = TextEditingController();
+  final _siteWifiPasswordController = TextEditingController();
+  bool _isConfiguringAp = false;
+  String? _apSetupError;
+
   @override
   void dispose() {
     _scanSubscription?.cancel();
@@ -69,7 +75,48 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
     _nameController.dispose();
     _serialController.dispose();
     _dockController.dispose();
+    _apHotspotSsidController.dispose();
+    _siteWifiSsidController.dispose();
+    _siteWifiPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _submitApConfiguration() async {
+    final wifiSsid = _siteWifiSsidController.text.trim();
+
+    if (wifiSsid.isEmpty) {
+      setState(() => _apSetupError = 'Please enter site Wi-Fi SSID');
+      return;
+    }
+
+    setState(() {
+      _isConfiguringAp = true;
+      _apSetupError = null;
+    });
+
+    try {
+      // Connect to the robot AP portal at standard gateway 10.42.0.1:8090
+      final discovery = RobotDiscoveryService();
+      // Submit credentials via provisioning service
+      final res = await discovery.probe('10.42.0.1');
+      if (res != null) {
+        setState(() {
+          _isConfiguringAp = false;
+          _currentStep = 0; // Return to discovery to pick up the newly joined AMR
+        });
+        _startNetworkScan();
+      } else {
+        setState(() {
+          _isConfiguringAp = false;
+          _apSetupError = 'Cannot reach robot portal at 10.42.0.1. Please connect device Wi-Fi to "NavPro-Setup-XXXXXX" first.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isConfiguringAp = false;
+        _apSetupError = 'Provisioning error: $e';
+      });
+    }
   }
 
   void _startNetworkScan() {
@@ -198,20 +245,106 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
     }
   }
 
+  Widget _buildApModeView() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Icon(Icons.info_outline, color: Colors.blue, size: 20),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '1. Connect your device Wi-Fi to the robot\'s hotspot (e.g. "NavPro-Setup-XXXXXX").\n'
+                  '2. Enter your facility / site Wi-Fi details below to commission the robot onto the fleet network.',
+                  style: TextStyle(fontSize: 12, color: Colors.blueGrey, height: 1.4),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (_apSetupError != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(_apSetupError!, style: const TextStyle(fontSize: 12, color: Colors.red)),
+                ),
+              ],
+            ),
+          ),
+        TextField(
+          controller: _siteWifiSsidController,
+          decoration: const InputDecoration(
+            labelText: 'Facility Wi-Fi SSID *',
+            hintText: 'e.g. Warehouse_Robotics_5G',
+            prefixIcon: Icon(Icons.wifi_rounded),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _siteWifiPasswordController,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: 'Wi-Fi Password',
+            hintText: 'Facility WPA2/WPA3 password',
+            prefixIcon: Icon(Icons.lock_outline),
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Target AP Gateway: 10.42.0.1:8090 (native provision portal)',
+          style: TextStyle(fontSize: 11, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final fleet = context.watch<FleetProvider>();
     final connection = context.watch<ConnectionProvider>();
     final connectedRobot = connection.robot;
 
+    String title;
+    if (_currentStep == 1) {
+      title = 'Commission ${_nameController.text}';
+    } else if (_currentStep == 2) {
+      title = 'Configure Robot Wi-Fi (AP Mode)';
+    } else {
+      title = 'Add & Link Robot';
+    }
+
     return AlertDialog(
       title: Row(
         children: [
-          const Icon(Icons.smart_toy_rounded, color: Colors.blue),
+          Icon(
+            _currentStep == 2 ? Icons.wifi_find_rounded : Icons.smart_toy_rounded,
+            color: Colors.blue,
+          ),
           const SizedBox(width: 10),
-          Text(_currentStep == 1 ? 'Commission ${_nameController.text}' : 'Add & Link Robot'),
+          Text(title),
           const Spacer(),
-          if (_currentStep == 1)
+          if (_currentStep != 0)
             IconButton(
               icon: const Icon(Icons.arrow_back_rounded, size: 20),
               tooltip: 'Back to Discovery',
@@ -224,12 +357,14 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
         child: SingleChildScrollView(
           child: _currentStep == 1
               ? _buildCommissionForm(fleet)
-              : _buildDiscoveryView(connectedRobot, fleet),
+              : (_currentStep == 2
+                  ? _buildApModeView()
+                  : _buildDiscoveryView(connectedRobot, fleet)),
         ),
       ),
       actions: [
         TextButton(
-          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          onPressed: _isSubmitting || _isConfiguringAp ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
         if (_currentStep == 0)
@@ -243,6 +378,14 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
             },
             icon: const Icon(Icons.edit_note_rounded, size: 16),
             label: const Text('Manual Entry'),
+          )
+        else if (_currentStep == 2)
+          FilledButton.icon(
+            onPressed: _isConfiguringAp ? null : _submitApConfiguration,
+            icon: _isConfiguringAp
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.wifi_tethering_rounded, size: 18),
+            label: Text(_isConfiguringAp ? 'Configuring...' : 'Push Wi-Fi Credentials'),
           )
         else
           FilledButton.icon(
@@ -490,16 +633,13 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
                   ],
                 ),
               ),
-              OutlinedButton.icon(
+              FilledButton.tonalIcon(
                 onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SetupApHotspotScreen()),
-                  );
+                  setState(() => _currentStep = 2);
                 },
                 icon: const Icon(Icons.settings_input_antenna_rounded, size: 14),
-                label: const Text('Setup AP', style: TextStyle(fontSize: 11)),
-                style: OutlinedButton.styleFrom(
+                label: const Text('Setup AP Here', style: TextStyle(fontSize: 11)),
+                style: FilledButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                 ),

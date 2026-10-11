@@ -29,7 +29,6 @@ class MapLayersController extends ValueNotifier<Set<MapLayer>> {
           MapLayer.dock,
           MapLayer.locations,
           MapLayer.path,
-          MapLayer.laserScan,
           MapLayer.zones,
         }) {
     _load();

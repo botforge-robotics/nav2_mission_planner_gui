@@ -9,7 +9,7 @@ import '../../providers/fleet_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../screens/dashboard_screen.dart';
 import '../../screens/maps/create_map_screen.dart';
-import '../../screens/maps/maps_list_screen.dart';
+import '../../screens/maps/map_view_screen.dart';
 import '../../screens/missions/missions_list_screen.dart';
 import '../../screens/settings/settings_home_screen.dart';
 import '../../screens/teleop/teleop_screen.dart';
@@ -85,7 +85,7 @@ class _ShellNavState extends State<_ShellNav> {
     _Destination('Dashboard', Icons.dashboard_outlined, Icons.dashboard_rounded,
         DashboardScreen()),
     _Destination(
-        'Maps', Icons.map_outlined, Icons.map_rounded, MapsListScreen()),
+        'Map Cockpit', Icons.map_outlined, Icons.map_rounded, MapViewScreen()),
     _Destination('Missions', Icons.flag_outlined, Icons.flag_rounded,
         MissionsListScreen()),
     _Destination('Teleop', Icons.videogame_asset_outlined,

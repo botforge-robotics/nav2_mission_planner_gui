@@ -285,128 +285,51 @@ class _DashboardContentState extends State<_DashboardContent> {
           ],
         ),
         actions: [
-          if (fleet.isFleetMode && fleet.robots.isNotEmpty)
-            PopupMenuButton<String>(
-              tooltip: 'Select Active Fleet Robot',
-              icon: Row(
+          if (fleet.isFleetMode) ...[
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+              ),
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.smart_toy_rounded, size: 20, color: Colors.blue),
-                  const SizedBox(width: 4),
+                  const StatusPulseDot(color: Colors.blue, live: true, size: 7),
+                  const SizedBox(width: 6),
                   Text(
-                    fleet.selectedRobot?.name ?? 'Select',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue),
+                    '${fleet.robots.length} AMR${fleet.robots.length == 1 ? '' : 's'} Active',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
                   ),
-                  const Icon(Icons.arrow_drop_down, color: Colors.blue),
                 ],
               ),
-              onSelected: (robotId) async {
-                if (robotId == '__fleet_settings__') {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
-                  );
-                } else if (robotId.startsWith('__connect_ip__:')) {
-                  final parts = robotId.replaceFirst('__connect_ip__:', '').split('|');
-                  final ip = parts[0];
-                  final name = parts.length > 1 ? parts[1] : null;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Switching live ROS 2 connection to $name ($ip)...')),
-                  );
-                  await widget.connection.updateRobotIp(ip, name: name);
-                } else {
-                  fleet.selectRobot(robotId);
-                }
-              },
-              itemBuilder: (ctx) => [
-                for (final r in fleet.robots) ...[
-                  PopupMenuItem<String>(
-                    value: r.id,
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.smart_toy_rounded,
-                          size: 18,
-                          color: fleet.selectedRobotId == r.id ? Colors.blue : Colors.grey,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                r.name,
-                                style: TextStyle(
-                                  fontWeight: fleet.selectedRobotId == r.id ? FontWeight.bold : FontWeight.normal,
-                                  color: fleet.selectedRobotId == r.id ? Colors.blue : null,
-                                ),
-                              ),
-                              if (fleet.getRobotIp(r.id) != null)
-                                Text(
-                                  fleet.getRobotIp(r.id)!,
-                                  style: const TextStyle(fontSize: 10, color: Colors.grey),
-                                ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: r.isActive ? Colors.green.shade100 : Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            r.status.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              color: r.isActive ? Colors.green.shade900 : Colors.grey.shade700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (fleet.getRobotIp(r.id) != null && widget.robot.ip != fleet.getRobotIp(r.id))
-                    PopupMenuItem<String>(
-                      value: '__connect_ip__:${fleet.getRobotIp(r.id)}|${r.name}',
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 26),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.wifi_tethering, size: 14, color: Colors.blue),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Connect App Directly (${fleet.getRobotIp(r.id)})',
-                              style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-                const PopupMenuDivider(),
-                const PopupMenuItem<String>(
-                  value: '__fleet_settings__',
-                  child: Row(
-                    children: [
-                      Icon(Icons.settings_suggest_rounded, size: 18, color: Colors.blue),
-                      SizedBox(width: 8),
-                      Text('Manage Fleet & Robots'),
-                    ],
-                  ),
-                ),
-              ],
             ),
-          IconButton(
-            icon: const Icon(Icons.perm_media_outlined),
-            tooltip: 'Robot Media & Signage (DND)',
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const RobotMediaScreen(),
-              ));
-            },
-          ),
+            IconButton(
+              icon: const Icon(Icons.settings_suggest_rounded, color: Colors.blue),
+              tooltip: 'Manage Fleet & Robots',
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
+                );
+              },
+            ),
+          ] else ...[
+            IconButton(
+              icon: const Icon(Icons.perm_media_outlined),
+              tooltip: 'Robot Media & Signage (DND)',
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const RobotMediaScreen(),
+                ));
+              },
+            ),
+          ],
           _AppBarBatteryWidget(telemetry: telemetry),
         ],
       ),
@@ -582,10 +505,19 @@ class _RobotCard extends StatelessWidget {
     final fleet = context.watch<FleetProvider>();
 
     if (fleet.isFleetMode) {
-      final selected = fleet.selectedRobot;
       final robots = fleet.robots;
       final levels = fleet.levels;
       final tasks = fleet.activeMissions;
+
+      final onlineCount = robots.where((r) => r.isActive || r.status == 'active' || r.status == 'ready' || r.status == 'moving').length;
+      final offlineCount = robots.length - onlineCount;
+      final chargingCount = robots.where((r) => r.isCharging).length;
+
+      // Calculate fleet average battery
+      final robotsWithBattery = robots.where((r) => r.batteryPercent != null).toList();
+      final avgBattery = robotsWithBattery.isEmpty
+          ? null
+          : (robotsWithBattery.fold<double>(0.0, (acc, r) => acc + r.batteryPercent!) / robotsWithBattery.length);
 
       return Card(
         child: Padding(
@@ -603,7 +535,7 @@ class _RobotCard extends StatelessWidget {
                         Row(
                           children: [
                             Text(
-                              selected != null ? selected.name : 'NavPro Mini Fleet',
+                              'NavPro Mini Fleet',
                               style: Theme.of(context).textTheme.headlineSmall,
                             ),
                             const SizedBox(width: 8),
@@ -614,7 +546,7 @@ class _RobotCard extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                selected != null ? selected.status.toUpperCase() : 'COORDINATING',
+                                '${robots.length} AMRS',
                                 style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
                               ),
                             ),
@@ -623,58 +555,60 @@ class _RobotCard extends StatelessWidget {
                         const SizedBox(height: 6),
                         Row(
                           children: [
-                            const StatusPulseDot(color: Colors.blue, live: true, size: 8),
+                            const StatusPulseDot(color: Colors.green, live: true, size: 8),
                             const SizedBox(width: 6),
                             Text(
-                              selected != null
-                                  ? 'Level: ${selected.levelName ?? selected.levelId ?? "L1"} · Dock: ${selected.dockWaypoint ?? "Auto"}'
-                                  : '${fleet.fleetServerHost}:${fleet.fleetServerPort} · NavPro Mini Fleet Ingress',
-                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                              '$onlineCount Online · $offlineCount Offline · $chargingCount Charging',
+                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${robots.length} Robots Registered · ${levels.length} Building Levels · ${tasks.length} Active Tasks',
-                          style: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                          '${levels.length} Building Levels · ${tasks.length} In-Flight Tasks · Coordinator: ${fleet.fleetServerHost}:${fleet.fleetServerPort}',
+                          style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Container(
-                    width: 72,
-                    height: 72,
+                    width: 64,
+                    height: 64,
                     decoration: BoxDecoration(
                       color: Colors.blue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
                     ),
-                    child: const Icon(Icons.hub_rounded, size: 36, color: Colors.blue),
+                    child: const Icon(Icons.hub_rounded, size: 32, color: Colors.blue),
                   ),
                 ],
               ),
               const SizedBox(height: AppSpacing.lg),
               Row(
                 children: [
-                  Text(selected != null ? 'Selected Robot Battery' : 'Fleet Active Tasks', style: Theme.of(context).textTheme.bodyMedium),
+                  const Text('Fleet Battery Status', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                   const Spacer(),
-                  if (selected?.batteryPercent != null) ...[
-                    const Icon(Icons.battery_full_rounded, size: 16, color: AppColors.success),
+                  if (avgBattery != null) ...[
+                    Icon(
+                      avgBattery <= 20 ? Icons.battery_alert_rounded : Icons.battery_charging_full_rounded,
+                      size: 16,
+                      color: avgBattery <= 20 ? Colors.red : Colors.green,
+                    ),
                     const SizedBox(width: 4),
-                    Text('${selected!.batteryPercent!.round()}%', style: AppTextStyles.metricSmall),
+                    Text('${avgBattery.round()}% Fleet Avg', style: AppTextStyles.metricSmall),
                   ] else ...[
-                    const Icon(Icons.alt_route_rounded, size: 16, color: Colors.green),
+                    const Icon(Icons.battery_std_rounded, size: 16, color: Colors.grey),
                     const SizedBox(width: 4),
-                    Text('${tasks.length} Active', style: AppTextStyles.metricSmall),
+                    Text('${robots.length} Robots', style: AppTextStyles.metricSmall),
                   ],
                 ],
               ),
               const SizedBox(height: AppSpacing.xs),
               AnimatedMetricBar(
-                value: (selected?.batteryPercent != null ? selected!.batteryPercent! / 100 : (robots.isEmpty ? 0 : 1.0)),
+                value: (avgBattery != null ? avgBattery / 100 : (robots.isEmpty ? 0 : 1.0)),
                 backgroundColor: AppColors.border,
-                color: Colors.blue,
+                color: (avgBattery != null && avgBattery <= 20) ? Colors.red : Colors.blue,
               ),
               const SizedBox(height: AppSpacing.md),
               Row(
@@ -1156,7 +1090,10 @@ class _StatGridDesktop extends StatelessWidget {
     final fleet = context.watch<FleetProvider>();
 
     if (fleet.isFleetMode) {
-      final selected = fleet.selectedRobot;
+      final robots = fleet.robots;
+      final onlineCount = robots.where((r) => r.isActive || r.status == 'active' || r.status == 'ready' || r.status == 'moving').length;
+      final chargingCount = robots.where((r) => r.isCharging).length;
+
       return Column(
         children: [
           Row(
@@ -1164,12 +1101,12 @@ class _StatGridDesktop extends StatelessWidget {
               Expanded(
                 child: _Stat(
                   icon: Icons.smart_toy_rounded,
-                  label: 'Fleet Size',
+                  label: 'Online AMRs',
                   value: Text(
-                    '${fleet.robots.length} Robots',
+                    '$onlineCount / ${robots.length} Online',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.blue,
+                          color: Colors.green,
                         ),
                   ),
                 ),
@@ -1178,12 +1115,12 @@ class _StatGridDesktop extends StatelessWidget {
               Expanded(
                 child: _Stat(
                   icon: Icons.alt_route_rounded,
-                  label: 'Active Tasks',
+                  label: 'In-Flight Tasks',
                   value: Text(
-                    '${fleet.activeMissions.length} In-Flight',
+                    '${fleet.activeMissions.length} Active',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.green,
+                          color: Colors.blue,
                         ),
                   ),
                 ),
@@ -1198,7 +1135,7 @@ class _StatGridDesktop extends StatelessWidget {
                   icon: Icons.layers_rounded,
                   label: 'Building Levels',
                   value: Text(
-                    '${fleet.levels.length} Levels',
+                    '${fleet.levels.length} Floors',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: Colors.orange,
@@ -1209,12 +1146,13 @@ class _StatGridDesktop extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: _Stat(
-                  icon: Icons.tune_rounded,
-                  label: 'Selected Unit',
+                  icon: Icons.battery_charging_full_rounded,
+                  label: 'Charging Docks',
                   value: Text(
-                    selected?.name ?? 'Auto Dispatch',
+                    '$chargingCount Charging',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: Colors.teal,
                         ),
                     overflow: TextOverflow.ellipsis,
                   ),
