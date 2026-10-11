@@ -22,6 +22,7 @@ import '../../widgets/navigation/dock_action_sheet.dart';
 import '../../widgets/navigation/go_to_confirm_sheet.dart';
 import '../dock/dock_position_editor_screen.dart';
 import 'create_map_screen.dart';
+import 'traffic_editor_screen.dart';
 
 /// Reference §5's Map View (2D) — the currently-active map, live, with the
 /// robot's position, plus real controls: zoom, a Layers panel (dock,
@@ -1073,7 +1074,12 @@ class _MapViewScreenState extends State<MapViewScreen> {
 
   Future<void> _confirmLocalize() async {
     final draft = _draftPose;
-    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final conn = context.read<ConnectionProvider>();
+    final fleet = context.read<FleetProvider>();
+    final activeRobotName = fleet.isFleetMode
+        ? (fleet.selectedRobot?.name ?? conn.robot?.name ?? 'Robot')
+        : (conn.robot?.name ?? 'Robot');
+    final ip = conn.robot?.ip;
     final api = _apiFor(ip);
     if (draft == null || api == null) return;
     setState(() => _localizing = true);
@@ -1085,13 +1091,13 @@ class _MapViewScreenState extends State<MapViewScreen> {
         _draftPose = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Localized to the selected position.')));
+          SnackBar(content: Text('Localized $activeRobotName to the selected position on map.')));
     } on SdkApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
           e.isUnreachable
-              ? "Localizing needs navpro-sdk.service — it isn't reachable right now."
+              ? "Localizing $activeRobotName needs navpro-sdk.service — it isn't reachable right now."
               : e.message,
         ),
       ));
@@ -1267,10 +1273,32 @@ class _MapViewScreenState extends State<MapViewScreen> {
                           ],
                         ),
                       ),
+                      const DropdownMenuItem<String>(
+                        value: '__traffic_editor__',
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.alt_route_rounded, size: 16, color: Colors.amber),
+                            SizedBox(width: 6),
+                            Text(
+                              'Open-RMF Traffic Editor',
+                              style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                     onChanged: (newLevelId) {
                       if (newLevelId == '__create_map__') {
                         _showSelectRobotForMappingDialog(fleet, connection);
+                      } else if (newLevelId == '__traffic_editor__') {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TrafficEditorScreen(
+                              initialLevelName: fleet.selectedLevel?.name ?? _activeMapName,
+                            ),
+                          ),
+                        );
                       } else if (newLevelId != null) {
                         fleet.selectLevel(newLevelId);
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1383,6 +1411,23 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                     onMapClickWorld: _onLaneCanvasClick,
                                     onFinishLane: _finishDrawingLane,
                                     onMapLoaded: _onMapLoaded,
+                                    selectedFleetRobotId: fleet.selectedRobotId,
+                                    onFleetRobotTap: (robot) async {
+                                      fleet.selectRobot(robot.id);
+                                      final robotIp = fleet.getRobotIp(robot.id) ?? robot.ip;
+                                      final messenger = ScaffoldMessenger.of(context);
+                                      if (robotIp != null) {
+                                        await connection.updateRobotIp(robotIp, name: robot.name);
+                                      }
+                                      if (mounted) {
+                                        messenger.showSnackBar(
+                                          SnackBar(
+                                            content: Text('Switched active AMR to ${robot.name}${robotIp != null ? " ($robotIp)" : ""}'),
+                                            duration: const Duration(seconds: 2),
+                                          ),
+                                        );
+                                      }
+                                    },
                                   ),
                                 );
                               },
@@ -1612,6 +1657,23 @@ class _MapViewScreenState extends State<MapViewScreen> {
                               onMapClickWorld: _onLaneCanvasClick,
                               onFinishLane: _finishDrawingLane,
                               onMapLoaded: _onMapLoaded,
+                              selectedFleetRobotId: fleet.selectedRobotId,
+                              onFleetRobotTap: (robot) async {
+                                fleet.selectRobot(robot.id);
+                                final robotIp = fleet.getRobotIp(robot.id) ?? robot.ip;
+                                final messenger = ScaffoldMessenger.of(context);
+                                if (robotIp != null) {
+                                  await connection.updateRobotIp(robotIp, name: robot.name);
+                                }
+                                if (mounted) {
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text('Switched active AMR to ${robot.name}${robotIp != null ? " ($robotIp)" : ""}'),
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              },
                             ),
                           );
                         },
@@ -2211,6 +2273,25 @@ class _DesktopStudioSidebar extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                FilledButton.tonalIcon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.amber.withValues(alpha: 0.15),
+                    foregroundColor: Colors.amber.shade900,
+                  ),
+                  onPressed: () {
+                    final fleet = context.read<FleetProvider>();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TrafficEditorScreen(
+                          initialLevelName: fleet.selectedLevel?.name,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.architecture_rounded, size: 14),
+                  label: const Text('Open-RMF Traffic Editor (Full Studio)', style: TextStyle(fontSize: 11)),
                 ),
                 if (context.watch<FleetProvider>().isFleetMode) ...[
                   const SizedBox(height: AppSpacing.xs),
