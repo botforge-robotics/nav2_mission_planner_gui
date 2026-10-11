@@ -2251,30 +2251,6 @@ class _DesktopStudioSidebar extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.tonalIcon(
-                        onPressed: onToggleZoneEditor,
-                        icon: Icon(
-                            zoneEditorMode
-                                ? Icons.check_circle_outline_rounded
-                                : Icons.alt_route_rounded,
-                            size: 14),
-                        label: Text(zoneEditorMode ? 'Done' : 'Traffic Editor'),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onAddZone,
-                        icon: const Icon(Icons.add_rounded, size: 14),
-                        label: const Text('Add Lane/Zone'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.xs),
                 FilledButton.tonalIcon(
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.amber.withValues(alpha: 0.15),
@@ -2290,8 +2266,8 @@ class _DesktopStudioSidebar extends StatelessWidget {
                       ),
                     );
                   },
-                  icon: const Icon(Icons.architecture_rounded, size: 14),
-                  label: const Text('Open-RMF Traffic Editor (Full Studio)', style: TextStyle(fontSize: 11)),
+                  icon: const Icon(Icons.architecture_rounded, size: 16),
+                  label: const Text('Open-RMF Traffic Editor (Studio)', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 if (context.watch<FleetProvider>().isFleetMode) ...[
                   const SizedBox(height: AppSpacing.xs),

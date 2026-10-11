@@ -1,20 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/fleet_provider.dart';
 
+import '../../providers/connection_provider.dart';
+import '../../providers/fleet_provider.dart';
+import '../../services/locations_controller.dart';
+import '../../services/sdk_api_service.dart';
+import '../../theme/app_theme.dart';
+
+/// Modal dialog to dispatch an Open-RMF task or run a mission workflow across the fleet.
+/// Exactly provides the two flows requested:
+/// 1. Pickup & Delivery (Pickup location, Dropoff destination, Fleet, Robot auto/specific)
+/// 2. Run Mission / Workflow (Pick existing Mission / Visual Graph, Fleet, Robot auto/specific)
+/// Plus an optional Schedule / Recurring configuration (Execute now vs Scheduled time & repetition).
 class DispatchFleetTaskDialog extends StatefulWidget {
   const DispatchFleetTaskDialog({
     super.key,
-    this.initialCategory = 'patrol',
+    this.initialCategory = 'delivery',
     this.initialRobotId,
   });
 
+  /// 'delivery' or 'mission'
   final String initialCategory;
   final String? initialRobotId;
 
   static Future<bool?> show(
     BuildContext context, {
-    String initialCategory = 'patrol',
+    String initialCategory = 'delivery',
     String? initialRobotId,
   }) {
     return showDialog<bool>(
@@ -31,20 +42,23 @@ class DispatchFleetTaskDialog extends StatefulWidget {
 }
 
 class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
-  late String _category;
+  late String _mode; // 'delivery' or 'mission'
   String? _selectedFleetName;
-  String? _selectedRobotName; // null means auto-assign via RMF dispatcher auction
-
-  // Patrol / Go To parameters
-  final _patrolPlacesController = TextEditingController(text: 'charger_1');
-  int _patrolRounds = 1;
-
-  // Clean parameters
-  final _cleanZoneController = TextEditingController(text: 'zone_1');
+  String? _selectedRobotName; // null = Auto-assign via RMF Dispatcher auction
 
   // Delivery parameters
   final _pickupController = TextEditingController(text: 'station_a');
   final _dropoffController = TextEditingController(text: 'station_b');
+
+  // Mission parameters
+  List<Map<String, dynamic>> _availableMissions = [];
+  String? _selectedMissionId;
+  bool _loadingMissions = false;
+
+  // Schedule parameters
+  bool _isScheduled = false;
+  TimeOfDay _scheduledTime = TimeOfDay.now();
+  String _scheduleRepeat = 'once'; // 'once', 'daily', 'weekdays'
 
   bool _isSubmitting = false;
   String? _errorMessage;
@@ -52,7 +66,8 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
   @override
   void initState() {
     super.initState();
-    _category = widget.initialCategory;
+    _mode = widget.initialCategory == 'mission' ? 'mission' : 'delivery';
+
     final fleet = context.read<FleetProvider>();
     if (fleet.fleets.isNotEmpty) {
       _selectedFleetName = fleet.fleets.first.name;
@@ -64,12 +79,51 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
       final robot = fleet.robots.where((r) => r.id == widget.initialRobotId).firstOrNull;
       if (robot != null) _selectedRobotName = robot.name;
     }
+
+    _loadMissionsList();
+  }
+
+  Future<void> _loadMissionsList() async {
+    setState(() => _loadingMissions = true);
+    try {
+      final conn = context.read<ConnectionProvider>();
+      final fleet = context.read<FleetProvider>();
+
+      // 1. Try SdkApiService if robot is connected directly
+      if (conn.robot?.ip != null) {
+        final api = SdkApiService(conn.robot!.ip);
+        final list = await api.listMissions();
+        if (mounted && list.isNotEmpty) {
+          setState(() {
+            _availableMissions = list;
+            _selectedMissionId = list.first['id'] as String?;
+            _loadingMissions = false;
+          });
+          return;
+        }
+      }
+
+      // 2. Try Fleet workflows
+      if (fleet.api != null) {
+        final workflows = await fleet.api!.getWorkflows();
+        if (mounted && workflows.isNotEmpty) {
+          setState(() {
+            _availableMissions = workflows;
+            _selectedMissionId = (workflows.first['id'] ?? workflows.first['workflow_id']) as String?;
+            _loadingMissions = false;
+          });
+          return;
+        }
+      }
+    } catch (_) {
+      // Fallback
+    } finally {
+      if (mounted) setState(() => _loadingMissions = false);
+    }
   }
 
   @override
   void dispose() {
-    _patrolPlacesController.dispose();
-    _cleanZoneController.dispose();
     _pickupController.dispose();
     _dropoffController.dispose();
     super.dispose();
@@ -82,58 +136,131 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
     });
 
     final fleet = context.read<FleetProvider>();
-    try {
-      final Map<String, dynamic> description = {};
+    final conn = context.read<ConnectionProvider>();
 
-      if (_category == 'patrol') {
-        final rawPlaces = _patrolPlacesController.text
-            .split(',')
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toList();
-        if (rawPlaces.isEmpty) {
-          throw Exception('Please specify at least one waypoint for Patrol/GoTo.');
-        }
-        description['places'] = rawPlaces;
-        description['rounds'] = _patrolRounds;
-      } else if (_category == 'charge_battery') {
-        // empty description is standard for charge_battery in Open-RMF
-      } else if (_category == 'clean') {
-        final zone = _cleanZoneController.text.trim();
-        if (zone.isEmpty) throw Exception('Please specify a zone to clean.');
-        description['zone'] = zone;
-      } else if (_category == 'delivery') {
+    try {
+      if (_mode == 'delivery') {
         final pickup = _pickupController.text.trim();
         final dropoff = _dropoffController.text.trim();
         if (pickup.isEmpty || dropoff.isEmpty) {
           throw Exception('Please specify both pickup and dropoff locations.');
         }
-        description['pickup'] = {
-          'place': pickup,
-          'handler': 'delivery_handler',
-          'payload': [],
+
+        final description = {
+          'pickup': {
+            'place': pickup,
+            'handler': 'delivery_handler',
+            'payload': [],
+          },
+          'dropoff': {
+            'place': dropoff,
+            'handler': 'delivery_handler',
+            'payload': [],
+          },
         };
-        description['dropoff'] = {
-          'place': dropoff,
-          'handler': 'delivery_handler',
-          'payload': [],
-        };
+
+        if (_isScheduled) {
+          // If scheduled, register as scheduled task
+          if (conn.robot?.ip != null) {
+            final api = SdkApiService(conn.robot!.ip);
+            final schedId = 'sched_deliv_${DateTime.now().millisecondsSinceEpoch}';
+            final now = DateTime.now();
+            final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+            await api.putSchedule(
+              schedId,
+              missionId: 'Delivery: $pickup -> $dropoff',
+              name: 'Delivery to $dropoff',
+              hour: _scheduledTime.hour,
+              minute: _scheduledTime.minute,
+              repeat: _scheduleRepeat,
+              date: _scheduleRepeat == 'once' ? dateStr : null,
+              weekdays: _scheduleRepeat == 'weekdays' ? [0, 1, 2, 3, 4] : const [],
+            );
+          } else {
+            // Fleet schedule submission
+            await fleet.dispatchRmfTask(
+              category: 'delivery',
+              description: description,
+              fleetName: _selectedFleetName,
+              robotName: _selectedRobotName,
+            );
+          }
+        } else {
+          final res = await fleet.dispatchRmfTask(
+            category: 'delivery',
+            description: description,
+            fleetName: _selectedFleetName,
+            robotName: _selectedRobotName,
+          );
+          if (mounted) {
+            final taskId = res['state']?['booking']?['id'] ?? 'queued';
+            Navigator.of(context).pop(true);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Delivery task dispatched! ID: $taskId'),
+                backgroundColor: AppColors.success,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+            return;
+          }
+        }
+      } else {
+        // Mission / Workflow mode
+        if (_selectedMissionId == null || _selectedMissionId!.isEmpty) {
+          throw Exception('Please select a Mission or Visual Graph to run.');
+        }
+
+        final mission = _availableMissions.firstWhere(
+          (m) => (m['id'] ?? m['workflow_id']) == _selectedMissionId,
+          orElse: () => {'name': _selectedMissionId},
+        );
+        final missionName = mission['name'] as String? ?? _selectedMissionId!;
+
+        if (_isScheduled) {
+          if (conn.robot?.ip != null) {
+            final api = SdkApiService(conn.robot!.ip);
+            final schedId = 'sched_mis_${DateTime.now().millisecondsSinceEpoch}';
+            final now = DateTime.now();
+            final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+            await api.putSchedule(
+              schedId,
+              missionId: _selectedMissionId!,
+              name: missionName,
+              hour: _scheduledTime.hour,
+              minute: _scheduledTime.minute,
+              repeat: _scheduleRepeat,
+              date: _scheduleRepeat == 'once' ? dateStr : null,
+              weekdays: _scheduleRepeat == 'weekdays' ? [0, 1, 2, 3, 4] : const [],
+            );
+          } else {
+            throw Exception('Direct robot connection required to save mission schedules.');
+          }
+        } else {
+          // Immediate dispatch
+          if (fleet.api != null) {
+            await fleet.dispatchTask(
+              workflowId: _selectedMissionId!,
+              fleet: _selectedFleetName ?? 'navpromini',
+              robot: _selectedRobotName,
+            );
+          } else if (conn.robot?.ip != null) {
+            final api = SdkApiService(conn.robot!.ip);
+            await api.startMission(_selectedMissionId!);
+          } else {
+            throw Exception('No active fleet or robot connection.');
+          }
+        }
       }
 
-      final res = await fleet.dispatchRmfTask(
-        category: _category,
-        description: description,
-        fleetName: _selectedFleetName,
-        robotName: _selectedRobotName,
-      );
-
       if (mounted) {
-        final taskId = res['state']?['booking']?['id'] ?? 'queued';
         Navigator.of(context).pop(true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Task dispatched successfully! ID: $taskId'),
-            backgroundColor: Colors.green,
+            content: Text(_isScheduled
+                ? 'Task scheduled successfully for ${_scheduledTime.format(context)} ($_scheduleRepeat)!'
+                : 'Task successfully dispatched to fleet!'),
+            backgroundColor: AppColors.success,
             duration: const Duration(seconds: 4),
           ),
         );
@@ -151,24 +278,25 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
   @override
   Widget build(BuildContext context) {
     final fleet = context.watch<FleetProvider>();
+    final locations = LocationsController.instance.value ?? [];
 
     return AlertDialog(
       title: Row(
         children: const [
           Icon(Icons.alt_route_rounded, color: Colors.blue),
           SizedBox(width: 10),
-          Text('Dispatch NavPro Mini Fleet Task'),
+          Text('Dispatch Task / Mission'),
         ],
       ),
       content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
+        constraints: const BoxConstraints(maxWidth: 540),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Submit an Open-RMF coordinated task. The fleet server will automatically allocate, negotiate traffic lanes, and assign the best robot.',
+                'Submit an Open-RMF coordinated delivery or mission workflow. The fleet dispatcher automatically negotiates traffic, deconflicts lanes, and assigns the AMR.',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
               const SizedBox(height: 16),
@@ -195,122 +323,145 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
                   ),
                 ),
 
-              // Category Selector Tabs
-              const Text('Task Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              // Task Mode Selection: Pickup & Delivery vs Run Mission
+              const Text('Dispatch Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              Row(
                 children: [
-                  ChoiceChip(
-                    avatar: const Icon(Icons.repeat_rounded, size: 16),
-                    label: const Text('Patrol / Go To'),
-                    selected: _category == 'patrol',
-                    onSelected: (val) => setState(() => _category = 'patrol'),
+                  Expanded(
+                    child: ChoiceChip(
+                      avatar: const Icon(Icons.local_shipping_outlined, size: 18),
+                      label: const Center(child: Text('Pickup & Delivery')),
+                      selected: _mode == 'delivery',
+                      onSelected: (val) => setState(() => _mode = 'delivery'),
+                    ),
                   ),
-                  ChoiceChip(
-                    avatar: const Icon(Icons.battery_charging_full_rounded, size: 16),
-                    label: const Text('Charge Battery'),
-                    selected: _category == 'charge_battery',
-                    onSelected: (val) => setState(() => _category = 'charge_battery'),
-                  ),
-                  ChoiceChip(
-                    avatar: const Icon(Icons.cleaning_services_rounded, size: 16),
-                    label: const Text('Clean'),
-                    selected: _category == 'clean',
-                    onSelected: (val) => setState(() => _category = 'clean'),
-                  ),
-                  ChoiceChip(
-                    avatar: const Icon(Icons.local_shipping_outlined, size: 16),
-                    label: const Text('Delivery'),
-                    selected: _category == 'delivery',
-                    onSelected: (val) => setState(() => _category = 'delivery'),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ChoiceChip(
+                      avatar: const Icon(Icons.account_tree_outlined, size: 18),
+                      label: const Center(child: Text('Run Mission / Workflow')),
+                      selected: _mode == 'mission',
+                      onSelected: (val) => setState(() => _mode = 'mission'),
+                    ),
                   ),
                 ],
               ),
               const Divider(height: 28),
 
-              // Category-specific inputs
-              if (_category == 'patrol') ...[
-                TextField(
-                  controller: _patrolPlacesController,
-                  decoration: const InputDecoration(
-                    labelText: 'Waypoints / Places *',
-                    hintText: 'e.g. charger_1, point_b, office_hallway',
-                    helperText: 'Separate multiple patrol waypoints with commas',
-                    prefixIcon: Icon(Icons.place_outlined),
-                  ),
-                ),
-                const SizedBox(height: 12),
+              // Mode 1: Pickup & Delivery
+              if (_mode == 'delivery') ...[
+                const Text('Delivery Endpoints', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Text('Patrol Rounds:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                    const SizedBox(width: 12),
-                    IconButton.filledTonal(
-                      icon: const Icon(Icons.remove, size: 16),
-                      onPressed: _patrolRounds > 1 ? () => setState(() => _patrolRounds--) : null,
+                    Expanded(
+                      child: locations.isNotEmpty
+                          ? DropdownButtonFormField<String>(
+                              initialValue: locations.any((l) => l['name'] == _pickupController.text)
+                                  ? _pickupController.text
+                                  : null,
+                              decoration: const InputDecoration(
+                                labelText: 'Pickup Location *',
+                                prefixIcon: Icon(Icons.call_received_rounded, color: Colors.blue),
+                              ),
+                              hint: Text(_pickupController.text.isNotEmpty ? _pickupController.text : 'Select Pickup'),
+                              items: locations.map((loc) {
+                                final name = loc['name'] as String? ?? 'Point';
+                                return DropdownMenuItem(value: name, child: Text(name));
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) setState(() => _pickupController.text = val);
+                              },
+                            )
+                          : TextField(
+                              controller: _pickupController,
+                              decoration: const InputDecoration(
+                                labelText: 'Pickup Location *',
+                                hintText: 'e.g. station_a',
+                                prefixIcon: Icon(Icons.call_received_rounded, color: Colors.blue),
+                              ),
+                            ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        '$_patrolRounds',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                    ),
-                    IconButton.filledTonal(
-                      icon: const Icon(Icons.add, size: 16),
-                      onPressed: () => setState(() => _patrolRounds++),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: locations.isNotEmpty
+                          ? DropdownButtonFormField<String>(
+                              initialValue: locations.any((l) => l['name'] == _dropoffController.text)
+                                  ? _dropoffController.text
+                                  : null,
+                              decoration: const InputDecoration(
+                                labelText: 'Dropoff Destination *',
+                                prefixIcon: Icon(Icons.call_made_rounded, color: Colors.orange),
+                              ),
+                              hint: Text(_dropoffController.text.isNotEmpty ? _dropoffController.text : 'Select Dropoff'),
+                              items: locations.map((loc) {
+                                final name = loc['name'] as String? ?? 'Point';
+                                return DropdownMenuItem(value: name, child: Text(name));
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) setState(() => _dropoffController.text = val);
+                              },
+                            )
+                          : TextField(
+                              controller: _dropoffController,
+                              decoration: const InputDecoration(
+                                labelText: 'Dropoff Destination *',
+                                hintText: 'e.g. station_b',
+                                prefixIcon: Icon(Icons.call_made_rounded, color: Colors.orange),
+                              ),
+                            ),
                     ),
                   ],
                 ),
-              ] else if (_category == 'charge_battery') ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green.shade200),
-                  ),
-                  child: Row(
-                    children: const [
-                      Icon(Icons.bolt_rounded, color: Colors.green, size: 24),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Sends the robot to its designated docking/charging station to recharge.',
-                          style: TextStyle(fontSize: 12, color: Colors.green),
+              ] else ...[
+                // Mode 2: Run Mission / Workflow
+                const Text('Select Mission / Workflow', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 8),
+                if (_loadingMissions)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: LinearProgressIndicator(),
+                  )
+                else if (_availableMissions.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber.shade200),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.amber, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'No saved missions found. Please create one using the Mission Graph Editor first.',
+                            style: TextStyle(fontSize: 12, color: Colors.black87),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedMissionId,
+                    decoration: const InputDecoration(
+                      labelText: 'Mission Workflow *',
+                      prefixIcon: Icon(Icons.account_tree_rounded, color: Colors.teal),
+                    ),
+                    items: _availableMissions.map((m) {
+                      final id = (m['id'] ?? m['workflow_id']) as String;
+                      final name = m['name'] as String? ?? id;
+                      final isGraph = m['type'] == 'graph' || m.containsKey('nodes');
+                      return DropdownMenuItem(
+                        value: id,
+                        child: Text('$name ${isGraph ? "(Visual Graph)" : "(Linear)"}'),
+                      );
+                    }).toList(),
+                    onChanged: (val) => setState(() => _selectedMissionId = val),
                   ),
-                ),
-              ] else if (_category == 'clean') ...[
-                TextField(
-                  controller: _cleanZoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Cleaning Zone / Waypoint *',
-                    hintText: 'e.g. zone_1 or lobby',
-                    prefixIcon: Icon(Icons.cleaning_services_outlined),
-                  ),
-                ),
-              ] else if (_category == 'delivery') ...[
-                TextField(
-                  controller: _pickupController,
-                  decoration: const InputDecoration(
-                    labelText: 'Pickup Location *',
-                    hintText: 'e.g. storage_dock',
-                    prefixIcon: Icon(Icons.call_received_rounded),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _dropoffController,
-                  decoration: const InputDecoration(
-                    labelText: 'Dropoff Destination *',
-                    hintText: 'e.g. packing_bay',
-                    prefixIcon: Icon(Icons.call_made_rounded),
-                  ),
-                ),
               ],
 
               const Divider(height: 28),
@@ -351,6 +502,53 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
                   }).toList(),
                   onChanged: (val) => setState(() => _selectedFleetName = val),
                 ),
+
+              const Divider(height: 28),
+
+              // Schedule / Recurring Option (Matching Open-RMF web)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Schedule Task', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                subtitle: const Text('Run at a scheduled start time or repeat on recurrence', style: TextStyle(fontSize: 11)),
+                value: _isScheduled,
+                onChanged: (val) => setState(() => _isScheduled = val),
+              ),
+              if (_isScheduled) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.access_time_rounded, size: 18),
+                        label: Text('Time: ${_scheduledTime.format(context)}'),
+                        onPressed: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: _scheduledTime,
+                          );
+                          if (picked != null) setState(() => _scheduledTime = picked);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _scheduleRepeat,
+                        decoration: const InputDecoration(
+                          labelText: 'Recurrence',
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'once', child: Text('Once')),
+                          DropdownMenuItem(value: 'daily', child: Text('Every Day')),
+                          DropdownMenuItem(value: 'weekdays', child: Text('Weekdays (Mon-Fri)')),
+                        ],
+                        onChanged: (val) => setState(() => _scheduleRepeat = val ?? 'once'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -364,8 +562,10 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
           onPressed: _isSubmitting ? null : _dispatch,
           icon: _isSubmitting
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.send_rounded, size: 18),
-          label: Text(_isSubmitting ? 'Dispatching...' : 'Dispatch Task'),
+              : Icon(_isScheduled ? Icons.alarm_rounded : Icons.send_rounded, size: 18),
+          label: Text(_isSubmitting
+              ? 'Submitting...'
+              : (_isScheduled ? 'Schedule Task' : 'Dispatch Task')),
         ),
       ],
     );

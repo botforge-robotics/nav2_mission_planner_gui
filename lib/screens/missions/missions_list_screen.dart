@@ -40,7 +40,6 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
   bool _requested = false;
   SdkApiService? _api;
   Timer? _poll;
-  int _selectedTab = 0; // 0 = Tasks Overview (Open-RMF Table), 1 = Mission Library
   String _taskFilter = 'all'; // 'all', 'active', 'queued', 'scheduled', 'history'
 
   @override
@@ -349,7 +348,7 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
       ),
       floatingActionButton: isDesktop
           ? null
-          : (_selectedTab == 0 && fleet.isFleetMode
+          : (fleet.isFleetMode
               ? FloatingActionButton.extended(
                   onPressed: () => DispatchFleetTaskDialog.show(context),
                   icon: const Icon(Icons.send_rounded),
@@ -358,7 +357,7 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
               : FloatingActionButton.extended(
                   onPressed: _createMission,
                   icon: const Icon(Icons.edit_note_rounded),
-                  label: const Text('Mission Editor'),
+                  label: const Text('New Mission'),
                 )),
       body: SafeArea(
         child: !hasConnection
@@ -390,50 +389,104 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
               )
             : Column(
                 children: [
-                  // Top Tab Switcher: Tasks Overview vs Mission Library
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.xs),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: SegmentedButton<int>(
-                        segments: [
-                          ButtonSegment<int>(
-                            value: 0,
-                            icon: const Icon(Icons.table_chart_outlined, size: 18),
-                            label: Text(
-                              isDesktop
-                                  ? 'Tasks Overview (Open-RMF) [${allTasks.length}]'
-                                  : 'Tasks (${allTasks.length})',
+                    // Action toolbar: Dispatch Fleet Task & New Mission
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.xs),
+                      child: Row(
+                        children: [
+                          if (fleet.isFleetMode) ...[
+                            FilledButton.icon(
+                              onPressed: () => DispatchFleetTaskDialog.show(context),
+                              icon: const Icon(Icons.send_rounded, size: 16),
+                              label: const Text('Dispatch Task'),
                             ),
+                            const SizedBox(width: AppSpacing.sm),
+                          ],
+                          OutlinedButton.icon(
+                            onPressed: _createMission,
+                            icon: const Icon(Icons.add_rounded, size: 16),
+                            label: Text(isDesktop ? 'Create Mission Graph' : 'New Mission'),
                           ),
-                          ButtonSegment<int>(
-                            value: 1,
-                            icon: const Icon(Icons.account_tree_outlined, size: 18),
-                            label: Text(
-                              isDesktop
-                                  ? 'Mission & Visual Graph Library [${_missions?.length ?? 0}]'
-                                  : 'Missions (${_missions?.length ?? 0})',
-                            ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: 'Refresh missions & tasks',
+                            icon: const Icon(Icons.refresh_rounded, size: 20),
+                            onPressed: _load,
                           ),
                         ],
-                        selected: {_selectedTab},
-                        onSelectionChanged: (set) {
-                          setState(() => _selectedTab = set.first);
-                        },
                       ),
                     ),
-                  ),
 
-                  Expanded(
-                    child: _selectedTab == 0
-                        ? _buildOpenRmfTasksView(context, filteredTasks, allTasks, fleet, conn, isDesktop)
-                        : _buildMissionLibraryView(context, isDesktop),
-                  ),
-                ],
-              ),
-      ),
-    );
-  }
+                    Expanded(
+                      child: _buildUnifiedScreenView(
+                        context,
+                        filteredTasks,
+                        allTasks,
+                        fleet,
+                        conn,
+                        isDesktop,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      );
+    }
+
+    Widget _buildUnifiedScreenView(
+      BuildContext context,
+      List<_RmfTaskEntry> tasks,
+      List<_RmfTaskEntry> allTasks,
+      FleetProvider fleet,
+      ConnectionProvider conn,
+      bool isDesktop,
+    ) {
+      return ListView(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        children: [
+          // Section 1: Missions & Visual Graphs
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Row(
+              children: [
+                const Icon(Icons.account_tree_outlined, size: 18, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Missions & Visual Graphs (${_missions?.length ?? 0})',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          SizedBox(
+            height: isDesktop ? 340 : 260,
+            child: _buildMissionLibraryView(context, isDesktop),
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+          const Divider(height: 1),
+          const SizedBox(height: AppSpacing.sm),
+
+          // Section 2: Open-RMF Task Overview Table
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Row(
+              children: [
+                const Icon(Icons.table_chart_outlined, size: 18, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text(
+                  'Open-RMF Task Overview (${allTasks.length})',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          _buildOpenRmfTasksView(context, tasks, allTasks, fleet, conn, isDesktop),
+        ],
+      );
+    }
 
   Widget _buildMissionLibraryView(BuildContext context, bool isDesktop) {
     if (_missions == null && _error == null) {
