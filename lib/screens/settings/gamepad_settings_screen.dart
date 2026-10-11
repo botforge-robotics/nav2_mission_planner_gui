@@ -18,6 +18,8 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    // Safety: In settings screen, block all physical robot commands and motion
+    _service.isConfigurationMode = true;
     // Listen for physical button presses: selects the pressed button automatically
     _buttonPressSub = _service.buttonPressEvents.listen((pressedBtn) {
       if (mounted) {
@@ -30,6 +32,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
 
   @override
   void dispose() {
+    _service.isConfigurationMode = false;
     _buttonPressSub?.cancel();
     super.dispose();
   }
@@ -62,6 +65,28 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
           body: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             children: [
+                            // Safety Mode Indicator Banner
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.amber.shade700),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.shield_outlined, size: 20, color: Colors.amber.shade900),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Safe Configuration Mode: Physical robot movement and commands are disabled on this screen.',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.amber.shade900),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               // Controller Status Banner
               Card(
                 color: connected

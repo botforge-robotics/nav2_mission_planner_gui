@@ -1,3 +1,4 @@
+import 'services/sdk_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -39,6 +40,12 @@ class NavProMiniApp extends StatelessWidget {
           create: (_) => RobotTelemetryProvider(null),
           update: (_, connection, telemetry) {
             final ros2 = connection.isConnected ? connection.ros2 : null;
+            final robot = connection.robot;
+            final sdkApi = robot != null ? SdkApiService(robot.ip, port: 8090) : null;
+            GamepadService.instance.updateConnection(
+              ros2: ros2,
+              sdkApi: sdkApi,
+            );
             return (telemetry ?? RobotTelemetryProvider(null))..updateRos2(ros2);
           },
         ),

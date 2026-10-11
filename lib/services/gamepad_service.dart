@@ -66,6 +66,7 @@ class GamepadService extends ChangeNotifier {
   Timer? _scanTimer;
 
   bool _isConnected = false;
+  bool _isConfigurationMode = false;
   String? _controllerName;
   String? _controllerId;
 
@@ -121,6 +122,16 @@ class GamepadService extends ChangeNotifier {
 
   // Getters
   bool get isConnected => _isConnected;
+  bool get isConfigurationMode => _isConfigurationMode;
+  set isConfigurationMode(bool val) {
+    if (_isConfigurationMode != val) {
+      _isConfigurationMode = val;
+      if (val) {
+        _publishZeroTwist();
+      }
+      notifyListeners();
+    }
+  }
   String get controllerName => _controllerName ?? 'Gamepad';
   double get deadzone => _deadzone;
   double get normalLinearSpeed => _normalLinearSpeed;
@@ -296,6 +307,10 @@ class GamepadService extends ChangeNotifier {
   }
 
   void _onButtonPressed(GamepadButton button) {
+    if (_isConfigurationMode) {
+      // In configuration/settings screen, never execute physical robot commands!
+      return;
+    }
     final action = _buttonMapping[button] ?? GamepadAction.none;
     switch (action) {
       case GamepadAction.dock:
@@ -344,7 +359,7 @@ class GamepadService extends ChangeNotifier {
   }
 
   void _processTeleopTick() {
-    if (!_isConnected) return;
+    if (!_isConnected || _isConfigurationMode) return;
 
     // Check deadman switch if enabled
     bool deadmanSatisfied = !_requireDeadman;
