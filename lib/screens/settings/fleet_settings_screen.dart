@@ -12,8 +12,8 @@ class FleetSettingsScreen extends StatefulWidget {
 }
 
 class _FleetSettingsScreenState extends State<FleetSettingsScreen> {
-  final _hostController = TextEditingController();
-  final _portController = TextEditingController(text: '3000');
+  final _hostController = TextEditingController(text: 'localhost');
+  final _portController = TextEditingController(text: '80');
   bool _fleetEnabled = false;
 
   @override
@@ -21,7 +21,9 @@ class _FleetSettingsScreenState extends State<FleetSettingsScreen> {
     super.initState();
     final fleet = context.read<FleetProvider>();
     _fleetEnabled = fleet.isFleetMode;
-    _hostController.text = fleet.fleetServerHost ?? '';
+    _hostController.text = (fleet.fleetServerHost != null && fleet.fleetServerHost!.isNotEmpty)
+        ? fleet.fleetServerHost!
+        : 'localhost';
     _portController.text = fleet.fleetServerPort.toString();
   }
 
@@ -118,8 +120,8 @@ class _FleetSettingsScreenState extends State<FleetSettingsScreen> {
                           controller: _portController,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
-                            labelText: 'Platform API Port',
-                            hintText: '3000',
+                            labelText: 'Platform API / Ingress Port',
+                            hintText: '80',
                             prefixIcon: Icon(Icons.numbers_rounded),
                           ),
                         ),

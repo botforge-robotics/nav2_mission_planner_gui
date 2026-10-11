@@ -12,8 +12,8 @@ class SavedRobot {
   const SavedRobot({
     required this.name,
     required this.ip,
-    this.fleetServerHost,
-    this.fleetServerPort = 3000,
+    this.fleetServerHost = 'localhost',
+    this.fleetServerPort = 80,
     this.isFleetMode = false,
   });
 
@@ -57,8 +57,8 @@ class RobotConnectionStore {
       final prefs = await SharedPreferences.getInstance();
       final ip = prefs.getString(_keyIp);
       final name = prefs.getString(_keyName);
-      final fleetHost = prefs.getString(_keyFleetHost);
-      final fleetPort = prefs.getInt(_keyFleetPort) ?? 3000;
+      final fleetHost = prefs.getString(_keyFleetHost) ?? 'localhost';
+      final fleetPort = prefs.getInt(_keyFleetPort) ?? 80;
       final isFleetMode = prefs.getBool(_keyIsFleetMode) ?? false;
       if (ip != null && ip.isNotEmpty) {
         final robot = SavedRobot(
@@ -82,8 +82,8 @@ class RobotConnectionStore {
         final data = jsonDecode(raw) as Map<String, dynamic>;
         final ip = data['ip'] as String?;
         final name = data['name'] as String?;
-        final fleetHost = data['fleetServerHost'] as String?;
-        final fleetPort = data['fleetServerPort'] as int? ?? 3000;
+        final fleetHost = data['fleetServerHost'] as String? ?? 'localhost';
+        final fleetPort = data['fleetServerPort'] as int? ?? 80;
         final isFleetMode = data['isFleetMode'] as bool? ?? false;
         if (ip != null && ip.isNotEmpty) {
           final robot = SavedRobot(
@@ -97,8 +97,7 @@ class RobotConnectionStore {
           try {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setString(_keyIp, robot.ip);
-            await prefs.setString(_keyName, robot.name);
-            if (fleetHost != null) await prefs.setString(_keyFleetHost, fleetHost);
+            await prefs.setString(_keyFleetHost, fleetHost);
             await prefs.setInt(_keyFleetPort, fleetPort);
             await prefs.setBool(_keyIsFleetMode, isFleetMode);
           } catch (_) {}

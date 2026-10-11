@@ -15,8 +15,8 @@ class FleetProvider extends ChangeNotifier {
   Timer? _pollTimer;
 
   bool _isFleetMode = false;
-  String? _fleetServerHost;
-  int _fleetServerPort = 3000;
+  String? _fleetServerHost = 'localhost';
+  int _fleetServerPort = 80;
   String? _token;
 
   List<FleetRobotInfo> _robots = [];

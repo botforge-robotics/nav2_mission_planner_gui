@@ -18,11 +18,11 @@ class FleetApiService {
 
   FleetApiService({
     required this.serverHost,
-    this.port = 3000,
+    this.port = 80,
     this.token,
   });
 
-  String get baseUrl => 'http://$serverHost:$port';
+  String get baseUrl => port == 80 ? 'http://$serverHost' : 'http://$serverHost:$port';
 
   Map<String, String> get _headers {
     final headers = {'Content-Type': 'application/json'};
