@@ -15,6 +15,9 @@ import 'package:sensor_msgs/msg.dart' as sensor_msgs;
 import 'package:tf2_msgs/msg.dart' as tf2_msgs;
 
 import '../../models/map_zone.dart';
+import '../../models/fleet_models.dart';
+import '../../providers/fleet_provider.dart';
+import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../design/fade_in.dart';
 
@@ -212,6 +215,9 @@ class OccupancyGridView extends StatefulWidget {
     this.onMapHoverWorld,
     this.onMapClickWorld,
     this.onFinishLane,
+    this.fleetRobots,
+    this.selectedFleetRobotId,
+    this.onFleetRobotTap,
   });
 
 
@@ -343,6 +349,9 @@ class OccupancyGridView extends StatefulWidget {
   final ValueChanged<Offset?>? onMapHoverWorld;
   final ValueChanged<Offset>? onMapClickWorld;
   final VoidCallback? onFinishLane;
+  final List<FleetRobotInfo>? fleetRobots;
+  final String? selectedFleetRobotId;
+  final ValueChanged<FleetRobotInfo>? onFleetRobotTap;
 
   @override
 
@@ -1473,6 +1482,25 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       }
     }
 
+    FleetProvider? fleet;
+    try {
+      fleet = context.read<FleetProvider>();
+    } catch (_) {}
+    final activeRobots = widget.fleetRobots ?? (fleet != null && fleet.isFleetMode ? fleet.robots : null);
+    if (activeRobots != null && activeRobots.isNotEmpty) {
+      for (final r in activeRobots) {
+        if (r.x == null || r.y == null) continue;
+        final dx = r.x! - tapWorld.dx;
+        final dy = r.y! - tapWorld.dy;
+        final dist = sqrt(dx * dx + dy * dy);
+        if (dist < 0.8) {
+          fleet?.selectRobot(r.id);
+          widget.onFleetRobotTap?.call(r);
+          return;
+        }
+      }
+    }
+
     if (dockDist != null &&
         dockDist < toleranceMeters &&
         (locDist == null || dockDist <= locDist)) {
@@ -1518,6 +1546,13 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       effectiveDraftYaw = widget.draftPoseOverride!.theta;
     }
 
+    FleetProvider? fleet;
+    try {
+      fleet = context.watch<FleetProvider>();
+    } catch (_) {}
+    final effectiveFleetRobots = widget.fleetRobots ?? (fleet != null && fleet.isFleetMode ? fleet.robots : null);
+    final effectiveSelectedRobotId = widget.selectedFleetRobotId ?? fleet?.selectedRobotId;
+
     // Builds the painted map for a given marker counter-scale — a function
     // rather than a single built-once widget, because the right
     // counter-scale differs per branch below and, for the thumbnail branch,
@@ -1531,6 +1566,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           image: image,
           grid: grid,
           pose: widget.showRobot ? (_effectivePose ?? widget.initialPose) : null,
+          fleetRobots: effectiveFleetRobots,
+          selectedFleetRobotId: effectiveSelectedRobotId,
           dockPose:
               (widget.showDock && showOverlays && !widget.dockEditorMode) ? _resolvedDockPose : null,
           standoffPose:
@@ -1937,6 +1974,8 @@ class _OccupancyGridPainter extends CustomPainter {
     required this.image,
     required this.grid,
     required this.pose,
+    this.fleetRobots,
+    this.selectedFleetRobotId,
     required this.dockPose,
     this.standoffPose,
     required this.path,
@@ -1966,6 +2005,8 @@ class _OccupancyGridPainter extends CustomPainter {
   final ui.Image image;
   final nav_msgs.OccupancyGrid grid;
   final geometry_msgs.PoseWithCovarianceStamped? pose;
+  final List<FleetRobotInfo>? fleetRobots;
+  final String? selectedFleetRobotId;
   final geometry_msgs.PoseStamped? dockPose;
   final ({double x, double y, double theta})? standoffPose;
   final nav_msgs.Path? path;
@@ -2075,7 +2116,35 @@ class _OccupancyGridPainter extends CustomPainter {
     }
 
     final p = pose;
-    if (p != null) {
+    if (fleetRobots != null && fleetRobots!.isNotEmpty) {
+      for (final robot in fleetRobots!) {
+        if (robot.x == null || robot.y == null) continue;
+        final center = _worldToPixel(grid, robot.x!, robot.y!);
+        final yaw = robot.yaw ?? 0.0;
+        final isSelected = robot.id == selectedFleetRobotId;
+        final Color color = isSelected
+            ? const Color(0xFF2563EB) // Bright Indigo / Blue
+            : (robot.isCharging
+                ? const Color(0xFF10B981) // Emerald Green
+                : (robot.isActive
+                    ? const Color(0xFF0284C7) // Sky Blue
+                    : const Color(0xFF64748B))); // Slate Gray
+
+        _drawRobotMarker(
+          canvas,
+          center,
+          yaw,
+          color,
+          sizeScale: markerScale * (isSelected ? 1.25 : 1.0),
+        );
+
+        // Draw robot name label with battery percentage above marker
+        final label = robot.batteryPercent != null
+            ? '${robot.name} (${robot.batteryPercent!.toInt()}%)'
+            : robot.name;
+        _drawPinLabel(canvas, center, label, sizeScale: markerScale);
+      }
+    } else if (p != null) {
       final center =
           _worldToPixel(grid, p.pose.pose.position.x, p.pose.pose.position.y);
       final yaw = _yawOf(p.pose.pose.orientation);

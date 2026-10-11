@@ -7,6 +7,8 @@ import '../providers/fleet_provider.dart';
 import '../providers/robot_status.dart';
 import '../providers/robot_telemetry_provider.dart';
 import 'settings/fleet_settings_screen.dart';
+import '../widgets/fleet/add_fleet_robot_dialog.dart';
+import '../widgets/fleet/dispatch_fleet_task_dialog.dart';
 import '../services/alerts_controller.dart';
 import '../services/dock_pose_controller.dart';
 import '../services/map_layers_controller.dart';
@@ -564,7 +566,7 @@ class _RobotCard extends StatelessWidget {
                         Row(
                           children: [
                             Text(
-                              selected != null ? selected.name : 'Open-RMF Fleet',
+                              selected != null ? selected.name : 'NavPro Mini Fleet',
                               style: Theme.of(context).textTheme.headlineSmall,
                             ),
                             const SizedBox(width: 8),
@@ -589,7 +591,7 @@ class _RobotCard extends StatelessWidget {
                             Text(
                               selected != null
                                   ? 'Level: ${selected.levelName ?? selected.levelId ?? "L1"} · Dock: ${selected.dockWaypoint ?? "Auto"}'
-                                  : '${fleet.fleetServerHost}:${fleet.fleetServerPort} · Open-RMF Ingress',
+                                  : '${fleet.fleetServerHost}:${fleet.fleetServerPort} · NavPro Mini Fleet Ingress',
                               style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                             ),
                           ],
@@ -636,6 +638,26 @@ class _RobotCard extends StatelessWidget {
                 value: (selected?.batteryPercent != null ? selected!.batteryPercent! / 100 : (robots.isEmpty ? 0 : 1.0)),
                 backgroundColor: AppColors.border,
                 color: Colors.blue,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => AddFleetRobotDialog.show(context),
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: const Text('Add Robot'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => DispatchFleetTaskDialog.show(context),
+                      icon: const Icon(Icons.alt_route_rounded, size: 16),
+                      label: const Text('Dispatch Task'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

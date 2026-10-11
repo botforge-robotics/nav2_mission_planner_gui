@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../models/fleet_models.dart';
 import '../../providers/fleet_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/fleet/add_fleet_robot_dialog.dart';
+import '../../widgets/fleet/dispatch_fleet_task_dialog.dart';
 
 class FleetSettingsScreen extends StatefulWidget {
   const FleetSettingsScreen({super.key});
@@ -55,7 +57,7 @@ class _FleetSettingsScreenState extends State<FleetSettingsScreen> {
       builder: (context, fleet, _) {
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Open-RMF Fleet Management'),
+            title: const Text('NavPro Mini Fleet Management'),
             actions: [
               IconButton(
                 icon: const Icon(Icons.refresh),
@@ -90,7 +92,7 @@ class _FleetSettingsScreenState extends State<FleetSettingsScreen> {
                                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                 ),
                                 Text(
-                                  'Coordinate multi-robot fleets, multi-floor maps, and Open-RMF traffic',
+                                  'Coordinate multi-robot fleets, multi-floor maps, and NavPro Mini Fleet traffic',
                                   style: TextStyle(fontSize: 12, color: Colors.grey),
                                 ),
                               ],
@@ -217,22 +219,88 @@ class _FleetSettingsScreenState extends State<FleetSettingsScreen> {
                 ),
 
                 const SizedBox(height: 20),
-                const Text(
-                  'Connected Robots',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Connected Robots',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () => AddFleetRobotDialog.show(context),
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      label: const Text('Add Robot'),
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 if (fleet.robots.isEmpty)
-                  const Card(
+                  Card(
                     child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(
-                        child: Text('No robots found on Fleet Server. Robots will appear here once connected.'),
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.smart_toy_outlined, size: 36, color: Colors.grey),
+                          const SizedBox(height: 8),
+                          const Text('No robots found on Fleet Server.'),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () => AddFleetRobotDialog.show(context),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Register a Robot Now'),
+                          ),
+                        ],
                       ),
                     ),
                   )
                 else
                   ...fleet.robots.map((r) => _buildRobotTile(context, fleet, r)),
+
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Fleet Tasks & Workflows',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: () => DispatchFleetTaskDialog.show(context),
+                      icon: const Icon(Icons.alt_route_rounded, size: 16),
+                      label: const Text('Dispatch Task'),
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (fleet.activeMissions.isEmpty)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            const Text('No active fleet tasks running.'),
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: () => DispatchFleetTaskDialog.show(context),
+                              icon: const Icon(Icons.send_rounded, size: 16),
+                              label: const Text('Dispatch Open-RMF Task'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  ...fleet.activeMissions.map((t) => _buildTaskTile(context, fleet, t)),
               ],
             ],
           ),
@@ -443,19 +511,110 @@ class _FleetSettingsScreenState extends State<FleetSettingsScreen> {
                     fleet.sendNavCommand(robotId: robot.id, action: 'stop_nav');
                   },
                 ),
+                const SizedBox(width: 10),
+                FilledButton.tonalIcon(
+                  icon: const Icon(Icons.alt_route_rounded),
+                  label: const Text('Dispatch Task'),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    DispatchFleetTaskDialog.show(context, initialRobotId: robot.id);
+                  },
+                ),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  tooltip: 'Decommission',
-                  onPressed: () async {
+                  tooltip: 'Delete Robot',
+                  onPressed: () {
                     Navigator.pop(ctx);
-                    await fleet.decommissionRobot(robot.id);
+                    _confirmDeleteRobot(context, fleet, robot);
                   },
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _confirmDeleteRobot(BuildContext context, FleetProvider fleet, FleetRobotInfo robot) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Remove ${robot.name}?'),
+        content: Text('Are you sure you want to remove robot "${robot.name}" (${robot.serial}) from the fleet coordinator?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await fleet.deleteRobot(robot.id);
+            },
+            child: const Text('Delete Robot'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaskTile(BuildContext context, FleetProvider fleet, Map<String, dynamic> task) {
+    final id = task['id']?.toString() ?? '';
+    final status = (task['status']?.toString() ?? 'queued').toUpperCase();
+    final robotId = task['robotId']?.toString();
+    final workflowId = task['workflowId']?.toString() ?? 'Fleet Mission';
+    final robot = fleet.robots.where((r) => r.id == robotId).firstOrNull;
+    final robotName = robot?.name ?? (robotId != null ? 'Robot ${robotId.substring(0, robotId.length > 8 ? 8 : robotId.length)}' : 'Auto-Assigned');
+
+    Color statusColor = Colors.orange;
+    if (status == 'SUCCEEDED' || status == 'COMPLETED') statusColor = Colors.green;
+    if (status == 'FAILED') statusColor = Colors.red;
+    if (status == 'RUNNING' || status == 'UNDERWAY') statusColor = Colors.blue;
+
+    final shortId = id.length > 14 ? '${id.substring(0, 14)}...' : id;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: statusColor.withValues(alpha: 0.15),
+          child: Icon(Icons.alt_route_rounded, color: statusColor, size: 20),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                workflowId,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                status,
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
+              ),
+            ),
+          ],
+        ),
+        subtitle: Text(
+          'Robot: $robotName • ID: $shortId',
+          style: const TextStyle(fontSize: 11),
+        ),
+        trailing: (status == 'RUNNING' || status == 'PENDING' || status == 'QUEUED' || status == 'UNDERWAY' || status == 'COMPILING')
+            ? IconButton(
+                icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                tooltip: 'Cancel Task',
+                onPressed: () async {
+                  await fleet.cancelRmfTask(id);
+                },
+              )
+            : null,
       ),
     );
   }

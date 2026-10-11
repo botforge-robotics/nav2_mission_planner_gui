@@ -85,6 +85,21 @@ class FleetApiService {
     }
   }
 
+  Future<dynamic> _delete(String path) async {
+    final uri = Uri.parse('$baseUrl$path');
+    try {
+      final res = await http.delete(uri, headers: _headers).timeout(const Duration(seconds: 10));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        if (res.body.isEmpty) return null;
+        return jsonDecode(res.body);
+      }
+      throw FleetApiException(res.statusCode, 'DELETE $path failed: ${res.body}');
+    } catch (e) {
+      if (e is FleetApiException) rethrow;
+      throw FleetApiException(0, 'Failed to connect to Fleet Server at $baseUrl: $e');
+    }
+  }
+
   Future<void> updateRobotTransform({
     required String robotId,
     required String levelId,
@@ -148,6 +163,31 @@ class FleetApiService {
 
   Future<void> decommissionRobot(String robotId) async {
     await _post('/api/v1/robots/$robotId/decommission');
+  }
+
+  Future<FleetRobotInfo> createRobot({
+    required String serial,
+    required String name,
+    String? fleetId,
+    String? levelId,
+    String? dockWaypoint,
+    String? homeWaypoint,
+    String status = 'active',
+  }) async {
+    final res = await _post('/api/v1/robots', body: {
+      'serial': serial,
+      'name': name,
+      if (fleetId != null && fleetId.isNotEmpty) 'fleetId': fleetId,
+      if (levelId != null && levelId.isNotEmpty) 'levelId': levelId,
+      if (dockWaypoint != null && dockWaypoint.isNotEmpty) 'dockWaypoint': dockWaypoint,
+      if (homeWaypoint != null && homeWaypoint.isNotEmpty) 'homeWaypoint': homeWaypoint,
+      'status': status,
+    });
+    return FleetRobotInfo.fromJson(res as Map<String, dynamic>);
+  }
+
+  Future<void> deleteRobot(String robotId) async {
+    await _delete('/api/v1/robots/$robotId');
   }
 
   Future<void> sendFleetNavCommand({
@@ -243,6 +283,33 @@ class FleetApiService {
 
   Future<void> cancelMission(String missionId) async {
     await _post('/api/v1/missions/$missionId/cancel');
+  }
+
+  // --- Open-RMF Task Dispatching ---
+  Future<Map<String, dynamic>> dispatchRmfTask({
+    required String category, // 'patrol', 'delivery', 'clean', 'charge_battery'
+    required Map<String, dynamic> description,
+    String? fleetName,
+    String? robotName,
+  }) async {
+    final payload = {
+      'type': 'dispatch_task_request',
+      'request': {
+        'category': category,
+        'description': description,
+        if (fleetName != null && fleetName.isNotEmpty) 'fleet_name': fleetName,
+        if (robotName != null && robotName.isNotEmpty) 'robot_name': robotName,
+      },
+    };
+    final res = await _post('/rmf/tasks/dispatch_task', body: payload);
+    return res as Map<String, dynamic>? ?? {};
+  }
+
+  Future<void> cancelRmfTask(String taskId) async {
+    await _post('/rmf/tasks/cancel_task', body: {
+      'type': 'cancel_task_request',
+      'task_id': taskId,
+    });
   }
 }
 

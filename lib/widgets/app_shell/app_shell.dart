@@ -265,7 +265,7 @@ class _DesktopSidebar extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        isFleet ? 'Open-RMF Fleet' : 'NavPro Mini',
+                        isFleet ? 'NavPro Mini Fleet' : 'NavPro Mini',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,

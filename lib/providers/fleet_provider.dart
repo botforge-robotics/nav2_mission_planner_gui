@@ -275,6 +275,35 @@ class FleetProvider extends ChangeNotifier {
     await refreshFleet();
   }
 
+  Future<void> createRobot({
+    required String serial,
+    required String name,
+    String? fleetId,
+    String? levelId,
+    String? dockWaypoint,
+    String? homeWaypoint,
+  }) async {
+    final api = _api;
+    if (api == null) return;
+    await api.createRobot(
+      serial: serial,
+      name: name,
+      fleetId: fleetId,
+      levelId: levelId,
+      dockWaypoint: dockWaypoint,
+      homeWaypoint: homeWaypoint,
+      status: 'active',
+    );
+    await refreshFleet();
+  }
+
+  Future<void> deleteRobot(String robotId) async {
+    final api = _api;
+    if (api == null) return;
+    await api.deleteRobot(robotId);
+    await refreshFleet();
+  }
+
   Future<void> decommissionRobot(String robotId) async {
     final api = _api;
     if (api == null) return;
@@ -317,6 +346,36 @@ class FleetProvider extends ChangeNotifier {
       fleet: fleet,
       robot: robot,
     );
+    await refreshFleet();
+  }
+
+  Future<Map<String, dynamic>> dispatchRmfTask({
+    required String category, // 'patrol', 'delivery', 'clean', 'charge_battery'
+    required Map<String, dynamic> description,
+    String? fleetName,
+    String? robotName,
+  }) async {
+    final api = _api;
+    if (api == null) return {};
+    final res = await api.dispatchRmfTask(
+      category: category,
+      description: description,
+      fleetName: fleetName,
+      robotName: robotName,
+    );
+    await refreshFleet();
+    return res;
+  }
+
+  Future<void> cancelRmfTask(String taskId) async {
+    final api = _api;
+    if (api == null) return;
+    try {
+      await api.cancelRmfTask(taskId);
+    } catch (_) {
+      // In case task ID is a workflow mission id
+      await api.cancelMission(taskId);
+    }
     await refreshFleet();
   }
 

@@ -740,7 +740,7 @@ class _NameMapDialogState extends State<_NameMapDialog> {
               const SizedBox(height: 16),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Publish to Open-RMF Fleet Server', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                title: const Text('Publish to NavPro Mini Fleet Server', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                 subtitle: const Text('Makes this map instantly available to all fleet robots', style: TextStyle(fontSize: 11)),
                 value: _publishToFleet,
                 onChanged: (val) => setState(() => _publishToFleet = val),

@@ -7,6 +7,7 @@ import '../../providers/connection_provider.dart';
 import '../../providers/fleet_provider.dart';
 import '../../services/sdk_api_service.dart';
 import '../settings/fleet_settings_screen.dart';
+import '../../widgets/fleet/dispatch_fleet_task_dialog.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../../utils/mission_step_summary.dart';
@@ -248,21 +249,34 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
       appBar: AppBar(
         title: Text(isDesktop ? 'Missions & Autonomous Tasks' : 'Missions'),
         actions: [
-          if (fleet.isFleetMode)
+          if (fleet.isFleetMode) ...[
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              padding: const EdgeInsets.only(right: AppSpacing.xs),
               child: FilledButton.tonalIcon(
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(0, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                 ),
-                icon: const Icon(Icons.hub_rounded, size: 18, color: Colors.blue),
-                label: Text('Fleet Tasks (${fleet.activeMissions.length})'),
+                icon: const Icon(Icons.send_rounded, size: 16),
+                label: const Text('Dispatch Task'),
+                onPressed: () => DispatchFleetTaskDialog.show(context),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+                icon: const Icon(Icons.hub_rounded, size: 16, color: Colors.blue),
+                label: Text('Fleet (${fleet.activeMissions.length})'),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
                 ),
               ),
             ),
+          ],
           if (isDesktop) ...[
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.sm),

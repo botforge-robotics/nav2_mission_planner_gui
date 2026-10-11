@@ -100,7 +100,7 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                 const SizedBox(height: AppSpacing.lg),
                 _SettingsTile(
                   icon: Icons.hub_rounded,
-                  title: 'Open-RMF Fleet Management',
+                  title: 'NavPro Mini Fleet Management',
                   subtitle: 'Multi-robot fleet coordination, levels, and commissioning',
                   trailing: Consumer<FleetProvider>(
                     builder: (_, fleet, __) => Container(
@@ -487,7 +487,7 @@ class _FleetSummaryHeader extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Text('Open-RMF Fleet', style: Theme.of(context).textTheme.titleMedium),
+                            Text('NavPro Mini Fleet', style: Theme.of(context).textTheme.titleMedium),
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
