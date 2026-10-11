@@ -70,6 +70,7 @@ class FleetProvider extends ChangeNotifier {
       _fleetServerHost = saved.fleetServerHost ?? saved.ip;
       _fleetServerPort = saved.fleetServerPort;
       _token = saved.fleetAuthToken;
+      _robotIps.addAll(saved.fleetRobotIps);
       if (_isFleetMode && _fleetServerHost != null) {
         _connectFleet();
       }
@@ -96,6 +97,7 @@ class FleetProvider extends ChangeNotifier {
               fleetServerPort: _fleetServerPort,
               isFleetMode: _isFleetMode,
               fleetAuthToken: token,
+              fleetRobotIps: _robotIps,
             );
             await _store.save(updated);
           }
@@ -384,6 +386,56 @@ class FleetProvider extends ChangeNotifier {
     if (api == null) return;
     await api.cancelMission(missionId);
     await refreshFleet();
+  }
+
+  // --- Robot Direct IP Mapping ---
+  final Map<String, String> _robotIps = {};
+  Map<String, String> get robotIps => Map.unmodifiable(_robotIps);
+
+  void registerRobotIp(String robotId, String ip) {
+    _robotIps[robotId] = ip;
+    notifyListeners();
+    _store.load().then((saved) {
+      if (saved != null) {
+        final updated = SavedRobot(
+          name: saved.name,
+          ip: saved.ip,
+          fleetServerHost: saved.fleetServerHost,
+          fleetServerPort: saved.fleetServerPort,
+          isFleetMode: saved.isFleetMode,
+          fleetAuthToken: saved.fleetAuthToken,
+          fleetRobotIps: _robotIps,
+        );
+        _store.save(updated);
+      }
+    });
+  }
+
+  String? getRobotIp(String robotId) => _robotIps[robotId];
+
+  // --- Robot Heartbeat / Live Pose Sync ---
+  Future<void> reportRobotHeartbeat({
+    required String robotId,
+    required double x,
+    required double y,
+    required double yaw,
+    double? batteryPercent,
+    String mode = 'idle',
+    String? levelName,
+  }) async {
+    final api = _api;
+    if (api == null || !_isFleetMode) return;
+    try {
+      await api.sendHeartbeat(
+        robotId: robotId,
+        x: x,
+        y: y,
+        yaw: yaw,
+        batteryPercent: batteryPercent,
+        mode: mode,
+        levelName: levelName ?? selectedLevel?.name,
+      );
+    } catch (_) {}
   }
 
   @override

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/fleet_models.dart';
+import '../../providers/connection_provider.dart';
 import '../../providers/fleet_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/fleet/add_fleet_robot_dialog.dart';
@@ -491,8 +492,48 @@ class _FleetSettingsScreenState extends State<FleetSettingsScreen> {
             Text('Serial: ${robot.serial}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
             Text('Current Level: ${robot.levelName ?? robot.levelId ?? 'N/A'}'),
             Text('Charger: ${robot.dockWaypoint ?? 'N/A'}'),
+            if (fleet.getRobotIp(robot.id) != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.wifi_tethering, color: Colors.blue, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('Physical AMR IP: ${fleet.getRobotIp(robot.id)}',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue)),
+                    ),
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      icon: const Icon(Icons.link, size: 14),
+                      label: const Text('Connect Direct', style: TextStyle(fontSize: 11)),
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        final ip = fleet.getRobotIp(robot.id)!;
+                        final connection = context.read<ConnectionProvider>();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Connecting app directly to ${robot.name} ($ip)...')),
+                        );
+                        await connection.updateRobotIp(ip, name: robot.name);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 ElevatedButton.icon(
                   icon: const Icon(Icons.navigation_rounded),
@@ -520,7 +561,6 @@ class _FleetSettingsScreenState extends State<FleetSettingsScreen> {
                     DispatchFleetTaskDialog.show(context, initialRobotId: robot.id);
                   },
                 ),
-                const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, color: Colors.red),
                   tooltip: 'Delete Robot',

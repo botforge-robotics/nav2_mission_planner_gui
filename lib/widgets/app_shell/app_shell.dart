@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
@@ -70,6 +71,7 @@ class _ShellNavState extends State<_ShellNav> {
   Subscriber? _modeSubscriber;
   Ros2? _subscribedRos2;
   String? _lastMode;
+  Timer? _fleetHeartbeatTimer;
 
   void setIndex(int index) {
     if (mounted) setState(() => _index = index);
@@ -87,6 +89,53 @@ class _ShellNavState extends State<_ShellNav> {
     _Destination('Settings', Icons.settings_outlined, Icons.settings_rounded,
         SettingsHomeScreen()),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _startFleetHeartbeatSync();
+  }
+
+  void _startFleetHeartbeatSync() {
+    _fleetHeartbeatTimer?.cancel();
+    _fleetHeartbeatTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted) return;
+      final fleet = context.read<FleetProvider>();
+      if (!fleet.isFleetMode) return;
+
+      final connection = context.read<ConnectionProvider>();
+      if (!connection.isConnected || connection.robot == null) return;
+
+      final physicalRobot = connection.robot!;
+      final telemetry = context.read<RobotTelemetryProvider>();
+
+      // Match connected robot with a registered fleet robot by IP, name, or serial
+      final registered = fleet.robots.where((r) {
+        final mappedIp = fleet.getRobotIp(r.id);
+        if (mappedIp != null && mappedIp == physicalRobot.ip) return true;
+        if (r.serial.isNotEmpty && physicalRobot.name.toLowerCase().contains(r.serial.toLowerCase())) return true;
+        return r.name.toLowerCase() == physicalRobot.name.toLowerCase();
+      }).firstOrNull;
+
+      if (registered == null) return;
+
+      // Extract coordinates (fallback to 0,0,0 if not localized yet)
+      final x = telemetry.poseX ?? 0.0;
+      final y = telemetry.poseY ?? 0.0;
+      final yaw = telemetry.poseTheta ?? 0.0;
+      final battery = telemetry.batteryPercentage;
+      final mode = _lastMode ?? (telemetry.linearSpeedMps != null && telemetry.linearSpeedMps!.abs() > 0.05 ? 'moving' : 'idle');
+
+      fleet.reportRobotHeartbeat(
+        robotId: registered.id,
+        x: x,
+        y: y,
+        yaw: yaw,
+        batteryPercent: battery,
+        mode: mode,
+      );
+    });
+  }
 
   @override
   void didChangeDependencies() {
@@ -149,6 +198,7 @@ class _ShellNavState extends State<_ShellNav> {
 
   @override
   void dispose() {
+    _fleetHeartbeatTimer?.cancel();
     _modeSubscriber?.unsubscribe();
     super.dispose();
   }

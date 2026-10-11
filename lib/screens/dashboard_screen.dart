@@ -300,17 +300,25 @@ class _DashboardContentState extends State<_DashboardContent> {
                   const Icon(Icons.arrow_drop_down, color: Colors.blue),
                 ],
               ),
-              onSelected: (robotId) {
+              onSelected: (robotId) async {
                 if (robotId == '__fleet_settings__') {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
                   );
+                } else if (robotId.startsWith('__connect_ip__:')) {
+                  final parts = robotId.replaceFirst('__connect_ip__:', '').split('|');
+                  final ip = parts[0];
+                  final name = parts.length > 1 ? parts[1] : null;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Switching live ROS 2 connection to $name ($ip)...')),
+                  );
+                  await widget.connection.updateRobotIp(ip, name: name);
                 } else {
                   fleet.selectRobot(robotId);
                 }
               },
               itemBuilder: (ctx) => [
-                for (final r in fleet.robots)
+                for (final r in fleet.robots) ...[
                   PopupMenuItem<String>(
                     value: r.id,
                     child: Row(
@@ -322,12 +330,23 @@ class _DashboardContentState extends State<_DashboardContent> {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
-                            r.name,
-                            style: TextStyle(
-                              fontWeight: fleet.selectedRobotId == r.id ? FontWeight.bold : FontWeight.normal,
-                              color: fleet.selectedRobotId == r.id ? Colors.blue : null,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                r.name,
+                                style: TextStyle(
+                                  fontWeight: fleet.selectedRobotId == r.id ? FontWeight.bold : FontWeight.normal,
+                                  color: fleet.selectedRobotId == r.id ? Colors.blue : null,
+                                ),
+                              ),
+                              if (fleet.getRobotIp(r.id) != null)
+                                Text(
+                                  fleet.getRobotIp(r.id)!,
+                                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                ),
+                            ],
                           ),
                         ),
                         Container(
@@ -348,6 +367,24 @@ class _DashboardContentState extends State<_DashboardContent> {
                       ],
                     ),
                   ),
+                  if (fleet.getRobotIp(r.id) != null && widget.robot.ip != fleet.getRobotIp(r.id))
+                    PopupMenuItem<String>(
+                      value: '__connect_ip__:${fleet.getRobotIp(r.id)}|${r.name}',
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 26),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.wifi_tethering, size: 14, color: Colors.blue),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Connect App Directly (${fleet.getRobotIp(r.id)})',
+                              style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
                 const PopupMenuDivider(),
                 const PopupMenuItem<String>(
                   value: '__fleet_settings__',

@@ -16,6 +16,7 @@ class SavedRobot {
     this.fleetServerPort = 80,
     this.isFleetMode = false,
     this.fleetAuthToken,
+    this.fleetRobotIps = const {},
   });
 
   final String name;
@@ -24,6 +25,7 @@ class SavedRobot {
   final int fleetServerPort;
   final bool isFleetMode;
   final String? fleetAuthToken;
+  final Map<String, String> fleetRobotIps;
 
   String get rosbridgeUrl => 'ws://$ip:9090';
   String? get fleetApiUrl => fleetServerHost != null ? 'http://$fleetServerHost:$fleetServerPort' : null;
@@ -36,6 +38,7 @@ class RobotConnectionStore {
   static const _keyFleetPort = 'fleet_port';
   static const _keyIsFleetMode = 'is_fleet_mode';
   static const _keyFleetAuthToken = 'fleet_auth_token';
+  static const _keyFleetRobotIps = 'fleet_robot_ips';
 
   File? _desktopStorageFile() {
     if (kIsWeb) return null;
@@ -64,6 +67,15 @@ class RobotConnectionStore {
       final fleetPort = prefs.getInt(_keyFleetPort) ?? 80;
       final isFleetMode = prefs.getBool(_keyIsFleetMode) ?? false;
       final fleetToken = prefs.getString(_keyFleetAuthToken);
+      Map<String, String> robotIps = {};
+      final robotIpsRaw = prefs.getString(_keyFleetRobotIps);
+      if (robotIpsRaw != null) {
+        try {
+          final decoded = jsonDecode(robotIpsRaw) as Map<String, dynamic>;
+          robotIps = decoded.map((k, v) => MapEntry(k, v.toString()));
+        } catch (_) {}
+      }
+
       if (ip != null && ip.isNotEmpty) {
         final robot = SavedRobot(
           name: name ?? ip,
@@ -72,6 +84,7 @@ class RobotConnectionStore {
           fleetServerPort: fleetPort,
           isFleetMode: isFleetMode,
           fleetAuthToken: fleetToken,
+          fleetRobotIps: robotIps,
         );
         // Ensure desktop backup file is in sync
         _saveToDesktopFile(robot);
@@ -91,6 +104,12 @@ class RobotConnectionStore {
         final fleetPort = data['fleetServerPort'] as int? ?? 80;
         final isFleetMode = data['isFleetMode'] as bool? ?? false;
         final fleetToken = data['fleetAuthToken'] as String?;
+        Map<String, String> robotIps = {};
+        if (data['fleetRobotIps'] is Map) {
+          final m = data['fleetRobotIps'] as Map;
+          robotIps = m.map((k, v) => MapEntry(k.toString(), v.toString()));
+        }
+
         if (ip != null && ip.isNotEmpty) {
           final robot = SavedRobot(
             name: name ?? ip,
@@ -99,6 +118,7 @@ class RobotConnectionStore {
             fleetServerPort: fleetPort,
             isFleetMode: isFleetMode,
             fleetAuthToken: fleetToken,
+            fleetRobotIps: robotIps,
           );
           // Restore back to SharedPreferences
           try {
@@ -108,6 +128,7 @@ class RobotConnectionStore {
             await prefs.setInt(_keyFleetPort, fleetPort);
             await prefs.setBool(_keyIsFleetMode, isFleetMode);
             if (fleetToken != null) await prefs.setString(_keyFleetAuthToken, fleetToken);
+            await prefs.setString(_keyFleetRobotIps, jsonEncode(robotIps));
           } catch (_) {}
           return robot;
         }
@@ -135,6 +156,7 @@ class RobotConnectionStore {
       } else {
         await prefs.remove(_keyFleetAuthToken);
       }
+      await prefs.setString(_keyFleetRobotIps, jsonEncode(robot.fleetRobotIps));
     } catch (_) {}
 
     // 2. Persist to desktop file
@@ -152,6 +174,7 @@ class RobotConnectionStore {
         'fleetServerPort': robot.fleetServerPort,
         'isFleetMode': robot.isFleetMode,
         'fleetAuthToken': robot.fleetAuthToken,
+        'fleetRobotIps': robot.fleetRobotIps,
       }));
     } catch (_) {}
   }

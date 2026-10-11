@@ -311,5 +311,27 @@ class FleetApiService {
       'task_id': taskId,
     });
   }
+
+  // --- Robot Heartbeat / Telemetry Sync ---
+  Future<void> sendHeartbeat({
+    required String robotId,
+    required double x,
+    required double y,
+    required double yaw,
+    double? batteryPercent,
+    String mode = 'idle',
+    String? levelName,
+  }) async {
+    await _post('/api/v1/robots/$robotId/heartbeat', body: {
+      'pose': {
+        'x': x,
+        'y': y,
+        'yaw': yaw,
+        if (levelName != null && levelName.isNotEmpty) 'levelName': levelName,
+      },
+      if (batteryPercent != null) 'batterySoc': batteryPercent,
+      'mode': mode,
+    });
+  }
 }
 
