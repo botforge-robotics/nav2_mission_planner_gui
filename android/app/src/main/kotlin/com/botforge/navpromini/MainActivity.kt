@@ -23,15 +23,49 @@ class MainActivity: FlutterActivity(), GamepadsCompatibleActivity {
         WindowCompat.setDecorFitsSystemWindows(window, false)
     }
 
+    override fun isGamepadsInputDevice(device: android.view.InputDevice): Boolean {
+        // Check source flags
+        val sources = device.sources
+        val hasGamepadSource = (sources and android.view.InputDevice.SOURCE_GAMEPAD) == android.view.InputDevice.SOURCE_GAMEPAD ||
+                (sources and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK ||
+                (sources and android.view.InputDevice.SOURCE_DPAD) == android.view.InputDevice.SOURCE_DPAD
+
+        // Check if device has any gamepad button keys
+        val hasGamepadKeys = device.hasKeys(
+            KeyEvent.KEYCODE_BUTTON_A,
+            KeyEvent.KEYCODE_BUTTON_B,
+            KeyEvent.KEYCODE_BUTTON_X,
+            KeyEvent.KEYCODE_BUTTON_Y,
+            KeyEvent.KEYCODE_BUTTON_L1,
+            KeyEvent.KEYCODE_BUTTON_R1,
+            KeyEvent.KEYCODE_BUTTON_START,
+            KeyEvent.KEYCODE_BUTTON_SELECT
+        ).any { it }
+
+        // Check if device has joystick/motion ranges
+        val hasMotionRanges = device.motionRanges.any {
+            (it.source and android.view.InputDevice.SOURCE_JOYSTICK) == android.view.InputDevice.SOURCE_JOYSTICK ||
+            (it.source and android.view.InputDevice.SOURCE_GAMEPAD) == android.view.InputDevice.SOURCE_GAMEPAD
+        }
+
+        // If it explicitly claims gamepad source or has gamepad keys, accept it!
+        val isGamepad = hasGamepadSource || hasGamepadKeys || hasMotionRanges
+        android.util.Log.i("MainActivity", "isGamepadsInputDevice: ${device.name} (id=${device.id}) -> $isGamepad (source=$sources, keys=$hasGamepadKeys, motion=$hasMotionRanges)")
+        return isGamepad
+    }
+
     override fun dispatchGenericMotionEvent(motionEvent: MotionEvent): Boolean {
-        if (motionListener?.invoke(motionEvent) == true) {
+        val handled = motionListener?.invoke(motionEvent) == true
+        if (handled) {
             return true
         }
         return super.dispatchGenericMotionEvent(motionEvent)
     }
 
     override fun dispatchKeyEvent(keyEvent: KeyEvent): Boolean {
-        if (keyListener?.invoke(keyEvent) == true) {
+        android.util.Log.d("MainActivity", "dispatchKeyEvent: action=${keyEvent.action}, keyCode=${keyEvent.keyCode} (${KeyEvent.keyCodeToString(keyEvent.keyCode)}), devId=${keyEvent.deviceId}")
+        val handled = keyListener?.invoke(keyEvent) == true
+        if (handled) {
             return true
         }
         return super.dispatchKeyEvent(keyEvent)

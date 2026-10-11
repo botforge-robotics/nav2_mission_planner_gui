@@ -323,26 +323,111 @@ class GamepadService extends ChangeNotifier {
   }
 
   void _handleRawEvent(GamepadEvent raw) {
-    // Fallback for Linux Bluetooth / DirectInput where vendor-specific mapping is absent
-    // Standard PS/DualShock Bluetooth layout on Linux:
-    // Buttons: 0=Cross(A), 1=Circle(B), 2=Square(X), 3=Triangle(Y), 4=L1, 5=R1, 6=L2, 7=R2, 8=Share, 9=Options, 10=PS, 11=L3, 12=R3
+    debugPrint('[GamepadService] RAW: key=${raw.key}, val=${raw.value}, type=${raw.type}, id=${raw.gamepadId}');
     if (raw.type == KeyType.button) {
       GamepadButton? btn;
-      switch (raw.key) {
-        case '0': btn = GamepadButton.a; break;
-        case '1': btn = GamepadButton.b; break;
-        case '2': btn = GamepadButton.x; break;
-        case '3': btn = GamepadButton.y; break;
-        case '4': btn = GamepadButton.leftBumper; break;
-        case '5': btn = GamepadButton.rightBumper; break;
-        case '6': btn = GamepadButton.leftTrigger; break;
-        case '7': btn = GamepadButton.rightTrigger; break;
-        case '8': btn = GamepadButton.back; break;
-        case '9': btn = GamepadButton.start; break;
-        case '10': btn = GamepadButton.home; break;
-        case '11': btn = GamepadButton.leftStick; break;
-        case '12': btn = GamepadButton.rightStick; break;
+      final k = raw.key.toUpperCase();
+      switch (k) {
+        // Standard Linux indices
+        case '0':
+        case 'KEYCODE_BUTTON_A':
+        case 'KEYCODE_BUTTON_1':
+        case '96':
+          btn = GamepadButton.a;
+          break;
+        case '1':
+        case 'KEYCODE_BUTTON_B':
+        case 'KEYCODE_BUTTON_2':
+        case '97':
+          btn = GamepadButton.b;
+          break;
+        case '2':
+        case 'KEYCODE_BUTTON_X':
+        case 'KEYCODE_BUTTON_3':
+        case '99':
+          btn = GamepadButton.x;
+          break;
+        case '3':
+        case 'KEYCODE_BUTTON_Y':
+        case 'KEYCODE_BUTTON_4':
+        case '100':
+          btn = GamepadButton.y;
+          break;
+        case '4':
+        case 'KEYCODE_BUTTON_L1':
+        case 'KEYCODE_BUTTON_5':
+        case '102':
+          btn = GamepadButton.leftBumper;
+          break;
+        case '5':
+        case 'KEYCODE_BUTTON_R1':
+        case 'KEYCODE_BUTTON_6':
+        case '103':
+          btn = GamepadButton.rightBumper;
+          break;
+        case '6':
+        case 'KEYCODE_BUTTON_L2':
+        case 'KEYCODE_BUTTON_7':
+        case '104':
+          btn = GamepadButton.leftTrigger;
+          break;
+        case '7':
+        case 'KEYCODE_BUTTON_R2':
+        case 'KEYCODE_BUTTON_8':
+        case '105':
+          btn = GamepadButton.rightTrigger;
+          break;
+        case '8':
+        case 'KEYCODE_BUTTON_SELECT':
+        case 'KEYCODE_BACK':
+        case 'KEYCODE_BUTTON_9':
+        case '109':
+          btn = GamepadButton.back;
+          break;
+        case '9':
+        case 'KEYCODE_BUTTON_START':
+        case 'KEYCODE_MENU':
+        case 'KEYCODE_BUTTON_10':
+        case '108':
+        case '82':
+          btn = GamepadButton.start;
+          break;
+        case '10':
+        case 'KEYCODE_BUTTON_MODE':
+        case 'KEYCODE_HOME':
+        case '110':
+          btn = GamepadButton.home;
+          break;
+        case '11':
+        case 'KEYCODE_BUTTON_THUMBL':
+        case 'KEYCODE_BUTTON_11':
+        case '106':
+          btn = GamepadButton.leftStick;
+          break;
+        case '12':
+        case 'KEYCODE_BUTTON_THUMBR':
+        case 'KEYCODE_BUTTON_12':
+        case '107':
+          btn = GamepadButton.rightStick;
+          break;
+        case 'KEYCODE_DPAD_UP':
+        case '19':
+          btn = GamepadButton.dpadUp;
+          break;
+        case 'KEYCODE_DPAD_DOWN':
+        case '20':
+          btn = GamepadButton.dpadDown;
+          break;
+        case 'KEYCODE_DPAD_LEFT':
+        case '21':
+          btn = GamepadButton.dpadLeft;
+          break;
+        case 'KEYCODE_DPAD_RIGHT':
+        case '22':
+          btn = GamepadButton.dpadRight;
+          break;
       }
+
       if (btn != null) {
         final isPressed = raw.value > 0.5;
         if (isPressed && !_pressedButtons.contains(btn)) {
@@ -358,13 +443,53 @@ class GamepadService extends ChangeNotifier {
         }
       }
     } else if (raw.type == KeyType.analog) {
-      // D-Pad Hat axes on Linux: axis 6 = HatX, axis 7 = HatY
-      if (raw.key == '6') {
+      final k = raw.key.toUpperCase();
+      // D-Pad Hat axes: axis 6 / AXIS_HAT_X, axis 7 / AXIS_HAT_Y
+      if (k == '6' || k == 'AXIS_HAT_X') {
         _setDpadButton(GamepadButton.dpadLeft, raw.value < -0.5);
         _setDpadButton(GamepadButton.dpadRight, raw.value > 0.5);
-      } else if (raw.key == '7') {
-        _setDpadButton(GamepadButton.dpadUp, raw.value < -0.5);
-        _setDpadButton(GamepadButton.dpadDown, raw.value > 0.5);
+      } else if (k == '7' || k == 'AXIS_HAT_Y') {
+        // On Android, Hat Y might be inverted depending on source, check both polarities
+        _setDpadButton(GamepadButton.dpadUp, raw.value > 0.5 || (k == '7' && raw.value < -0.5));
+        _setDpadButton(GamepadButton.dpadDown, raw.value < -0.5 || (k == '7' && raw.value > 0.5));
+      } else if (k == 'AXIS_X' || k == '0') {
+        _leftStickX = raw.value;
+        notifyListeners();
+      } else if (k == 'AXIS_Y' || k == '1') {
+        _leftStickY = raw.value;
+        notifyListeners();
+      } else if (k == 'AXIS_Z' || k == 'AXIS_RX' || k == '2' || k == '3') {
+        _rightStickX = raw.value;
+        notifyListeners();
+      } else if (k == 'AXIS_RZ' || k == 'AXIS_RY' || k == '4' || k == '5') {
+        _rightStickY = raw.value;
+        notifyListeners();
+      } else if (k == 'AXIS_LTRIGGER' || k == 'AXIS_BRAKE') {
+        final isLtPressed = raw.value > 0.25;
+        if (isLtPressed && !_pressedButtons.contains(GamepadButton.leftTrigger)) {
+          _pressedButtons.add(GamepadButton.leftTrigger);
+          _lastPressedButton = GamepadButton.leftTrigger;
+          _buttonPressStreamController.add(GamepadButton.leftTrigger);
+          _onButtonPressed(GamepadButton.leftTrigger);
+          notifyListeners();
+        } else if (!isLtPressed && _pressedButtons.contains(GamepadButton.leftTrigger)) {
+          _pressedButtons.remove(GamepadButton.leftTrigger);
+          _onButtonReleased(GamepadButton.leftTrigger);
+          notifyListeners();
+        }
+      } else if (k == 'AXIS_RTRIGGER' || k == 'AXIS_GAS') {
+        final isRtPressed = raw.value > 0.25;
+        if (isRtPressed && !_pressedButtons.contains(GamepadButton.rightTrigger)) {
+          _pressedButtons.add(GamepadButton.rightTrigger);
+          _lastPressedButton = GamepadButton.rightTrigger;
+          _buttonPressStreamController.add(GamepadButton.rightTrigger);
+          _onButtonPressed(GamepadButton.rightTrigger);
+          notifyListeners();
+        } else if (!isRtPressed && _pressedButtons.contains(GamepadButton.rightTrigger)) {
+          _pressedButtons.remove(GamepadButton.rightTrigger);
+          _onButtonReleased(GamepadButton.rightTrigger);
+          notifyListeners();
+        }
       }
     }
   }
