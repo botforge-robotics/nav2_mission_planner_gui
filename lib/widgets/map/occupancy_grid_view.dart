@@ -1799,7 +1799,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         );
       }
 
-      if (widget.drawingLaneMode) {
+      if (widget.drawingLaneMode || widget.onMapClickWorld != null) {
+        Offset? pointerDownPos;
         activeChild = MouseRegion(
           cursor: SystemMouseCursors.precise,
           onHover: (event) {
@@ -1813,25 +1814,34 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           onExit: (_) {
             widget.onMapHoverWorld?.call(null);
           },
-          child: GestureDetector(
-            onTapUp: (details) {
-              if (_grid == null) return;
-              final contentPoint = _globalToContent(details.globalPosition);
-              if (contentPoint != null) {
-                final world = _pixelToWorld(_grid!, contentPoint);
-                widget.onMapClickWorld?.call(world);
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (event) {
+              pointerDownPos = event.position;
+            },
+            onPointerUp: (event) {
+              if (pointerDownPos != null &&
+                  (event.position - pointerDownPos!).distance < 12.0) {
+                if (_grid == null) return;
+                final contentPoint = _globalToContent(event.position);
+                if (contentPoint != null) {
+                  final world = _pixelToWorld(_grid!, contentPoint);
+                  widget.onMapClickWorld?.call(world);
+                }
               }
             },
-            onDoubleTap: () {
-              widget.onFinishLane?.call();
-            },
-            child: activeChild,
+            child: GestureDetector(
+              onDoubleTap: () {
+                widget.onFinishLane?.call();
+              },
+              child: activeChild,
+            ),
           ),
         );
       }
 
       Widget activeWidget = activeChild;
-      if (widget.drawingLaneMode) {
+      if (widget.drawingLaneMode || widget.onMapClickWorld != null) {
         activeWidget = activeChild;
       } else if (widget.onLocationTap != null ||
           widget.onDockTap != null ||

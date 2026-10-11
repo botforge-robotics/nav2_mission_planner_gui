@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
@@ -30,7 +31,6 @@ import '../utils/push_with_telemetry.dart';
 import '../widgets/map/not_localized_banner.dart';
 import '../widgets/map/occupancy_grid_view.dart';
 import '../widgets/sdk_state_builder.dart';
-import 'alerts/alerts_log_screen.dart';
 import 'dock/dock_charge_screen.dart';
 import 'maps/map_view_screen.dart';
 import 'maps/maps_list_screen.dart';
@@ -327,6 +327,8 @@ class _DashboardContentState extends State<_DashboardContent> {
                               telemetry: telemetry,
                               sdkState: sdkState),
                           const SizedBox(height: AppSpacing.lg),
+                          _DashboardTasksOverviewCard(robotIp: widget.robot.ip),
+                          const SizedBox(height: AppSpacing.lg),
                           _MapPreviewCard(
                             ros2: widget.ros2,
                             mapName: sdkState.mapName,
@@ -383,6 +385,11 @@ class _DashboardContentState extends State<_DashboardContent> {
                         robot: widget.robot,
                         telemetry: telemetry,
                         sdkState: sdkState),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  FadeSlideIn(
+                    delay: nextDelay(),
+                    child: _DashboardTasksOverviewCard(robotIp: widget.robot.ip),
                   ),
                   if (!fleet.isFleetMode) ...[
                     const SizedBox(height: AppSpacing.lg),
@@ -538,129 +545,136 @@ class _RobotCard extends StatelessWidget {
                   ),
                 )
               else
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(
-                        Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white.withValues(alpha: 0.05)
-                            : Colors.grey.shade100,
-                      ),
-                      dataRowMinHeight: 48,
-                      dataRowMaxHeight: 56,
-                      columnSpacing: 24,
-                      columns: const [
-                        DataColumn(label: Text('ROBOT NAME', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        DataColumn(label: Text('BATTERY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        DataColumn(label: Text('LEVEL / DOCK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        DataColumn(label: Text('CURRENT TASK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                      ],
-                      rows: robots.map((r) {
-                        final ip = fleet.getRobotIp(r.id) ?? r.ip;
-                        final isOnline = r.isActive || r.status == 'active' || r.status == 'ready' || r.status == 'moving';
-                        final isCharging = r.isCharging;
-                        final currentTask = tasks.where((t) => t['robot'] == r.name || t['robot_id'] == r.id).firstOrNull;
-                        final taskDesc = currentTask != null
-                            ? (currentTask['type'] ?? currentTask['task_type'] ?? 'Mission')
-                            : (isCharging ? 'Recharging' : (isOnline ? 'Idle / Standby' : 'Offline'));
-                        final levelObj = fleet.levels.where((l) => l.id == r.levelId || l.name == r.levelId).firstOrNull;
-                        final levelDisplay = levelObj?.name ?? (r.levelName != null && r.levelName!.isNotEmpty ? r.levelName! : null) ?? 'Level 1';
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                          child: DataTable(
+                            headingRowColor: WidgetStateProperty.all(
+                              Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white.withValues(alpha: 0.05)
+                                  : Colors.grey.shade100,
+                            ),
+                            dataRowMinHeight: 48,
+                            dataRowMaxHeight: 56,
+                            columnSpacing: 24,
+                            columns: const [
+                              DataColumn(label: Text('ROBOT NAME', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                              DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                              DataColumn(label: Text('BATTERY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                              DataColumn(label: Text('LEVEL / DOCK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                              DataColumn(label: Text('CURRENT TASK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                            ],
+                            rows: robots.map((r) {
+                              final ip = fleet.getRobotIp(r.id) ?? r.ip;
+                              final isOnline = r.isActive || r.status == 'active' || r.status == 'ready' || r.status == 'moving';
+                              final isCharging = r.isCharging;
+                              final currentTask = tasks.where((t) => t['robot'] == r.name || t['robot_id'] == r.id).firstOrNull;
+                              final taskDesc = currentTask != null
+                                  ? (currentTask['type'] ?? currentTask['task_type'] ?? 'Mission')
+                                  : (isCharging ? 'Recharging' : (isOnline ? 'Idle / Standby' : 'Offline'));
+                              final levelObj = fleet.levels.where((l) => l.id == r.levelId || l.name == r.levelId).firstOrNull;
+                              final levelDisplay = levelObj?.name ?? (r.levelName != null && r.levelName!.isNotEmpty ? r.levelName! : null) ?? 'Level 1';
 
-                        return DataRow(
-                          cells: [
-                            DataCell(
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CircleAvatar(
-                                    radius: 14,
-                                    backgroundColor: isOnline ? Colors.blue.shade50 : Colors.grey.shade200,
-                                    child: Icon(Icons.smart_toy_rounded, size: 16, color: isOnline ? Colors.blue : Colors.grey),
+                              return DataRow(
+                                cells: [
+                                  DataCell(
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 14,
+                                          backgroundColor: isOnline ? Colors.blue.shade50 : Colors.grey.shade200,
+                                          child: Icon(Icons.smart_toy_rounded, size: 16, color: isOnline ? Colors.blue : Colors.grey),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(r.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                            Text(ip != null ? 'IP: $ip' : r.serial, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(r.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                      Text(ip != null ? 'IP: $ip' : r.serial, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                                    ],
+                                  DataCell(
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: isCharging
+                                            ? Colors.amber.shade100
+                                            : (isOnline ? Colors.green.shade100 : Colors.grey.shade200),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        isCharging ? 'CHARGING' : (isOnline ? 'ONLINE' : 'OFFLINE'),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: isCharging
+                                              ? Colors.amber.shade900
+                                              : (isOnline ? Colors.green.shade900 : Colors.grey.shade700),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isCharging
+                                              ? Icons.bolt_rounded
+                                              : ((r.batteryPercent ?? 100) <= 20
+                                                  ? Icons.battery_alert_rounded
+                                                  : Icons.battery_full_rounded),
+                                          size: 16,
+                                          color: isCharging
+                                              ? Colors.amber.shade800
+                                              : ((r.batteryPercent ?? 100) <= 20 ? Colors.red : Colors.green),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          r.batteryPercent != null ? '${r.batteryPercent!.round()}%' : '—',
+                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      '$levelDisplay · ${r.dockWaypoint ?? "dock"}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Container(
+                                      constraints: const BoxConstraints(maxWidth: 160),
+                                      child: Text(
+                                        taskDesc.toString(),
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: currentTask != null ? Colors.blue : Colors.grey.shade700,
+                                          fontWeight: currentTask != null ? FontWeight.bold : FontWeight.normal,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ],
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: isCharging
-                                      ? Colors.amber.shade100
-                                      : (isOnline ? Colors.green.shade100 : Colors.grey.shade200),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  isCharging ? 'CHARGING' : (isOnline ? 'ONLINE' : 'OFFLINE'),
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: isCharging
-                                        ? Colors.amber.shade900
-                                        : (isOnline ? Colors.green.shade900 : Colors.grey.shade700),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isCharging
-                                        ? Icons.bolt_rounded
-                                        : ((r.batteryPercent ?? 100) <= 20
-                                            ? Icons.battery_alert_rounded
-                                            : Icons.battery_full_rounded),
-                                    size: 16,
-                                    color: isCharging
-                                        ? Colors.amber.shade800
-                                        : ((r.batteryPercent ?? 100) <= 20 ? Colors.red : Colors.green),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    r.batteryPercent != null ? '${r.batteryPercent!.round()}%' : '—',
-                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                '$levelDisplay · ${r.dockWaypoint ?? "dock"}',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                            DataCell(
-                              Container(
-                                constraints: const BoxConstraints(maxWidth: 160),
-                                child: Text(
-                                  taskDesc.toString(),
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: currentTask != null ? Colors.blue : Colors.grey.shade700,
-                                    fontWeight: currentTask != null ? FontWeight.bold : FontWeight.normal,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
             ],
           ),
@@ -765,6 +779,303 @@ class _RobotCard extends StatelessWidget {
       ),
     );
       },
+    );
+  }
+}
+
+/// Open-RMF Task Overview Table on Dashboard displaying active, queued, scheduled, and history tasks
+class _DashboardTasksOverviewCard extends StatefulWidget {
+  const _DashboardTasksOverviewCard({required this.robotIp});
+
+  final String robotIp;
+
+  @override
+  State<_DashboardTasksOverviewCard> createState() => _DashboardTasksOverviewCardState();
+}
+
+class _DashboardTasksOverviewCardState extends State<_DashboardTasksOverviewCard> {
+  String _taskFilter = 'all'; // 'all', 'active', 'queued', 'scheduled', 'history'
+  Timer? _refreshTimer;
+  List<Map<String, dynamic>> _schedules = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocalTasks();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) _loadLocalTasks();
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadLocalTasks() async {
+    try {
+      final api = SdkApiService(widget.robotIp);
+      final list = await api.listSchedules();
+      if (mounted) {
+        setState(() => _schedules = list);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fleet = context.watch<FleetProvider>();
+
+    // Build unified tasks list
+    final List<Map<String, dynamic>> allTasks = [];
+
+    // 1. Fleet tasks from Open-RMF
+    for (final t in fleet.activeMissions) {
+      final status = (t['state'] ?? t['status'] ?? 'active').toString().toLowerCase();
+      String group = 'active';
+      if (status == 'pending' || status == 'queued' || status == 'standby' || status == 'paused') {
+        group = 'queued';
+      } else if (status == 'completed' || status == 'succeeded' || status == 'failed' || status == 'canceled' || status == 'cancelled') {
+        group = 'history';
+      }
+      allTasks.add({
+        'id': t['id']?.toString() ?? 'task_${allTasks.length}',
+        'name': t['type'] ?? t['task_type'] ?? t['name'] ?? 'RMF Task',
+        'robot': t['robot'] ?? t['robot_id'] ?? 'AMR',
+        'status': status,
+        'group': group,
+        'progress': (t['progress'] as num?)?.toDouble() ?? (group == 'history' ? 1.0 : 0.4),
+        'time': t['start_time'] ?? t['timestamp'] ?? 'Active',
+      });
+    }
+
+    // 2. Schedules
+    for (final s in _schedules) {
+      final enabled = s['enabled'] != false;
+      allTasks.add({
+        'id': s['id']?.toString() ?? 'sched_${allTasks.length}',
+        'name': s['mission_name'] ?? s['name'] ?? 'Scheduled Task',
+        'robot': s['robot'] ?? 'Assigned AMR',
+        'status': enabled ? 'scheduled' : 'disabled',
+        'group': 'scheduled',
+        'progress': 0.0,
+        'time': s['time'] ?? s['cron'] ?? 'Scheduled',
+      });
+    }
+
+    // Filter tasks
+    final filteredTasks = _taskFilter == 'all'
+        ? allTasks
+        : allTasks.where((t) => t['group'] == _taskFilter).toList();
+
+    final activeCount = allTasks.where((t) => t['group'] == 'active').length;
+    final queuedCount = allTasks.where((t) => t['group'] == 'queued').length;
+    final scheduledCount = allTasks.where((t) => t['group'] == 'scheduled').length;
+    final historyCount = allTasks.where((t) => t['group'] == 'history').length;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.table_chart_outlined, size: 20, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text(
+                  'Tasks Overview',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${allTasks.length} TASKS',
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
+                  ),
+                ),
+                const Spacer(),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
+                  onPressed: () => DispatchFleetTaskDialog.show(context),
+                  icon: const Icon(Icons.send_rounded, size: 14),
+                  label: const Text('Dispatch Task', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            // Filter chips
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _chip('all', 'All (${allTasks.length})', null),
+                  const SizedBox(width: AppSpacing.xs),
+                  _chip('active', 'Active ($activeCount)', AppColors.stateExecuting),
+                  const SizedBox(width: AppSpacing.xs),
+                  _chip('queued', 'Queued ($queuedCount)', AppColors.warning),
+                  const SizedBox(width: AppSpacing.xs),
+                  _chip('scheduled', 'Scheduled ($scheduledCount)', const Color(0xFFB388FF)),
+                  const SizedBox(width: AppSpacing.xs),
+                  _chip('history', 'History ($historyCount)', AppColors.textSecondary),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const Divider(height: 1),
+            const SizedBox(height: AppSpacing.sm),
+            if (filteredTasks.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: Text(
+                    _taskFilter == 'all'
+                        ? 'No tasks in system. Dispatch a task to send an AMR on a mission.'
+                        : 'No ${_taskFilter.toUpperCase()} tasks found.',
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  ),
+                ),
+              )
+            else
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                        child: DataTable(
+                          headingRowColor: WidgetStateProperty.all(
+                            Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white.withValues(alpha: 0.05)
+                                : Colors.grey.shade100,
+                          ),
+                          dataRowMinHeight: 44,
+                          dataRowMaxHeight: 52,
+                          columnSpacing: 20,
+                          columns: const [
+                            DataColumn(label: Text('TASK NAME / ID', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                            DataColumn(label: Text('ROBOT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                            DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                            DataColumn(label: Text('PROGRESS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                            DataColumn(label: Text('TIME', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                            DataColumn(label: Text('ACTION', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                          ],
+                          rows: filteredTasks.map((t) {
+                            final status = t['status'] as String;
+                            final group = t['group'] as String;
+                            final progress = (t['progress'] as double?) ?? 0.0;
+                            Color statusColor = Colors.grey;
+                            if (group == 'active') statusColor = Colors.blue;
+                            if (group == 'queued') statusColor = Colors.amber;
+                            if (group == 'scheduled') statusColor = const Color(0xFFB388FF);
+                            if (status == 'completed' || status == 'succeeded') statusColor = Colors.green;
+                            if (status == 'failed' || status == 'canceled' || status == 'cancelled') statusColor = Colors.red;
+
+                            return DataRow(
+                              cells: [
+                                DataCell(
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(t['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                      Text(t['id'] as String, style: const TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+                                    ],
+                                  ),
+                                ),
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.smart_toy_outlined, size: 14, color: Colors.blue),
+                                      const SizedBox(width: 4),
+                                      Text(t['robot'] as String, style: const TextStyle(fontSize: 12)),
+                                    ],
+                                  ),
+                                ),
+                                DataCell(
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: statusColor.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      status.toUpperCase(),
+                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  SizedBox(
+                                    width: 80,
+                                    child: LinearProgressIndicator(
+                                      value: progress,
+                                      backgroundColor: Colors.grey.withValues(alpha: 0.2),
+                                      valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  Text(t['time'] as String, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                ),
+                                DataCell(
+                                  (group == 'active' || group == 'queued')
+                                      ? IconButton(
+                                          icon: const Icon(Icons.cancel_outlined, size: 16, color: AppColors.danger),
+                                          tooltip: 'Cancel task',
+                                          onPressed: () async {
+                                            await fleet.cancelRmfTask(t['id'] as String);
+                                            setState(() {});
+                                          },
+                                        )
+                                      : const SizedBox.shrink(),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(String key, String label, Color? color) {
+    final isSelected = _taskFilter == key;
+    return ChoiceChip(
+      selected: isSelected,
+      onSelected: (val) {
+        if (val) setState(() => _taskFilter = key);
+      },
+      avatar: color != null
+          ? StatusPulseDot(
+              color: color,
+              live: key == 'active',
+              size: 8,
+            )
+          : null,
+      label: Text(label),
+      labelStyle: TextStyle(
+        fontSize: 11,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
     );
   }
 }
@@ -1367,6 +1678,7 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
   @override
   Widget build(BuildContext context) {
     final telemetry = context.watch<RobotTelemetryProvider>();
+    final fleet = context.watch<FleetProvider>();
     final api = SdkApiService(widget.robotIp);
 
     return ValueListenableBuilder<String?>(
@@ -1397,13 +1709,46 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
               children: [
                 Row(
                   children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleMedium,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    const SizedBox(width: AppSpacing.sm),
+                    if (fleet.isFleetMode && fleet.levels.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceSunken,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            isDense: true,
+                            value: (fleet.selectedLevel != null && fleet.levels.any((l) => l.id == fleet.selectedLevel!.id))
+                                ? fleet.selectedLevel!.id
+                                : fleet.levels.first.id,
+                            icon: const Icon(Icons.arrow_drop_down_rounded, size: 20),
+                            items: fleet.levels.map((lvl) {
+                              return DropdownMenuItem<String>(
+                                value: lvl.id,
+                                child: Text(
+                                  lvl.name,
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (newLevelId) {
+                              if (newLevelId != null) {
+                                fleet.selectLevel(newLevelId);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
                     if (isCurrentlyMapping)
                       TextButton(
                         onPressed: () => Navigator.of(context).push(
@@ -1707,78 +2052,144 @@ class _AlertsCardState extends State<_AlertsCard> {
 
   @override
   Widget build(BuildContext context) {
-    // Shared with AlertsLogScreen (see AlertsController's own doc) — the
-    // first of the two to build starts it, both read the same history.
     AlertsController.instance.ensureStarted(widget.robotIp);
     final connected = AlertsController.instance.isConnected;
     final alerts = AlertsController.instance.events
         .where((e) => e.severity != SdkEventSeverity.info)
         .toList();
+
     return Card(
-      child: InkWell(
-        onTap: () => Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const AlertsLogScreen())),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text('Alerts',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(width: AppSpacing.sm),
-                  StatusPulseDot(
-                    color:
-                        connected ? AppColors.success : AppColors.textTertiary,
-                    live: connected,
-                    size: 6,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Text('Alerts & Notifications',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(width: AppSpacing.sm),
+                StatusPulseDot(
+                  color:
+                      connected ? AppColors.success : AppColors.textTertiary,
+                  live: connected,
+                  size: 6,
+                ),
+                if (alerts.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.danger.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${alerts.length}',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.danger),
+                    ),
                   ),
-                  const Spacer(),
-                  const Icon(Icons.chevron_right_rounded,
-                      size: 18, color: AppColors.textSecondary),
                 ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              AnimatedSwitcher(
-                duration: AppMotion.medium,
-                switchInCurve: AppMotion.enter,
-                child: alerts.isEmpty
-                    ? const Row(
-                        key: ValueKey('empty'),
-                        children: [
-                          Icon(Icons.check_circle_outline_rounded,
-                              size: 20, color: AppColors.success),
-                          SizedBox(width: AppSpacing.sm),
-                          Text('No active alerts',
-                              style: TextStyle(color: AppColors.textSecondary)),
-                        ],
-                      )
-                    : Row(
-                        key: ValueKey(alerts.first.receivedAt),
-                        children: [
-                          Icon(
-                            alerts.first.severity == SdkEventSeverity.critical
-                                ? Icons.error_rounded
-                                : Icons.warning_amber_rounded,
-                            size: 20,
-                            color: alerts.first.severity ==
-                                    SdkEventSeverity.critical
-                                ? AppColors.danger
-                                : AppColors.warning,
+                const Spacer(),
+                if (alerts.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.delete_sweep_outlined, size: 20),
+                    tooltip: 'Clear all alerts',
+                    onPressed: () {
+                      AlertsController.instance.clear();
+                      setState(() {});
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const Divider(height: 1),
+            const SizedBox(height: AppSpacing.sm),
+            if (alerts.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle_outline_rounded,
+                        size: 20, color: AppColors.success),
+                    SizedBox(width: AppSpacing.sm),
+                    Text('No active alerts',
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                  ],
+                ),
+              )
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 240),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  itemCount: alerts.length,
+                  separatorBuilder: (_, __) => const Divider(height: 10),
+                  itemBuilder: (context, idx) {
+                    final alert = alerts[idx];
+                    final isCritical = alert.severity == SdkEventSeverity.critical;
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          isCritical
+                              ? Icons.error_rounded
+                              : Icons.warning_amber_rounded,
+                          size: 18,
+                          color: isCritical
+                              ? AppColors.danger
+                              : AppColors.warning,
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                alert.name.replaceAll('.', ' · '),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              if (alert.message.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  alert.message,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                              child: Text(
-                                  alerts.first.name.replaceAll('.', ' · '))),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _formatTimeAgo(alert.receivedAt),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
+  }
+
+  String _formatTimeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }
 

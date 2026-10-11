@@ -47,4 +47,9 @@ class AlertsController extends ChangeNotifier {
     service.connectionChanges.listen((_) => notifyListeners());
     service.start();
   }
+
+  void clear() {
+    events.clear();
+    notifyListeners();
+  }
 }

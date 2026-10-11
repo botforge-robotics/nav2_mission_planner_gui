@@ -692,11 +692,9 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
 
         const Divider(height: 1),
 
-        Expanded(
-          child: tasks.isEmpty
-              ? _buildEmptyTasksState(fleet)
-              : (isDesktop ? _buildTasksDataTable(context, tasks, fleet) : _buildTasksCardsList(context, tasks, fleet)),
-        ),
+        tasks.isEmpty
+            ? _buildEmptyTasksState(fleet)
+            : (isDesktop ? _buildTasksDataTable(context, tasks, fleet) : _buildTasksCardsList(context, tasks, fleet)),
       ],
     );
   }
@@ -830,6 +828,8 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
 
   Widget _buildTasksCardsList(BuildContext context, List<_RmfTaskEntry> tasks, FleetProvider fleet) {
     return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.all(AppSpacing.md),
       itemCount: tasks.length,
       separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),

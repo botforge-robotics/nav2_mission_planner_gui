@@ -49,6 +49,18 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
 
   nav_msgs.OccupancyGrid? _activeGrid;
 
+  static nav_msgs.OccupancyGrid _createDefaultGrid() {
+    final g = nav_msgs.OccupancyGrid();
+    g.info.resolution = 0.05;
+    g.info.width = 1200;
+    g.info.height = 1200;
+    g.info.origin.position.x = -30.0;
+    g.info.origin.position.y = -30.0;
+    return g;
+  }
+
+  nav_msgs.OccupancyGrid get _effectiveGrid => _activeGrid ?? _createDefaultGrid();
+
   @override
   void initState() {
     super.initState();
@@ -246,16 +258,25 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
 
   void _addVertexAt(Offset world) {
     final newId = 'v_${DateTime.now().millisecondsSinceEpoch}';
+    final roundedX = double.parse(world.dx.toStringAsFixed(2));
+    final roundedY = double.parse(world.dy.toStringAsFixed(2));
     final newVertex = EditorVertex(
       id: newId,
-      x: world.dx,
-      y: world.dy,
+      x: roundedX,
+      y: roundedY,
       name: 'wp_${_graph.vertices.length + 1}',
     );
     setState(() {
       _graph.vertices.add(newVertex);
       _selectedVertexId = newId;
     });
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Added waypoint ${newVertex.name} at (${newVertex.x}, ${newVertex.y})m'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
   }
 
   void _handleEdgeTap(Offset world, {required bool isWall, required bool isDoor}) {
@@ -273,10 +294,12 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
     if (targetVertex == null) {
       // Auto-create vertex at tap position
       final newId = 'v_${DateTime.now().millisecondsSinceEpoch}';
+      final roundedX = double.parse(world.dx.toStringAsFixed(2));
+      final roundedY = double.parse(world.dy.toStringAsFixed(2));
       targetVertex = EditorVertex(
         id: newId,
-        x: world.dx,
-        y: world.dy,
+        x: roundedX,
+        y: roundedY,
         name: 'wp_${_graph.vertices.length + 1}',
       );
       _graph.vertices.add(targetVertex);
@@ -284,6 +307,7 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
 
     if (_edgeStartVertexId == null) {
       setState(() => _edgeStartVertexId = targetVertex!.id);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Start vertex selected. Tap end vertex to create connection.'), duration: Duration(seconds: 2)),
       );
@@ -312,6 +336,13 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
             bidirectional: true,
           ));
         }
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isWall ? 'Wall added between vertices' : (isDoor ? 'Door added between vertices' : 'Bidirectional lane added')),
+            duration: const Duration(seconds: 1),
+          ),
+        );
       }
       setState(() => _edgeStartVertexId = null);
     }
@@ -390,23 +421,36 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
                                     showRobot: true,
                                     showDock: true,
                                     transformationController: _transformController,
-                                    onMapLoaded: (grid) => _activeGrid = grid,
+                                    onMapLoaded: (grid) => setState(() => _activeGrid = grid),
                                     onMapClickWorld: _onCanvasTap,
                                     onMapHoverWorld: (w) => setState(() => _mouseHoverWorld = w),
+                                  ),
+                                )
+                              else
+                                Positioned.fill(
+                                  child: _StandaloneEditorCanvas(
+                                    transformController: _transformController,
+                                    grid: _effectiveGrid,
+                                    onTapWorld: _onCanvasTap,
+                                    onHoverWorld: (w) => setState(() => _mouseHoverWorld = w),
                                   ),
                                 ),
                               // Overlay Painter for RMF Traffic Elements
                               Positioned.fill(
                                 child: IgnorePointer(
                                   ignoring: true,
-                                  child: CustomPaint(
-                                    painter: _RmfTrafficCanvasPainter(
-                                      graph: _graph,
-                                      grid: _activeGrid,
-                                      selectedVertexId: _selectedVertexId,
-                                      edgeStartVertexId: _edgeStartVertexId,
-                                      mouseHoverWorld: _mouseHoverWorld,
-                                      transform: _transformController.value,
+                                  child: AnimatedBuilder(
+                                    animation: _transformController,
+                                    builder: (context, _) => CustomPaint(
+                                      painter: _RmfTrafficCanvasPainter(
+                                        graph: _graph,
+                                        grid: _effectiveGrid,
+                                        isStandalone: ros2 == null,
+                                        selectedVertexId: _selectedVertexId,
+                                        edgeStartVertexId: _edgeStartVertexId,
+                                        mouseHoverWorld: _mouseHoverWorld,
+                                        transform: _transformController.value,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -697,7 +741,8 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
 
 class _RmfTrafficCanvasPainter extends CustomPainter {
   final RmfLevelGraph graph;
-  final nav_msgs.OccupancyGrid? grid;
+  final nav_msgs.OccupancyGrid grid;
+  final bool isStandalone;
   final String? selectedVertexId;
   final String? edgeStartVertexId;
   final Offset? mouseHoverWorld;
@@ -706,6 +751,7 @@ class _RmfTrafficCanvasPainter extends CustomPainter {
   _RmfTrafficCanvasPainter({
     required this.graph,
     required this.grid,
+    this.isStandalone = false,
     this.selectedVertexId,
     this.edgeStartVertexId,
     this.mouseHoverWorld,
@@ -713,11 +759,10 @@ class _RmfTrafficCanvasPainter extends CustomPainter {
   });
 
   Offset _worldToScreen(double wx, double wy) {
-    if (grid == null) return Offset.zero;
-    final res = grid!.info.resolution;
-    final ox = grid!.info.origin.position.x;
-    final oy = grid!.info.origin.position.y;
-    final h = grid!.info.height;
+    final res = grid.info.resolution;
+    final ox = grid.info.origin.position.x;
+    final oy = grid.info.origin.position.y;
+    final h = grid.info.height;
 
     // Grid pixel coordinate
     final px = (wx - ox) / res;
@@ -729,7 +774,37 @@ class _RmfTrafficCanvasPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (grid == null) return;
+    // 0. If standalone (no ROS2 /map received), draw a crisp floor grid pattern
+    if (isStandalone) {
+      final minorGridPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.06)
+        ..strokeWidth = 1.0;
+      final majorGridPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.15)
+        ..strokeWidth = 1.2;
+      final axisPaint = Paint()
+        ..color = const Color(0xFF0284C7).withValues(alpha: 0.45)
+        ..strokeWidth = 2.0;
+
+      for (double x = -30; x <= 30; x += 1.0) {
+        final p1 = _worldToScreen(x, -30);
+        final p2 = _worldToScreen(x, 30);
+        final isMajor = (x % 5).abs() < 0.01;
+        final isZero = x.abs() < 0.01;
+        canvas.drawLine(p1, p2, isZero ? axisPaint : (isMajor ? majorGridPaint : minorGridPaint));
+      }
+      for (double y = -30; y <= 30; y += 1.0) {
+        final p1 = _worldToScreen(-30, y);
+        final p2 = _worldToScreen(30, y);
+        final isMajor = (y % 5).abs() < 0.01;
+        final isZero = y.abs() < 0.01;
+        canvas.drawLine(p1, p2, isZero ? axisPaint : (isMajor ? majorGridPaint : minorGridPaint));
+      }
+
+      // Draw origin (0, 0)
+      final p0 = _worldToScreen(0, 0);
+      canvas.drawCircle(p0, 5, Paint()..color = const Color(0xFF0284C7));
+    }
 
     // 1. Draw Walls (Black/Dark Slate Thick Segments)
     final wallPaint = Paint()
@@ -821,4 +896,80 @@ class _RmfTrafficCanvasPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RmfTrafficCanvasPainter oldDelegate) => true;
+}
+
+/// Standalone Interactive Editor Canvas when ROS2 is not connected directly (e.g. Fleet mode or offline)
+class _StandaloneEditorCanvas extends StatefulWidget {
+  const _StandaloneEditorCanvas({
+    required this.transformController,
+    required this.grid,
+    required this.onTapWorld,
+    required this.onHoverWorld,
+  });
+
+  final TransformationController transformController;
+  final nav_msgs.OccupancyGrid grid;
+  final ValueChanged<Offset> onTapWorld;
+  final ValueChanged<Offset?> onHoverWorld;
+
+  @override
+  State<_StandaloneEditorCanvas> createState() => _StandaloneEditorCanvasState();
+}
+
+class _StandaloneEditorCanvasState extends State<_StandaloneEditorCanvas> {
+  final GlobalKey _contentKey = GlobalKey();
+  Offset? _pointerDownPos;
+
+  Offset? _pixelToWorld(Offset globalPos) {
+    final box = _contentKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return null;
+    final local = box.globalToLocal(globalPos);
+    final res = widget.grid.info.resolution;
+    final ox = widget.grid.info.origin.position.x;
+    final oy = widget.grid.info.origin.position.y;
+    final h = widget.grid.info.height;
+    final wx = ox + local.dx * res;
+    final wy = oy + (h - local.dy) * res;
+    return Offset(wx, wy);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final w = widget.grid.info.width.toDouble();
+    final h = widget.grid.info.height.toDouble();
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.precise,
+      onHover: (e) {
+        final world = _pixelToWorld(e.position);
+        widget.onHoverWorld(world);
+      },
+      onExit: (_) => widget.onHoverWorld(null),
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (e) => _pointerDownPos = e.position,
+        onPointerUp: (e) {
+          if (_pointerDownPos != null && (e.position - _pointerDownPos!).distance < 12.0) {
+            final world = _pixelToWorld(e.position);
+            if (world != null) {
+              widget.onTapWorld(world);
+            }
+          }
+        },
+        child: InteractiveViewer(
+          transformationController: widget.transformController,
+          minScale: 0.05,
+          maxScale: 10.0,
+          constrained: false,
+          boundaryMargin: const EdgeInsets.all(double.infinity),
+          child: Container(
+            key: _contentKey,
+            width: w,
+            height: h,
+            color: const Color(0xFF0F172A),
+          ),
+        ),
+      ),
+    );
+  }
 }
