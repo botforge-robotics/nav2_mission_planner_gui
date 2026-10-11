@@ -83,10 +83,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     ]);
   }
 
-  void _restorePortraitOrientation() {
+  void _restoreAllOrientations() {
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
     ]);
   }
 
@@ -140,7 +142,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
   @override
   void dispose() {
-    _restorePortraitOrientation();
+    _restoreAllOrientations();
     _statusPoller?.cancel();
     _nameController.dispose();
     _nameFocusNode.dispose();
@@ -443,7 +445,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Mission "${_graph.name}" deleted')),
         );
-        _restorePortraitOrientation();
+        _restoreAllOrientations();
         Navigator.of(context).pop(true);
       }
     } catch (e) {
@@ -1324,7 +1326,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       canPop: true,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) {
-          _restorePortraitOrientation();
+          _restoreAllOrientations();
         }
       },
       child: Scaffold(
@@ -1533,6 +1535,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   PreferredSizeWidget _buildAppBar({required bool isCompact}) {
     if (isCompact) {
       return AppBar(
+        toolbarHeight: 40,
         backgroundColor: AppColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0.5,
@@ -1543,7 +1546,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () {
-            _restorePortraitOrientation();
+            _restoreAllOrientations();
             Navigator.of(context).pop();
           },
         ),
@@ -1756,6 +1759,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     }
 
     return AppBar(
+      toolbarHeight: 46,
       backgroundColor: AppColors.surface,
       elevation: 0,
       scrolledUnderElevation: 0.5,
@@ -1766,7 +1770,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       leading: IconButton(
         icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
         onPressed: () {
-          _restorePortraitOrientation();
+          _restoreAllOrientations();
           Navigator.of(context).pop();
         },
       ),
@@ -2521,8 +2525,35 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   }
 
   Widget _buildPaletteCard(_PaletteItem item, {bool isModal = false}) {
-    return Draggable<String>(
+    final cardContent = InkWell(
+      onTap: () {
+        _addNodeFromCatalog(item.type);
+        if (isModal) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Added "${item.title}" to canvas'),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+      borderRadius: BorderRadius.circular(10),
+      hoverColor: AppColors.surfaceSunken,
+      child: _buildPaletteCardContent(item),
+    );
+
+    // On mobile modal bottom sheet, tapping adds the node immediately, and
+    // returning InkWell directly allows vertical swipe gestures to scroll smoothly
+    // without Draggable intercepting and blocking scrolling!
+    if (isModal) {
+      return cardContent;
+    }
+
+    return LongPressDraggable<String>(
       data: item.type,
+      delay: const Duration(milliseconds: 150),
       feedback: Material(
         color: Colors.transparent,
         child: Container(
@@ -2578,24 +2609,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         opacity: 0.35,
         child: _buildPaletteCardContent(item),
       ),
-      child: InkWell(
-        onTap: () {
-          _addNodeFromCatalog(item.type);
-          if (isModal) {
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Added "${item.title}" to canvas'),
-                duration: const Duration(seconds: 2),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          }
-        },
-        borderRadius: BorderRadius.circular(10),
-        hoverColor: AppColors.surfaceSunken,
-        child: _buildPaletteCardContent(item),
-      ),
+      child: cardContent,
     );
   }
 

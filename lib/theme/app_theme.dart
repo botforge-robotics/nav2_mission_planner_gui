@@ -189,6 +189,7 @@ class AppTheme {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0.5,
+        toolbarHeight: 46,
         centerTitle: false,
         titleTextStyle: TextStyle(
           fontSize: 18,

@@ -511,6 +511,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
     if (isDesktop) {
       return Scaffold(
         appBar: AppBar(
+          toolbarHeight: isLandscape ? 40 : 46,
           title: const Text('Teleoperation Cockpit'),
           actions: [
             AnimatedBuilder(
@@ -673,6 +674,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: 46,
         title: const Text('Teleoperation'),
         actions: [
           AnimatedBuilder(
