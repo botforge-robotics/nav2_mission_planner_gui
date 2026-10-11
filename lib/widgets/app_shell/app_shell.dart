@@ -52,7 +52,11 @@ class AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final connection = context.watch<ConnectionProvider>();
-    if (!connection.isConnected) {
+    final fleet = context.watch<FleetProvider>();
+
+    // In Fleet Mode, the operator manages the fleet, building maps, and task dispatching
+    // even before or without a direct rosbridge connection to a specific single robot.
+    if (!connection.isConnected && !fleet.isFleetMode) {
       return ConnectingScaffold(connection: connection);
     }
     return _ShellNav(key: _shellNavKey);

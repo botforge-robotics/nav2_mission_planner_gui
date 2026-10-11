@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/fleet_provider.dart';
+import '../../screens/setup/setup_ap_hotspot_screen.dart';
 import '../../services/robot_discovery_service.dart';
 
 class AddFleetRobotDialog extends StatefulWidget {
@@ -223,7 +224,7 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
         child: SingleChildScrollView(
           child: _currentStep == 1
               ? _buildCommissionForm(fleet)
-              : _buildDiscoveryView(connectedRobot),
+              : _buildDiscoveryView(connectedRobot, fleet),
         ),
       ),
       actions: [
@@ -255,7 +256,7 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
     );
   }
 
-  Widget _buildDiscoveryView(dynamic connectedRobot) {
+  Widget _buildDiscoveryView(dynamic connectedRobot, FleetProvider fleet) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -371,6 +372,11 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
           )
         else
           ..._discoveredRobots.map((robot) {
+            final isAlreadyCommissioned = fleet.robots.any(
+              (r) => (r.serial.isNotEmpty && r.serial == robot.serial) ||
+                     (fleet.getRobotIp(r.id) == robot.ip),
+            );
+
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               shape: RoundedRectangleBorder(
@@ -379,19 +385,47 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
               ),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: Colors.blue.shade50,
-                  child: const Icon(Icons.smart_toy_rounded, color: Colors.blue, size: 20),
+                  backgroundColor: isAlreadyCommissioned ? Colors.green.shade50 : Colors.blue.shade50,
+                  child: Icon(
+                    Icons.smart_toy_rounded,
+                    color: isAlreadyCommissioned ? Colors.green : Colors.blue,
+                    size: 20,
+                  ),
                 ),
-                title: Text(robot.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                title: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        robot.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: isAlreadyCommissioned ? Colors.green.shade100 : Colors.amber.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        isAlreadyCommissioned ? 'COMMISSIONED' : 'READY TO COMMISSION',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: isAlreadyCommissioned ? Colors.green.shade800 : Colors.amber.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 subtitle: Text('IP: ${robot.ip} • Serial: ${robot.serial}', style: const TextStyle(fontSize: 11)),
                 trailing: ElevatedButton(
                   onPressed: () => _selectRobotForCommissioning(robot),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: isAlreadyCommissioned ? Colors.grey.shade700 : Colors.blue,
                     foregroundColor: Colors.white,
                     visualDensity: VisualDensity.compact,
                   ),
-                  child: const Text('Link', style: TextStyle(fontSize: 12)),
+                  child: Text(isAlreadyCommissioned ? 'Update' : 'Link', style: const TextStyle(fontSize: 12)),
                 ),
               ),
             );
@@ -426,6 +460,52 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
                   : const Text('Probe'),
             ),
           ],
+        ),
+        const SizedBox(height: 16),
+
+        // 4. Set up New Unconfigured Robot (AP Mode)
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blueGrey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blueGrey.shade200),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.wifi_find_rounded, color: Colors.blueGrey, size: 22),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Brand New Robot with No Wi-Fi?',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+                    ),
+                    Text(
+                      'Connect to its "NavPro-Setup-XXXXXX" AP hotspot to configure site Wi-Fi.',
+                      style: TextStyle(fontSize: 11, color: Colors.black54),
+                    ),
+                  ],
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SetupApHotspotScreen()),
+                  );
+                },
+                icon: const Icon(Icons.settings_input_antenna_rounded, size: 14),
+                label: const Text('Setup AP', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

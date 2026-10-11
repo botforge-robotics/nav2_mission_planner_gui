@@ -33,24 +33,14 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _resolve() async {
     final saved = await RobotConnectionStore().load();
-    // A saved robot always goes to AppShell, whether or not this one-shot
-    // probe happens to succeed — probing again inside AppShell (via
-    // ConnectionProvider, same as every subsequent reconnect) is what
-    // decides that, not this. Sending a *previously set up* robot to
-    // SetupPowerScreen on a failed probe was a real bug: cold-starting the
-    // app while the robot is mid-reboot (or the network just hasn't come
-    // up yet) is exactly when this probe is most likely to fail, and
-    // "probe failed" was being read as "never set up" — landing the
-    // operator on the full pairing flow, which then hunts forever for the
-    // robot's own setup-time Wi-Fi hotspot. A robot that's already been
-    // provisioned never broadcasts that hotspot again on a normal boot —
-    // it comes up straight onto the saved Wi-Fi — so that screen can
-    // never succeed here, and force-quitting the app (so this probe runs
-    // again, later, once the robot's actually up) was the only way out.
-    // SetupPowerScreen is only correct when there's genuinely no saved
-    // robot to reconnect to.
+    // In fleet mode or if fleet server is configured, operators enter directly
+    // into NavPro Mini Fleet shell without being forced into standalone single-robot setup.
+    // Adding physical robots is performed within the fleet coordinator.
+    final hasRobotOrFleet = saved != null &&
+        (saved.ip.isNotEmpty || saved.isFleetMode || (saved.fleetServerHost != null && saved.fleetServerHost!.isNotEmpty));
+
     final destination =
-        saved != null ? const AppShell() : const SetupPowerScreen();
+        hasRobotOrFleet ? const AppShell() : const SetupPowerScreen();
     if (!mounted) return;
     Navigator.of(context)
         .pushReplacement(MaterialPageRoute(builder: (_) => destination));
