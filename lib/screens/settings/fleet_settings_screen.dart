@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/fleet_models.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/fleet_provider.dart';
+import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/fleet/add_fleet_robot_dialog.dart';
 import '../../widgets/fleet/dispatch_fleet_task_dialog.dart';
@@ -578,22 +579,85 @@ class _FleetSettingsScreenState extends State<FleetSettingsScreen> {
   }
 
   void _confirmDeleteRobot(BuildContext context, FleetProvider fleet, FleetRobotInfo robot) {
+    bool resetPhysicalRobot = false;
+    final robotIp = fleet.getRobotIp(robot.id) ?? robot.ip;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Remove ${robot.name}?'),
-        content: Text('Are you sure you want to remove robot "${robot.name}" (${robot.serial}) from the fleet coordinator?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await fleet.deleteRobot(robot.id);
-            },
-            child: const Text('Delete Robot'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.red),
+              const SizedBox(width: 8),
+              Text('Decommission ${robot.name}?'),
+            ],
           ),
-        ],
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Remove AMR "${robot.name}" (Serial: ${robot.serial}) from the NavPro Mini fleet?',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: const Text(
+                    '• Decommissioning removes the robot from Open-RMF task allocation, traffic priority, and fleet telemetry. The robot remains functional and can be operated standalone or re-commissioned later.',
+                    style: TextStyle(fontSize: 11.5, color: Colors.blueGrey, height: 1.3),
+                  ),
+                ),
+                if (robotIp != null) ...[
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: const Text('Also Reset Physical AMR (Factory Wi-Fi / AP Mode)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    subtitle: Text('Reverts $robotIp back to out-of-box setup AP mode.', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    value: resetPhysicalRobot,
+                    onChanged: (val) => setDlgState(() => resetPhysicalRobot = val ?? false),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                if (resetPhysicalRobot && robotIp != null) {
+                  try {
+                    await SdkApiService(robotIp).submitUiResponse('factory_reset', action: 'reset');
+                  } catch (_) {}
+                }
+                await fleet.deleteRobot(robot.id);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        resetPhysicalRobot
+                            ? 'Robot "${robot.name}" decommissioned & physical unit reset.'
+                            : 'Robot "${robot.name}" decommissioned from fleet.',
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: Text(resetPhysicalRobot ? 'Reset & Decommission' : 'Decommission Only'),
+            ),
+          ],
+        ),
       ),
     );
   }
