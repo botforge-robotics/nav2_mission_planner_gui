@@ -264,52 +264,9 @@ class _DashboardContentState extends State<_DashboardContent> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(fleet.isFleetMode ? 'Fleet Dashboard' : 'Dashboard'),
-            if (fleet.isFleetMode) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  '${fleet.robots.length} ROBOTS',
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
-                ),
-              ),
-            ],
-          ],
-        ),
+        title: Text(fleet.isFleetMode ? 'Fleet Dashboard' : 'Dashboard'),
         actions: [
           if (fleet.isFleetMode) ...[
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const StatusPulseDot(color: Colors.blue, live: true, size: 7),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${fleet.robots.length} AMR${fleet.robots.length == 1 ? '' : 's'} Active',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue,
-                    ),
-                  ),
-                ],
-              ),
-            ),
             IconButton(
               icon: const Icon(Icons.settings_suggest_rounded, color: Colors.blue),
               tooltip: 'Manage Fleet & Robots',
@@ -329,8 +286,8 @@ class _DashboardContentState extends State<_DashboardContent> {
                 ));
               },
             ),
+            _AppBarBatteryWidget(telemetry: telemetry),
           ],
-          _AppBarBatteryWidget(telemetry: telemetry),
         ],
       ),
       body: SafeArea(
@@ -600,7 +557,6 @@ class _RobotCard extends StatelessWidget {
                         DataColumn(label: Text('BATTERY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
                         DataColumn(label: Text('LEVEL / DOCK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
                         DataColumn(label: Text('CURRENT TASK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        DataColumn(label: Text('ACTION', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
                       ],
                       rows: robots.map((r) {
                         final ip = fleet.getRobotIp(r.id) ?? r.ip;
@@ -610,6 +566,8 @@ class _RobotCard extends StatelessWidget {
                         final taskDesc = currentTask != null
                             ? (currentTask['type'] ?? currentTask['task_type'] ?? 'Mission')
                             : (isCharging ? 'Recharging' : (isOnline ? 'Idle / Standby' : 'Offline'));
+                        final levelObj = fleet.levels.where((l) => l.id == r.levelId || l.name == r.levelId).firstOrNull;
+                        final levelDisplay = levelObj?.name ?? (r.levelName != null && r.levelName!.isNotEmpty ? r.levelName! : null) ?? 'Level 1';
 
                         return DataRow(
                           cells: [
@@ -680,7 +638,7 @@ class _RobotCard extends StatelessWidget {
                             ),
                             DataCell(
                               Text(
-                                '${r.levelName ?? r.levelId ?? "L1"} · ${r.dockWaypoint ?? "dock"}',
+                                '$levelDisplay · ${r.dockWaypoint ?? "dock"}',
                                 style: const TextStyle(fontSize: 12),
                               ),
                             ),
@@ -696,24 +654,6 @@ class _RobotCard extends StatelessWidget {
                                     fontWeight: currentTask != null ? FontWeight.bold : FontWeight.normal,
                                   ),
                                 ),
-                              ),
-                            ),
-                            DataCell(
-                              FilledButton.tonal(
-                                onPressed: () {
-                                  fleet.selectRobot(r.id);
-                                  if (ip != null) {
-                                    context.read<ConnectionProvider>().updateRobotIp(ip, name: r.name);
-                                  }
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Switched to ${r.name}')),
-                                  );
-                                },
-                                style: FilledButton.styleFrom(
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                                ),
-                                child: const Text('Connect', style: TextStyle(fontSize: 11)),
                               ),
                             ),
                           ],

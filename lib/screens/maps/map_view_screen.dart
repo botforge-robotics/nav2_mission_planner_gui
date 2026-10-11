@@ -275,6 +275,40 @@ class _MapViewScreenState extends State<MapViewScreen> {
     }
   }
 
+  Future<void> _syncTrafficLanesToFleet({bool showNotification = false}) async {
+    final fleet = context.read<FleetProvider>();
+    if (!fleet.isFleetMode) return;
+    final levelName = fleet.selectedLevel?.name ?? _activeMapName ?? 'L1';
+    final zones = ZonesController.instance.value;
+    final rawWaypoints = LocationsController.instance.value ?? [];
+    final waypoints = rawWaypoints.map((loc) {
+      final name = (loc['name'] as String?) ?? '';
+      return {
+        'name': name,
+        'x': (loc['x'] as num?)?.toDouble() ?? 0.0,
+        'y': (loc['y'] as num?)?.toDouble() ?? 0.0,
+        'isCharger': name.toLowerCase().contains('dock') || name.toLowerCase().contains('charge'),
+        'isParking': name.toLowerCase().contains('dock') || name.toLowerCase().contains('park'),
+      };
+    }).toList();
+
+    final ok = await fleet.syncTrafficGraph(
+      levelName: levelName,
+      zones: zones,
+      waypoints: waypoints,
+    );
+    if (showNotification && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok
+              ? 'Traffic lanes & graph synchronized with Open-RMF fleet server.'
+              : 'Failed to synchronize traffic graph to fleet server.'),
+          backgroundColor: ok ? AppColors.success : AppColors.danger,
+        ),
+      );
+    }
+  }
+
   Future<void> _onZoneVertexMoveEnd() async {
     final ip = context.read<ConnectionProvider>().robot?.ip;
     final api = _apiFor(ip);
@@ -285,6 +319,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
     if (zone == null) return;
     try {
       await ZonesController.instance.saveZone(api, zone, map: _activeMapName);
+      await _syncTrafficLanesToFleet();
     } catch (e) {
       debugPrint('Failed to auto-save moved vertex: $e');
     }
@@ -308,6 +343,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
       setState(() => _activeZoneVertexIndex = insertIdx);
       try {
         await ZonesController.instance.saveZone(api, updated, map: _activeMapName);
+        await _syncTrafficLanesToFleet();
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -329,6 +365,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
     setState(() => _activeZoneVertexIndex = insertIdx);
     try {
       await ZonesController.instance.saveZone(api, updated, map: _activeMapName);
+      await _syncTrafficLanesToFleet();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -391,6 +428,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
 
     try {
       await ZonesController.instance.saveZone(api, lane, map: _activeMapName);
+      await _syncTrafficLanesToFleet();
       MapLayersController.instance.setVisible(MapLayer.zones, true);
       setState(() {
         _zoneEditorMode = true;
@@ -434,6 +472,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
     if (api != null) {
       try {
         await ZonesController.instance.saveZone(api, updated, map: _activeMapName);
+        await _syncTrafficLanesToFleet();
       } catch (e) {
         debugPrint('Failed to save updated lane width: $e');
       }
@@ -452,6 +491,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
     setState(() => _savingZone = true);
     try {
       await ZonesController.instance.saveZone(api, zone, map: _activeMapName);
+      await _syncTrafficLanesToFleet();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -520,6 +560,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
 
     try {
       await ZonesController.instance.deleteZone(api, id, map: _activeMapName);
+      await _syncTrafficLanesToFleet();
       if (mounted) {
         if (_selectedZoneId == id) {
           setState(() {
@@ -1489,6 +1530,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                         _zoneEditorMode = true;
                       }),
                       onZoneDelete: _deleteZone,
+                      onSyncFleetTraffic: () => _syncTrafficLanesToFleet(showNotification: true),
                     ),
                   ],
                 )
@@ -2000,6 +2042,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
     required this.onAddZone,
     required this.onZoneTap,
     this.onZoneDelete,
+    this.onSyncFleetTraffic,
   });
 
   final VoidCallback onLocalizeMap;
@@ -2016,6 +2059,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
   final VoidCallback onAddZone;
   final void Function(MapZone zone) onZoneTap;
   final void Function(String id)? onZoneDelete;
+  final VoidCallback? onSyncFleetTraffic;
 
   @override
   Widget build(BuildContext context) {
@@ -2168,6 +2212,14 @@ class _DesktopStudioSidebar extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (context.watch<FleetProvider>().isFleetMode) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  OutlinedButton.icon(
+                    onPressed: onSyncFleetTraffic,
+                    icon: const Icon(Icons.sync_rounded, size: 14, color: Colors.blue),
+                    label: const Text('Sync to Open-RMF Traffic', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
               ],
             ),
           ),

@@ -238,19 +238,50 @@ class FleetApiService {
   }
 
   // --- Site & Traffic Graph ---
-  Future<Map<String, dynamic>> getBuildingGraph() async {
-    final res = await _get('/api/v1/site/building');
+  Future<List<Map<String, dynamic>>> getBuildings() async {
+    final res = await _get('/api/v1/buildings');
+    if (res is List) return res.cast<Map<String, dynamic>>();
+    return [];
+  }
+
+  Future<Map<String, dynamic>> getBuildingGraph([String? buildingId]) async {
+    if (buildingId != null && buildingId.isNotEmpty) {
+      final res = await _get('/api/v1/buildings/$buildingId/graph');
+      return res as Map<String, dynamic>? ?? {};
+    }
+    final buildings = await getBuildings();
+    if (buildings.isNotEmpty) {
+      final id = buildings.first['id'] as String;
+      final res = await _get('/api/v1/buildings/$id/graph');
+      return res as Map<String, dynamic>? ?? {};
+    }
+    return {};
+  }
+
+  Future<Map<String, dynamic>> updateBuildingGraph(String buildingId, Map<String, dynamic> graph) async {
+    final res = await _post('/api/v1/buildings/$buildingId/graph', body: graph);
+    return res as Map<String, dynamic>? ?? {};
+  }
+
+  Future<Map<String, dynamic>> applyBuilding() async {
+    final res = await _post('/api/v1/site/apply-building');
+    return res as Map<String, dynamic>? ?? {};
+  }
+
+  Future<Map<String, dynamic>> importBuildingYaml(String buildingYaml, {String? buildingName}) async {
+    final res = await _post('/api/v1/site/import-building', body: {
+      'buildingYaml': buildingYaml,
+      if (buildingName != null) 'buildingName': buildingName,
+    });
     return res as Map<String, dynamic>? ?? {};
   }
 
   Future<void> uploadBuildingYaml(String yamlContent) async {
-    await _post('/api/v1/site/building-yaml', body: {
-      'yaml': yamlContent,
-    });
+    await importBuildingYaml(yamlContent);
   }
 
   Future<void> reloadTrafficGraph() async {
-    await _post('/api/v1/site/reload');
+    await _post('/api/v1/site/reload-traffic-editor');
   }
 
   // --- Workflows & RMF Tasks ---

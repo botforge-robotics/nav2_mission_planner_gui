@@ -125,15 +125,16 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                   ),
                 ),
                 Consumer<FleetProvider>(
-                  builder: (context, fleet, _) => _SettingsTile(
-                    icon: Icons.tune_rounded,
-                    title: fleet.isFleetMode ? 'Selected Robot Settings & Power' : 'Robot Settings & Power',
-                    subtitle: fleet.isFleetMode
-                        ? 'Hardware status, power off, reboot for active robot'
-                        : 'Hardware status, power off, reboot, reset',
-                    onTap: () => pushWithTelemetry(
-                        context, const RobotStatusScreen()),
-                  ),
+                  builder: (context, fleet, _) {
+                    if (fleet.isFleetMode) return const SizedBox.shrink();
+                    return _SettingsTile(
+                      icon: Icons.tune_rounded,
+                      title: 'Robot Settings & Power',
+                      subtitle: 'Hardware status, power off, reboot, reset',
+                      onTap: () => pushWithTelemetry(
+                          context, const RobotStatusScreen()),
+                    );
+                  },
                 ),
                 AnimatedBuilder(
                   animation: GamepadService.instance,
@@ -195,13 +196,16 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                   child: Divider(),
                 ),
                 Consumer<FleetProvider>(
-                  builder: (context, fleet, _) => _SettingsTile(
-                    icon: Icons.perm_media_rounded,
-                    title: fleet.isFleetMode ? 'Robot Media & Signage (Selected Robot)' : 'Robot Media & Signage (DND)',
-                    subtitle: 'Share images/videos to robot display & manage media',
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => const RobotMediaScreen())),
-                  ),
+                  builder: (context, fleet, _) {
+                    if (fleet.isFleetMode) return const SizedBox.shrink();
+                    return _SettingsTile(
+                      icon: Icons.perm_media_rounded,
+                      title: 'Robot Media & Signage (DND)',
+                      subtitle: 'Share images/videos to robot display & manage media',
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => const RobotMediaScreen())),
+                    );
+                  },
                 ),
                 _SettingsTile(
                   icon: Icons.system_update_alt_rounded,
@@ -213,14 +217,7 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                 Consumer<FleetProvider>(
                   builder: (context, fleet, _) {
                     if (fleet.isFleetMode) {
-                      return _SettingsTile(
-                        icon: Icons.alt_route_rounded,
-                        title: 'Select Active Fleet Robot',
-                        subtitle: 'Currently: ${fleet.selectedRobot?.name ?? "Auto"} (${fleet.robots.length} online)',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
-                        ),
-                      );
+                      return const SizedBox.shrink();
                     }
                     return _SettingsTile(
                       icon: Icons.swap_horiz_rounded,

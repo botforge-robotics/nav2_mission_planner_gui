@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/fleet_models.dart';
+import '../models/map_zone.dart';
 import '../services/fleet_api_service.dart';
 import '../services/robot_connection_store.dart';
 
@@ -250,6 +251,109 @@ class FleetProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// Syncs traffic lanes and waypoints to Open-RMF building graph on the Fleet Server.
+  Future<bool> syncTrafficGraph({
+    required String levelName,
+    required List<MapZone> zones,
+    List<Map<String, dynamic>>? waypoints,
+  }) async {
+    final api = _api;
+    if (api == null || !_isFleetMode) return false;
+    try {
+      final buildings = await api.getBuildings();
+      if (buildings.isEmpty) return false;
+      final building = buildings.first;
+      final buildingId = building['id'] as String;
+
+      Map<String, dynamic> existingGraph = {};
+      try {
+        existingGraph = await api.getBuildingGraph(buildingId);
+      } catch (_) {
+        existingGraph = (building['graph'] as Map<String, dynamic>?) ?? {};
+      }
+
+      final existingWaypoints = List<Map<String, dynamic>>.from(existingGraph['waypoints'] as List? ?? []);
+      final existingLanes = List<Map<String, dynamic>>.from(existingGraph['lanes'] as List? ?? []);
+      final existingDoors = List<Map<String, dynamic>>.from(existingGraph['doors'] as List? ?? []);
+      final existingLifts = List<Map<String, dynamic>>.from(existingGraph['lifts'] as List? ?? []);
+
+      // Keep waypoints from other levels
+      final preservedWaypoints = existingWaypoints.where((w) => w['levelName'] != levelName).toList();
+      final preservedWaypointIds = preservedWaypoints.map((w) => w['id'] as String).toSet();
+
+      // Keep lanes connecting preserved waypoints
+      final preservedLanes = existingLanes.where((l) {
+        final from = l['fromId'] as String?;
+        final to = l['toId'] as String?;
+        return preservedWaypointIds.contains(from) && preservedWaypointIds.contains(to);
+      }).toList();
+
+      final newLevelWaypoints = <Map<String, dynamic>>[];
+      final newLevelLanes = <Map<String, dynamic>>[];
+
+      // Add waypoints (docks, charging, points of interest)
+      if (waypoints != null) {
+        for (final wp in waypoints) {
+          final name = wp['name'] as String? ?? 'wp';
+          final id = wp['id'] as String? ?? 'wp_${levelName}_$name';
+          final isDock = name.toLowerCase().contains('dock') || name.toLowerCase().contains('charger');
+          newLevelWaypoints.add({
+            'id': id,
+            'name': name,
+            'levelName': levelName,
+            'x': (wp['x'] as num?)?.toDouble() ?? 0.0,
+            'y': (wp['y'] as num?)?.toDouble() ?? 0.0,
+            'isCharger': wp['isCharger'] == true || isDock,
+            'isParking': wp['isParking'] == true || isDock,
+          });
+        }
+      }
+
+      // Convert preferred lanes from this level into Open-RMF graph vertices & bidirectional lane edges
+      final preferredLanes = zones.where((z) => z.type == ZoneType.preferredLane && z.isCorridorLane).toList();
+      for (int laneIdx = 0; laneIdx < preferredLanes.length; laneIdx++) {
+        final lane = preferredLanes[laneIdx];
+        final cl = lane.laneCenterline;
+        final nodeIds = <String>[];
+        for (int ptIdx = 0; ptIdx < cl.length; ptIdx++) {
+          final pt = cl[ptIdx];
+          final vertexId = 'lane_${lane.id}_v$ptIdx';
+          final vertexName = '${lane.name}_$ptIdx';
+          nodeIds.add(vertexId);
+          newLevelWaypoints.add({
+            'id': vertexId,
+            'name': vertexName,
+            'levelName': levelName,
+            'x': pt.dx,
+            'y': pt.dy,
+            'isCharger': false,
+            'isParking': false,
+          });
+        }
+        for (int i = 0; i < nodeIds.length - 1; i++) {
+          newLevelLanes.add({
+            'fromId': nodeIds[i],
+            'toId': nodeIds[i + 1],
+            'bidirectional': true,
+          });
+        }
+      }
+
+      final updatedGraph = {
+        'waypoints': [...preservedWaypoints, ...newLevelWaypoints],
+        'lanes': [...preservedLanes, ...newLevelLanes],
+        'doors': existingDoors,
+        'lifts': existingLifts,
+      };
+
+      await api.updateBuildingGraph(buildingId, updatedGraph);
+      return true;
+    } catch (e) {
+      debugPrint('Failed to sync traffic graph: $e');
+      return false;
     }
   }
 
