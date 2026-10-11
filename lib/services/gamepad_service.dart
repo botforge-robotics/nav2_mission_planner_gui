@@ -84,8 +84,8 @@ class GamepadService extends ChangeNotifier {
 
   // Settings / Calibration
   double _deadzone = 0.10; // 10% deadband
-  double _normalLinearSpeed = 0.12; // m/s
-  double _turboLinearSpeed = 0.25; // m/s
+  double _normalLinearSpeed = 0.10; // m/s
+  double _turboLinearSpeed = 0.35; // m/s
   double _normalAngularSpeed = 0.45; // rad/s
   double _turboAngularSpeed = 0.75; // rad/s
   bool _invertLinear = false;
@@ -267,7 +267,28 @@ class GamepadService extends ChangeNotifier {
           _rightStickY = val;
           break;
         case GamepadAxis.leftTrigger:
+          final isLtPressed = val > 0.25;
+          if (isLtPressed && !_pressedButtons.contains(GamepadButton.leftTrigger)) {
+            _pressedButtons.add(GamepadButton.leftTrigger);
+            _lastPressedButton = GamepadButton.leftTrigger;
+            _buttonPressStreamController.add(GamepadButton.leftTrigger);
+            _onButtonPressed(GamepadButton.leftTrigger);
+          } else if (!isLtPressed && _pressedButtons.contains(GamepadButton.leftTrigger)) {
+            _pressedButtons.remove(GamepadButton.leftTrigger);
+            _onButtonReleased(GamepadButton.leftTrigger);
+          }
+          break;
         case GamepadAxis.rightTrigger:
+          final isRtPressed = val > 0.25;
+          if (isRtPressed && !_pressedButtons.contains(GamepadButton.rightTrigger)) {
+            _pressedButtons.add(GamepadButton.rightTrigger);
+            _lastPressedButton = GamepadButton.rightTrigger;
+            _buttonPressStreamController.add(GamepadButton.rightTrigger);
+            _onButtonPressed(GamepadButton.rightTrigger);
+          } else if (!isRtPressed && _pressedButtons.contains(GamepadButton.rightTrigger)) {
+            _pressedButtons.remove(GamepadButton.rightTrigger);
+            _onButtonReleased(GamepadButton.rightTrigger);
+          }
           break;
       }
       notifyListeners();
@@ -511,13 +532,13 @@ class GamepadService extends ChangeNotifier {
   }
 
   void setNormalLinearSpeed(double val) {
-    _normalLinearSpeed = val.clamp(0.05, 0.40);
+    _normalLinearSpeed = val.clamp(0.07, 0.70);
     _savePreferences();
     notifyListeners();
   }
 
   void setTurboLinearSpeed(double val) {
-    _turboLinearSpeed = val.clamp(0.10, 0.60);
+    _turboLinearSpeed = val.clamp(0.07, 0.70);
     _savePreferences();
     notifyListeners();
   }
@@ -548,8 +569,8 @@ class GamepadService extends ChangeNotifier {
 
   void resetToDefaults() {
     _deadzone = 0.10;
-    _normalLinearSpeed = 0.12;
-    _turboLinearSpeed = 0.25;
+    _normalLinearSpeed = 0.10;
+    _turboLinearSpeed = 0.35;
     _normalAngularSpeed = 0.45;
     _turboAngularSpeed = 0.75;
     _invertLinear = false;
@@ -593,8 +614,8 @@ class GamepadService extends ChangeNotifier {
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     _deadzone = prefs.getDouble('gamepad_deadzone') ?? 0.10;
-    _normalLinearSpeed = prefs.getDouble('gamepad_normal_lin') ?? 0.12;
-    _turboLinearSpeed = prefs.getDouble('gamepad_turbo_lin') ?? 0.25;
+    _normalLinearSpeed = prefs.getDouble('gamepad_normal_lin') ?? 0.10;
+    _turboLinearSpeed = prefs.getDouble('gamepad_turbo_lin') ?? 0.35;
     _normalAngularSpeed = prefs.getDouble('gamepad_normal_ang') ?? 0.45;
     _turboAngularSpeed = prefs.getDouble('gamepad_turbo_ang') ?? 0.75;
     _invertLinear = prefs.getBool('gamepad_invert_lin') ?? false;

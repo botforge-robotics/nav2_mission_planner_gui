@@ -18,11 +18,9 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    // Listen for physical button presses when in remap/listening mode
+    // Listen for physical button presses: selects the pressed button automatically
     _buttonPressSub = _service.buttonPressEvents.listen((pressedBtn) {
-      if (_selectedButtonForRemap != null) {
-        // If a target button was selected on screen, pressing ANY button on the gamepad
-        // swaps or assigns it, or if we are listening for assignment:
+      if (mounted) {
         setState(() {
           _selectedButtonForRemap = pressedBtn;
         });
@@ -42,6 +40,8 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
       animation: _service,
       builder: (context, _) {
         final connected = _service.isConnected;
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isWideScreen = screenWidth >= 800;
 
         return Scaffold(
           appBar: AppBar(
@@ -53,7 +53,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                 onPressed: () {
                   _service.resetToDefaults();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Gamepad mappings reset to defaults')),
+                    const SnackBar(content: Text('Gamepad settings reset to defaults')),
                   );
                 },
               ),
@@ -94,7 +94,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                             const SizedBox(height: 2),
                             Text(
                               connected
-                                  ? 'Click a button below or press it on controller to remap'
+                                  ? 'Click a button on the gamepad image or press it on controller to remap'
                                   : 'Connect via Bluetooth or USB to configure & drive',
                               style: TextStyle(
                                 fontSize: 12,
@@ -117,87 +117,27 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
 
               const SizedBox(height: 16),
 
-              // Interactive Visual Controller Diagram
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            '  Interactive Button Remapper',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
-                          if (_selectedButtonForRemap != null)
-                            TextButton.icon(
-                              onPressed: () => setState(() => _selectedButtonForRemap = null),
-                              icon: const Icon(Icons.clear, size: 16),
-                              label: const Text('Deselect', style: TextStyle(fontSize: 12)),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Center(
-                        child: SizedBox(
-                          width: 340,
-                          height: 315,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // Background Gamepad Diagram Image
-                              Opacity(
-                                opacity: 0.85,
-                                child: Image.asset(
-                                  'assets/gamepad_diagram.png',
-                                  width: 340,
-                                  height: 315,
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-
-                              // Interactive Hotspot Targets
-                              // Scaled proportionally from (385 x 355) to (340 x 315)
-                              // Top Triggers & Bumpers
-                              _buildHotspot(GamepadButton.leftTrigger, 111, 40, 'LT', isTrigger: true),
-                              _buildHotspot(GamepadButton.leftBumper, 107, 65, 'LB'),
-                              _buildHotspot(GamepadButton.rightTrigger, 229, 40, 'RT', isTrigger: true),
-                              _buildHotspot(GamepadButton.rightBumper, 232, 65, 'RB'),
-
-                              // Center Buttons (Back / Start)
-                              _buildHotspot(GamepadButton.back, 145, 131, 'SEL'),
-                              _buildHotspot(GamepadButton.start, 197, 131, 'STR'),
-
-                              // D-Pad (Left side)
-                              _buildHotspot(GamepadButton.dpadUp, 95, 118, '▲'),
-                              _buildHotspot(GamepadButton.dpadDown, 95, 140, '▼'),
-                              _buildHotspot(GamepadButton.dpadLeft, 83, 129, '◀'),
-                              _buildHotspot(GamepadButton.dpadRight, 107, 129, '▶'),
-
-                              // Face Action Buttons (Right side: X, Y, A, B)
-                              _buildHotspot(GamepadButton.y, 245, 118, 'Y'),
-                              _buildHotspot(GamepadButton.a, 246, 140, 'A'),
-                              _buildHotspot(GamepadButton.x, 234, 129, 'X'),
-                              _buildHotspot(GamepadButton.b, 258, 129, 'B'),
-
-                              // Analog Thumbsticks (Clickable L3 / R3)
-                              _buildHotspot(GamepadButton.leftStick, 132, 185, 'L3', isStick: true),
-                              _buildHotspot(GamepadButton.rightStick, 210, 185, 'R3', isStick: true),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Selected Button Details & Action Assignment
-                      _buildSelectedButtonBanner(),
-                    ],
-                  ),
-                ),
-              ),
+              // Visual Gamepad + Action Legend Side-by-Side (or stacked on mobile)
+              if (isWideScreen)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: _buildVisualGamepadCard(),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 4,
+                      child: _buildActionLegendCard(),
+                    ),
+                  ],
+                )
+              else ...[
+                _buildVisualGamepadCard(),
+                const SizedBox(height: 16),
+                _buildActionLegendCard(),
+              ],
 
               const SizedBox(height: 16),
 
@@ -229,6 +169,32 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                       ),
                       const Divider(),
                       _buildSliderTile(
+                        title: 'Normal Linear Speed',
+                        subtitle: 'Default pace (Min: 0.07 m/s, Default: 0.10 m/s)',
+                        value: _service.normalLinearSpeed,
+                        min: 0.07,
+                        max: 0.70,
+                        display: '${(_service.normalLinearSpeed * 100).toInt()} cm/s (${_service.normalLinearSpeed.toStringAsFixed(2)} m/s)',
+                        onChanged: (v) {
+                          _service.setNormalLinearSpeed(v);
+                          // Auto maintain turbo at 2x if lower
+                          if (_service.turboLinearSpeed < v) {
+                            _service.setTurboLinearSpeed((v * 2.0).clamp(0.07, 0.70));
+                          }
+                        },
+                      ),
+                      const Divider(),
+                      _buildSliderTile(
+                        title: 'Turbo Linear Speed',
+                        subtitle: 'Speed when Turbo (RB / R1) is held (Max: 0.70 m/s)',
+                        value: _service.turboLinearSpeed,
+                        min: 0.07,
+                        max: 0.70,
+                        display: '${(_service.turboLinearSpeed * 100).toInt()} cm/s (${_service.turboLinearSpeed.toStringAsFixed(2)} m/s)',
+                        onChanged: (v) => _service.setTurboLinearSpeed(v),
+                      ),
+                      const Divider(),
+                      _buildSliderTile(
                         title: 'Analog Stick Deadzone',
                         subtitle: 'Filter center drift',
                         value: _service.deadzone,
@@ -239,31 +205,11 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                       ),
                       const Divider(),
                       _buildSliderTile(
-                        title: 'Normal Linear Speed',
-                        subtitle: 'Standard driving pace',
-                        value: _service.normalLinearSpeed,
-                        min: 0.05,
-                        max: 0.35,
-                        display: '${(_service.normalLinearSpeed * 100).toInt()} cm/s',
-                        onChanged: (v) => _service.setNormalLinearSpeed(v),
-                      ),
-                      const Divider(),
-                      _buildSliderTile(
-                        title: 'Turbo Linear Speed',
-                        subtitle: 'Speed when Turbo (RB / R1) is held',
-                        value: _service.turboLinearSpeed,
-                        min: 0.15,
-                        max: 0.50,
-                        display: '${(_service.turboLinearSpeed * 100).toInt()} cm/s',
-                        onChanged: (v) => _service.setTurboLinearSpeed(v),
-                      ),
-                      const Divider(),
-                      _buildSliderTile(
                         title: 'Turn Speed (Angular)',
                         subtitle: 'Rotation rate on steering',
                         value: _service.normalAngularSpeed,
-                        min: 0.20,
-                        max: 1.00,
+                        min: 0.15,
+                        max: 1.20,
                         display: '${_service.normalAngularSpeed.toStringAsFixed(2)} rad/s',
                         onChanged: (v) => _service.setNormalAngularSpeed(v),
                       ),
@@ -277,6 +223,176 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildVisualGamepadCard() {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  '  Interactive Controller',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                if (_selectedButtonForRemap != null)
+                  TextButton.icon(
+                    onPressed: () => setState(() => _selectedButtonForRemap = null),
+                    icon: const Icon(Icons.clear, size: 16),
+                    label: const Text('Deselect', style: TextStyle(fontSize: 12)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Center(
+              child: SizedBox(
+                width: 340,
+                height: 315,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Background Gamepad Diagram Image
+                    Opacity(
+                      opacity: 0.85,
+                      child: Image.asset(
+                        'assets/gamepad_diagram.png',
+                        width: 340,
+                        height: 315,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+
+                    // Interactive Hotspot Targets
+                    // Top Triggers & Bumpers
+                    _buildHotspot(GamepadButton.leftTrigger, 111, 40, 'LT', isTrigger: true),
+                    _buildHotspot(GamepadButton.leftBumper, 107, 65, 'LB'),
+                    _buildHotspot(GamepadButton.rightTrigger, 229, 40, 'RT', isTrigger: true),
+                    _buildHotspot(GamepadButton.rightBumper, 232, 65, 'RB'),
+
+                    // Center Buttons (Back / Start)
+                    _buildHotspot(GamepadButton.back, 145, 131, 'SEL'),
+                    _buildHotspot(GamepadButton.start, 197, 131, 'STR'),
+
+                    // D-Pad (Left side)
+                    _buildHotspot(GamepadButton.dpadUp, 95, 118, '▲'),
+                    _buildHotspot(GamepadButton.dpadDown, 95, 140, '▼'),
+                    _buildHotspot(GamepadButton.dpadLeft, 83, 129, '◀'),
+                    _buildHotspot(GamepadButton.dpadRight, 107, 129, '▶'),
+
+                    // Face Action Buttons (Right side: X, Y, A, B)
+                    _buildHotspot(GamepadButton.y, 245, 118, 'Y'),
+                    _buildHotspot(GamepadButton.a, 246, 140, 'A'),
+                    _buildHotspot(GamepadButton.x, 234, 129, 'X'),
+                    _buildHotspot(GamepadButton.b, 258, 129, 'B'),
+
+                    // Analog Thumbsticks (Clickable L3 / R3)
+                    _buildHotspot(GamepadButton.leftStick, 132, 185, 'L3', isStick: true),
+                    _buildHotspot(GamepadButton.rightStick, 210, 185, 'R3', isStick: true),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Selected Button Details & Action Assignment
+            _buildSelectedButtonBanner(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionLegendCard() {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.list_alt_rounded, size: 20, color: Colors.blue.shade700),
+                const SizedBox(width: 8),
+                const Text(
+                  'Assigned Actions Legend',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: GamepadButton.values.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final btn = GamepadButton.values[i];
+                final action = _service.buttonMapping[btn] ?? GamepadAction.none;
+                final isSelected = _selectedButtonForRemap == btn;
+                final isPressed = _service.pressedButtons.contains(btn);
+
+                return ListTile(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                  leading: CircleAvatar(
+                    radius: 13,
+                    backgroundColor: isPressed
+                        ? Colors.green
+                        : (isSelected ? Colors.blue : (action != GamepadAction.none ? Colors.blue.shade50 : Colors.grey.shade200)),
+                    child: Text(
+                      _buttonShortName(btn),
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.bold,
+                        color: isPressed || isSelected ? Colors.white : (action != GamepadAction.none ? Colors.blue.shade900 : Colors.black87),
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    _buttonFullName(btn),
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: action != GamepadAction.none ? Colors.blue.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: action != GamepadAction.none ? Colors.blue.shade300 : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Text(
+                      action.label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: action != GamepadAction.none ? FontWeight.bold : FontWeight.normal,
+                        color: action != GamepadAction.none ? Colors.blue.shade800 : Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _selectedButtonForRemap = btn;
+                    });
+                    _showRemapDialog(btn, action);
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -380,7 +496,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
             SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Tap any button above or press it physically to view & assign its action.',
+                'Tap any button above or press it physically to assign its action.',
                 style: TextStyle(fontSize: 12.5, color: Colors.black87),
               ),
             ),
@@ -426,7 +542,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
                     ),
                     Text(
-                      'Assigned: ${currentAction.label}',
+                      'Action: ${currentAction.label}',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
