@@ -77,6 +77,10 @@ class GamepadService extends ChangeNotifier {
 
   // Button state set
   final Set<GamepadButton> _pressedButtons = {};
+  GamepadButton? _lastPressedButton;
+  final _buttonPressStreamController = StreamController<GamepadButton>.broadcast();
+  Stream<GamepadButton> get buttonPressEvents => _buttonPressStreamController.stream;
+  GamepadButton? get lastPressedButton => _lastPressedButton;
 
   // Settings / Calibration
   double _deadzone = 0.10; // 10% deadband
@@ -234,6 +238,8 @@ class GamepadService extends ChangeNotifier {
       if (isPressed) {
         if (!_pressedButtons.contains(btn)) {
           _pressedButtons.add(btn);
+          _lastPressedButton = btn;
+          _buttonPressStreamController.add(btn);
           _onButtonPressed(btn);
           notifyListeners();
         }
@@ -614,6 +620,7 @@ class GamepadService extends ChangeNotifier {
     _scanTimer?.cancel();
     _cmdVelPub?.shutdown();
     _hudStreamController.close();
+    _buttonPressStreamController.close();
     super.dispose();
   }
 }
