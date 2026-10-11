@@ -220,32 +220,38 @@ class _ShellNavState extends State<_ShellNav> {
     // tablet, and desktop breakpoints so the active screens and their states
     // are preserved without triggering element deactivation during resizing or window minimize.
     return Scaffold(
-      body: Row(
+      body: Column(
         children: [
           if (device == DeviceClass.desktop)
-            _DesktopSidebar(
+            _DesktopTopBar(
               selectedIndex: _index,
               onDestinationSelected: (i) => setState(() => _index = i),
               destinations: _destinations,
-            )
-          else if (device == DeviceClass.tablet) ...[
-            NavigationRail(
-              selectedIndex: _index,
-              onDestinationSelected: (i) => setState(() => _index = i),
-              labelType: NavigationRailLabelType.all,
-              backgroundColor: AppColors.surface,
-              destinations: [
-                for (final d in _destinations)
-                  NavigationRailDestination(
-                    icon: Icon(d.icon),
-                    selectedIcon: Icon(d.selectedIcon),
-                    label: Text(d.label),
+            ),
+          Expanded(
+            child: Row(
+              children: [
+                if (device == DeviceClass.tablet) ...[
+                  NavigationRail(
+                    selectedIndex: _index,
+                    onDestinationSelected: (i) => setState(() => _index = i),
+                    labelType: NavigationRailLabelType.all,
+                    backgroundColor: AppColors.surface,
+                    destinations: [
+                      for (final d in _destinations)
+                        NavigationRailDestination(
+                          icon: Icon(d.icon),
+                          selectedIcon: Icon(d.selectedIcon),
+                          label: Text(d.label),
+                        ),
+                    ],
                   ),
+                  const VerticalDivider(width: 1, color: AppColors.border),
+                ],
+                Expanded(child: body),
               ],
             ),
-            const VerticalDivider(width: 1, color: AppColors.border),
-          ],
-          Expanded(child: body),
+          ),
         ],
       ),
       bottomNavigationBar: device == DeviceClass.mobile
@@ -266,8 +272,8 @@ class _ShellNavState extends State<_ShellNav> {
   }
 }
 
-class _DesktopSidebar extends StatelessWidget {
-  const _DesktopSidebar({
+class _DesktopTopBar extends StatelessWidget {
+  const _DesktopTopBar({
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.destinations,
@@ -286,225 +292,186 @@ class _DesktopSidebar extends StatelessWidget {
     final isFleet = fleet.isFleetMode;
 
     return Container(
-      width: 250,
+      height: 58,
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        border: Border(right: BorderSide(color: AppColors.border, width: 1)),
+        border: Border(bottom: BorderSide(color: AppColors.border, width: 1)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
         children: [
           // 1. App branding & robot identity
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: isFleet ? Colors.blue.withValues(alpha: 0.12) : AppColors.surfaceSunken,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isFleet ? Colors.blue.withValues(alpha: 0.3) : AppColors.border),
-                  ),
-                  padding: const EdgeInsets.all(4),
-                  child: isFleet
-                      ? const Icon(Icons.hub_rounded, color: Colors.blue, size: 24)
-                      : Image.asset('assets/robot_photo.png', fit: BoxFit.contain),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        isFleet ? 'NavPro Mini Fleet' : 'NavPro Mini',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isFleet
-                            ? (fleet.selectedRobot != null ? 'Unit: ${fleet.selectedRobot!.name}' : '${fleet.robots.length} Robots Online')
-                            : (robot?.name ?? 'Robot Dashboard'),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isFleet ? Colors.blue : AppColors.textSecondary,
-                          fontWeight: isFleet ? FontWeight.w600 : FontWeight.normal,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: isFleet ? Colors.blue.withValues(alpha: 0.12) : AppColors.surfaceSunken,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: isFleet ? Colors.blue.withValues(alpha: 0.3) : AppColors.border),
             ),
+            padding: const EdgeInsets.all(4),
+            child: isFleet
+                ? const Icon(Icons.hub_rounded, color: Colors.blue, size: 20)
+                : Image.asset('assets/robot_photo.png', fit: BoxFit.contain),
           ),
-          const Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: 12),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                isFleet ? 'NavPro Mini Fleet' : 'NavPro Mini',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              Text(
+                isFleet
+                    ? (fleet.selectedRobot != null ? 'Unit: ${fleet.selectedRobot!.name}' : '${fleet.robots.length} Robots Online')
+                    : (robot?.name ?? 'Robot Dashboard'),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isFleet ? Colors.blue : AppColors.textSecondary,
+                  fontWeight: isFleet ? FontWeight.w600 : FontWeight.normal,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+          const SizedBox(width: 24),
+          const VerticalDivider(width: 1, indent: 14, endIndent: 14, color: AppColors.border),
+          const SizedBox(width: 12),
 
-          // 2. Navigation List
+          // 2. Navigation Items (Horizontal tabs)
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              itemCount: destinations.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 4),
-              itemBuilder: (context, i) {
-                final d = destinations[i];
-                final isSelected = selectedIndex == i;
-                return _SidebarItem(
-                  icon: isSelected ? d.selectedIcon : d.icon,
-                  label: d.label,
-                  isSelected: isSelected,
-                  onTap: () => onDestinationSelected(i),
-                );
-              },
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (int i = 0; i < destinations.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: _TopNavItem(
+                        icon: selectedIndex == i ? destinations[i].selectedIcon : destinations[i].icon,
+                        label: destinations[i].label,
+                        isSelected: selectedIndex == i,
+                        onTap: () => onDestinationSelected(i),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
 
-          // 3. Bottom Robot / Fleet Telemetry Card
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Container(
-              padding: const EdgeInsets.all(12),
+          const SizedBox(width: 12),
+          const VerticalDivider(width: 1, indent: 14, endIndent: 14, color: AppColors.border),
+          const SizedBox(width: 16),
+
+          // 3. Status & Telemetry Pill
+          if (isFleet)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: AppColors.surfaceSunken,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.border),
               ),
-              child: isFleet
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Colors.blue,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                '${fleet.fleetServerHost}:${fleet.fleetServerPort}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text('FLEET',
-                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blue)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${fleet.robots.length} Robots · ${fleet.levels.length} Levels',
-                              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                            ),
-                            Text(
-                              '${fleet.activeMissions.length} Tasks',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green),
-                            ),
-                          ],
-                        ),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: AppColors.success,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                robot?.ip ?? '127.0.0.1',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            if (telemetry.chargeStatus == ChargeStatus.charging ||
-                                telemetry.chargeStatus == ChargeStatus.full)
-                              const Icon(Icons.bolt_rounded, size: 16, color: AppColors.success),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: LinearProgressIndicator(
-                                  value: (telemetry.batteryPercentage ?? 0) / 100.0,
-                                  backgroundColor: AppColors.border,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    (telemetry.batteryPercentage ?? 0) <= 20
-                                        ? AppColors.danger
-                                        : AppColors.success,
-                                  ),
-                                  minHeight: 6,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              telemetry.batteryPercentage != null
-                                  ? telemetry.formatBatteryPercent()
-                                  : '—',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${fleet.fleetServerHost}:${fleet.fleetServerPort}',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text('FLEET', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blue)),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${fleet.robots.length} AMRs · ${fleet.activeMissions.length} Tasks',
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceSunken,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: AppColors.success,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    robot?.ip ?? '127.0.0.1',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                  ),
+                  if (telemetry.chargeStatus == ChargeStatus.charging ||
+                      telemetry.chargeStatus == ChargeStatus.full) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.bolt_rounded, size: 14, color: AppColors.success),
+                  ],
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 48,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: (telemetry.batteryPercentage ?? 0) / 100.0,
+                        backgroundColor: AppColors.border,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          (telemetry.batteryPercentage ?? 0) <= 20 ? AppColors.danger : AppColors.success,
+                        ),
+                        minHeight: 5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    telemetry.batteryPercentage != null ? telemetry.formatBatteryPercent() : '—',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
   }
 }
 
-class _SidebarItem extends StatefulWidget {
-  const _SidebarItem({
+class _TopNavItem extends StatefulWidget {
+  const _TopNavItem({
     required this.icon,
     required this.label,
     required this.isSelected,
@@ -517,17 +484,17 @@ class _SidebarItem extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_SidebarItem> createState() => _SidebarItemState();
+  State<_TopNavItem> createState() => _TopNavItemState();
 }
 
-class _SidebarItemState extends State<_SidebarItem> {
+class _TopNavItemState extends State<_TopNavItem> {
   bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     final active = widget.isSelected;
     final bg = active
-        ? AppColors.primary.withValues(alpha: 0.10)
+        ? AppColors.primary.withValues(alpha: 0.12)
         : (_hovered ? AppColors.surfaceSunken : Colors.transparent);
     final fg = active ? AppColors.primary : AppColors.textPrimary;
 
@@ -539,24 +506,29 @@ class _SidebarItemState extends State<_SidebarItem> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
             color: bg,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: active ? AppColors.primary.withValues(alpha: 0.3) : Colors.transparent,
+              width: 1,
+            ),
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 widget.icon,
-                size: 20,
+                size: 18,
                 color: active ? AppColors.primary : AppColors.textSecondary,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Text(
                 widget.label,
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                  fontSize: 13,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                   color: fg,
                 ),
               ),

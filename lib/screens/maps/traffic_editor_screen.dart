@@ -70,6 +70,7 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
   @override
   void initState() {
     super.initState();
+    _activeGrid = OccupancyGridView.cachedGrid;
     _activeLevelName = widget.initialLevelName ?? 'L1';
     _graph = RmfLevelGraph(name: _activeLevelName!);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadBuildingGraph());
@@ -511,7 +512,9 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
         y: roundedY,
         name: 'wp_${_graph.vertices.length + 1}',
       );
-      _graph.vertices.add(targetVertex);
+      setState(() {
+        _graph.vertices.add(targetVertex!);
+      });
     }
 
     if (_edgeStartVertexId == null) {
@@ -520,7 +523,7 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(isWall
-              ? 'Start vertex selected. Tap next points to build continuous wall (double-tap/press ESC to finish).'
+              ? 'Start vertex selected. Tap next points to build continuous wall (click Finish when done).'
               : (isDoor
                   ? 'Start vertex selected. Tap end vertex to place door.'
                   : 'Start vertex selected. Tap next points to create lanes.')),
@@ -532,61 +535,56 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
         final startId = _edgeStartVertexId!;
         final endId = targetVertex.id;
 
-        if (isWall) {
-          final newWall = EditorWall(
-            id: 'wall_${DateTime.now().millisecondsSinceEpoch}',
-            startVertexId: startId,
-            endVertexId: endId,
-          );
-          _graph.walls.add(newWall);
-          _selectedWallId = newWall.id;
-          _selectedVertexId = null;
-          _selectedLaneId = null;
-          _selectedDoorId = null;
-        } else if (isDoor) {
-          final newDoor = EditorDoor(
-            id: 'door_${DateTime.now().millisecondsSinceEpoch}',
-            startVertexId: startId,
-            endVertexId: endId,
-          );
-          _graph.doors.add(newDoor);
-          _selectedDoorId = newDoor.id;
-          _selectedVertexId = null;
-          _selectedLaneId = null;
-          _selectedWallId = null;
-        } else {
-          final newLane = EditorEdge(
-            id: 'lane_${DateTime.now().millisecondsSinceEpoch}',
-            startVertexId: startId,
-            endVertexId: endId,
-            bidirectional: true,
-          );
-          _graph.lanes.add(newLane);
-          _selectedLaneId = newLane.id;
-          _selectedVertexId = null;
-          _selectedWallId = null;
-          _selectedDoorId = null;
-        }
+        setState(() {
+          if (isWall) {
+            final newWall = EditorWall(
+              id: 'wall_${DateTime.now().millisecondsSinceEpoch}',
+              startVertexId: startId,
+              endVertexId: endId,
+            );
+            _graph.walls.add(newWall);
+            _selectedWallId = newWall.id;
+            _selectedVertexId = null;
+            _selectedLaneId = null;
+            _selectedDoorId = null;
+            _edgeStartVertexId = targetVertex!.id; // Continuous chain
+          } else if (isDoor) {
+            final newDoor = EditorDoor(
+              id: 'door_${DateTime.now().millisecondsSinceEpoch}',
+              startVertexId: startId,
+              endVertexId: endId,
+            );
+            _graph.doors.add(newDoor);
+            _selectedDoorId = newDoor.id;
+            _selectedVertexId = null;
+            _selectedLaneId = null;
+            _selectedWallId = null;
+            _edgeStartVertexId = null;
+          } else {
+            final newLane = EditorEdge(
+              id: 'lane_${DateTime.now().millisecondsSinceEpoch}',
+              startVertexId: startId,
+              endVertexId: endId,
+              bidirectional: true,
+            );
+            _graph.lanes.add(newLane);
+            _selectedLaneId = newLane.id;
+            _selectedVertexId = null;
+            _selectedWallId = null;
+            _selectedDoorId = null;
+            _edgeStartVertexId = targetVertex!.id; // Continuous chain
+          }
+        });
 
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(isWall
-                ? 'Wall segment added. Tap next vertex to continue wall, or switch tool/click Finish.'
-                : (isDoor ? 'Door added between vertices' : 'Lane segment added. Tap next vertex to continue chain.')),
+                ? 'Wall segment added. Tap next point to continue wall, or click Finish.'
+                : (isDoor ? 'Door added between vertices.' : 'Lane segment added. Tap next point to continue lane.')),
             duration: const Duration(seconds: 2),
           ),
         );
-
-        // Continuous drawing: chain to next vertex for walls & lanes!
-        // Doors are single 2-point objects, so finish door.
-        setState(() {
-          if (isDoor) {
-            _edgeStartVertexId = null;
-          } else {
-            _edgeStartVertexId = targetVertex!.id; // Chain for continuous drawing!
-          }
-        });
       } else {
         // Tapped same vertex: finish continuous chain
         setState(() => _edgeStartVertexId = null);
@@ -662,7 +660,7 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
                           color: AppColors.background,
                           child: Stack(
                             children: [
-                              if (ros2 != null)
+                              if (ros2 != null && _activeGrid != null)
                                 Positioned.fill(
                                   child: OccupancyGridView(
                                     ros2: ros2,
@@ -694,7 +692,7 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
                                       painter: _RmfTrafficCanvasPainter(
                                         graph: _graph,
                                         grid: _effectiveGrid,
-                                        isStandalone: ros2 == null,
+                                        isStandalone: ros2 == null || _activeGrid == null,
                                         selectedVertexId: _selectedVertexId,
                                         selectedLaneId: _selectedLaneId,
                                         selectedWallId: _selectedWallId,
@@ -1506,7 +1504,6 @@ class _StandaloneEditorCanvas extends StatefulWidget {
 
 class _StandaloneEditorCanvasState extends State<_StandaloneEditorCanvas> {
   final GlobalKey _contentKey = GlobalKey();
-  Offset? _pointerDownPos;
 
   Offset? _pixelToWorld(Offset globalPos) {
     final box = _contentKey.currentContext?.findRenderObject() as RenderBox?;
@@ -1533,15 +1530,12 @@ class _StandaloneEditorCanvasState extends State<_StandaloneEditorCanvas> {
         widget.onHoverWorld(world);
       },
       onExit: (_) => widget.onHoverWorld(null),
-      child: Listener(
+      child: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onPointerDown: (e) => _pointerDownPos = e.position,
-        onPointerUp: (e) {
-          if (_pointerDownPos != null && (e.position - _pointerDownPos!).distance < 12.0) {
-            final world = _pixelToWorld(e.position);
-            if (world != null) {
-              widget.onTapWorld(world);
-            }
+        onTapUp: (details) {
+          final world = _pixelToWorld(details.globalPosition);
+          if (world != null) {
+            widget.onTapWorld(world);
           }
         },
         child: InteractiveViewer(

@@ -260,40 +260,6 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(isDesktop ? 'Missions & Task Overview' : 'Missions'),
-        actions: [
-          if (isDesktop) ...[
-            Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.md),
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                ),
-                icon: const Icon(Icons.account_tree_outlined, size: 18),
-                label: const Text('Workflow Editor'),
-                onPressed: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => const MissionGraphEditorScreen()),
-                  );
-                  _load();
-                },
-              ),
-            ),
-          ] else ...[
-            IconButton(
-              tooltip: 'Workflow Editor',
-              icon: const Icon(Icons.account_tree_outlined),
-              onPressed: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => const MissionGraphEditorScreen()),
-                );
-                _load();
-              },
-            ),
-          ],
-        ],
       ),
       floatingActionButton: isDesktop
           ? null

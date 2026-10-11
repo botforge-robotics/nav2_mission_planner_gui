@@ -1816,7 +1816,7 @@ class _ControlCluster extends StatelessWidget {
     this.onCenterRobot,
     required this.onLocalize,
     required this.localizing,
-    required this.onAddLocation,
+    this.onAddLocation,
     required this.onShowLocations,
   });
 
@@ -1830,7 +1830,7 @@ class _ControlCluster extends StatelessWidget {
   final VoidCallback? onCenterRobot;
   final VoidCallback? onLocalize;
   final bool localizing;
-  final VoidCallback onAddLocation;
+  final VoidCallback? onAddLocation;
   final VoidCallback onShowLocations;
 
   @override
@@ -1885,13 +1885,6 @@ class _ControlCluster extends StatelessWidget {
             tooltip: 'Localize',
             onTap: onLocalize,
             busy: localizing,
-            color: AppColors.primary,
-          ),
-          const Divider(height: 1),
-          _ControlButton(
-            icon: Icons.add_location_alt_rounded,
-            tooltip: 'Save Location',
-            onTap: onAddLocation,
             color: AppColors.primary,
           ),
           const Divider(height: 1),
@@ -2093,7 +2086,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
     required this.onLocalizeMap,
     required this.onLocalizeDock,
     required this.onGlobalRelocalize,
-    required this.onAddLocation,
+    this.onAddLocation,
     required this.onLocationTap,
     this.onLocationDelete,
     required this.onDockTap,
@@ -2110,7 +2103,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
   final VoidCallback onLocalizeMap;
   final VoidCallback onLocalizeDock;
   final VoidCallback onGlobalRelocalize;
-  final VoidCallback onAddLocation;
+  final VoidCallback? onAddLocation;
   final void Function(Map<String, dynamic>) onLocationTap;
   final void Function(Map<String, dynamic>)? onLocationDelete;
   final VoidCallback onDockTap;
@@ -2202,13 +2195,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
 
-          // Group 1: Waypoints & Saved Location Pin
-          FilledButton.icon(
-            onPressed: onAddLocation,
-            icon: const Icon(Icons.add_location_alt_rounded, size: 16),
-            label: const Text('Save Current Location Pin'),
-          ),
-          const SizedBox(height: AppSpacing.sm),
+
 
           // Group 2: Map Zones (Speed limits, keep-out, work zones)
           Container(

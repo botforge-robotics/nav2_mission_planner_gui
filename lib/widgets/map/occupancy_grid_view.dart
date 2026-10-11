@@ -353,6 +353,8 @@ class OccupancyGridView extends StatefulWidget {
   final String? selectedFleetRobotId;
   final ValueChanged<FleetRobotInfo>? onFleetRobotTap;
 
+  static nav_msgs.OccupancyGrid? get cachedGrid => _OccupancyGridViewState._cachedGrid;
+
   @override
 
   State<OccupancyGridView> createState() => _OccupancyGridViewState();
@@ -1800,7 +1802,6 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       }
 
       if (widget.drawingLaneMode || widget.onMapClickWorld != null) {
-        Offset? pointerDownPos;
         activeChild = MouseRegion(
           cursor: SystemMouseCursors.precise,
           onHover: (event) {
@@ -1814,28 +1815,20 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           onExit: (_) {
             widget.onMapHoverWorld?.call(null);
           },
-          child: Listener(
+          child: GestureDetector(
             behavior: HitTestBehavior.translucent,
-            onPointerDown: (event) {
-              pointerDownPos = event.position;
-            },
-            onPointerUp: (event) {
-              if (pointerDownPos != null &&
-                  (event.position - pointerDownPos!).distance < 12.0) {
-                if (_grid == null) return;
-                final contentPoint = _globalToContent(event.position);
-                if (contentPoint != null) {
-                  final world = _pixelToWorld(_grid!, contentPoint);
-                  widget.onMapClickWorld?.call(world);
-                }
+            onTapUp: (details) {
+              if (_grid == null) return;
+              final contentPoint = _globalToContent(details.globalPosition);
+              if (contentPoint != null) {
+                final world = _pixelToWorld(_grid!, contentPoint);
+                widget.onMapClickWorld?.call(world);
               }
             },
-            child: GestureDetector(
-              onDoubleTap: () {
-                widget.onFinishLane?.call();
-              },
-              child: activeChild,
-            ),
+            onDoubleTap: () {
+              widget.onFinishLane?.call();
+            },
+            child: activeChild,
           ),
         );
       }
