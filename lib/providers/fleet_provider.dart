@@ -60,20 +60,51 @@ class FleetProvider extends ChangeNotifier {
   String? get error => _error;
   bool get isLoading => _isLoading;
 
+  String? get token => _token;
+  bool get isAuthenticated => _token != null && _token!.isNotEmpty;
+
   Future<void> _init() async {
     final saved = await _store.load();
     if (saved != null) {
       _isFleetMode = saved.isFleetMode;
       _fleetServerHost = saved.fleetServerHost ?? saved.ip;
       _fleetServerPort = saved.fleetServerPort;
+      _token = saved.fleetAuthToken;
       if (_isFleetMode && _fleetServerHost != null) {
         _connectFleet();
       }
     }
   }
 
-  void _connectFleet() {
+  void _connectFleet() async {
     if (_fleetServerHost == null || _fleetServerHost!.isEmpty) return;
+
+    // If token is missing, attempt auto-login using default fleet admin credentials
+    if (_token == null || _token!.isEmpty) {
+      try {
+        final unauthedApi = FleetApiService(serverHost: _fleetServerHost!, port: _fleetServerPort);
+        final res = await unauthedApi.login('admin', 'navpro-admin');
+        final token = res['token'] as String?;
+        if (token != null && token.isNotEmpty) {
+          _token = token;
+          final saved = await _store.load();
+          if (saved != null) {
+            final updated = SavedRobot(
+              name: saved.name,
+              ip: saved.ip,
+              fleetServerHost: _fleetServerHost,
+              fleetServerPort: _fleetServerPort,
+              isFleetMode: _isFleetMode,
+              fleetAuthToken: token,
+            );
+            await _store.save(updated);
+          }
+        }
+      } catch (_) {
+        // Auto-login failed (e.g. customized credentials or offline), user can sign in manually
+      }
+    }
+
     _api = FleetApiService(
       serverHost: _fleetServerHost!,
       port: _fleetServerPort,
@@ -83,10 +114,48 @@ class FleetProvider extends ChangeNotifier {
     refreshFleet();
   }
 
-  void setFleetMode(bool enabled, {String? host, int? port}) async {
+  Future<bool> login(String username, String password) async {
+    if (_fleetServerHost == null || _fleetServerHost!.isEmpty) return false;
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final unauthedApi = FleetApiService(serverHost: _fleetServerHost!, port: _fleetServerPort);
+      final res = await unauthedApi.login(username, password);
+      final token = res['token'] as String?;
+      if (token != null && token.isNotEmpty) {
+        _token = token;
+        final saved = await _store.load();
+        if (saved != null) {
+          final updated = SavedRobot(
+            name: saved.name,
+            ip: saved.ip,
+            fleetServerHost: _fleetServerHost,
+            fleetServerPort: _fleetServerPort,
+            isFleetMode: _isFleetMode,
+            fleetAuthToken: token,
+          );
+          await _store.save(updated);
+        }
+        _connectFleet();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _error = 'Login failed: $e';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void setFleetMode(bool enabled, {String? host, int? port, String? token}) async {
     _isFleetMode = enabled;
     if (host != null) _fleetServerHost = host.trim();
     if (port != null) _fleetServerPort = port;
+    if (token != null) _token = token.trim();
 
     final saved = await _store.load();
     if (saved != null) {
@@ -96,6 +165,7 @@ class FleetProvider extends ChangeNotifier {
         fleetServerHost: _fleetServerHost,
         fleetServerPort: _fleetServerPort,
         isFleetMode: _isFleetMode,
+        fleetAuthToken: _token,
       );
       await _store.save(updated);
     }

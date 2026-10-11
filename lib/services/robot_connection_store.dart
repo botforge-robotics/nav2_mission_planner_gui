@@ -15,6 +15,7 @@ class SavedRobot {
     this.fleetServerHost = 'localhost',
     this.fleetServerPort = 80,
     this.isFleetMode = false,
+    this.fleetAuthToken,
   });
 
   final String name;
@@ -22,6 +23,7 @@ class SavedRobot {
   final String? fleetServerHost;
   final int fleetServerPort;
   final bool isFleetMode;
+  final String? fleetAuthToken;
 
   String get rosbridgeUrl => 'ws://$ip:9090';
   String? get fleetApiUrl => fleetServerHost != null ? 'http://$fleetServerHost:$fleetServerPort' : null;
@@ -33,6 +35,7 @@ class RobotConnectionStore {
   static const _keyFleetHost = 'fleet_host';
   static const _keyFleetPort = 'fleet_port';
   static const _keyIsFleetMode = 'is_fleet_mode';
+  static const _keyFleetAuthToken = 'fleet_auth_token';
 
   File? _desktopStorageFile() {
     if (kIsWeb) return null;
@@ -60,6 +63,7 @@ class RobotConnectionStore {
       final fleetHost = prefs.getString(_keyFleetHost) ?? 'localhost';
       final fleetPort = prefs.getInt(_keyFleetPort) ?? 80;
       final isFleetMode = prefs.getBool(_keyIsFleetMode) ?? false;
+      final fleetToken = prefs.getString(_keyFleetAuthToken);
       if (ip != null && ip.isNotEmpty) {
         final robot = SavedRobot(
           name: name ?? ip,
@@ -67,6 +71,7 @@ class RobotConnectionStore {
           fleetServerHost: fleetHost,
           fleetServerPort: fleetPort,
           isFleetMode: isFleetMode,
+          fleetAuthToken: fleetToken,
         );
         // Ensure desktop backup file is in sync
         _saveToDesktopFile(robot);
@@ -85,6 +90,7 @@ class RobotConnectionStore {
         final fleetHost = data['fleetServerHost'] as String? ?? 'localhost';
         final fleetPort = data['fleetServerPort'] as int? ?? 80;
         final isFleetMode = data['isFleetMode'] as bool? ?? false;
+        final fleetToken = data['fleetAuthToken'] as String?;
         if (ip != null && ip.isNotEmpty) {
           final robot = SavedRobot(
             name: name ?? ip,
@@ -92,6 +98,7 @@ class RobotConnectionStore {
             fleetServerHost: fleetHost,
             fleetServerPort: fleetPort,
             isFleetMode: isFleetMode,
+            fleetAuthToken: fleetToken,
           );
           // Restore back to SharedPreferences
           try {
@@ -100,6 +107,7 @@ class RobotConnectionStore {
             await prefs.setString(_keyFleetHost, fleetHost);
             await prefs.setInt(_keyFleetPort, fleetPort);
             await prefs.setBool(_keyIsFleetMode, isFleetMode);
+            if (fleetToken != null) await prefs.setString(_keyFleetAuthToken, fleetToken);
           } catch (_) {}
           return robot;
         }
@@ -122,6 +130,11 @@ class RobotConnectionStore {
       }
       await prefs.setInt(_keyFleetPort, robot.fleetServerPort);
       await prefs.setBool(_keyIsFleetMode, robot.isFleetMode);
+      if (robot.fleetAuthToken != null) {
+        await prefs.setString(_keyFleetAuthToken, robot.fleetAuthToken!);
+      } else {
+        await prefs.remove(_keyFleetAuthToken);
+      }
     } catch (_) {}
 
     // 2. Persist to desktop file
@@ -138,6 +151,7 @@ class RobotConnectionStore {
         'fleetServerHost': robot.fleetServerHost,
         'fleetServerPort': robot.fleetServerPort,
         'isFleetMode': robot.isFleetMode,
+        'fleetAuthToken': robot.fleetAuthToken,
       }));
     } catch (_) {}
   }
@@ -150,6 +164,7 @@ class RobotConnectionStore {
       await prefs.remove(_keyFleetHost);
       await prefs.remove(_keyFleetPort);
       await prefs.remove(_keyIsFleetMode);
+      await prefs.remove(_keyFleetAuthToken);
     } catch (_) {}
 
     final file = _desktopStorageFile();

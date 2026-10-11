@@ -126,10 +126,29 @@ class _FleetSettingsScreenState extends State<FleetSettingsScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _saveSettings,
-                          icon: const Icon(Icons.check_circle_outline),
-                          label: const Text('Apply Fleet Server Config'),
+                        Row(
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: _saveSettings,
+                              icon: const Icon(Icons.check_circle_outline),
+                              label: const Text('Apply Fleet Config'),
+                            ),
+                            const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              onPressed: () => _showLoginDialog(context, fleet),
+                              icon: Icon(
+                                fleet.isAuthenticated ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                                color: fleet.isAuthenticated ? Colors.green : Colors.orange,
+                              ),
+                              label: Text(
+                                fleet.isAuthenticated ? 'Authenticated' : 'Sign In',
+                                style: TextStyle(
+                                  color: fleet.isAuthenticated ? Colors.green : Colors.orange,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ],
@@ -434,6 +453,100 @@ class _FleetSettingsScreenState extends State<FleetSettingsScreen> {
                   },
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLoginDialog(BuildContext context, FleetProvider fleet) {
+    final userCtrl = TextEditingController(text: 'admin');
+    final passCtrl = TextEditingController(text: 'navpro-admin');
+    bool obscure = true;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Row(
+            children: const [
+              Icon(Icons.lock_rounded, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Fleet Server Sign In'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Authenticate with platform-api credentials to acquire a Bearer token.',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: userCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Username',
+                  hintText: 'admin',
+                  prefixIcon: Icon(Icons.person_rounded),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passCtrl,
+                obscureText: obscure,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  hintText: 'navpro-admin',
+                  prefixIcon: const Icon(Icons.password_rounded),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                    onPressed: () => setDialogState(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            if (fleet.isAuthenticated)
+              TextButton(
+                onPressed: () {
+                  fleet.setFleetMode(fleet.isFleetMode, token: '');
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Signed out of Fleet Server')),
+                  );
+                },
+                child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final nav = Navigator.of(ctx);
+                final scaffold = ScaffoldMessenger.of(context);
+                final success = await fleet.login(userCtrl.text.trim(), passCtrl.text.trim());
+                if (success) {
+                  nav.pop();
+                  scaffold.showSnackBar(
+                    const SnackBar(
+                      content: Text('Successfully authenticated with Fleet Server!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  scaffold.showSnackBar(
+                    SnackBar(
+                      content: Text('Login failed: ${fleet.error ?? "Invalid credentials"}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Sign In'),
             ),
           ],
         ),
