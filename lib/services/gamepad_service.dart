@@ -61,6 +61,7 @@ class GamepadService extends ChangeNotifier {
   GamepadService._();
 
   StreamSubscription<NormalizedGamepadEvent>? _eventSub;
+  StreamSubscription<GamepadEvent>? _rawEventSub;
   StreamSubscription<GamepadConnectionEvent>? _connSub;
   Timer? _teleopTimer;
   Timer? _scanTimer;
@@ -202,6 +203,19 @@ class GamepadService extends ChangeNotifier {
         debugPrint('[GamepadService] Normalized events error: $e');
       });
 
+      // Listen to raw events for direct hardware fallback & debug
+      _rawEventSub = Gamepads.events.listen((raw) {
+        if (!_isConnected) {
+          _isConnected = true;
+          _controllerId = raw.gamepadId;
+          _controllerName ??= 'Gamepad';
+          notifyListeners();
+        }
+        _handleRawEvent(raw);
+      }, onError: (e) {
+        debugPrint('[GamepadService] Raw events error: $e');
+      });
+
       _scanTimer = Timer.periodic(const Duration(seconds: 3), (_) {
         _checkConnectedGamepads();
       });
@@ -304,6 +318,67 @@ class GamepadService extends ChangeNotifier {
           }
           break;
       }
+      notifyListeners();
+    }
+  }
+
+  void _handleRawEvent(GamepadEvent raw) {
+    // Fallback for Linux Bluetooth / DirectInput where vendor-specific mapping is absent
+    // Standard PS/DualShock Bluetooth layout on Linux:
+    // Buttons: 0=Cross(A), 1=Circle(B), 2=Square(X), 3=Triangle(Y), 4=L1, 5=R1, 6=L2, 7=R2, 8=Share, 9=Options, 10=PS, 11=L3, 12=R3
+    if (raw.type == KeyType.button) {
+      GamepadButton? btn;
+      switch (raw.key) {
+        case '0': btn = GamepadButton.a; break;
+        case '1': btn = GamepadButton.b; break;
+        case '2': btn = GamepadButton.x; break;
+        case '3': btn = GamepadButton.y; break;
+        case '4': btn = GamepadButton.leftBumper; break;
+        case '5': btn = GamepadButton.rightBumper; break;
+        case '6': btn = GamepadButton.leftTrigger; break;
+        case '7': btn = GamepadButton.rightTrigger; break;
+        case '8': btn = GamepadButton.back; break;
+        case '9': btn = GamepadButton.start; break;
+        case '10': btn = GamepadButton.home; break;
+        case '11': btn = GamepadButton.leftStick; break;
+        case '12': btn = GamepadButton.rightStick; break;
+      }
+      if (btn != null) {
+        final isPressed = raw.value > 0.5;
+        if (isPressed && !_pressedButtons.contains(btn)) {
+          _pressedButtons.add(btn);
+          _lastPressedButton = btn;
+          _buttonPressStreamController.add(btn);
+          _onButtonPressed(btn);
+          notifyListeners();
+        } else if (!isPressed && _pressedButtons.contains(btn)) {
+          _pressedButtons.remove(btn);
+          _onButtonReleased(btn);
+          notifyListeners();
+        }
+      }
+    } else if (raw.type == KeyType.analog) {
+      // D-Pad Hat axes on Linux: axis 6 = HatX, axis 7 = HatY
+      if (raw.key == '6') {
+        _setDpadButton(GamepadButton.dpadLeft, raw.value < -0.5);
+        _setDpadButton(GamepadButton.dpadRight, raw.value > 0.5);
+      } else if (raw.key == '7') {
+        _setDpadButton(GamepadButton.dpadUp, raw.value < -0.5);
+        _setDpadButton(GamepadButton.dpadDown, raw.value > 0.5);
+      }
+    }
+  }
+
+  void _setDpadButton(GamepadButton btn, bool pressed) {
+    if (pressed && !_pressedButtons.contains(btn)) {
+      _pressedButtons.add(btn);
+      _lastPressedButton = btn;
+      _buttonPressStreamController.add(btn);
+      _onButtonPressed(btn);
+      notifyListeners();
+    } else if (!pressed && _pressedButtons.contains(btn)) {
+      _pressedButtons.remove(btn);
+      _onButtonReleased(btn);
       notifyListeners();
     }
   }
@@ -674,6 +749,7 @@ class GamepadService extends ChangeNotifier {
   @override
   void dispose() {
     _eventSub?.cancel();
+    _rawEventSub?.cancel();
     _connSub?.cancel();
     _teleopTimer?.cancel();
     _scanTimer?.cancel();
