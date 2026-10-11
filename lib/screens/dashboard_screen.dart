@@ -427,12 +427,14 @@ class _DashboardContentState extends State<_DashboardContent> {
                         telemetry: telemetry,
                         sdkState: sdkState),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  FadeSlideIn(
-                    delay: nextDelay(),
-                    child: _StatRow(
-                        telemetry: telemetry, sdkState: sdkState),
-                  ),
+                  if (!fleet.isFleetMode) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    FadeSlideIn(
+                      delay: nextDelay(),
+                      child: _StatRow(
+                          telemetry: telemetry, sdkState: sdkState),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   FadeSlideIn(
                     delay: nextDelay(),
@@ -506,18 +508,11 @@ class _RobotCard extends StatelessWidget {
 
     if (fleet.isFleetMode) {
       final robots = fleet.robots;
-      final levels = fleet.levels;
       final tasks = fleet.activeMissions;
 
       final onlineCount = robots.where((r) => r.isActive || r.status == 'active' || r.status == 'ready' || r.status == 'moving').length;
       final offlineCount = robots.length - onlineCount;
       final chargingCount = robots.where((r) => r.isCharging).length;
-
-      // Calculate fleet average battery
-      final robotsWithBattery = robots.where((r) => r.batteryPercent != null).toList();
-      final avgBattery = robotsWithBattery.isEmpty
-          ? null
-          : (robotsWithBattery.fold<double>(0.0, (acc, r) => acc + r.batteryPercent!) / robotsWithBattery.length);
 
       return Card(
         child: Padding(
@@ -526,110 +521,207 @@ class _RobotCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'NavPro Mini Fleet',
-                              style: Theme.of(context).textTheme.headlineSmall,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'NavPro Mini Fleet',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
                             ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                '${robots.length} AMRS',
-                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
-                              ),
+                            child: Text(
+                              '${robots.length} AMRS',
+                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            const StatusPulseDot(color: Colors.green, live: true, size: 8),
-                            const SizedBox(width: 6),
-                            Text(
-                              '$onlineCount Online · $offlineCount Offline · $chargingCount Charging',
-                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w500),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${levels.length} Building Levels · ${tasks.length} In-Flight Tasks · Coordinator: ${fleet.fleetServerHost}:${fleet.fleetServerPort}',
-                          style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
-                        ),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$onlineCount Online · $offlineCount Offline · $chargingCount Charging · ${tasks.length} In-Flight Tasks',
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: AppSpacing.md),
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
-                    ),
-                    child: const Icon(Icons.hub_rounded, size: 32, color: Colors.blue),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Row(
-                children: [
-                  const Text('Fleet Battery Status', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                   const Spacer(),
-                  if (avgBattery != null) ...[
-                    Icon(
-                      avgBattery <= 20 ? Icons.battery_alert_rounded : Icons.battery_charging_full_rounded,
-                      size: 16,
-                      color: avgBattery <= 20 ? Colors.red : Colors.green,
-                    ),
-                    const SizedBox(width: 4),
-                    Text('${avgBattery.round()}% Fleet Avg', style: AppTextStyles.metricSmall),
-                  ] else ...[
-                    const Icon(Icons.battery_std_rounded, size: 16, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text('${robots.length} Robots', style: AppTextStyles.metricSmall),
-                  ],
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              AnimatedMetricBar(
-                value: (avgBattery != null ? avgBattery / 100 : (robots.isEmpty ? 0 : 1.0)),
-                backgroundColor: AppColors.border,
-                color: (avgBattery != null && avgBattery <= 20) ? Colors.red : Colors.blue,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => AddFleetRobotDialog.show(context),
-                      icon: const Icon(Icons.add_rounded, size: 16),
-                      label: const Text('Add Robot'),
-                    ),
+                  OutlinedButton.icon(
+                    onPressed: () => AddFleetRobotDialog.show(context),
+                    icon: const Icon(Icons.add_rounded, size: 16),
+                    label: const Text('Add Robot'),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => DispatchFleetTaskDialog.show(context),
-                      icon: const Icon(Icons.alt_route_rounded, size: 16),
-                      label: const Text('Dispatch Task'),
-                    ),
+                  FilledButton.icon(
+                    onPressed: () => DispatchFleetTaskDialog.show(context),
+                    icon: const Icon(Icons.alt_route_rounded, size: 16),
+                    label: const Text('Dispatch Task'),
                   ),
                 ],
               ),
+              const SizedBox(height: AppSpacing.md),
+              const Divider(height: 1),
+              const SizedBox(height: AppSpacing.sm),
+              // Open-RMF style Fleet Robots Table
+              if (robots.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text(
+                      'No robots registered in fleet yet. Tap "+ Add Robot" to commission an AMR.',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                  ),
+                )
+              else
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      headingRowColor: WidgetStateProperty.all(
+                        Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : Colors.grey.shade100,
+                      ),
+                      dataRowMinHeight: 48,
+                      dataRowMaxHeight: 56,
+                      columnSpacing: 24,
+                      columns: const [
+                        DataColumn(label: Text('ROBOT NAME', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        DataColumn(label: Text('BATTERY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        DataColumn(label: Text('LEVEL / DOCK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        DataColumn(label: Text('CURRENT TASK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                        DataColumn(label: Text('ACTION', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                      ],
+                      rows: robots.map((r) {
+                        final ip = fleet.getRobotIp(r.id) ?? r.ip;
+                        final isOnline = r.isActive || r.status == 'active' || r.status == 'ready' || r.status == 'moving';
+                        final isCharging = r.isCharging;
+                        final currentTask = tasks.where((t) => t['robot'] == r.name || t['robot_id'] == r.id).firstOrNull;
+                        final taskDesc = currentTask != null
+                            ? (currentTask['type'] ?? currentTask['task_type'] ?? 'Mission')
+                            : (isCharging ? 'Recharging' : (isOnline ? 'Idle / Standby' : 'Offline'));
+
+                        return DataRow(
+                          cells: [
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 14,
+                                    backgroundColor: isOnline ? Colors.blue.shade50 : Colors.grey.shade200,
+                                    child: Icon(Icons.smart_toy_rounded, size: 16, color: isOnline ? Colors.blue : Colors.grey),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(r.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                      Text(ip != null ? 'IP: $ip' : r.serial, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            DataCell(
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: isCharging
+                                      ? Colors.amber.shade100
+                                      : (isOnline ? Colors.green.shade100 : Colors.grey.shade200),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  isCharging ? 'CHARGING' : (isOnline ? 'ONLINE' : 'OFFLINE'),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: isCharging
+                                        ? Colors.amber.shade900
+                                        : (isOnline ? Colors.green.shade900 : Colors.grey.shade700),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isCharging
+                                        ? Icons.bolt_rounded
+                                        : ((r.batteryPercent ?? 100) <= 20
+                                            ? Icons.battery_alert_rounded
+                                            : Icons.battery_full_rounded),
+                                    size: 16,
+                                    color: isCharging
+                                        ? Colors.amber.shade800
+                                        : ((r.batteryPercent ?? 100) <= 20 ? Colors.red : Colors.green),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    r.batteryPercent != null ? '${r.batteryPercent!.round()}%' : '—',
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            DataCell(
+                              Text(
+                                '${r.levelName ?? r.levelId ?? "L1"} · ${r.dockWaypoint ?? "dock"}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            DataCell(
+                              Container(
+                                constraints: const BoxConstraints(maxWidth: 160),
+                                child: Text(
+                                  taskDesc.toString(),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: currentTask != null ? Colors.blue : Colors.grey.shade700,
+                                    fontWeight: currentTask != null ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              FilledButton.tonal(
+                                onPressed: () {
+                                  fleet.selectRobot(r.id);
+                                  if (ip != null) {
+                                    context.read<ConnectionProvider>().updateRobotIp(ip, name: r.name);
+                                  }
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Switched to ${r.name}')),
+                                  );
+                                },
+                                style: FilledButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                                ),
+                                child: const Text('Connect', style: TextStyle(fontSize: 11)),
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

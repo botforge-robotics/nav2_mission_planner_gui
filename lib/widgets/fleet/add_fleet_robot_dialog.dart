@@ -412,57 +412,75 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
 
         // 1. Currently Connected Robot (Direct mode)
         if (connectedRobot != null) ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.green.shade300),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.green.shade100,
-                  child: const Icon(Icons.link_rounded, color: Colors.green),
+          () {
+            final isAlreadyCommissioned = fleet.robots.any(
+              (r) => (fleet.getRobotIp(r.id) == connectedRobot.ip) ||
+                     (r.name.toLowerCase() == connectedRobot.name.toLowerCase()),
+            );
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isAlreadyCommissioned ? Colors.blue.shade50 : Colors.green.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isAlreadyCommissioned ? Colors.blue.shade300 : Colors.green.shade300,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            connectedRobot.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade200,
-                              borderRadius: BorderRadius.circular(4),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: isAlreadyCommissioned ? Colors.blue.shade100 : Colors.green.shade100,
+                    child: Icon(
+                      isAlreadyCommissioned ? Icons.check_circle_rounded : Icons.link_rounded,
+                      color: isAlreadyCommissioned ? Colors.blue : Colors.green,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              connectedRobot.name,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                             ),
-                            child: const Text('CONNECTED', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.green)),
-                          ),
-                        ],
-                      ),
-                      Text('IP: ${connectedRobot.ip}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                    ],
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: isAlreadyCommissioned ? Colors.blue.shade200 : Colors.green.shade200,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                isAlreadyCommissioned ? 'COMMISSIONED IN FLEET' : 'CONNECTED TO APP',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: isAlreadyCommissioned ? Colors.blue.shade900 : Colors.green.shade900,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text('IP: ${connectedRobot.ip}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                      ],
+                    ),
                   ),
-                ),
-                FilledButton.tonal(
-                  onPressed: () => _selectConnectedRobot(
-                    connectedRobot.name,
-                    connectedRobot.ip,
-                    null,
+                  FilledButton.tonal(
+                    onPressed: () => _selectConnectedRobot(
+                      connectedRobot.name,
+                      connectedRobot.ip,
+                      null,
+                    ),
+                    style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
+                    child: Text(isAlreadyCommissioned ? 'Edit Settings' : 'Link This AMR'),
                   ),
-                  style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
-                  child: const Text('Link This AMR'),
-                ),
-              ],
-            ),
-          ),
+                ],
+              ),
+            );
+          }(),
           const SizedBox(height: 16),
         ],
 

@@ -2124,7 +2124,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
                     const Icon(Icons.polyline_rounded,
                         size: 14, color: AppColors.primary),
                     const SizedBox(width: 6),
-                    const Text('Map Zones',
+                    const Text('Traffic & Zones',
                         style: TextStyle(
                             fontSize: 12, fontWeight: FontWeight.bold)),
                     const Spacer(),
@@ -2153,9 +2153,9 @@ class _DesktopStudioSidebar extends StatelessWidget {
                         icon: Icon(
                             zoneEditorMode
                                 ? Icons.check_circle_outline_rounded
-                                : Icons.edit_rounded,
+                                : Icons.alt_route_rounded,
                             size: 14),
-                        label: Text(zoneEditorMode ? 'Done' : 'Edit Zones'),
+                        label: Text(zoneEditorMode ? 'Done' : 'Traffic Editor'),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
@@ -2163,7 +2163,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
                       child: OutlinedButton.icon(
                         onPressed: onAddZone,
                         icon: const Icon(Icons.add_rounded, size: 14),
-                        label: const Text('Add Zone'),
+                        label: const Text('Add Lane/Zone'),
                       ),
                     ),
                   ],
