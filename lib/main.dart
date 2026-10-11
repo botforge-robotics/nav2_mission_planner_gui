@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/connection_provider.dart';
+import 'providers/fleet_provider.dart';
 import 'providers/robot_telemetry_provider.dart';
 import 'providers/setup_flow_controller.dart';
 import 'services/gamepad_service.dart';
@@ -31,14 +32,8 @@ class NavProMiniApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => SetupFlowController()),
-        // Lazy (Provider's default): not constructed — no connection
-        // opened — until something actually reads it, so the setup flow
-        // never pays for a connection it doesn't use. First real reader is
-        // DashboardScreen.
         ChangeNotifierProvider(create: (_) => ConnectionProvider()),
-        // Provides RobotTelemetryProvider globally across the entire app and all routes
-        // (including Navigator.push targets) without rebuilding/tearing down the provider
-        // element when the connection status changes.
+        ChangeNotifierProvider(create: (_) => FleetProvider()),
         ChangeNotifierProxyProvider<ConnectionProvider, RobotTelemetryProvider>(
           create: (_) => RobotTelemetryProvider(null),
           update: (_, connection, telemetry) {

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 
 import '../../providers/connection_provider.dart';
+import '../../providers/fleet_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../services/map_layers_controller.dart';
 import '../../services/mode_transition_tracker.dart';
@@ -345,12 +346,12 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   }
 
   Future<void> _finish() async {
-    final name = await showDialog<String>(
+    final result = await showDialog<_SaveMapResult>(
       context: context,
       builder: (dialogContext) => _NameMapDialog(),
     );
-    if (name == null || name.trim().isEmpty || !mounted) return;
-    await _save(name.trim(), overwrite: false);
+    if (result == null || result.name.isEmpty || !mounted) return;
+    await _save(result.name, overwrite: false);
   }
 
   Future<void> _save(String name, {required bool overwrite}) async {
@@ -690,6 +691,13 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
 
 enum _Phase { confirming, mapping }
 
+class _SaveMapResult {
+  final String name;
+  final String? levelId;
+  final bool publishToFleet;
+  _SaveMapResult({required this.name, this.levelId, this.publishToFleet = false});
+}
+
 class _NameMapDialog extends StatefulWidget {
   @override
   State<_NameMapDialog> createState() => _NameMapDialogState();
@@ -697,6 +705,8 @@ class _NameMapDialog extends StatefulWidget {
 
 class _NameMapDialogState extends State<_NameMapDialog> {
   final _controller = TextEditingController();
+  bool _publishToFleet = false;
+  String? _selectedLevelId;
 
   @override
   void dispose() {
@@ -706,22 +716,73 @@ class _NameMapDialogState extends State<_NameMapDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final fleet = context.watch<FleetProvider>();
+    if (fleet.isFleetMode && _selectedLevelId == null && fleet.levels.isNotEmpty) {
+      _selectedLevelId = fleet.levels.first.id;
+    }
+
     return AlertDialog(
-      title: const Text('Save Map'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration:
-            const InputDecoration(hintText: 'Map name, e.g. Ground Floor'),
-        onSubmitted: (v) => Navigator.pop(context, v),
+      title: const Text('Save Map & Floor'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Map Name',
+                hintText: 'e.g. L1_floorplan or Ground Floor',
+              ),
+            ),
+            if (fleet.isFleetMode) ...[
+              const SizedBox(height: 16),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Publish to Open-RMF Fleet Server', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Makes this map instantly available to all fleet robots', style: TextStyle(fontSize: 11)),
+                value: _publishToFleet,
+                onChanged: (val) => setState(() => _publishToFleet = val),
+              ),
+              if (_publishToFleet && fleet.levels.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedLevelId,
+                  decoration: const InputDecoration(labelText: 'Assign to Level / Floor'),
+                  items: fleet.levels.map((l) {
+                    return DropdownMenuItem<String>(
+                      value: l.id,
+                      child: Text(l.name),
+                    );
+                  }).toList(),
+                  onChanged: (v) => setState(() => _selectedLevelId = v),
+                ),
+              ],
+            ],
+          ],
+        ),
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
-            onPressed: () => Navigator.pop(context, _controller.text),
-            child: const Text('Save')),
+          onPressed: () {
+            final name = _controller.text.trim();
+            if (name.isEmpty) return;
+            Navigator.pop(
+              context,
+              _SaveMapResult(
+                name: name,
+                levelId: _selectedLevelId,
+                publishToFleet: _publishToFleet,
+              ),
+            );
+          },
+          child: const Text('Save'),
+        ),
       ],
     );
   }

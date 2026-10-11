@@ -19,6 +19,8 @@ import '../alerts/alerts_log_screen.dart';
 import '../dock/dock_charge_screen.dart';
 import '../robot_status/robot_status_screen.dart';
 import 'gamepad_settings_screen.dart';
+import 'fleet_settings_screen.dart';
+import '../../providers/fleet_provider.dart';
 import '../../services/gamepad_service.dart';
 import 'help_about_screen.dart';
 import 'software_update_screen.dart';
@@ -122,6 +124,32 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                       ),
                     );
                   },
+                ),
+                _SettingsTile(
+                  icon: Icons.hub_rounded,
+                  title: 'Open-RMF Fleet Management',
+                  subtitle: 'Multi-robot fleet coordination, levels, and commissioning',
+                  trailing: Consumer<FleetProvider>(
+                    builder: (_, fleet, __) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: fleet.isFleetMode ? Colors.blue.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: fleet.isFleetMode ? Colors.blue : Colors.grey),
+                      ),
+                      child: Text(
+                        fleet.isFleetMode ? 'FLEET ACTIVE' : 'DIRECT',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: fleet.isFleetMode ? Colors.blue : Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
+                  ),
                 ),
                 _SettingsTile(
                   icon: Icons.report_gmailerrorred_rounded,

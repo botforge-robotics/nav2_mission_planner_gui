@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/map_zone.dart';
 import '../../providers/connection_provider.dart';
+import '../../providers/fleet_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../services/locations_controller.dart';
 import '../../services/map_layers_controller.dart';
@@ -1099,11 +1100,63 @@ class _MapViewScreenState extends State<MapViewScreen> {
     final ros2 = connection.ros2;
     final telemetry = context.watch<RobotTelemetryProvider>();
     final api = _apiFor(connection.robot?.ip);
+    final fleet = context.watch<FleetProvider>();
     final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isDesktop ? '2D Map Cockpit' : 'Map View'),
+        title: Row(
+          children: [
+            Text(isDesktop ? '2D Map Cockpit' : 'Map View'),
+            if (fleet.isFleetMode && fleet.levels.isNotEmpty) ...[
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: fleet.selectedLevelId,
+                    dropdownColor: Theme.of(context).cardColor,
+                    style: TextStyle(
+                      color: Theme.of(context).appBarTheme.foregroundColor ?? Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    icon: const Icon(Icons.layers_rounded, size: 16),
+                    items: fleet.levels.map((level) {
+                      return DropdownMenuItem<String>(
+                        value: level.id,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.stairs_rounded, size: 16, color: Colors.blue),
+                            const SizedBox(width: 6),
+                            Text(level.name),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (newLevelId) {
+                      if (newLevelId != null) {
+                        fleet.selectLevel(newLevelId);
+                        // In multi-floor setup, changing level updates the active view
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Switched to Level: ${fleet.selectedLevel?.name}'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
       body: ros2 == null
           ? const Center(child: Text('Not connected.'))

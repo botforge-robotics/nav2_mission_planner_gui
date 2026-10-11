@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/connection_provider.dart';
+import '../../providers/fleet_provider.dart';
 import '../../services/sdk_api_service.dart';
+import '../settings/fleet_settings_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../../utils/mission_step_summary.dart';
@@ -239,12 +241,28 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _load());
     }
 
+    final fleet = context.watch<FleetProvider>();
     final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(isDesktop ? 'Missions & Autonomous Tasks' : 'Missions'),
         actions: [
+          if (fleet.isFleetMode)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+                icon: const Icon(Icons.hub_rounded, size: 18, color: Colors.blue),
+                label: Text('Fleet Tasks (${fleet.activeMissions.length})'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
+                ),
+              ),
+            ),
           if (isDesktop) ...[
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.sm),
