@@ -505,7 +505,8 @@ class _TeleopScreenState extends State<TeleopScreen> {
     final telemetry = context.watch<RobotTelemetryProvider>();
     final ros2 = connection.ros2;
     final isMobile = Breakpoints.of(context) == DeviceClass.mobile;
-    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop || isLandscape;
 
     if (isDesktop) {
       return Scaffold(
@@ -577,7 +578,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
                     const VerticalDivider(width: 1, color: AppColors.border),
                     // Right 40%: Drive & Navigation Controls
                     SizedBox(
-                      width: 440,
+                      width: isLandscape && !isDesktop ? 340 : 440,
                       child: Stack(
                         children: [
                           ListView(
