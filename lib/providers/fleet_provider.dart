@@ -211,8 +211,12 @@ class FleetProvider extends ChangeNotifier {
     final api = _api;
     if (api == null || !_isFleetMode) return;
     try {
-      final robots = await api.getRobots();
-      _robots = robots;
+      final results = await Future.wait([
+        api.getRobots(),
+        api.getActiveMissions(),
+      ]);
+      _robots = results[0] as List<FleetRobotInfo>;
+      _activeMissions = results[1] as List<Map<String, dynamic>>;
       _error = null;
       notifyListeners();
     } catch (e) {

@@ -34,21 +34,21 @@ class MissionsListScreen extends StatefulWidget {
 class _MissionsListScreenState extends State<MissionsListScreen> {
   List<Map<String, dynamic>>? _missions;
   Map<String, dynamic>? _runnerStatus;
+  List<Map<String, dynamic>>? _schedules;
   String? _currentMap;
   SdkApiException? _error;
   bool _requested = false;
   SdkApiService? _api;
   Timer? _poll;
+  int _selectedTab = 0; // 0 = Tasks Overview (Open-RMF Table), 1 = Mission Library
+  String _taskFilter = 'all'; // 'all', 'active', 'queued', 'scheduled', 'history'
 
   @override
   void initState() {
     super.initState();
-    // Missions are robot-owned, not this client's own state — a mission
-    // created or edited from another device connected to the same robot
-    // (a second phone, a PC) otherwise never appears here until this screen
-    // happens to remount. Same periodic-poll pattern MissionDetailScreen
-    // already uses for one mission's live status, just for the whole list.
-    _poll = Timer.periodic(const Duration(seconds: 5), (_) => _load());
+    // Missions and Open-RMF tasks are polled every 4s to keep queued, active,
+    // and scheduled tasks live and responsive across the fleet.
+    _poll = Timer.periodic(const Duration(seconds: 4), (_) => _load());
   }
 
   @override
@@ -59,23 +59,32 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
 
   Future<void> _load() async {
     final api = _api;
-    if (api == null) return;
     setState(() => _error = null);
-    try {
-      final results = await Future.wait([
-        api.listMissions(),
-        api.missionStatus(),
-        api.getCurrentMap(),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _missions = results[0] as List<Map<String, dynamic>>;
-        _runnerStatus = results[1] as Map<String, dynamic>;
-        _currentMap = results[2] as String?;
-      });
-    } on SdkApiException catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e);
+    if (api != null) {
+      try {
+        final results = await Future.wait([
+          api.listMissions(),
+          api.missionStatus(),
+          api.getCurrentMap(),
+          api.listSchedules(),
+        ]);
+        if (!mounted) return;
+        setState(() {
+          _missions = results[0] as List<Map<String, dynamic>>?;
+          _runnerStatus = results[1] as Map<String, dynamic>?;
+          _currentMap = results[2] as String?;
+          _schedules = results[3] as List<Map<String, dynamic>>?;
+        });
+      } on SdkApiException catch (e) {
+        if (!mounted) return;
+        setState(() => _error = e);
+      }
+    }
+    if (mounted) {
+      final fleet = context.read<FleetProvider>();
+      if (fleet.isFleetMode) {
+        fleet.refreshRobotsOnly();
+      }
     }
   }
 
@@ -242,12 +251,17 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _load());
     }
 
+    final conn = context.watch<ConnectionProvider>();
     final fleet = context.watch<FleetProvider>();
     final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
+    final hasConnection = conn.robot?.ip != null || fleet.isFleetMode;
+
+    final allTasks = _buildUnifiedTasks(fleet, conn);
+    final filteredTasks = _filterTasks(allTasks);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isDesktop ? 'Missions & Autonomous Tasks' : 'Missions'),
+        title: Text(isDesktop ? 'Missions & Task Overview' : 'Missions'),
         actions: [
           if (fleet.isFleetMode) ...[
             Padding(
@@ -270,7 +284,7 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                 ),
                 icon: const Icon(Icons.hub_rounded, size: 16, color: Colors.blue),
-                label: Text('Fleet (${fleet.activeMissions.length})'),
+                label: Text('Fleet (${fleet.robots.length})'),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
                 ),
@@ -335,48 +349,775 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
       ),
       floatingActionButton: isDesktop
           ? null
-          : FloatingActionButton.extended(
-              onPressed: _createMission,
-              icon: const Icon(Icons.edit_note_rounded),
-              label: const Text('Mission Editor'),
-            ),
+          : (_selectedTab == 0 && fleet.isFleetMode
+              ? FloatingActionButton.extended(
+                  onPressed: () => DispatchFleetTaskDialog.show(context),
+                  icon: const Icon(Icons.send_rounded),
+                  label: const Text('Dispatch Task'),
+                )
+              : FloatingActionButton.extended(
+                  onPressed: _createMission,
+                  icon: const Icon(Icons.edit_note_rounded),
+                  label: const Text('Mission Editor'),
+                )),
       body: SafeArea(
-        child: robotIp == null
-            ? const Center(child: Text('Not connected.'))
-            : _Body(
-                missions: _missions,
-                runnerStatus: _runnerStatus,
-                currentMap: _currentMap,
-                error: _error,
-                onRetry: _load,
-                onCreateMission: _createMission,
-                onDelete: _deleteMission,
-                onEdit: (mission) async {
-                  final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
-                  final changed = await Navigator.of(context).push<bool>(
-                    MaterialPageRoute(
-                      builder: (_) => (isGraph || isDesktop)
-                          ? MissionGraphEditorScreen(existingMission: mission)
-                          : MissionEditorScreen(existing: mission),
+        child: !hasConnection
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.hub_outlined, size: 48, color: AppColors.textTertiary),
+                    const SizedBox(height: AppSpacing.md),
+                    const Text(
+                      'No active robot or fleet connected',
+                      style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                     ),
-                  );
-                  if (changed == true) _load();
-                },
-                onOpen: (mission) async {
-                  final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
-                  final changed = await Navigator.of(context).push<bool>(
-                    MaterialPageRoute(
-                      builder: (_) => isGraph
-                          ? MissionGraphEditorScreen(existingMission: mission)
-                          : MissionDetailScreen(mission: mission),
+                    const SizedBox(height: AppSpacing.xs),
+                    const Text(
+                      'Connect to a robot or configure fleet server settings to manage tasks.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
-                  );
-                  if (changed == true) _load();
-                },
+                    const SizedBox(height: AppSpacing.md),
+                    FilledButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const FleetSettingsScreen()),
+                      ),
+                      child: const Text('Open Fleet Settings'),
+                    ),
+                  ],
+                ),
+              )
+            : Column(
+                children: [
+                  // Top Tab Switcher: Tasks Overview vs Mission Library
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.xs),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<int>(
+                        segments: [
+                          ButtonSegment<int>(
+                            value: 0,
+                            icon: const Icon(Icons.table_chart_outlined, size: 18),
+                            label: Text(
+                              isDesktop
+                                  ? 'Tasks Overview (Open-RMF) [${allTasks.length}]'
+                                  : 'Tasks (${allTasks.length})',
+                            ),
+                          ),
+                          ButtonSegment<int>(
+                            value: 1,
+                            icon: const Icon(Icons.account_tree_outlined, size: 18),
+                            label: Text(
+                              isDesktop
+                                  ? 'Mission & Visual Graph Library [${_missions?.length ?? 0}]'
+                                  : 'Missions (${_missions?.length ?? 0})',
+                            ),
+                          ),
+                        ],
+                        selected: {_selectedTab},
+                        onSelectionChanged: (set) {
+                          setState(() => _selectedTab = set.first);
+                        },
+                      ),
+                    ),
+                  ),
+
+                  Expanded(
+                    child: _selectedTab == 0
+                        ? _buildOpenRmfTasksView(context, filteredTasks, allTasks, fleet, conn, isDesktop)
+                        : _buildMissionLibraryView(context, isDesktop),
+                  ),
+                ],
               ),
       ),
     );
   }
+
+  Widget _buildMissionLibraryView(BuildContext context, bool isDesktop) {
+    if (_missions == null && _error == null) {
+      return const Padding(
+        padding: EdgeInsets.all(AppSpacing.lg),
+        child: SkeletonList(),
+      );
+    }
+
+    return _Body(
+      missions: _missions,
+      runnerStatus: _runnerStatus,
+      currentMap: _currentMap,
+      error: _error,
+      onRetry: _load,
+      onCreateMission: _createMission,
+      onDelete: _deleteMission,
+      onEdit: (mission) async {
+        final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
+        final changed = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => (isGraph || isDesktop)
+                ? MissionGraphEditorScreen(existingMission: mission)
+                : MissionEditorScreen(existing: mission),
+          ),
+        );
+        if (changed == true) _load();
+      },
+      onOpen: (mission) async {
+        final isGraph = mission['type'] == 'graph' || mission.containsKey('nodes');
+        final changed = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => isGraph
+                ? MissionGraphEditorScreen(existingMission: mission)
+                : MissionDetailScreen(mission: mission),
+          ),
+        );
+        if (changed == true) _load();
+      },
+    );
+  }
+
+  List<_RmfTaskEntry> _filterTasks(List<_RmfTaskEntry> tasks) {
+    if (_taskFilter == 'all') return tasks;
+    return tasks.where((t) => t.statusGroup == _taskFilter).toList();
+  }
+
+  List<_RmfTaskEntry> _buildUnifiedTasks(FleetProvider fleet, ConnectionProvider conn) {
+    final list = <_RmfTaskEntry>[];
+
+    // 1. Tasks from Fleet Server
+    for (final m in fleet.activeMissions) {
+      final id = m['id'] as String? ?? m['task_id'] as String? ?? 'task_${m.hashCode}';
+      final name = m['name'] as String? ?? m['description']?['category'] as String? ?? id;
+      final category = m['category'] as String? ?? m['type'] as String? ?? 'dispatch';
+      final assignedRobot = m['robot'] as String? ?? m['robot_name'] as String? ?? m['assigned_robot'] as String?;
+      final rawStatus = (m['status'] as String? ?? m['state'] as String? ?? 'queued').toLowerCase();
+      final level = m['level'] as String? ?? m['level_name'] as String? ?? m['floor'] as String?;
+      final timeStr = m['submitted_time'] as String? ?? m['start_time'] as String? ?? m['created_at'] as String?;
+      final progress = (m['progress'] as num?)?.toDouble() ?? (rawStatus == 'completed' || rawStatus == 'succeeded' ? 1.0 : 0.0);
+
+      list.add(_RmfTaskEntry(
+        id: id,
+        name: name,
+        category: category,
+        assignedRobot: assignedRobot,
+        rawStatus: rawStatus,
+        statusGroup: _classifyStatus(rawStatus),
+        level: level,
+        timestamp: timeStr,
+        progress: progress,
+        rawPayload: m,
+        source: _TaskSource.fleet,
+      ));
+    }
+
+    // 2. Scheduled tasks from SdkApiService / local scheduler
+    if (_schedules != null) {
+      for (final s in _schedules!) {
+        final id = s['id'] as String? ?? 'sched_${s.hashCode}';
+        final missionId = s['mission_id'] as String? ?? 'Mission';
+        final name = s['name'] as String? ?? 'Scheduled: $missionId';
+        final enabled = s['enabled'] != false;
+        final hour = s['hour'] as int? ?? 0;
+        final minute = s['minute'] as int? ?? 0;
+        final repeat = s['repeat'] as String? ?? 'once';
+        final timeStr = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')} ($repeat)';
+
+        list.add(_RmfTaskEntry(
+          id: id,
+          name: name,
+          category: 'scheduled_mission',
+          assignedRobot: conn.robot?.name ?? 'Assigned Robot',
+          rawStatus: enabled ? 'scheduled' : 'disabled',
+          statusGroup: 'scheduled',
+          level: _currentMap,
+          timestamp: timeStr,
+          progress: 0.0,
+          rawPayload: s,
+          source: _TaskSource.schedule,
+        ));
+      }
+    }
+
+    // 3. Local robot active runner status (if in direct robot mode)
+    final activeId = _runnerStatus?['mission_id'] as String?;
+    final activeState = _runnerStatus?['state'] as String?;
+    if (activeId != null && activeState != null && activeState != 'idle') {
+      final alreadyInList = list.any((t) => t.id == activeId);
+      if (!alreadyInList) {
+        final missionObj = _missions?.firstWhere((m) => m['id'] == activeId, orElse: () => const {});
+        final name = missionObj?['name'] as String? ?? activeId;
+        final rawStatus = activeState.toLowerCase();
+        final currentStep = _runnerStatus?['current_step'] as int? ?? 0;
+        final totalSteps = (missionObj?['steps'] as List?)?.length ?? 1;
+        final progress = totalSteps > 0 ? (currentStep / totalSteps).clamp(0.0, 1.0) : 0.0;
+
+        list.add(_RmfTaskEntry(
+          id: activeId,
+          name: name,
+          category: 'direct_mission',
+          assignedRobot: conn.robot?.name ?? 'Local AMR',
+          rawStatus: rawStatus,
+          statusGroup: _classifyStatus(rawStatus),
+          level: _currentMap,
+          timestamp: 'Live Active',
+          progress: progress,
+          rawPayload: _runnerStatus!,
+          source: _TaskSource.localRunner,
+        ));
+      }
+    }
+
+    return list;
+  }
+
+  static String _classifyStatus(String raw) {
+    switch (raw) {
+      case 'running':
+      case 'underway':
+      case 'executing':
+      case 'active':
+        return 'active';
+      case 'pending':
+      case 'queued':
+      case 'standby':
+      case 'paused':
+        return 'queued';
+      case 'scheduled':
+        return 'scheduled';
+      case 'succeeded':
+      case 'completed':
+      case 'failed':
+      case 'canceled':
+      case 'cancelled':
+      case 'aborted':
+      case 'killed':
+        return 'history';
+      default:
+        return 'active';
+    }
+  }
+
+  Widget _buildOpenRmfTasksView(
+    BuildContext context,
+    List<_RmfTaskEntry> tasks,
+    List<_RmfTaskEntry> allTasks,
+    FleetProvider fleet,
+    ConnectionProvider conn,
+    bool isDesktop,
+  ) {
+    final activeCount = allTasks.where((t) => t.statusGroup == 'active').length;
+    final queuedCount = allTasks.where((t) => t.statusGroup == 'queued').length;
+    final scheduledCount = allTasks.where((t) => t.statusGroup == 'scheduled').length;
+    final historyCount = allTasks.where((t) => t.statusGroup == 'history').length;
+
+    return Column(
+      children: [
+        // Filter Chips Row
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+          child: Row(
+            children: [
+              _buildFilterChip('all', 'All (${allTasks.length})', null),
+              const SizedBox(width: AppSpacing.xs),
+              _buildFilterChip('active', 'Active ($activeCount)', AppColors.stateExecuting),
+              const SizedBox(width: AppSpacing.xs),
+              _buildFilterChip('queued', 'Queued ($queuedCount)', AppColors.warning),
+              const SizedBox(width: AppSpacing.xs),
+              _buildFilterChip('scheduled', 'Scheduled ($scheduledCount)', const Color(0xFFB388FF)),
+              const SizedBox(width: AppSpacing.xs),
+              _buildFilterChip('history', 'History ($historyCount)', AppColors.textSecondary),
+              const SizedBox(width: AppSpacing.md),
+              IconButton(
+                tooltip: 'Refresh tasks',
+                icon: const Icon(Icons.refresh_rounded, size: 20),
+                onPressed: _load,
+              ),
+            ],
+          ),
+        ),
+
+        const Divider(height: 1),
+
+        Expanded(
+          child: tasks.isEmpty
+              ? _buildEmptyTasksState(fleet)
+              : (isDesktop ? _buildTasksDataTable(context, tasks, fleet) : _buildTasksCardsList(context, tasks, fleet)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterChip(String filterKey, String label, Color? color) {
+    final isSelected = _taskFilter == filterKey;
+    return ChoiceChip(
+      selected: isSelected,
+      onSelected: (val) {
+        if (val) setState(() => _taskFilter = filterKey);
+      },
+      avatar: color != null
+          ? StatusPulseDot(
+              color: color,
+              live: filterKey == 'active',
+              size: 8,
+            )
+          : null,
+      label: Text(label),
+      labelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+      ),
+    );
+  }
+
+  Widget _buildTasksDataTable(BuildContext context, List<_RmfTaskEntry> tasks, FleetProvider fleet) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          width: double.infinity,
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(AppColors.surfaceSunken),
+            horizontalMargin: AppSpacing.md,
+            columnSpacing: AppSpacing.lg,
+            columns: const [
+              DataColumn(label: Text('TASK ID / NAME', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('CATEGORY', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('ASSIGNED ROBOT', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('STATUS', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('LEVEL', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('PROGRESS', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('TIME', style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text('ACTIONS', style: TextStyle(fontWeight: FontWeight.bold))),
+            ],
+            rows: tasks.map((task) {
+              return DataRow(
+                cells: [
+                  DataCell(
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(task.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text(task.id, style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                      ],
+                    ),
+                  ),
+                  DataCell(_buildCategoryBadge(task.category)),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.smart_toy_outlined, size: 16, color: AppColors.textSecondary),
+                        const SizedBox(width: 6),
+                        Text(
+                          task.assignedRobot ?? 'Unassigned / Auto',
+                          style: TextStyle(
+                            fontStyle: task.assignedRobot == null ? FontStyle.italic : FontStyle.normal,
+                            color: task.assignedRobot == null ? AppColors.textTertiary : AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  DataCell(_buildStatusBadge(task)),
+                  DataCell(Text(task.level ?? '—', style: const TextStyle(fontSize: 12))),
+                  DataCell(
+                    SizedBox(
+                      width: 90,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          LinearProgressIndicator(
+                            value: task.statusGroup == 'history' && task.rawStatus == 'completed'
+                                ? 1.0
+                                : (task.progress > 0 ? task.progress : null),
+                            backgroundColor: AppColors.surfaceSunken,
+                            color: task.statusGroup == 'active' ? AppColors.stateExecuting : AppColors.primary,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${(task.progress * 100).toInt()}%',
+                            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  DataCell(Text(task.timestamp ?? '—', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (task.statusGroup == 'active' || task.statusGroup == 'queued')
+                          IconButton(
+                            icon: const Icon(Icons.cancel_outlined, size: 18, color: AppColors.danger),
+                            tooltip: 'Cancel Task',
+                            onPressed: () => _cancelTask(task, fleet),
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.info_outline, size: 18, color: AppColors.textSecondary),
+                          tooltip: 'Task Details',
+                          onPressed: () => _showTaskDetailsDialog(task),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTasksCardsList(BuildContext context, List<_RmfTaskEntry> tasks, FleetProvider fleet) {
+    return ListView.separated(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      itemCount: tasks.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+      itemBuilder: (context, i) {
+        final task = tasks[i];
+        return Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => _showTaskDetailsDialog(task),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      _buildCategoryBadge(task.category),
+                      const SizedBox(width: AppSpacing.xs),
+                      _buildStatusBadge(task),
+                      const Spacer(),
+                      if (task.statusGroup == 'active' || task.statusGroup == 'queued')
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: const Icon(Icons.cancel_outlined, size: 18, color: AppColors.danger),
+                          tooltip: 'Cancel Task',
+                          onPressed: () => _cancelTask(task, fleet),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(task.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 2),
+                  Text('ID: ${task.id}', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      const Icon(Icons.smart_toy_outlined, size: 14, color: AppColors.textSecondary),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          task.assignedRobot ?? 'Auto-Assigned',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ),
+                      if (task.level != null) ...[
+                        const Icon(Icons.layers_outlined, size: 14, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(task.level!, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: task.statusGroup == 'history' && task.rawStatus == 'completed'
+                          ? 1.0
+                          : (task.progress > 0 ? task.progress : null),
+                      backgroundColor: AppColors.surfaceSunken,
+                      color: task.statusGroup == 'active' ? AppColors.stateExecuting : AppColors.primary,
+                      minHeight: 4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCategoryBadge(String category) {
+    final cat = category.toLowerCase();
+    IconData icon = Icons.task_alt_outlined;
+    Color color = AppColors.primary;
+
+    if (cat.contains('patrol')) {
+      icon = Icons.repeat_rounded;
+      color = const Color(0xFF00E5FF);
+    } else if (cat.contains('delivery')) {
+      icon = Icons.local_shipping_outlined;
+      color = const Color(0xFFFF9100);
+    } else if (cat.contains('clean')) {
+      icon = Icons.cleaning_services_outlined;
+      color = const Color(0xFF00E676);
+    } else if (cat.contains('charge')) {
+      icon = Icons.battery_charging_full_rounded;
+      color = AppColors.warning;
+    } else if (cat.contains('sched')) {
+      icon = Icons.alarm_rounded;
+      color = const Color(0xFFB388FF);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            category.toUpperCase(),
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(_RmfTaskEntry task) {
+    Color color;
+    String label = task.rawStatus.toUpperCase();
+    bool live = false;
+
+    switch (task.statusGroup) {
+      case 'active':
+        color = AppColors.stateExecuting;
+        live = true;
+        break;
+      case 'queued':
+        color = AppColors.warning;
+        break;
+      case 'scheduled':
+        color = const Color(0xFFB388FF);
+        break;
+      case 'history':
+        color = (task.rawStatus == 'completed' || task.rawStatus == 'succeeded')
+            ? AppColors.stateIdle
+            : AppColors.danger;
+        break;
+      default:
+        color = AppColors.textSecondary;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (live)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: StatusPulseDot(color: color, live: true, size: 6),
+            ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyTasksState(FleetProvider fleet) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.assignment_outlined, size: 48, color: AppColors.textTertiary),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'No ${_taskFilter == 'all' ? '' : '$_taskFilter '}tasks found',
+            style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          const Text(
+            'Dispatch a fleet task or schedule recurring missions to view status.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (fleet.isFleetMode)
+            FilledButton.icon(
+              icon: const Icon(Icons.send_rounded, size: 16),
+              label: const Text('Dispatch Fleet Task'),
+              onPressed: () => DispatchFleetTaskDialog.show(context),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _cancelTask(_RmfTaskEntry task, FleetProvider fleet) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 36),
+        title: const Text('Cancel Task?'),
+        content: Text('Are you sure you want to cancel "${task.name}" (${task.id})?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No, keep')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Yes, Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      if (task.source == _TaskSource.fleet && fleet.api != null) {
+        await fleet.api!.cancelRmfTask(task.id);
+      } else if (task.source == _TaskSource.localRunner && _api != null) {
+        await _api!.cancelMission(task.id);
+      } else if (task.source == _TaskSource.schedule && _api != null) {
+        await _api!.deleteSchedule(task.id);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Task "${task.name}" canceled')),
+      );
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to cancel task: $e'), backgroundColor: AppColors.danger),
+      );
+    }
+  }
+
+  void _showTaskDetailsDialog(_RmfTaskEntry task) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            _buildCategoryBadge(task.category),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(task.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _detailRow('Task ID', task.id),
+                _detailRow('Status', task.rawStatus.toUpperCase()),
+                _detailRow('Status Group', task.statusGroup.toUpperCase()),
+                _detailRow('Assigned AMR', task.assignedRobot ?? 'Automatic auction'),
+                _detailRow('Level / Map', task.level ?? 'Unspecified'),
+                _detailRow('Timestamp', task.timestamp ?? 'N/A'),
+                _detailRow('Progress', '${(task.progress * 100).toInt()}%'),
+                const SizedBox(height: AppSpacing.sm),
+                const Divider(),
+                const Text('Raw Payload:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceSunken,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: SelectableText(
+                    task.rawPayload.toString(),
+                    style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _TaskSource {
+  fleet,
+  schedule,
+  localRunner,
+}
+
+class _RmfTaskEntry {
+  final String id;
+  final String name;
+  final String category;
+  final String? assignedRobot;
+  final String rawStatus;
+  final String statusGroup; // 'active', 'queued', 'scheduled', 'history'
+  final String? level;
+  final String? timestamp;
+  final double progress;
+  final Map<String, dynamic> rawPayload;
+  final _TaskSource source;
+
+  const _RmfTaskEntry({
+    required this.id,
+    required this.name,
+    required this.category,
+    this.assignedRobot,
+    required this.rawStatus,
+    required this.statusGroup,
+    this.level,
+    this.timestamp,
+    required this.progress,
+    required this.rawPayload,
+    required this.source,
+  });
 }
 
 class _Body extends StatelessWidget {
