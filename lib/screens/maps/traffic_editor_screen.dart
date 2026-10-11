@@ -6,7 +6,9 @@ import 'package:provider/provider.dart';
 import '../../models/traffic_editor_models.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/fleet_provider.dart';
+import '../../services/dock_pose_controller.dart';
 import '../../services/locations_controller.dart';
+import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/map/occupancy_grid_view.dart';
 
@@ -44,6 +46,7 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
 
   String? _edgeStartVertexId;
   Offset? _mouseHoverWorld;
+  bool _pickingStandoff = false;
   bool _isSaving = false;
   bool _isLoading = true;
 
@@ -152,59 +155,127 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
 
   Future<void> _saveGraphToFleet() async {
     final fleet = context.read<FleetProvider>();
-    if (!fleet.isFleetMode || fleet.api == null || _activeBuildingId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Graph updated locally. Connect fleet server to sync globally.')),
-      );
-      return;
-    }
+    final connection = context.read<ConnectionProvider>();
+    final ip = connection.robot?.ip;
+    final api = ip != null ? SdkApiService(ip) : null;
 
     setState(() => _isSaving = true);
     try {
-      final existingGraph = await fleet.api!.getBuildingGraph(_activeBuildingId);
       final levelName = _activeLevelName ?? 'L1';
 
-      final otherWaypoints = List<Map<String, dynamic>>.from(existingGraph['waypoints'] as List? ?? [])
-          .where((w) => w['levelName'] != levelName && w['level_name'] != levelName)
-          .toList();
+      // 1. Sync vertices as locations across the app (single source of truth for RMF)
+      final newLocationsList = <Map<String, dynamic>>[];
+      for (final v in _graph.vertices) {
+        final locName = v.name.isNotEmpty ? v.name : (v.dockName != null && v.dockName!.isNotEmpty ? v.dockName! : v.id);
+        newLocationsList.add({
+          'name': locName,
+          'x': v.x,
+          'y': v.y,
+          'theta': 0.0,
+          'type': v.isCharger ? 'charger' : (v.isParking ? 'parking' : 'waypoint'),
+          'isCharger': v.isCharger,
+          'isParking': v.isParking,
+        });
 
-      final otherLanes = List<Map<String, dynamic>>.from(existingGraph['lanes'] as List? ?? []).where((l) {
-        final start = l['start_idx'] ?? l['fromId'];
-        final end = l['end_idx'] ?? l['toId'];
-        final otherIds = otherWaypoints.map((w) => w['id']).toSet();
-        return otherIds.contains(start) && otherIds.contains(end);
-      }).toList();
+        // Also add standoff pose if charger has one
+        if (v.isCharger && (v.standoffX != null || v.standoffDistance != null)) {
+          final sX = v.standoffX ?? (v.x + (v.standoffDistance ?? 0.8) * cos(v.standoffAngle ?? 0.0));
+          final sY = v.standoffY ?? (v.y + (v.standoffDistance ?? 0.8) * sin(v.standoffAngle ?? 0.0));
+          final sTheta = atan2(v.y - sY, v.x - sX); // Face towards dock
+          newLocationsList.add({
+            'name': '${locName}_standoff',
+            'x': sX,
+            'y': sY,
+            'theta': sTheta,
+            'type': 'standoff',
+          });
 
-      final levelWaypointsJson = _graph.vertices.map((v) {
-        final m = v.toJson();
-        m['levelName'] = levelName;
-        return m;
-      }).toList();
+          // Sync dock pose to robot if connected
+          if (api != null) {
+            final dockTheta = atan2(sY - v.y, sX - v.x);
+            api.setDockPose(x: v.x, y: v.y, theta: dockTheta).catchError((_) {});
+            DockPoseController.instance.update(
+              dock: (x: v.x, y: v.y, theta: dockTheta),
+              standoff: (x: sX, y: sY, theta: sTheta),
+            );
+          }
+        }
+      }
+      LocationsController.instance.value = newLocationsList;
 
-      final levelLanesJson = _graph.lanes.map((l) {
-        final m = l.toJson();
-        m['fromId'] = l.startVertexId;
-        m['toId'] = l.endVertexId;
-        return m;
-      }).toList();
+      // 2. If fleet mode is enabled, update building graph & apply to Open-RMF
+      if (fleet.isFleetMode && fleet.api != null) {
+        String? bId = _activeBuildingId;
+        if (bId == null || bId.isEmpty) {
+          final buildings = await fleet.api!.getBuildings();
+          if (buildings.isNotEmpty) {
+            bId = buildings.first['id'] as String?;
+            _activeBuildingId = bId;
+          } else {
+            // Auto-create building if none exists
+            final created = await fleet.api!.importBuildingYaml(
+              'name: ${_activeBuildingName ?? "Campus"}\nlevels:\n  $levelName:\n    drawing:\n      filename: ""\n',
+              buildingName: _activeBuildingName ?? 'Campus',
+            );
+            bId = created['id'] as String? ?? 'campus_1';
+            _activeBuildingId = bId;
+          }
+        }
 
-      final updatedGraph = {
-        'waypoints': [...otherWaypoints, ...levelWaypointsJson],
-        'lanes': [...otherLanes, ...levelLanesJson],
-        'walls': _graph.walls.map((w) => w.toJson()).toList(),
-        'doors': _graph.doors.map((d) => d.toJson()).toList(),
-      };
+        final existingGraph = await fleet.api!.getBuildingGraph(bId);
+        final otherWaypoints = List<Map<String, dynamic>>.from(existingGraph['waypoints'] as List? ?? [])
+            .where((w) => w['levelName'] != levelName && w['level_name'] != levelName)
+            .toList();
 
-      await fleet.api!.updateBuildingGraph(_activeBuildingId!, updatedGraph);
-      await fleet.api!.applyBuilding();
+        final otherLanes = List<Map<String, dynamic>>.from(existingGraph['lanes'] as List? ?? []).where((l) {
+          final start = l['start_idx'] ?? l['fromId'];
+          final end = l['end_idx'] ?? l['toId'];
+          final otherIds = otherWaypoints.map((w) => w['id']).toSet();
+          return otherIds.contains(start) && otherIds.contains(end);
+        }).toList();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Building Traffic Graph saved & applied to Open-RMF Fleet!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        final levelWaypointsJson = _graph.vertices.map((v) {
+          final m = v.toJson();
+          m['levelName'] = levelName;
+          return m;
+        }).toList();
+
+        final levelLanesJson = _graph.lanes.map((l) {
+          final m = l.toJson();
+          m['fromId'] = l.startVertexId;
+          m['toId'] = l.endVertexId;
+          return m;
+        }).toList();
+
+        final updatedGraph = {
+          'waypoints': [...otherWaypoints, ...levelWaypointsJson],
+          'lanes': [...otherLanes, ...levelLanesJson],
+          'walls': _graph.walls.map((w) => w.toJson()).toList(),
+          'doors': _graph.doors.map((d) => d.toJson()).toList(),
+        };
+
+        if (bId != null && bId.isNotEmpty) {
+          await fleet.api!.updateBuildingGraph(bId, updatedGraph);
+        }
+        await fleet.api!.applyBuilding();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Building Traffic Graphs generated & applied to Open-RMF Fleet!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Traffic editor points & dock standoff saved to active locations!'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -218,6 +289,29 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
   }
 
   void _onCanvasTap(Offset world) {
+    if (_pickingStandoff && _selectedVertexId != null) {
+      final selected = _graph.vertices.where((v) => v.id == _selectedVertexId).firstOrNull;
+      if (selected != null) {
+        final dist = sqrt(pow(world.dx - selected.x, 2) + pow(world.dy - selected.y, 2));
+        final angle = atan2(world.dy - selected.y, world.dx - selected.x);
+        setState(() {
+          selected.standoffX = world.dx;
+          selected.standoffY = world.dy;
+          selected.standoffDistance = dist;
+          selected.standoffAngle = angle;
+          _pickingStandoff = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Custom standoff set at (${world.dx.toStringAsFixed(2)}, ${world.dy.toStringAsFixed(2)}) — ${dist.toStringAsFixed(2)}m'),
+            backgroundColor: AppColors.success,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+    }
+
     switch (_currentTool) {
       case TrafficFeatureType.select:
         _handleSelectTap(world);
@@ -676,6 +770,107 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
                 controller: TextEditingController(text: selectedVertex.dockName ?? 'charger_1'),
                 onChanged: (val) => selectedVertex.dockName = val.trim(),
               ),
+              const SizedBox(height: AppSpacing.sm),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.gps_fixed_rounded, size: 16, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        const Text('Custom Standoff Pose', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        const Spacer(),
+                        if (selectedVertex.standoffX != null || selectedVertex.standoffDistance != null)
+                          InkWell(
+                            onTap: () => setState(() {
+                              selectedVertex.standoffX = null;
+                              selectedVertex.standoffY = null;
+                              selectedVertex.standoffDistance = null;
+                              selectedVertex.standoffAngle = null;
+                            }),
+                            child: const Text('Reset', style: TextStyle(fontSize: 10, color: AppColors.danger)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      selectedVertex.standoffX != null
+                          ? 'Pose: (${selectedVertex.standoffX!.toStringAsFixed(2)}, ${selectedVertex.standoffY!.toStringAsFixed(2)}) — ${(selectedVertex.standoffDistance ?? 0.8).toStringAsFixed(2)}m'
+                          : 'Default standoff: 0.8m approach along dock axis.',
+                      style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            decoration: const InputDecoration(labelText: 'Dist (m)', isDense: true),
+                            controller: TextEditingController(text: (selectedVertex.standoffDistance ?? 0.8).toStringAsFixed(2)),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            onChanged: (val) {
+                              final d = double.tryParse(val);
+                              if (d != null) {
+                                setState(() {
+                                  selectedVertex.standoffDistance = d;
+                                  final angle = selectedVertex.standoffAngle ?? 0.0;
+                                  selectedVertex.standoffX = selectedVertex.x + d * cos(angle);
+                                  selectedVertex.standoffY = selectedVertex.y + d * sin(angle);
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            decoration: const InputDecoration(labelText: 'Angle (rad)', isDense: true),
+                            controller: TextEditingController(text: (selectedVertex.standoffAngle ?? 0.0).toStringAsFixed(2)),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            onChanged: (val) {
+                              final a = double.tryParse(val);
+                              if (a != null) {
+                                setState(() {
+                                  selectedVertex.standoffAngle = a;
+                                  final d = selectedVertex.standoffDistance ?? 0.8;
+                                  selectedVertex.standoffX = selectedVertex.x + d * cos(a);
+                                  selectedVertex.standoffY = selectedVertex.y + d * sin(a);
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: _pickingStandoff ? AppColors.primary.withValues(alpha: 0.2) : Colors.transparent,
+                        minimumSize: const Size(double.infinity, 32),
+                      ),
+                      icon: Icon(_pickingStandoff ? Icons.touch_app_rounded : Icons.place_rounded, size: 14),
+                      label: Text(_pickingStandoff ? 'Click on map to set standoff...' : 'Pick Standoff on Map', style: const TextStyle(fontSize: 11)),
+                      onPressed: () {
+                        setState(() => _pickingStandoff = !_pickingStandoff);
+                        if (_pickingStandoff) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Click anywhere on the map to place the custom dock standoff approach point!'),
+                              duration: Duration(seconds: 3),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ],
             const SizedBox(height: AppSpacing.md),
             FilledButton.tonalIcon(
@@ -890,6 +1085,52 @@ class _RmfTrafficCanvasPainter extends CustomPainter {
           ),
         )..layout();
         textPainter.paint(canvas, p + const Offset(8, -12));
+      }
+
+      // Draw custom standoff point and approach line if charger
+      if (v.isCharger && (v.standoffX != null || v.standoffDistance != null)) {
+        final sX = v.standoffX ?? (v.x + (v.standoffDistance ?? 0.8) * cos(v.standoffAngle ?? 0.0));
+        final sY = v.standoffY ?? (v.y + (v.standoffDistance ?? 0.8) * sin(v.standoffAngle ?? 0.0));
+        final sp = _worldToScreen(sX, sY);
+
+        // Dashed approach line from standoff to dock
+        final approachPaint = Paint()
+          ..color = const Color(0xFFF59E0B)
+          ..strokeWidth = 2.0
+          ..style = PaintingStyle.stroke;
+
+        final dx = p.dx - sp.dx;
+        final dy = p.dy - sp.dy;
+        final totalDist = sqrt(dx * dx + dy * dy);
+        if (totalDist > 0) {
+          const dashLen = 5.0;
+          const spaceLen = 4.0;
+          double drawn = 0.0;
+          while (drawn < totalDist) {
+            final startFraction = drawn / totalDist;
+            final endFraction = min((drawn + dashLen) / totalDist, 1.0);
+            final pStart = Offset(sp.dx + dx * startFraction, sp.dy + dy * startFraction);
+            final pEnd = Offset(sp.dx + dx * endFraction, sp.dy + dy * endFraction);
+            canvas.drawLine(pStart, pEnd, approachPaint);
+            drawn += dashLen + spaceLen;
+          }
+        }
+
+        // Target Standoff Pin
+        canvas.drawCircle(sp, 7, Paint()..color = const Color(0xFF10B981));
+        canvas.drawCircle(sp, 7, Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 1.5);
+        canvas.drawCircle(sp, 2.5, Paint()..color = Colors.white);
+
+        // Label with standoff distance
+        final distVal = v.standoffDistance ?? 0.8;
+        final distPainter = TextPainter(
+          textDirection: TextDirection.ltr,
+          text: TextSpan(
+            text: '${distVal.toStringAsFixed(2)}m',
+            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF10B981), backgroundColor: Colors.black87),
+          ),
+        )..layout();
+        distPainter.paint(canvas, sp + const Offset(8, -8));
       }
     }
   }

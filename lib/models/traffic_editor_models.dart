@@ -49,6 +49,10 @@ class EditorVertex {
   bool isHoldingPoint;
   String? dockName;
   String? mergerGroup;
+  double? standoffDistance;
+  double? standoffAngle;
+  double? standoffX;
+  double? standoffY;
 
   EditorVertex({
     required this.id,
@@ -60,6 +64,10 @@ class EditorVertex {
     this.isHoldingPoint = false,
     this.dockName,
     this.mergerGroup,
+    this.standoffDistance,
+    this.standoffAngle,
+    this.standoffX,
+    this.standoffY,
   });
 
   Map<String, dynamic> toJson() => {
@@ -71,6 +79,10 @@ class EditorVertex {
         'is_parking': isParking,
         'is_holding_point': isHoldingPoint,
         if (dockName != null) 'dock_name': dockName,
+        if (standoffDistance != null) 'standoff_distance': standoffDistance,
+        if (standoffAngle != null) 'standoff_angle': standoffAngle,
+        if (standoffX != null) 'standoff_x': standoffX,
+        if (standoffY != null) 'standoff_y': standoffY,
       };
 
   factory EditorVertex.fromJson(Map<String, dynamic> json) => EditorVertex(
@@ -82,6 +94,10 @@ class EditorVertex {
         isParking: json['is_parking'] == true || json['isParking'] == true,
         isHoldingPoint: json['is_holding_point'] == true || json['isHoldingPoint'] == true,
         dockName: json['dock_name'] as String? ?? json['dockName'] as String?,
+        standoffDistance: (json['standoff_distance'] as num?)?.toDouble(),
+        standoffAngle: (json['standoff_angle'] as num?)?.toDouble(),
+        standoffX: (json['standoff_x'] as num?)?.toDouble(),
+        standoffY: (json['standoff_y'] as num?)?.toDouble(),
       );
 
   EditorVertex clone() => EditorVertex(
@@ -94,6 +110,10 @@ class EditorVertex {
         isHoldingPoint: isHoldingPoint,
         dockName: dockName,
         mergerGroup: mergerGroup,
+        standoffDistance: standoffDistance,
+        standoffAngle: standoffAngle,
+        standoffX: standoffX,
+        standoffY: standoffY,
       );
 }
 

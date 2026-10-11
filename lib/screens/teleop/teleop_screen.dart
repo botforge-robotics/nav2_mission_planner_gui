@@ -410,18 +410,47 @@ class _TeleopScreenState extends State<TeleopScreen> {
 
   Future<void> _loadZonesAndLocations() async {
     final api = _api;
-    if (api == null) return;
-    try {
-      final mapName = await api.getCurrentMap();
-      await ZonesController.instance.refresh(api, map: mapName);
-    } catch (_) {
-      await ZonesController.instance.refresh(api);
+    if (api != null) {
+      try {
+        final mapName = await api.getCurrentMap();
+        await ZonesController.instance.refresh(api, map: mapName);
+      } catch (_) {
+        await ZonesController.instance.refresh(api);
+      }
+      try {
+        await LocationsController.instance.refresh(api);
+      } catch (_) {}
+      await _loadDockPose();
+      await DockPoseController.instance.refresh(api);
     }
-    try {
-      await LocationsController.instance.refresh(api);
-    } catch (_) {}
-    await _loadDockPose();
-    await DockPoseController.instance.refresh(api);
+
+    // In Fleet mode, if LocationsController is empty, populate from Building Traffic Graph
+    if (!mounted) return;
+    final fleet = context.read<FleetProvider>();
+    if (fleet.isFleetMode && fleet.api != null) {
+      if (LocationsController.instance.value == null || LocationsController.instance.value!.isEmpty) {
+        try {
+          final graph = await fleet.api!.getBuildingGraph();
+          final waypoints = List<Map<String, dynamic>>.from(graph['waypoints'] as List? ?? []);
+          if (waypoints.isNotEmpty) {
+            final locs = waypoints.map((w) {
+              final isCharger = w['is_charger'] == true || (w['name'] as String? ?? '').toLowerCase().contains('dock');
+              final isParking = w['is_parking'] == true || (w['name'] as String? ?? '').toLowerCase().contains('park');
+              return {
+                'name': w['name'] as String? ?? (w['id'] as String? ?? 'wp'),
+                'x': (w['x'] as num?)?.toDouble() ?? 0.0,
+                'y': (w['y'] as num?)?.toDouble() ?? 0.0,
+                'theta': (w['yaw'] as num?)?.toDouble() ?? 0.0,
+                'type': isCharger ? 'charger' : (isParking ? 'parking' : 'waypoint'),
+                'isCharger': isCharger,
+                'isParking': isParking,
+              };
+            }).toList();
+            LocationsController.instance.value = locs;
+          }
+        } catch (_) {}
+      }
+    }
   }
 
   Future<void> _openLayersPanel() async {
@@ -1214,8 +1243,54 @@ class _GoToLocationCardState extends State<_GoToLocationCard> {
                     decoration: const InputDecoration(
                         border: InputBorder.none, isDense: true),
                     items: [
-                      for (final name in names)
-                        DropdownMenuItem(value: name, child: Text(name)),
+                      for (final item in list) ...[
+                        () {
+                          final name = (item['name'] as String?) ?? '';
+                          final isCharger = item['isCharger'] == true ||
+                              name.toLowerCase().contains('dock') ||
+                              name.toLowerCase().contains('charge');
+                          final isParking = item['isParking'] == true ||
+                              name.toLowerCase().contains('park');
+                          final isStandoff = item['type'] == 'standoff' ||
+                              name.toLowerCase().contains('standoff');
+                          final x = (item['x'] as num?)?.toDouble() ?? 0.0;
+                          final y = (item['y'] as num?)?.toDouble() ?? 0.0;
+
+                          IconData icon = Icons.place_rounded;
+                          Color iconColor = AppColors.primary;
+                          if (isCharger) {
+                            icon = Icons.bolt_rounded;
+                            iconColor = const Color(0xFFEAB308);
+                          } else if (isParking) {
+                            icon = Icons.local_parking_rounded;
+                            iconColor = const Color(0xFF10B981);
+                          } else if (isStandoff) {
+                            icon = Icons.gps_fixed_rounded;
+                            iconColor = const Color(0xFF06B6D4);
+                          }
+
+                          return DropdownMenuItem<String>(
+                            value: name,
+                            child: Row(
+                              children: [
+                                Icon(icon, size: 16, color: iconColor),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    name,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                                Text(
+                                  '(${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)})',
+                                  style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                                ),
+                              ],
+                            ),
+                          );
+                        }(),
+                      ],
                     ],
                     onChanged: list.isEmpty
                         ? null
