@@ -202,7 +202,7 @@ class EditorWall {
 
 class EditorDoor {
   final String id;
-  final String name;
+  String name;
   final String startVertexId;
   final String endVertexId;
   DoorType doorType;

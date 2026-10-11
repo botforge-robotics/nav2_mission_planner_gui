@@ -43,6 +43,9 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
   String? _activeBuildingName;
 
   String? _selectedVertexId;
+  String? _selectedLaneId;
+  String? _selectedWallId;
+  String? _selectedDoorId;
 
   String? _edgeStartVertexId;
   Offset? _mouseHoverWorld;
@@ -334,20 +337,117 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
   }
 
   void _handleSelectTap(Offset world) {
-    // Find nearest vertex within 0.4m
-    EditorVertex? closest;
+    // 1. Try finding nearest vertex within 0.4m
+    EditorVertex? closestVertex;
     double closestDist = 0.4;
     for (final v in _graph.vertices) {
       final d = sqrt(pow(v.x - world.dx, 2) + pow(v.y - world.dy, 2));
       if (d < closestDist) {
         closestDist = d;
-        closest = v;
+        closestVertex = v;
       }
     }
 
+    if (closestVertex != null) {
+      setState(() {
+        _selectedVertexId = closestVertex!.id;
+        _selectedLaneId = null;
+        _selectedWallId = null;
+        _selectedDoorId = null;
+      });
+      return;
+    }
+
+    // 2. Try selecting Doors (within 0.35m threshold)
+    double minDoorDist = 0.35;
+    EditorDoor? closestDoor;
+    for (final d in _graph.doors) {
+      final v1 = _graph.vertices.where((v) => v.id == d.startVertexId).firstOrNull;
+      final v2 = _graph.vertices.where((v) => v.id == d.endVertexId).firstOrNull;
+      if (v1 != null && v2 != null) {
+        final dist = _pointToSegmentDistance(world, Offset(v1.x, v1.y), Offset(v2.x, v2.y));
+        if (dist < minDoorDist) {
+          minDoorDist = dist;
+          closestDoor = d;
+        }
+      }
+    }
+    if (closestDoor != null) {
+      setState(() {
+        _selectedVertexId = null;
+        _selectedLaneId = null;
+        _selectedWallId = null;
+        _selectedDoorId = closestDoor!.id;
+      });
+      return;
+    }
+
+    // 3. Try selecting Walls (within 0.35m threshold)
+    double minWallDist = 0.35;
+    EditorWall? closestWall;
+    for (final w in _graph.walls) {
+      final v1 = _graph.vertices.where((v) => v.id == w.startVertexId).firstOrNull;
+      final v2 = _graph.vertices.where((v) => v.id == w.endVertexId).firstOrNull;
+      if (v1 != null && v2 != null) {
+        final dist = _pointToSegmentDistance(world, Offset(v1.x, v1.y), Offset(v2.x, v2.y));
+        if (dist < minWallDist) {
+          minWallDist = dist;
+          closestWall = w;
+        }
+      }
+    }
+    if (closestWall != null) {
+      setState(() {
+        _selectedVertexId = null;
+        _selectedLaneId = null;
+        _selectedWallId = closestWall!.id;
+        _selectedDoorId = null;
+      });
+      return;
+    }
+
+    // 4. Try selecting Lanes (within 0.35m threshold)
+    double minLaneDist = 0.35;
+    EditorEdge? closestLane;
+    for (final l in _graph.lanes) {
+      final v1 = _graph.vertices.where((v) => v.id == l.startVertexId).firstOrNull;
+      final v2 = _graph.vertices.where((v) => v.id == l.endVertexId).firstOrNull;
+      if (v1 != null && v2 != null) {
+        final dist = _pointToSegmentDistance(world, Offset(v1.x, v1.y), Offset(v2.x, v2.y));
+        if (dist < minLaneDist) {
+          minLaneDist = dist;
+          closestLane = l;
+        }
+      }
+    }
+    if (closestLane != null) {
+      setState(() {
+        _selectedVertexId = null;
+        _selectedLaneId = closestLane!.id;
+        _selectedWallId = null;
+        _selectedDoorId = null;
+      });
+      return;
+    }
+
+    // Tapped empty space: clear all selection
     setState(() {
-      _selectedVertexId = closest?.id;
+      _selectedVertexId = null;
+      _selectedLaneId = null;
+      _selectedWallId = null;
+      _selectedDoorId = null;
     });
+  }
+
+  double _pointToSegmentDistance(Offset p, Offset a, Offset b) {
+    final dx = b.dx - a.dx;
+    final dy = b.dy - a.dy;
+    final lenSq = dx * dx + dy * dy;
+    if (lenSq == 0) return (p - a).distance;
+    final t = ((p.dx - a.dx) * dx + (p.dy - a.dy) * dy) / lenSq;
+    final clampedT = t.clamp(0.0, 1.0);
+    final proj = Offset(a.dx + clampedT * dx, a.dy + clampedT * dy);
+    return (p - proj).distance;
   }
 
   void _addVertexAt(Offset world) {
@@ -363,6 +463,9 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
     setState(() {
       _graph.vertices.add(newVertex);
       _selectedVertexId = newId;
+      _selectedLaneId = null;
+      _selectedWallId = null;
+      _selectedDoorId = null;
     });
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -403,7 +506,14 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
       setState(() => _edgeStartVertexId = targetVertex!.id);
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Start vertex selected. Tap end vertex to create connection.'), duration: Duration(seconds: 2)),
+        SnackBar(
+          content: Text(isWall
+              ? 'Start vertex selected. Tap next points to build continuous wall (double-tap/press ESC to finish).'
+              : (isDoor
+                  ? 'Start vertex selected. Tap end vertex to place door.'
+                  : 'Start vertex selected. Tap next points to create lanes.')),
+          duration: const Duration(seconds: 2),
+        ),
       );
     } else {
       if (_edgeStartVertexId != targetVertex.id) {
@@ -411,34 +521,67 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
         final endId = targetVertex.id;
 
         if (isWall) {
-          _graph.walls.add(EditorWall(
+          final newWall = EditorWall(
             id: 'wall_${DateTime.now().millisecondsSinceEpoch}',
             startVertexId: startId,
             endVertexId: endId,
-          ));
+          );
+          _graph.walls.add(newWall);
+          _selectedWallId = newWall.id;
+          _selectedVertexId = null;
+          _selectedLaneId = null;
+          _selectedDoorId = null;
         } else if (isDoor) {
-          _graph.doors.add(EditorDoor(
+          final newDoor = EditorDoor(
             id: 'door_${DateTime.now().millisecondsSinceEpoch}',
             startVertexId: startId,
             endVertexId: endId,
-          ));
+          );
+          _graph.doors.add(newDoor);
+          _selectedDoorId = newDoor.id;
+          _selectedVertexId = null;
+          _selectedLaneId = null;
+          _selectedWallId = null;
         } else {
-          _graph.lanes.add(EditorEdge(
+          final newLane = EditorEdge(
             id: 'lane_${DateTime.now().millisecondsSinceEpoch}',
             startVertexId: startId,
             endVertexId: endId,
             bidirectional: true,
-          ));
+          );
+          _graph.lanes.add(newLane);
+          _selectedLaneId = newLane.id;
+          _selectedVertexId = null;
+          _selectedWallId = null;
+          _selectedDoorId = null;
         }
+
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isWall ? 'Wall added between vertices' : (isDoor ? 'Door added between vertices' : 'Bidirectional lane added')),
-            duration: const Duration(seconds: 1),
+            content: Text(isWall
+                ? 'Wall segment added. Tap next vertex to continue wall, or switch tool/click Finish.'
+                : (isDoor ? 'Door added between vertices' : 'Lane segment added. Tap next vertex to continue chain.')),
+            duration: const Duration(seconds: 2),
           ),
         );
+
+        // Continuous drawing: chain to next vertex for walls & lanes!
+        // Doors are single 2-point objects, so finish door.
+        setState(() {
+          if (isDoor) {
+            _edgeStartVertexId = null;
+          } else {
+            _edgeStartVertexId = targetVertex!.id; // Chain for continuous drawing!
+          }
+        });
+      } else {
+        // Tapped same vertex: finish continuous chain
+        setState(() => _edgeStartVertexId = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Continuous chain finished.'), duration: Duration(seconds: 1)),
+        );
       }
-      setState(() => _edgeStartVertexId = null);
     }
   }
 
@@ -541,6 +684,9 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
                                         grid: _effectiveGrid,
                                         isStandalone: ros2 == null,
                                         selectedVertexId: _selectedVertexId,
+                                        selectedLaneId: _selectedLaneId,
+                                        selectedWallId: _selectedWallId,
+                                        selectedDoorId: _selectedDoorId,
                                         edgeStartVertexId: _edgeStartVertexId,
                                         mouseHoverWorld: _mouseHoverWorld,
                                         transform: _transformController.value,
@@ -589,6 +735,22 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
           _toolButton(TrafficFeatureType.lane, Icons.alt_route_rounded, 'Lane'),
           _toolButton(TrafficFeatureType.wall, Icons.fence_rounded, 'Wall'),
           _toolButton(TrafficFeatureType.door, Icons.sensor_door_outlined, 'Door'),
+          if (_edgeStartVertexId != null) ...[
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: FilledButton.tonal(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+                  foregroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  minimumSize: const Size(64, 32),
+                ),
+                onPressed: () => setState(() => _edgeStartVertexId = null),
+                child: const Text('Finish', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
           const Divider(),
           IconButton(
             tooltip: 'Clear Selected',
@@ -651,10 +813,12 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
       case TrafficFeatureType.lane:
         text = _edgeStartVertexId == null
             ? 'Click starting vertex for the lane.'
-            : 'Click ending vertex to connect bidirectional lane.';
+            : 'Click next vertex to continue lane chain, or click Finish.';
         break;
       case TrafficFeatureType.wall:
-        text = _edgeStartVertexId == null ? 'Click start vertex for wall.' : 'Click end vertex to build wall boundary.';
+        text = _edgeStartVertexId == null
+            ? 'Click start vertex for wall.'
+            : 'Click next vertex to continue wall (chains automatically), or click Finish.';
         break;
       case TrafficFeatureType.door:
         text = _edgeStartVertexId == null ? 'Click start vertex for door.' : 'Click end vertex to place motorized door.';
@@ -879,11 +1043,143 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
               label: const Text('Delete Vertex'),
               onPressed: _deleteSelectedElement,
             ),
+          ] else if (_selectedWallId != null) ...[
+            () {
+              final wall = _graph.walls.where((w) => w.id == _selectedWallId).firstOrNull;
+              if (wall == null) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.fence_rounded, color: AppColors.textPrimary, size: 20),
+                      const SizedBox(width: 8),
+                      Text('Wall: ${wall.id}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Thickness (meters)', isDense: true),
+                    controller: TextEditingController(text: wall.thickness.toStringAsFixed(2)),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (val) {
+                      final t = double.tryParse(val);
+                      if (t != null) setState(() => wall.thickness = t);
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text('Connects: ${wall.startVertexId} ➔ ${wall.endVertexId}', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                  const SizedBox(height: AppSpacing.md),
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.danger.withValues(alpha: 0.15), foregroundColor: AppColors.danger),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                    label: const Text('Delete Wall'),
+                    onPressed: _deleteSelectedElement,
+                  ),
+                ],
+              );
+            }(),
+          ] else if (_selectedDoorId != null) ...[
+            () {
+              final door = _graph.doors.where((d) => d.id == _selectedDoorId).firstOrNull;
+              if (door == null) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.sensor_door_outlined, color: Color(0xFFF59E0B), size: 20),
+                      const SizedBox(width: 8),
+                      Text('Door: ${door.name}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Door Name', isDense: true),
+                    controller: TextEditingController(text: door.name),
+                    onChanged: (val) => door.name = val.trim(),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  DropdownButtonFormField<DoorType>(
+                    initialValue: door.doorType,
+                    decoration: const InputDecoration(labelText: 'Door Type', isDense: true),
+                    items: DoorType.values.map((type) => DropdownMenuItem(value: type, child: Text(type.label, style: const TextStyle(fontSize: 12)))).toList(),
+                    onChanged: (v) {
+                      if (v != null) setState(() => door.doorType = v);
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Motion Duration (sec)', isDense: true),
+                    controller: TextEditingController(text: door.motionTime.toStringAsFixed(1)),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (val) {
+                      final mt = double.tryParse(val);
+                      if (mt != null) setState(() => door.motionTime = mt);
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text('Connects: ${door.startVertexId} ➔ ${door.endVertexId}', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                  const SizedBox(height: AppSpacing.md),
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.danger.withValues(alpha: 0.15), foregroundColor: AppColors.danger),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                    label: const Text('Delete Door'),
+                    onPressed: _deleteSelectedElement,
+                  ),
+                ],
+              );
+            }(),
+          ] else if (_selectedLaneId != null) ...[
+            () {
+              final lane = _graph.lanes.where((l) => l.id == _selectedLaneId).firstOrNull;
+              if (lane == null) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.alt_route_rounded, color: Color(0xFF00E5FF), size: 20),
+                      const SizedBox(width: 8),
+                      Text('Lane: ${lane.id}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  SwitchListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Bidirectional', style: TextStyle(fontSize: 13)),
+                    subtitle: const Text('AMRs can navigate in both directions', style: TextStyle(fontSize: 10)),
+                    value: lane.bidirectional,
+                    onChanged: (v) => setState(() => lane.bidirectional = v),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Speed Limit (m/s, 0 = unlimited)', isDense: true),
+                    controller: TextEditingController(text: lane.speedLimit.toStringAsFixed(2)),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (val) {
+                      final sl = double.tryParse(val);
+                      if (sl != null) setState(() => lane.speedLimit = sl);
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text('Connects: ${lane.startVertexId} ➔ ${lane.endVertexId}', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                  const SizedBox(height: AppSpacing.md),
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.danger.withValues(alpha: 0.15), foregroundColor: AppColors.danger),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                    label: const Text('Delete Lane'),
+                    onPressed: _deleteSelectedElement,
+                  ),
+                ],
+              );
+            }(),
           ] else ...[
             const Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 40),
-                child: Text('Click any element to inspect parameters.', style: TextStyle(color: AppColors.textTertiary, fontSize: 12)),
+                child: Text('Click any vertex, door, wall, or lane on the map to inspect parameters.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textTertiary, fontSize: 12)),
               ),
             ),
           ],
@@ -902,16 +1198,25 @@ class _TrafficEditorScreenState extends State<TrafficEditorScreen> {
   }
 
   void _deleteSelectedElement() {
-    if (_selectedVertexId != null) {
-      final id = _selectedVertexId!;
-      setState(() {
+    setState(() {
+      if (_selectedVertexId != null) {
+        final id = _selectedVertexId!;
         _graph.vertices.removeWhere((v) => v.id == id);
         _graph.lanes.removeWhere((l) => l.startVertexId == id || l.endVertexId == id);
         _graph.walls.removeWhere((w) => w.startVertexId == id || w.endVertexId == id);
         _graph.doors.removeWhere((d) => d.startVertexId == id || d.endVertexId == id);
         _selectedVertexId = null;
-      });
-    }
+      } else if (_selectedWallId != null) {
+        _graph.walls.removeWhere((w) => w.id == _selectedWallId);
+        _selectedWallId = null;
+      } else if (_selectedDoorId != null) {
+        _graph.doors.removeWhere((d) => d.id == _selectedDoorId);
+        _selectedDoorId = null;
+      } else if (_selectedLaneId != null) {
+        _graph.lanes.removeWhere((l) => l.id == _selectedLaneId);
+        _selectedLaneId = null;
+      }
+    });
   }
 
   void _showYamlDialog() {
@@ -939,6 +1244,9 @@ class _RmfTrafficCanvasPainter extends CustomPainter {
   final nav_msgs.OccupancyGrid grid;
   final bool isStandalone;
   final String? selectedVertexId;
+  final String? selectedLaneId;
+  final String? selectedWallId;
+  final String? selectedDoorId;
   final String? edgeStartVertexId;
   final Offset? mouseHoverWorld;
   final Matrix4 transform;
@@ -948,6 +1256,9 @@ class _RmfTrafficCanvasPainter extends CustomPainter {
     required this.grid,
     this.isStandalone = false,
     this.selectedVertexId,
+    this.selectedLaneId,
+    this.selectedWallId,
+    this.selectedDoorId,
     this.edgeStartVertexId,
     this.mouseHoverWorld,
     required this.transform,
@@ -1006,12 +1317,20 @@ class _RmfTrafficCanvasPainter extends CustomPainter {
       ..color = const Color(0xFF1E293B)
       ..strokeWidth = 6.0
       ..strokeCap = StrokeCap.square;
+    final wallHighlightPaint = Paint()
+      ..color = Colors.amber.withValues(alpha: 0.8)
+      ..strokeWidth = 11.0
+      ..strokeCap = StrokeCap.square;
+
     for (final wall in graph.walls) {
       final start = graph.vertices.where((v) => v.id == wall.startVertexId).firstOrNull;
       final end = graph.vertices.where((v) => v.id == wall.endVertexId).firstOrNull;
       if (start != null && end != null) {
         final p1 = _worldToScreen(start.x, start.y);
         final p2 = _worldToScreen(end.x, end.y);
+        if (wall.id == selectedWallId) {
+          canvas.drawLine(p1, p2, wallHighlightPaint);
+        }
         canvas.drawLine(p1, p2, wallPaint);
       }
     }
@@ -1021,12 +1340,20 @@ class _RmfTrafficCanvasPainter extends CustomPainter {
       ..color = const Color(0xFFF59E0B)
       ..strokeWidth = 5.0
       ..strokeCap = StrokeCap.round;
+    final doorHighlightPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.8)
+      ..strokeWidth = 10.0
+      ..strokeCap = StrokeCap.round;
+
     for (final door in graph.doors) {
       final start = graph.vertices.where((v) => v.id == door.startVertexId).firstOrNull;
       final end = graph.vertices.where((v) => v.id == door.endVertexId).firstOrNull;
       if (start != null && end != null) {
         final p1 = _worldToScreen(start.x, start.y);
         final p2 = _worldToScreen(end.x, end.y);
+        if (door.id == selectedDoorId) {
+          canvas.drawLine(p1, p2, doorHighlightPaint);
+        }
         canvas.drawLine(p1, p2, doorPaint);
       }
     }
@@ -1036,12 +1363,20 @@ class _RmfTrafficCanvasPainter extends CustomPainter {
       ..color = const Color(0xFF00E5FF)
       ..strokeWidth = 3.5
       ..strokeCap = StrokeCap.round;
+    final laneHighlightPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.7)
+      ..strokeWidth = 8.0
+      ..strokeCap = StrokeCap.round;
+
     for (final lane in graph.lanes) {
       final start = graph.vertices.where((v) => v.id == lane.startVertexId).firstOrNull;
       final end = graph.vertices.where((v) => v.id == lane.endVertexId).firstOrNull;
       if (start != null && end != null) {
         final p1 = _worldToScreen(start.x, start.y);
         final p2 = _worldToScreen(end.x, end.y);
+        if (lane.id == selectedLaneId) {
+          canvas.drawLine(p1, p2, laneHighlightPaint);
+        }
         canvas.drawLine(p1, p2, lanePaint);
       }
     }
