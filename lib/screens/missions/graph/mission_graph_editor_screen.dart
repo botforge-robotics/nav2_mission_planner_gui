@@ -958,7 +958,54 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 }
               },
             )
-          else
+          else ...[
+            if (subtype == 'choice' || subtype == 'choices' || subtype == 'ui_choice') ...[
+              Builder(builder: (context) {
+                final rawOpts = _activeRobotInteraction?['options'] ??
+                    _activeRobotInteraction?['choices'] ??
+                    _activeRobotInteraction?['buttons'] ??
+                    (_activeRobotInteraction?['params'] as Map?)?['options'] ??
+                    (_activeRobotInteraction?['params'] as Map?)?['choices'] ??
+                    ['Yes', 'No'];
+                final choiceList = (rawOpts is List ? rawOpts : ['Yes', 'No']).map((e) => e.toString()).toList();
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final choice in choiceList) ...[
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 34),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          backgroundColor: (choice.toLowerCase() == 'no' || choice.toLowerCase() == 'cancel')
+                              ? AppColors.danger
+                              : AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onPressed: () async {
+                          final api = _api;
+                          final inter = _activeRobotInteraction;
+                          if (api != null && inter != null) {
+                            final id = inter['interaction_id']?.toString() ?? inter['node_id']?.toString() ?? '';
+                            if (id.isNotEmpty) {
+                              await api.submitUiResponse(id, action: choice, selected: choice);
+                              if (mounted) {
+                                setState(() => _activeRobotInteraction = null);
+                              }
+                            }
+                          }
+                        },
+                        child: Text(
+                          choice,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                  ],
+                );
+              }),
+            ],
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 32),
@@ -967,7 +1014,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 foregroundColor: AppColors.primary,
               ),
               icon: const Icon(Icons.open_in_new, size: 14),
-              label: const Text('Respond on Desktop', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              label: const Text('Open Modal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
               onPressed: () async {
                 final api = _api;
                 final inter = _activeRobotInteraction;
@@ -976,6 +1023,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 }
               },
             ),
+          ],
         ],
       ),
     );

@@ -95,8 +95,19 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
     _timeoutSec = rawTimeout != null
         ? (rawTimeout as num).toDouble()
         : (_subtype == 'browser' ? 0.0 : 60.0);
-    _choices = (widget.interaction['options'] as List<dynamic>?) ??
-        (p['choices'] as List<dynamic>?) ?? ['confirm'];
+    final rawChoices = widget.interaction['options'] ??
+        widget.interaction['choices'] ??
+        widget.interaction['buttons'] ??
+        p['options'] ??
+        p['choices'] ??
+        p['buttons'];
+    if (rawChoices is List && rawChoices.isNotEmpty) {
+      _choices = rawChoices;
+    } else if (_subtype == 'choice' || _subtype == 'choices' || _subtype == 'ui_choice') {
+      _choices = ['Yes', 'No'];
+    } else {
+      _choices = ['confirm'];
+    }
     _imageUrl = widget.interaction['media_url']?.toString() ??
         p['media_url']?.toString() ??
         p['image_url']?.toString();
@@ -309,7 +320,7 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                     // Subtype specific body
                     if (_subtype == 'form' || _fields.isNotEmpty)
                       _buildFormBody()
-                    else if (_subtype == 'choices')
+                    else if (_subtype == 'choices' || _subtype == 'choice' || _subtype == 'ui_choice')
                       _buildChoicesBody()
                     else if (_subtype == 'kiosk_destination_picker')
                       _buildKioskPickerBody()
