@@ -67,7 +67,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
 
   bool _drawingLaneMode = false;
   List<Offset> _laneDraftPoints = [];
-  double _laneDraftWidth = 1.2;
+  double _laneDraftWidth = 0.4;
   String _laneDraftName = 'Preferred Lane';
   Offset? _mouseHoverWorld;
 
@@ -788,129 +788,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
     );
   }
 
-  Future<void> _openSavedLocationsSheet() async {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => Material(
-        color: Colors.transparent,
-        child: SafeArea(
-          child: ValueListenableBuilder<List<Map<String, dynamic>>?>(
-            valueListenable: LocationsController.instance,
-            builder: (context, locations, _) {
-            if (locations == null || locations.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.all(AppSpacing.xl),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.place_outlined,
-                          size: 40, color: AppColors.textTertiary),
-                      SizedBox(height: AppSpacing.sm),
-                      Text(
-                        'No saved locations on this map.',
-                        style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w600),
-                      ),
-                      SizedBox(height: AppSpacing.xs),
-                      Text(
-                        'Use "Save Location" in the map tools to add one.',
-                        style: TextStyle(
-                            fontSize: 12, color: AppColors.textTertiary),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.place_rounded,
-                          size: 20, color: AppColors.primary),
-                      const SizedBox(width: AppSpacing.sm),
-                      Text(
-                        'Saved Locations (${locations.length})',
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(),
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    itemCount: locations.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: AppSpacing.xs),
-                    itemBuilder: (context, i) {
-                      final loc = locations[i];
-                      final name = loc['name'] as String? ?? '';
-                      final x = (loc['x'] as num?)?.toDouble() ?? 0.0;
-                      final y = (loc['y'] as num?)?.toDouble() ?? 0.0;
-                      return Card(
-                        margin: EdgeInsets.zero,
-                        elevation: 0,
-                        color: AppColors.surfaceSunken,
-                        child: ListTile(
-                          dense: true,
-                          leading: const Icon(Icons.pin_drop_rounded,
-                              color: AppColors.primary),
-                          title: Text(name,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold)),
-                          subtitle: Text(
-                            '(${x.toStringAsFixed(2)}, ${y.toStringAsFixed(2)})',
-                            style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 12),
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline_rounded,
-                                    size: 20, color: AppColors.danger),
-                                tooltip: 'Delete location',
-                                onPressed: () {
-                                  Navigator.pop(sheetContext);
-                                  _onLocationDelete(loc);
-                                },
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.navigation_rounded,
-                                    size: 20, color: AppColors.accent),
-                                tooltip: 'Navigate here',
-                                onPressed: () {
-                                  Navigator.pop(sheetContext);
-                                  _onLocationTapped(loc);
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-    ),
-  );
-  }
+
 
   Future<void> _openLocalizeOptions() async {
     final choice = await showModalBottomSheet<String>(
@@ -1730,7 +1608,6 @@ class _MapViewScreenState extends State<MapViewScreen> {
                           onLocalize: _localizing ? null : _openLocalizeOptions,
                           localizing: _localizing,
                           onAddLocation: _startAddLocationPicking,
-                          onShowLocations: _openSavedLocationsSheet,
                         ),
                       ),
                     if (_drawingLaneMode)
@@ -1817,7 +1694,6 @@ class _ControlCluster extends StatelessWidget {
     required this.onLocalize,
     required this.localizing,
     this.onAddLocation,
-    required this.onShowLocations,
   });
 
   final bool layersActive;
@@ -1831,7 +1707,6 @@ class _ControlCluster extends StatelessWidget {
   final VoidCallback? onLocalize;
   final bool localizing;
   final VoidCallback? onAddLocation;
-  final VoidCallback onShowLocations;
 
   @override
   Widget build(BuildContext context) {
@@ -1881,18 +1756,11 @@ class _ControlCluster extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         _ClusterCard(children: [
           _ControlButton(
-            icon: Icons.my_location_rounded,
-            tooltip: 'Localize',
+            icon: Icons.gps_fixed_rounded,
+            tooltip: 'Robot Localization (Pose / AMCL)',
             onTap: onLocalize,
             busy: localizing,
-            color: AppColors.primary,
-          ),
-          const Divider(height: 1),
-          _ControlButton(
-            icon: Icons.place_rounded,
-            tooltip: 'Saved Locations',
-            onTap: onShowLocations,
-            color: AppColors.primary,
+            color: AppColors.success,
           ),
         ]),
       ],
@@ -2166,7 +2034,6 @@ class _DesktopStudioSidebar extends StatelessWidget {
               return Column(
                 children: [
                   layerTile(MapLayer.dock, Icons.ev_station_rounded, 'Docking Station'),
-                  layerTile(MapLayer.locations, Icons.place_rounded, 'Saved Locations'),
                   layerTile(MapLayer.zones, Icons.polyline_rounded, 'Map Zones'),
                   layerTile(MapLayer.path, Icons.route_rounded, 'Planned Path'),
                   layerTile(MapLayer.globalCostmap, Icons.grid_on_rounded, 'Global Costmap'),
@@ -2178,14 +2045,14 @@ class _DesktopStudioSidebar extends StatelessWidget {
           ),
           const Divider(height: AppSpacing.lg),
 
-          // Section 2: Cartography Tools
+          // Section 2: Cartography & Traffic Studio
           Row(
             children: [
-              const Icon(Icons.handyman_outlined,
+              const Icon(Icons.architecture_rounded,
                   size: 18, color: AppColors.primary),
               const SizedBox(width: AppSpacing.sm),
               Text(
-                'Cartography Tools',
+                'Cartography & Traffic Studio',
                 style: Theme.of(context)
                     .textTheme
                     .titleSmall
@@ -2195,9 +2062,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
 
-
-
-          // Group 2: Map Zones (Speed limits, keep-out, work zones)
+          // Group 1: Open-RMF Traffic & Layout Studio
           Container(
             padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
@@ -2214,7 +2079,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.polyline_rounded,
+                    const Icon(Icons.alt_route_rounded,
                         size: 14, color: AppColors.primary),
                     const SizedBox(width: 6),
                     const Text('Traffic & Zones',
@@ -2253,8 +2118,8 @@ class _DesktopStudioSidebar extends StatelessWidget {
                       ),
                     );
                   },
-                  icon: const Icon(Icons.architecture_rounded, size: 16),
-                  label: const Text('Open-RMF Traffic Editor (Studio)', style: TextStyle(fontWeight: FontWeight.bold)),
+                  icon: const Icon(Icons.edit_road_rounded, size: 16),
+                  label: const Text('Open-RMF Traffic Editor', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 if (context.watch<FleetProvider>().isFleetMode) ...[
                   const SizedBox(height: AppSpacing.xs),
@@ -2269,7 +2134,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
 
-          // Group 3: Robot Localization (AMCL & Pose)
+          // Group 2: Robot Localization & Positioning
           Container(
             padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
@@ -2326,7 +2191,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
 
-          // Group 4: Dock & Standoff Calibration
+          // Group 3: Dock & Standoff Calibration
           OutlinedButton.icon(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
@@ -2335,101 +2200,6 @@ class _DesktopStudioSidebar extends StatelessWidget {
             ),
             icon: const Icon(Icons.tune_rounded, size: 15),
             label: const Text('Calibrate Dock & Standoff Pose'),
-          ),
-          const Divider(height: AppSpacing.lg),
-
-          // Section 3: Saved Locations on this Map
-          Row(
-            children: [
-              const Icon(Icons.place_rounded,
-                  size: 18, color: AppColors.primary),
-              const SizedBox(width: AppSpacing.sm),
-              Text(
-                'Saved Locations',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleSmall
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const Spacer(),
-              ValueListenableBuilder<List<Map<String, dynamic>>?>(
-                valueListenable: LocationsController.instance,
-                builder: (context, locs, _) => Text(
-                  '${locs?.length ?? 0}',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textSecondary),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          ValueListenableBuilder<List<Map<String, dynamic>>?>(
-            valueListenable: LocationsController.instance,
-            builder: (context, locations, _) {
-              if (locations == null || locations.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                  child: Center(
-                    child: Text(
-                      'No saved locations.\nClick "Save Location" above.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                  ),
-                );
-              }
-              return Column(
-                children: locations.map((loc) {
-                  final name = loc['name'] as String? ?? '';
-                  final x = (loc['x'] as num?)?.toDouble() ?? 0.0;
-                  final y = (loc['y'] as num?)?.toDouble() ?? 0.0;
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: AppSpacing.xs),
-                    elevation: 0,
-                    color: AppColors.surfaceSunken,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: const BorderSide(color: AppColors.border),
-                    ),
-                    child: ListTile(
-                      dense: true,
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                      leading: const Icon(Icons.pin_drop_rounded,
-                          size: 18, color: AppColors.primary),
-                      title: Text(name,
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.bold)),
-                      subtitle: Text(
-                        '(${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)})',
-                        style: const TextStyle(
-                            fontSize: 10, color: AppColors.textSecondary),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline_rounded,
-                                size: 16, color: AppColors.danger),
-                            tooltip: 'Delete location',
-                            onPressed: () => onLocationDelete?.call(loc),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.navigation_rounded,
-                                size: 16, color: AppColors.accent),
-                            tooltip: 'Navigate here',
-                            onPressed: () => onLocationTap(loc),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              );
-            },
           ),
           const Divider(height: AppSpacing.lg),
 
@@ -2982,7 +2752,7 @@ class _AddZoneDialogState extends State<_AddZoneDialog> {
   final _speedLimitController = TextEditingController(text: '0.08');
   ZoneType _selectedType = ZoneType.restricted;
 
-  double _laneWidth = 1.2;
+  double _laneWidth = 0.4;
 
   @override
   void initState() {

@@ -214,6 +214,7 @@ class OccupancyGridView extends StatefulWidget {
     this.mouseHoverWorld,
     this.onMapHoverWorld,
     this.onMapClickWorld,
+    this.onMapSecondaryClickWorld,
     this.onFinishLane,
     this.fleetRobots,
     this.selectedFleetRobotId,
@@ -348,6 +349,7 @@ class OccupancyGridView extends StatefulWidget {
   final Offset? mouseHoverWorld;
   final ValueChanged<Offset?>? onMapHoverWorld;
   final ValueChanged<Offset>? onMapClickWorld;
+  final ValueChanged<Offset>? onMapSecondaryClickWorld;
   final VoidCallback? onFinishLane;
   final List<FleetRobotInfo>? fleetRobots;
   final String? selectedFleetRobotId;
@@ -1825,6 +1827,14 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
                 widget.onMapClickWorld?.call(world);
               }
             },
+            onSecondaryTapUp: (details) {
+              if (_grid == null) return;
+              final contentPoint = _globalToContent(details.globalPosition);
+              if (contentPoint != null) {
+                final world = _pixelToWorld(_grid!, contentPoint);
+                widget.onMapSecondaryClickWorld?.call(world);
+              }
+            },
             onDoubleTap: () {
               widget.onFinishLane?.call();
             },
@@ -2056,12 +2066,48 @@ class _OccupancyGridPainter extends CustomPainter {
 
     for (final loc in locations) {
       if (loc['x'] is! num || loc['y'] is! num) continue;
+      final name = loc['name'] as String? ?? '';
+      final isCharger = loc['isCharger'] == true || loc['type'] == 'charger';
+      final isParking = loc['isParking'] == true || loc['type'] == 'parking';
+      final isHolding = loc['isHolding'] == true || loc['type'] == 'holding';
+      final isStandoff = loc['type'] == 'standoff' || name.endsWith('_standoff');
+
+      // Do NOT show structural wall or door vertices as waypoints on the 2D map cockpit view
+      final isStructural = name.startsWith('wall_v_') ||
+          name.startsWith('door_v_') ||
+          loc['type'] == 'wall' ||
+          loc['type'] == 'door' ||
+          (name.toLowerCase().startsWith('wall_') && !isCharger && !isParking && !isHolding) ||
+          (name.toLowerCase().startsWith('door_') && !isCharger && !isParking && !isHolding);
+      if (isStructural || (name.isEmpty && !isCharger && !isParking && !isHolding)) {
+        continue;
+      }
+
       final center = _worldToPixel(
           grid, (loc['x'] as num).toDouble(), (loc['y'] as num).toDouble());
-      _drawPin(canvas, center, AppColors.primary, Icons.place_rounded,
-          sizeScale: markerScale);
-      final name = loc['name'] as String?;
-      if (name != null && name.isNotEmpty) {
+
+      // Open-RMF Site styling for location pins
+      final Color pinColor;
+      final IconData pinIcon;
+      if (isCharger) {
+        pinColor = const Color(0xFFF59E0B); // Amber for Charger
+        pinIcon = Icons.bolt_rounded;
+      } else if (isParking) {
+        pinColor = const Color(0xFF10B981); // Emerald for Parking
+        pinIcon = Icons.local_parking_rounded;
+      } else if (isHolding) {
+        pinColor = const Color(0xFF8B5CF6); // Violet for Holding
+        pinIcon = Icons.pan_tool_rounded;
+      } else if (isStandoff) {
+        pinColor = const Color(0xFF06B6D4); // Cyan for Standoff
+        pinIcon = Icons.adjust_rounded;
+      } else {
+        pinColor = const Color(0xFF0284C7); // Sky Blue for general waypoint
+        pinIcon = Icons.place_rounded;
+      }
+
+      _drawPin(canvas, center, pinColor, pinIcon, sizeScale: markerScale);
+      if (name.isNotEmpty) {
         _drawPinLabel(canvas, center, name, sizeScale: markerScale);
       }
     }
@@ -2173,7 +2219,24 @@ class _OccupancyGridPainter extends CustomPainter {
     final resolution = grid.info.resolution;
     if (resolution <= 0) return;
 
-    for (final zone in zones) {
+    // Deduplicate: if both a traffic_lane_ zone and a non-prefixed preferred
+    // lane zone exist with the same name, keep only the traffic_lane_ version.
+    final trafficLaneNames = <String>{};
+    for (final z in zones) {
+      if (z.id.startsWith('traffic_lane_') && z.type == ZoneType.preferredLane) {
+        trafficLaneNames.add(z.name);
+      }
+    }
+    final deduped = zones.where((z) {
+      if (z.type == ZoneType.preferredLane &&
+          !z.id.startsWith('traffic_lane_') &&
+          trafficLaneNames.contains(z.name)) {
+        return false; // skip duplicate non-prefixed version
+      }
+      return true;
+    }).toList();
+
+    for (final zone in deduped) {
       if (zone.points.length < 3) continue;
       final isSelected = zone.id == selectedZoneId;
       final pts =
@@ -2185,48 +2248,53 @@ class _OccupancyGridPainter extends CustomPainter {
       }
       path.close();
 
-      // Translucent fill
-      final fillPaint = Paint()
-        ..color = zone.color.withValues(alpha: isSelected ? 0.32 : 0.18)
-        ..style = PaintingStyle.fill;
-      canvas.drawPath(path, fillPaint);
+      // Preferred lanes render as traffic-lane lines only (no filled polygon zone)
+      final isPreferredLane = zone.type == ZoneType.preferredLane;
 
-      // Striped diagonal lines for restricted / keep-out areas (hazard safety pattern)
-      if (zone.type == ZoneType.restricted) {
-        canvas.save();
-        canvas.clipPath(path);
-        final bounds = path.getBounds();
-        final stripePaint = Paint()
-          ..color = zone.color.withValues(alpha: isSelected ? 0.55 : 0.35)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = (isSelected ? 2.2 : 1.6) * markerScale;
-        final step = (14.0 * markerScale).clamp(4.0, 50.0);
-        final h = bounds.height > 0 ? bounds.height : 1.0;
-        for (double d = -h; d <= bounds.width + h; d += step) {
-          canvas.drawLine(
-            Offset(bounds.left + d, bounds.bottom),
-            Offset(bounds.left + d + h, bounds.top),
-            stripePaint,
-          );
+      if (!isPreferredLane) {
+        // Translucent fill (non-lane zones only)
+        final fillPaint = Paint()
+          ..color = zone.color.withValues(alpha: isSelected ? 0.32 : 0.18)
+          ..style = PaintingStyle.fill;
+        canvas.drawPath(path, fillPaint);
+
+        // Striped diagonal lines for restricted / keep-out areas (hazard safety pattern)
+        if (zone.type == ZoneType.restricted) {
+          canvas.save();
+          canvas.clipPath(path);
+          final bounds = path.getBounds();
+          final stripePaint = Paint()
+            ..color = zone.color.withValues(alpha: isSelected ? 0.55 : 0.35)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = (isSelected ? 2.2 : 1.6) * markerScale;
+          final step = (14.0 * markerScale).clamp(4.0, 50.0);
+          final h = bounds.height > 0 ? bounds.height : 1.0;
+          for (double d = -h; d <= bounds.width + h; d += step) {
+            canvas.drawLine(
+              Offset(bounds.left + d, bounds.bottom),
+              Offset(bounds.left + d + h, bounds.top),
+              stripePaint,
+            );
+          }
+          canvas.restore();
         }
-        canvas.restore();
+
+        // Boundary stroke (non-lane zones only)
+        final strokePaint = Paint()
+          ..color = zone.color.withValues(alpha: isSelected ? 0.95 : 0.75)
+          ..strokeWidth = (isSelected ? 2.5 : 1.5) * markerScale
+          ..style = PaintingStyle.stroke;
+        canvas.drawPath(path, strokePaint);
       }
 
-      // Boundary stroke
-      final strokePaint = Paint()
-        ..color = zone.color.withValues(alpha: isSelected ? 0.95 : 0.75)
-        ..strokeWidth = (isSelected ? 2.5 : 1.5) * markerScale
-        ..style = PaintingStyle.stroke;
-      canvas.drawPath(path, strokePaint);
-
-      // Directional centerline & guide markings for Preferred Lane
-      if (zone.type == ZoneType.preferredLane && zone.isCorridorLane) {
+      // Directional centerline & guide markings for Preferred Lane (Open-RMF Site style)
+      if (isPreferredLane && zone.isCorridorLane) {
         final cl = zone.laneCenterline;
         final clPx = cl.map((p) => _worldToPixel(grid, p.dx, p.dy)).toList();
 
         final centerLinePaint = Paint()
-          ..color = zone.color.withValues(alpha: isSelected ? 0.95 : 0.75)
-          ..strokeWidth = 2.0 * markerScale
+          ..color = const Color(0xFF10B981).withValues(alpha: isSelected ? 0.95 : 0.85) // Open-RMF Emerald Green
+          ..strokeWidth = 2.4 * markerScale
           ..style = PaintingStyle.stroke;
 
         // Draw dashed centerline along each segment
@@ -2249,7 +2317,7 @@ class _OccupancyGridPainter extends CustomPainter {
               dist += dashLen + gapLen;
             }
 
-            // Draw forward arrow head on each segment
+            // Draw Open-RMF chevron arrow head on each segment
             final arrowLen = 9.0 * markerScale;
             final norm = Offset(-dir.dy, dir.dx) * (4.5 * markerScale);
             final arrowTip = p1 + dir * (totalDist * 0.7);
@@ -2257,16 +2325,24 @@ class _OccupancyGridPainter extends CustomPainter {
             final arrowPath = Path()
               ..moveTo(arrowTip.dx, arrowTip.dy)
               ..lineTo(arrowBase.dx + norm.dx, arrowBase.dy + norm.dy)
+              ..lineTo(arrowTip.dx - dir.dx * (arrowLen * 0.6), arrowTip.dy - dir.dy * (arrowLen * 0.6))
               ..lineTo(arrowBase.dx - norm.dx, arrowBase.dy - norm.dy)
               ..close();
             canvas.drawPath(
               arrowPath,
               Paint()
-                ..color = zone.color.withValues(alpha: isSelected ? 0.95 : 0.80)
+                ..color = const Color(0xFF10B981).withValues(alpha: isSelected ? 0.95 : 0.85)
                 ..style = PaintingStyle.fill,
             );
           }
         }
+      } else if (isPreferredLane && !zone.isCorridorLane) {
+        // Preferred lane without centerline data: draw thin lane-style outline
+        final laneStrokePaint = Paint()
+          ..color = const Color(0xFF10B981).withValues(alpha: isSelected ? 0.90 : 0.70)
+          ..strokeWidth = (isSelected ? 2.2 : 1.5) * markerScale
+          ..style = PaintingStyle.stroke;
+        canvas.drawPath(path, laneStrokePaint);
       }
 
       // Centroid label badge

@@ -119,11 +119,14 @@ class EditorVertex {
 
 class EditorEdge {
   final String id;
-  final String startVertexId;
-  final String endVertexId;
+  String startVertexId;
+  String endVertexId;
   bool bidirectional;
+  double width; // in meters (default 0.4m)
   double speedLimit; // m/s
   int orientationConstraint; // 0 = none, 1 = forward, 2 = reverse
+  int graphIdx; // Open-RMF nav graph index (default 0)
+  String? orientation; // 'forward', 'backward', or null
   String? demoMockName;
 
   EditorEdge({
@@ -131,8 +134,11 @@ class EditorEdge {
     required this.startVertexId,
     required this.endVertexId,
     this.bidirectional = true,
+    this.width = 0.4,
     this.speedLimit = 0.0,
     this.orientationConstraint = 0,
+    this.graphIdx = 0,
+    this.orientation,
     this.demoMockName,
   });
 
@@ -141,8 +147,11 @@ class EditorEdge {
         'start_idx': startVertexId,
         'end_idx': endVertexId,
         'bidirectional': bidirectional,
+        'width': width,
         'speed_limit': speedLimit,
         'orientation_constraint': orientationConstraint,
+        'graph_idx': graphIdx,
+        if (orientation != null) 'orientation': orientation,
       };
 
   factory EditorEdge.fromJson(Map<String, dynamic> json) => EditorEdge(
@@ -150,8 +159,11 @@ class EditorEdge {
         startVertexId: json['start_idx'] as String? ?? json['fromId'] as String? ?? '',
         endVertexId: json['end_idx'] as String? ?? json['toId'] as String? ?? '',
         bidirectional: json['bidirectional'] != false,
+        width: (json['width'] as num?)?.toDouble() ?? 0.4,
         speedLimit: (json['speed_limit'] as num?)?.toDouble() ?? 0.0,
         orientationConstraint: json['orientation_constraint'] as int? ?? 0,
+        graphIdx: (json['graph_idx'] as num?)?.toInt() ?? 0,
+        orientation: json['orientation'] as String?,
       );
 
   EditorEdge clone() => EditorEdge(
@@ -159,16 +171,19 @@ class EditorEdge {
         startVertexId: startVertexId,
         endVertexId: endVertexId,
         bidirectional: bidirectional,
+        width: width,
         speedLimit: speedLimit,
         orientationConstraint: orientationConstraint,
+        graphIdx: graphIdx,
+        orientation: orientation,
         demoMockName: demoMockName,
       );
 }
 
 class EditorWall {
   final String id;
-  final String startVertexId;
-  final String endVertexId;
+  String startVertexId;
+  String endVertexId;
   double thickness; // in meters (default 0.15m = 15cm)
 
   EditorWall({
@@ -203,8 +218,8 @@ class EditorWall {
 class EditorDoor {
   final String id;
   String name;
-  final String startVertexId;
-  final String endVertexId;
+  String startVertexId;
+  String endVertexId;
   DoorType doorType;
   double motionTime; // in seconds
 
@@ -347,14 +362,20 @@ class RmfLevelGraph {
     buffer.writeln('  $name:');
     buffer.writeln('    vertices:');
     for (final v in vertices) {
-      buffer.writeln('      - [${v.x.toStringAsFixed(3)}, ${v.y.toStringAsFixed(3)}, 0, "${v.name}", {is_charger: ${v.isCharger}, is_parking: ${v.isParking}, is_holding_point: ${v.isHoldingPoint}}]');
+      buffer.writeln('      - [${v.x.toStringAsFixed(3)}, ${v.y.toStringAsFixed(3)}, 0, "${v.name}", {is_charger: [4, ${v.isCharger}], is_parking_spot: [4, ${v.isParking}], is_holding_point: [4, ${v.isHoldingPoint}]}]');
     }
     buffer.writeln('    lanes:');
     for (final l in lanes) {
       final startIdx = vertices.indexWhere((v) => v.id == l.startVertexId);
       final endIdx = vertices.indexWhere((v) => v.id == l.endVertexId);
       if (startIdx >= 0 && endIdx >= 0) {
-        buffer.writeln('      - [$startIdx, $endIdx, {bidirectional: ${l.bidirectional}, speed_limit: ${l.speedLimit}}]');
+        final params = <String>[
+          'bidirectional: [4, ${l.bidirectional}]',
+          'graph_idx: [2, ${l.graphIdx}]',
+          if (l.speedLimit > 0.0) 'speed_limit: [3, ${l.speedLimit}]',
+          if (l.orientation != null && l.orientation!.isNotEmpty) 'orientation: [1, "${l.orientation}"]',
+        ];
+        buffer.writeln('      - [$startIdx, $endIdx, {${params.join(', ')}}]');
       }
     }
     buffer.writeln('    walls:');
@@ -362,7 +383,7 @@ class RmfLevelGraph {
       final startIdx = vertices.indexWhere((v) => v.id == w.startVertexId);
       final endIdx = vertices.indexWhere((v) => v.id == w.endVertexId);
       if (startIdx >= 0 && endIdx >= 0) {
-        buffer.writeln('      - [$startIdx, $endIdx, {thickness: ${w.thickness}}]');
+        buffer.writeln('      - [$startIdx, $endIdx, {thickness: [3, ${w.thickness}]}]');
       }
     }
     buffer.writeln('    doors:');
@@ -370,7 +391,7 @@ class RmfLevelGraph {
       final startIdx = vertices.indexWhere((v) => v.id == d.startVertexId);
       final endIdx = vertices.indexWhere((v) => v.id == d.endVertexId);
       if (startIdx >= 0 && endIdx >= 0) {
-        buffer.writeln('      - [$startIdx, $endIdx, {type: "${d.doorType.key}", name: "${d.name}", motion_time: ${d.motionTime}}]');
+        buffer.writeln('      - [$startIdx, $endIdx, {type: [1, "${d.doorType.key}"], name: [1, "${d.name}"], motion_time: [3, ${d.motionTime}]}]');
       }
     }
     return buffer.toString();

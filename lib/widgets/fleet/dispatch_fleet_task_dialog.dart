@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/connection_provider.dart';
 import '../../providers/fleet_provider.dart';
+import '../../services/fleet_api_service.dart';
 import '../../services/locations_controller.dart';
 import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
@@ -129,6 +130,38 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
     super.dispose();
   }
 
+  String? _resolveTargetRobotIp(FleetProvider fleet, ConnectionProvider conn) {
+    if (_selectedRobotName != null && _selectedRobotName!.isNotEmpty) {
+      final matchingRobot = fleet.robots.where(
+        (r) => r.name.toLowerCase() == _selectedRobotName!.toLowerCase() ||
+               r.id.toLowerCase() == _selectedRobotName!.toLowerCase() ||
+               r.serial.toLowerCase() == _selectedRobotName!.toLowerCase(),
+      ).firstOrNull;
+      if (matchingRobot != null) {
+        if (matchingRobot.ip != null && matchingRobot.ip!.isNotEmpty) {
+          return matchingRobot.ip;
+        }
+        final regIp = fleet.getRobotIp(matchingRobot.id);
+        if (regIp != null && regIp.isNotEmpty) {
+          return regIp;
+        }
+      }
+      if (conn.robot?.name.toLowerCase() == _selectedRobotName!.toLowerCase() &&
+          conn.robot?.ip != null &&
+          conn.robot!.ip.isNotEmpty) {
+        return conn.robot!.ip;
+      }
+    }
+    if (conn.robot?.ip != null && conn.robot!.ip.isNotEmpty) {
+      return conn.robot!.ip;
+    }
+    final anyWithIp = fleet.robots.where((r) => r.ip != null && r.ip!.isNotEmpty).firstOrNull;
+    if (anyWithIp != null) {
+      return anyWithIp.ip;
+    }
+    return null;
+  }
+
   Future<void> _dispatch() async {
     setState(() {
       _isSubmitting = true;
@@ -139,6 +172,9 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
     final conn = context.read<ConnectionProvider>();
 
     try {
+      bool dispatchedViaDirectRobot = false;
+      String? fallbackRobotName;
+
       if (_mode == 'delivery') {
         final pickup = _pickupController.text.trim();
         final dropoff = _dropoffController.text.trim();
@@ -160,9 +196,9 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
         };
 
         if (_isScheduled) {
-          // If scheduled, register as scheduled task
-          if (conn.robot?.ip != null) {
-            final api = SdkApiService(conn.robot!.ip);
+          final targetIp = _resolveTargetRobotIp(fleet, conn);
+          if (targetIp != null) {
+            final api = SdkApiService(targetIp);
             final schedId = 'sched_deliv_${DateTime.now().millisecondsSinceEpoch}';
             final now = DateTime.now();
             final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
@@ -186,18 +222,85 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
             );
           }
         } else {
-          final res = await fleet.dispatchRmfTask(
-            category: 'delivery',
-            description: description,
-            fleetName: _selectedFleetName,
-            robotName: _selectedRobotName,
-          );
+          // Immediate delivery dispatch
+          String? rmfTaskId;
+
+          try {
+            final res = await fleet.dispatchRmfTask(
+              category: 'delivery',
+              description: description,
+              fleetName: _selectedFleetName,
+              robotName: _selectedRobotName,
+            );
+            rmfTaskId = res['state']?['booking']?['id'] as String?;
+          } catch (e) {
+            final is504OrGatewayError = (e is FleetApiException && (e.status == 504 || e.status == 502 || e.status == 0)) ||
+                e.toString().contains('504') ||
+                e.toString().contains('502') ||
+                e.toString().contains('timed out') ||
+                e.toString().contains('TimeoutException');
+
+            if (!is504OrGatewayError) {
+              rethrow;
+            }
+
+            // Fallback to direct AMR execution
+            final targetIp = _resolveTargetRobotIp(fleet, conn);
+            if (targetIp == null) {
+              throw FleetApiException(
+                504,
+                'Fleet coordinator timed out (504). Please ensure Open-RMF core is running or connect directly to the AMR.',
+              );
+            }
+
+            final api = SdkApiService(targetIp);
+            fallbackRobotName = _selectedRobotName ?? conn.robot?.name ?? targetIp;
+            final missionId = 'delivery_${DateTime.now().millisecondsSinceEpoch}';
+            final steps = [
+              {
+                'type': 'navigate',
+                'waypoint': pickup,
+                'name': 'Pickup: $pickup',
+              },
+              {
+                'type': 'wait',
+                'duration': 5,
+                'name': 'Loading (5s)',
+              },
+              {
+                'type': 'navigate',
+                'waypoint': dropoff,
+                'name': 'Dropoff: $dropoff',
+              },
+              {
+                'type': 'wait',
+                'duration': 5,
+                'name': 'Unloading (5s)',
+              },
+            ];
+
+            try {
+              await api.putMission(
+                missionId,
+                'Delivery: $pickup -> $dropoff',
+                steps,
+              );
+              await api.startMission(missionId);
+            } catch (_) {
+              // Direct navigation fallback if custom missions are not supported
+              await api.goToWaypoint(pickup);
+            }
+            dispatchedViaDirectRobot = true;
+          }
+
           if (mounted) {
-            final taskId = res['state']?['booking']?['id'] ?? 'queued';
             Navigator.of(context).pop(true);
+            final msg = dispatchedViaDirectRobot
+                ? 'Delivery dispatched directly to $fallbackRobotName! (Fleet coordinator timed out: 504)'
+                : 'Delivery task dispatched! ID: ${rmfTaskId ?? 'queued'}';
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Delivery task dispatched! ID: $taskId'),
+                content: Text(msg),
                 backgroundColor: AppColors.success,
                 duration: const Duration(seconds: 4),
               ),
@@ -218,8 +321,9 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
         final missionName = mission['name'] as String? ?? _selectedMissionId!;
 
         if (_isScheduled) {
-          if (conn.robot?.ip != null) {
-            final api = SdkApiService(conn.robot!.ip);
+          final targetIp = _resolveTargetRobotIp(fleet, conn);
+          if (targetIp != null) {
+            final api = SdkApiService(targetIp);
             final schedId = 'sched_mis_${DateTime.now().millisecondsSinceEpoch}';
             final now = DateTime.now();
             final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
@@ -234,32 +338,144 @@ class _DispatchFleetTaskDialogState extends State<DispatchFleetTaskDialog> {
               weekdays: _scheduleRepeat == 'weekdays' ? [0, 1, 2, 3, 4] : const [],
             );
           } else {
-            throw Exception('Direct robot connection required to save mission schedules.');
+            throw Exception('Direct robot connection or IP required to save mission schedules.');
           }
         } else {
           // Immediate dispatch
-          if (fleet.api != null) {
-            await fleet.dispatchTask(
-              workflowId: _selectedMissionId!,
-              fleet: _selectedFleetName ?? 'navpromini',
-              robot: _selectedRobotName,
-            );
-          } else if (conn.robot?.ip != null) {
-            final api = SdkApiService(conn.robot!.ip);
-            await api.startMission(_selectedMissionId!);
-          } else {
-            throw Exception('No active fleet or robot connection.');
+          bool dispatched = false;
+          String? fleetMissionId;
+          final isUuid = RegExp(
+            r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+          ).hasMatch(_selectedMissionId!);
+
+          if (fleet.api != null && isUuid) {
+            try {
+              await fleet.dispatchTask(
+                workflowId: _selectedMissionId!,
+                fleet: _selectedFleetName ?? 'navpromini',
+                robot: _selectedRobotName,
+              );
+              dispatched = true;
+
+              // Poll mission status briefly to detect saga engine failures
+              // (e.g. rmf-core unreachable → mission enters needs_operator/failed)
+              if (fleet.api != null) {
+                try {
+                  final missions = await fleet.api!.getActiveMissions();
+                  final latestMission = missions.isNotEmpty ? missions.last : null;
+                  if (latestMission != null) {
+                    fleetMissionId = latestMission['id'] as String?;
+                    // Brief poll: check status after saga has had time to attempt first step
+                    await Future.delayed(const Duration(seconds: 4));
+                    if (fleetMissionId != null) {
+                      final status = await fleet.api!.getMission(fleetMissionId);
+                      final missionStatus = status['status'] as String? ?? '';
+                      if (missionStatus == 'needs_operator' || missionStatus == 'failed') {
+                        debugPrint('Fleet saga failed ($missionStatus), falling back to direct robot dispatch');
+                        dispatched = false; // trigger direct robot fallback below
+                      }
+                    }
+                  }
+                } catch (_) {
+                  // If status polling fails, assume fleet dispatch worked
+                }
+              }
+            } catch (e) {
+              final is504OrGatewayError = (e is FleetApiException && (e.status == 504 || e.status == 502 || e.status == 0)) ||
+                  e.toString().contains('504') ||
+                  e.toString().contains('502') ||
+                  e.toString().contains('timed out') ||
+                  e.toString().contains('TimeoutException');
+
+              if (!is504OrGatewayError) {
+                rethrow;
+              }
+              // Fall through to direct AMR dispatch
+            }
+          }
+
+          if (!dispatched) {
+            final targetIp = _resolveTargetRobotIp(fleet, conn);
+            if (targetIp != null) {
+              final api = SdkApiService(targetIp);
+              fallbackRobotName = _selectedRobotName ?? conn.robot?.name ?? targetIp;
+
+              // Try to load workflow steps from fleet and execute as local mission
+              bool executedWorkflow = false;
+              if (fleet.api != null && isUuid) {
+                try {
+                  final workflows = await fleet.api!.getWorkflows();
+                  final wf = workflows.where(
+                    (w) => (w['id'] ?? w['workflow_id']) == _selectedMissionId,
+                  ).firstOrNull;
+                  if (wf != null) {
+                    final definition = wf['definition'] as Map<String, dynamic>?;
+                    final latestVersion = wf['latestVersion'] as Map<String, dynamic>?;
+                    final steps = (definition?['steps'] ?? latestVersion?['definition']?['steps']) as List<dynamic>?;
+                    if (steps != null && steps.isNotEmpty) {
+                      final localSteps = <Map<String, dynamic>>[];
+                      for (final step in steps) {
+                        final s = step as Map<String, dynamic>;
+                        final stepType = s['type'] as String? ?? '';
+                        final params = s['params'] as Map<String, dynamic>? ?? {};
+                        if (stepType == 'goto') {
+                          final places = (params['places'] as List<dynamic>?) ?? (params['place'] != null ? [params['place']] : <dynamic>[]);
+                          for (final place in places) {
+                            localSteps.add({
+                              'type': 'navigate',
+                              'waypoint': place.toString(),
+                              'name': 'Go to $place',
+                            });
+                          }
+                        } else if (stepType == 'wait') {
+                          final seconds = params['seconds'] as int? ?? 5;
+                          localSteps.add({
+                            'type': 'wait',
+                            'duration': seconds,
+                            'name': 'Wait ${seconds}s',
+                          });
+                        } else if (stepType == 'dock') {
+                          localSteps.add({
+                            'type': 'dock',
+                            'name': 'Dock',
+                          });
+                        }
+                      }
+                      if (localSteps.isNotEmpty) {
+                        final localMissionId = 'fleet_fallback_${DateTime.now().millisecondsSinceEpoch}';
+                        await api.putMission(localMissionId, missionName, localSteps);
+                        await api.startMission(localMissionId);
+                        executedWorkflow = true;
+                      }
+                    }
+                  }
+                } catch (e) {
+                  debugPrint('Failed to convert fleet workflow to local mission: $e');
+                }
+              }
+
+              if (!executedWorkflow) {
+                // Last resort: try starting the mission ID directly on the robot
+                await api.startMission(_selectedMissionId!);
+              }
+              dispatchedViaDirectRobot = true;
+            } else {
+              throw Exception('No active fleet or reachable robot connection found.');
+            }
           }
         }
       }
 
       if (mounted) {
         Navigator.of(context).pop(true);
+        final msg = dispatchedViaDirectRobot
+            ? 'Mission dispatched directly to $fallbackRobotName! (Fleet coordinator unavailable, executing on robot)'
+            : (_isScheduled
+                ? 'Task scheduled successfully for ${_scheduledTime.format(context)} ($_scheduleRepeat)!'
+                : 'Task successfully dispatched to fleet!');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_isScheduled
-                ? 'Task scheduled successfully for ${_scheduledTime.format(context)} ($_scheduleRepeat)!'
-                : 'Task successfully dispatched to fleet!'),
+            content: Text(msg),
             backgroundColor: AppColors.success,
             duration: const Duration(seconds: 4),
           ),

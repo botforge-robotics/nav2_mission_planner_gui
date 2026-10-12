@@ -215,7 +215,7 @@ class MapZone {
   factory MapZone.createPolylineLane({
     required String map,
     required List<Offset> centerline,
-    double width = 1.2,
+    double width = 0.4,
     String? name,
   }) {
     final buffered = bufferPolyline(centerline, width);
@@ -235,7 +235,7 @@ class MapZone {
     required String map,
     required Offset start,
     required Offset end,
-    double width = 1.2,
+    double width = 0.4,
     String? name,
   }) {
     return MapZone.createPolylineLane(
@@ -247,12 +247,12 @@ class MapZone {
   }
 
   /// Creates a Preferred Lane centered at [center], aligned with [heading] (in radians),
-  /// with specified [length] (default 4.0m) and [width] (default 1.2m).
+  /// with specified [length] (default 4.0m) and [width] (default 0.4m).
   factory MapZone.createDefaultLane({
     required String map,
     required Offset center,
     double length = 4.0,
-    double width = 1.2,
+    double width = 0.4,
     double heading = 0.0,
     String? name,
   }) {

@@ -64,9 +64,26 @@ class FleetRobotInfo {
       x: (json['pose']?['x'] as num?)?.toDouble() ?? (json['x'] as num?)?.toDouble(),
       y: (json['pose']?['y'] as num?)?.toDouble() ?? (json['y'] as num?)?.toDouble(),
       yaw: (json['pose']?['yaw'] as num?)?.toDouble() ?? (json['yaw'] as num?)?.toDouble(),
-      ip: json['ip'] as String?,
+      ip: _extractIp(json['ip'], json['serial']),
       lastSeen: json['lastSeen'] != null ? DateTime.tryParse(json['lastSeen'].toString()) : null,
     );
+  }
+
+  static String? _extractIp(dynamic rawIp, dynamic serial) {
+    if (rawIp != null && rawIp.toString().trim().isNotEmpty) {
+      return rawIp.toString().trim();
+    }
+    if (serial != null && serial is String) {
+      final matchUnderscores = RegExp(r'(\d{1,3})_(\d{1,3})_(\d{1,3})_(\d{1,3})').firstMatch(serial);
+      if (matchUnderscores != null) {
+        return '${matchUnderscores.group(1)}.${matchUnderscores.group(2)}.${matchUnderscores.group(3)}.${matchUnderscores.group(4)}';
+      }
+      final matchDots = RegExp(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})').firstMatch(serial);
+      if (matchDots != null) {
+        return matchDots.group(1);
+      }
+    }
+    return null;
   }
 
   bool get isPending => status == 'pending';

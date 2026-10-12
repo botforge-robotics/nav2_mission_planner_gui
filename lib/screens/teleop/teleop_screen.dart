@@ -431,22 +431,64 @@ class _TeleopScreenState extends State<TeleopScreen> {
       if (LocationsController.instance.value == null || LocationsController.instance.value!.isEmpty) {
         try {
           final graph = await fleet.api!.getBuildingGraph();
-          final waypoints = List<Map<String, dynamic>>.from(graph['waypoints'] as List? ?? []);
-          if (waypoints.isNotEmpty) {
-            final locs = waypoints.map((w) {
-              final isCharger = w['is_charger'] == true || (w['name'] as String? ?? '').toLowerCase().contains('dock');
-              final isParking = w['is_parking'] == true || (w['name'] as String? ?? '').toLowerCase().contains('park');
-              return {
-                'name': w['name'] as String? ?? (w['id'] as String? ?? 'wp'),
+          final rawWaypoints = List<Map<String, dynamic>>.from(graph['waypoints'] as List? ?? []);
+          final lanes = List<Map<String, dynamic>>.from(graph['lanes'] as List? ?? []);
+          final walls = List<Map<String, dynamic>>.from(graph['walls'] as List? ?? []);
+          final doors = List<Map<String, dynamic>>.from(graph['doors'] as List? ?? []);
+
+          final laneVertexIds = lanes
+              .expand((l) => [l['start_idx'] ?? l['fromId'], l['end_idx'] ?? l['toId']])
+              .toSet();
+          final wallVertexIds = walls
+              .expand((w) => [w['start_idx'], w['end_idx']])
+              .toSet();
+          final doorVertexIds = doors
+              .expand((d) => [d['start_idx'], d['end_idx']])
+              .toSet();
+          final structuralVertexIds = {...wallVertexIds, ...doorVertexIds};
+
+          if (rawWaypoints.isNotEmpty) {
+            final locs = <Map<String, dynamic>>[];
+            for (final w in rawWaypoints) {
+              final id = w['id'] as String? ?? '';
+              final name = w['name'] as String? ?? (id.isNotEmpty ? id : 'wp');
+              final isCharger = w['is_charger'] == true ||
+                  w['isCharger'] == true ||
+                  name.toLowerCase().contains('dock');
+              final isParking = w['is_parking'] == true ||
+                  w['isParking'] == true ||
+                  name.toLowerCase().contains('park');
+              final isHolding = w['is_holding_point'] == true ||
+                  w['isHoldingPoint'] == true;
+
+              final isStructural = structuralVertexIds.contains(id) ||
+                  name.toLowerCase().startsWith('wall') ||
+                  name.toLowerCase().startsWith('door') ||
+                  id.startsWith('wall_v_') ||
+                  id.startsWith('door_v_');
+
+              final isNavWaypoint = isCharger ||
+                  isParking ||
+                  isHolding ||
+                  laneVertexIds.contains(id) ||
+                  (!isStructural && name.isNotEmpty);
+
+              if (!isNavWaypoint) continue;
+
+              locs.add({
+                'name': name,
                 'x': (w['x'] as num?)?.toDouble() ?? 0.0,
                 'y': (w['y'] as num?)?.toDouble() ?? 0.0,
                 'theta': (w['yaw'] as num?)?.toDouble() ?? 0.0,
-                'type': isCharger ? 'charger' : (isParking ? 'parking' : 'waypoint'),
+                'type': isCharger ? 'charger' : (isParking ? 'parking' : (isHolding ? 'holding' : 'waypoint')),
                 'isCharger': isCharger,
                 'isParking': isParking,
-              };
-            }).toList();
-            LocationsController.instance.value = locs;
+                'isHolding': isHolding,
+              });
+            }
+            if (locs.isNotEmpty) {
+              LocationsController.instance.value = locs;
+            }
           }
         } catch (_) {}
       }

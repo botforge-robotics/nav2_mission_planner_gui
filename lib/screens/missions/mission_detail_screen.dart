@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../services/sdk_api_service.dart';
+import '../../services/zones_controller.dart';
 import '../../theme/app_motion.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
@@ -894,14 +895,19 @@ class _RouteMapCard extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: SizedBox(
             height: 180,
-            child: OccupancyGridView(
-              ros2: ros2,
-              interactive: false,
-              initialPose: telemetry.rawPose,
-              initialPath: telemetry.currentPath,
-              locations: pins,
-              showWaypointRoute: true,
-              fitWholeMap: true,
+            child: ValueListenableBuilder(
+              valueListenable: ZonesController.instance,
+              builder: (context, zones, _) => OccupancyGridView(
+                ros2: ros2,
+                interactive: false,
+                initialPose: telemetry.rawPose,
+                initialPath: telemetry.currentPath,
+                locations: pins,
+                zones: zones,
+                showZones: true,
+                showWaypointRoute: true,
+                fitWholeMap: true,
+              ),
             ),
           ),
         ),

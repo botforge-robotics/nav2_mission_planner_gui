@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/fleet_provider.dart';
 import '../../services/robot_discovery_service.dart';
+import '../../services/wifi_join_service.dart';
+import '../../services/provisioning_service.dart';
 
 class AddFleetRobotDialog extends StatefulWidget {
   const AddFleetRobotDialog({super.key});
@@ -22,8 +24,9 @@ class AddFleetRobotDialog extends StatefulWidget {
 class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
   final _formKey = GlobalKey<FormState>();
   final _discoveryService = RobotDiscoveryService();
+  final _wifiJoinService = WifiJoinService();
 
-  // Mode: 0 = Discovery / Scan, 1 = Commissioning Form, 2 = Manual Setup
+  // Mode: 0 = Discovery / Scan, 1 = Commissioning Form, 2 = AP Hotspot Setup
   int _currentStep = 0;
 
   // Discovered robots list
@@ -47,6 +50,18 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
   bool _isSubmitting = false;
   String? _errorMessage;
 
+  // AP mode setup state & controllers
+  final _apRobotNameController = TextEditingController();
+  final _apHotspotSsidController = TextEditingController();
+  final _siteWifiSsidController = TextEditingController();
+  final _siteWifiPasswordController = TextEditingController();
+  List<String> _scannedApHotspots = [];
+  bool _isScanningHotspots = false;
+  bool _isJoiningHotspot = false;
+  String? _joinedHotspotSsid;
+  bool _isConfiguringAp = false;
+  String? _apSetupError;
+
   @override
   void initState() {
     super.initState();
@@ -61,13 +76,6 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
     _startNetworkScan();
   }
 
-  // AP mode setup controllers
-  final _apHotspotSsidController = TextEditingController();
-  final _siteWifiSsidController = TextEditingController();
-  final _siteWifiPasswordController = TextEditingController();
-  bool _isConfiguringAp = false;
-  String? _apSetupError;
-
   @override
   void dispose() {
     _scanSubscription?.cancel();
@@ -75,14 +83,79 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
     _nameController.dispose();
     _serialController.dispose();
     _dockController.dispose();
+    _apRobotNameController.dispose();
     _apHotspotSsidController.dispose();
     _siteWifiSsidController.dispose();
     _siteWifiPasswordController.dispose();
     super.dispose();
   }
 
+  Future<void> _scanForApHotspots() async {
+    setState(() {
+      _isScanningHotspots = true;
+      _apSetupError = null;
+    });
+    try {
+      final hotspots = await _wifiJoinService.scanForSetupHotspots();
+      if (!mounted) return;
+      setState(() {
+        _scannedApHotspots = hotspots;
+        _isScanningHotspots = false;
+        if (hotspots.isNotEmpty && _apHotspotSsidController.text.isEmpty) {
+          _apHotspotSsidController.text = hotspots.first;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isScanningHotspots = false;
+        _apSetupError = 'Hotspot scan failed: $e';
+      });
+    }
+  }
+
+  Future<void> _connectToApHotspot(String ssid) async {
+    setState(() {
+      _isJoiningHotspot = true;
+      _apSetupError = null;
+    });
+    try {
+      final ok = await _wifiJoinService.connectToHotspot(ssid);
+      if (!mounted) return;
+      if (ok) {
+        setState(() {
+          _isJoiningHotspot = false;
+          _joinedHotspotSsid = ssid;
+          _apHotspotSsidController.text = ssid;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Connected to robot setup hotspot "$ssid" (10.42.0.1)'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        setState(() {
+          _isJoiningHotspot = false;
+          _apSetupError = 'Failed to connect to "$ssid". Please join Wi-Fi manually.';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isJoiningHotspot = false;
+        _apSetupError = 'Error connecting to hotspot: $e';
+      });
+    }
+  }
+
   Future<void> _submitApConfiguration() async {
     final wifiSsid = _siteWifiSsidController.text.trim();
+    final wifiPass = _siteWifiPasswordController.text;
+    final robotName = _apRobotNameController.text.trim().isNotEmpty
+        ? _apRobotNameController.text.trim()
+        : 'NavPro Mini ${(context.read<FleetProvider>().robots.length + 1)}';
 
     if (wifiSsid.isEmpty) {
       setState(() => _apSetupError = 'Please enter site Wi-Fi SSID');
@@ -95,22 +168,32 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
     });
 
     try {
-      // Connect to the robot AP portal at standard gateway 10.42.0.1:8090
+      // 1. Submit credentials to the robot's captive provision portal at 10.42.0.1
+      try {
+        final prov = ProvisioningService();
+        await prov.submit(
+          wifiSsid: wifiSsid,
+          wifiPassword: wifiPass,
+          robotName: robotName,
+        );
+      } catch (_) {}
+
+      // 2. Connect to the robot AP portal at standard gateway 10.42.0.1:8090
       final discovery = RobotDiscoveryService();
-      // Submit credentials via provisioning service
       final res = await discovery.probe('10.42.0.1');
+
+      // Carry robot name to commissioning step
+      _nameController.text = robotName;
       if (res != null) {
-        setState(() {
-          _isConfiguringAp = false;
-          _currentStep = 0; // Return to discovery to pick up the newly joined AMR
-        });
-        _startNetworkScan();
-      } else {
-        setState(() {
-          _isConfiguringAp = false;
-          _apSetupError = 'Cannot reach robot portal at 10.42.0.1. Please connect device Wi-Fi to "NavPro-Setup-XXXXXX" first.';
-        });
+        _robotIp = res.ip;
+        if (res.serial.isNotEmpty) {
+          _serialController.text = res.serial;
+        }
       }
+      setState(() {
+        _isConfiguringAp = false;
+        _currentStep = 1; // Transition directly to commissioning with robot name prefilled!
+      });
     } catch (e) {
       setState(() {
         _isConfiguringAp = false;
@@ -260,12 +343,12 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: const [
-              Icon(Icons.info_outline, color: Colors.blue, size: 20),
+              Icon(Icons.wifi_tethering_rounded, color: Colors.blue, size: 20),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '1. Connect your device Wi-Fi to the robot\'s hotspot (e.g. "NavPro-Setup-XXXXXX").\n'
-                  '2. Enter your facility / site Wi-Fi details below to commission the robot onto the fleet network.',
+                  '1. Scan or select the robot\'s "NavPro-Setup-XXXXXX" AP hotspot and connect.\n'
+                  '2. Enter Robot Display Name and your Facility Wi-Fi details below to connect the robot to the fleet.',
                   style: TextStyle(fontSize: 12, color: Colors.blueGrey, height: 1.4),
                 ),
               ),
@@ -292,6 +375,74 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
               ],
             ),
           ),
+
+        // 1. Scan for NavPro-Setup Hotspots
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                if (_isScanningHotspots)
+                  const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                else
+                  const Icon(Icons.wifi_find_rounded, size: 16, color: Colors.blue),
+                const SizedBox(width: 8),
+                const Text('Available Setup Hotspots', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ],
+            ),
+            TextButton.icon(
+              onPressed: _isScanningHotspots ? null : _scanForApHotspots,
+              icon: const Icon(Icons.refresh_rounded, size: 14),
+              label: const Text('Scan APs', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        if (_scannedApHotspots.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              children: _scannedApHotspots.map((ssid) {
+                final isConnected = _joinedHotspotSsid == ssid;
+                return ListTile(
+                  dense: true,
+                  leading: Icon(
+                    Icons.wifi_rounded,
+                    color: isConnected ? Colors.green : Colors.blueGrey,
+                    size: 20,
+                  ),
+                  title: Text(ssid, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  subtitle: Text(isConnected ? 'Connected to 10.42.0.1' : 'Robot Access Point', style: const TextStyle(fontSize: 10)),
+                  trailing: ElevatedButton(
+                    onPressed: _isJoiningHotspot ? null : () => _connectToApHotspot(ssid),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isConnected ? Colors.green : Colors.blue,
+                      foregroundColor: Colors.white,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    child: Text(isConnected ? 'Connected' : 'Connect', style: const TextStyle(fontSize: 11)),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+        // Robot Display Name field
+        TextField(
+          controller: _apRobotNameController,
+          decoration: const InputDecoration(
+            labelText: 'Robot Display Name *',
+            hintText: 'e.g. NavPro Mini 01',
+            prefixIcon: Icon(Icons.badge_outlined),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Facility Wi-Fi details
         TextField(
           controller: _siteWifiSsidController,
           decoration: const InputDecoration(
@@ -305,12 +456,12 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
           controller: _siteWifiPasswordController,
           obscureText: true,
           decoration: const InputDecoration(
-            labelText: 'Wi-Fi Password',
+            labelText: 'Facility Wi-Fi Password',
             hintText: 'Facility WPA2/WPA3 password',
             prefixIcon: Icon(Icons.lock_outline),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         const Text(
           'Target AP Gateway: 10.42.0.1:8090 (native provision portal)',
           style: TextStyle(fontSize: 11, color: Colors.grey),
@@ -410,30 +561,28 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
         ),
         const SizedBox(height: 16),
 
-        // 1. Currently Connected Robot (Direct mode)
+        // 1. Currently Connected Robot (Direct mode) - only if NOT already commissioned
         if (connectedRobot != null) ...[
           () {
             final isAlreadyCommissioned = fleet.robots.any(
               (r) => (fleet.getRobotIp(r.id) == connectedRobot.ip) ||
                      (r.name.toLowerCase() == connectedRobot.name.toLowerCase()),
             );
+            if (isAlreadyCommissioned) {
+              return const SizedBox.shrink();
+            }
             return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isAlreadyCommissioned ? Colors.blue.shade50 : Colors.green.shade50,
+                color: Colors.green.shade50,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: isAlreadyCommissioned ? Colors.blue.shade300 : Colors.green.shade300,
-                ),
+                border: Border.all(color: Colors.green.shade300),
               ),
               child: Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: isAlreadyCommissioned ? Colors.blue.shade100 : Colors.green.shade100,
-                    child: Icon(
-                      isAlreadyCommissioned ? Icons.check_circle_rounded : Icons.link_rounded,
-                      color: isAlreadyCommissioned ? Colors.blue : Colors.green,
-                    ),
+                    backgroundColor: Colors.green.shade100,
+                    child: const Icon(Icons.link_rounded, color: Colors.green),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -450,15 +599,15 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                               decoration: BoxDecoration(
-                                color: isAlreadyCommissioned ? Colors.blue.shade200 : Colors.green.shade200,
+                                color: Colors.green.shade200,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                isAlreadyCommissioned ? 'COMMISSIONED IN FLEET' : 'CONNECTED TO APP',
+                                'CONNECTED TO APP',
                                 style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
-                                  color: isAlreadyCommissioned ? Colors.blue.shade900 : Colors.green.shade900,
+                                  color: Colors.green.shade900,
                                 ),
                               ),
                             ),
@@ -475,7 +624,7 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
                       null,
                     ),
                     style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
-                    child: Text(isAlreadyCommissioned ? 'Edit Settings' : 'Link This AMR'),
+                    child: const Text('Link This AMR'),
                   ),
                 ],
               ),
@@ -514,83 +663,86 @@ class _AddFleetRobotDialogState extends State<AddFleetRobotDialog> {
         ),
         const SizedBox(height: 8),
 
-        // Discovered list
-        if (_discoveredRobots.isEmpty && !_isScanning)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: const Center(
-              child: Text(
-                'No AMR robots discovered automatically.\nMake sure the robot is powered on and connected to the same Wi-Fi.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ),
-          )
-        else
-          ..._discoveredRobots.map((robot) {
-            final isAlreadyCommissioned = fleet.robots.any(
+        // Discovered list (filtering out already commissioned robots)
+        () {
+          final uncommissionedDiscovered = _discoveredRobots.where((robot) {
+            return !fleet.robots.any(
               (r) => (r.serial.isNotEmpty && r.serial == robot.serial) ||
                      (fleet.getRobotIp(r.id) == robot.ip),
             );
+          }).toList();
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: BorderSide(color: Colors.grey.shade200),
+          if (uncommissionedDiscovered.isEmpty && !_isScanning) {
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade200),
               ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: isAlreadyCommissioned ? Colors.green.shade50 : Colors.blue.shade50,
-                  child: Icon(
-                    Icons.smart_toy_rounded,
-                    color: isAlreadyCommissioned ? Colors.green : Colors.blue,
-                    size: 20,
-                  ),
-                ),
-                title: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        robot.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: isAlreadyCommissioned ? Colors.green.shade100 : Colors.amber.shade100,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        isAlreadyCommissioned ? 'COMMISSIONED' : 'READY TO COMMISSION',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          color: isAlreadyCommissioned ? Colors.green.shade800 : Colors.amber.shade900,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                subtitle: Text('IP: ${robot.ip} • Serial: ${robot.serial}', style: const TextStyle(fontSize: 11)),
-                trailing: ElevatedButton(
-                  onPressed: () => _selectRobotForCommissioning(robot),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isAlreadyCommissioned ? Colors.grey.shade700 : Colors.blue,
-                    foregroundColor: Colors.white,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  child: Text(isAlreadyCommissioned ? 'Update' : 'Link', style: const TextStyle(fontSize: 12)),
+              child: const Center(
+                child: Text(
+                  'No uncommissioned AMR robots discovered.\nAll discovered robots are already commissioned in the fleet.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ),
             );
-          }),
+          }
+
+          return Column(
+            children: uncommissionedDiscovered.map((robot) {
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.blue.shade50,
+                    child: const Icon(Icons.smart_toy_rounded, color: Colors.blue, size: 20),
+                  ),
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          robot.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade100,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'READY TO COMMISSION',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber.shade900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  subtitle: Text('IP: ${robot.ip} • Serial: ${robot.serial}', style: const TextStyle(fontSize: 11)),
+                  trailing: ElevatedButton(
+                    onPressed: () => _selectRobotForCommissioning(robot),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    child: const Text('Link', style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+              );
+            }).toList(),
+          );
+        }(),
 
         const Divider(height: 24),
 

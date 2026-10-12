@@ -8,8 +8,10 @@ import 'package:uuid/uuid.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/fleet_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
+import '../../models/map_zone.dart';
 import '../../services/locations_controller.dart';
 import '../../services/sdk_api_service.dart';
+import '../../services/zones_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../../utils/localize_at_dock.dart';
@@ -1579,17 +1581,22 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                         Positioned.fill(
                           child: ros2 == null
                               ? const Center(child: Text('Not connected.'))
-                              : OccupancyGridView(
-                                  ros2: ros2,
-                                  interactive: true,
-                                  initialPose: telemetry.rawPose,
-                                  initialPath: telemetry.currentPath,
-                                  locations: routePins,
-                                  showWaypointRoute: true,
-                                  fitWholeMap: false,
-                                  showRobot: true,
-                                  showDock: true,
-                                  showPath: true,
+                              : ValueListenableBuilder<List<MapZone>>(
+                                  valueListenable: ZonesController.instance,
+                                  builder: (context, zones, _) => OccupancyGridView(
+                                    ros2: ros2,
+                                    interactive: true,
+                                    initialPose: telemetry.rawPose,
+                                    initialPath: telemetry.currentPath,
+                                    locations: routePins,
+                                    zones: zones,
+                                    showZones: true,
+                                    showWaypointRoute: true,
+                                    fitWholeMap: false,
+                                    showRobot: true,
+                                    showDock: true,
+                                    showPath: true,
+                                  ),
                                 ),
                         ),
                         Positioned(
@@ -2175,14 +2182,19 @@ class _RouteMapCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: SizedBox(
           height: 180,
-          child: OccupancyGridView(
-            ros2: ros2,
-            interactive: false,
-            initialPose: telemetry.rawPose,
-            initialPath: telemetry.currentPath,
-            locations: pins,
-            showWaypointRoute: true,
-            fitWholeMap: true,
+          child: ValueListenableBuilder<List<MapZone>>(
+            valueListenable: ZonesController.instance,
+            builder: (context, zones, _) => OccupancyGridView(
+              ros2: ros2,
+              interactive: false,
+              initialPose: telemetry.rawPose,
+              initialPath: telemetry.currentPath,
+              locations: pins,
+              zones: zones,
+              showZones: true,
+              showWaypointRoute: true,
+              fitWholeMap: true,
+            ),
           ),
         ),
       ),

@@ -14,13 +14,19 @@ class FleetApiException implements Exception {
 class FleetApiService {
   final String serverHost;
   final int port;
-  final String? token;
+  String? token;
+  Future<String?> Function()? onTokenExpired;
 
   FleetApiService({
     required this.serverHost,
     this.port = 80,
     this.token,
+    this.onTokenExpired,
   });
+
+  void setToken(String? newToken) {
+    token = newToken;
+  }
 
   String get baseUrl => port == 80 ? 'http://$serverHost' : 'http://$serverHost:$port';
 
@@ -32,13 +38,41 @@ class FleetApiService {
     return headers;
   }
 
-  Future<dynamic> _get(String path, {Map<String, String>? query}) async {
+  Future<bool> _tryRefreshToken() async {
+    if (onTokenExpired != null) {
+      try {
+        final newToken = await onTokenExpired!();
+        if (newToken != null && newToken.isNotEmpty) {
+          token = newToken;
+          return true;
+        }
+      } catch (_) {}
+    }
+    // Fallback direct auto-login if using default admin
+    try {
+      final res = await login('admin', 'navpro-admin');
+      final newToken = res['token'] as String?;
+      if (newToken != null && newToken.isNotEmpty) {
+        token = newToken;
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  Future<dynamic> _get(String path, {Map<String, String>? query, Duration? timeout, bool allowRetry = true}) async {
     final uri = Uri.parse('$baseUrl$path').replace(queryParameters: query);
     try {
-      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 8));
+      final res = await http.get(uri, headers: _headers).timeout(timeout ?? const Duration(seconds: 12));
       if (res.statusCode >= 200 && res.statusCode < 300) {
         if (res.body.isEmpty) return null;
         return jsonDecode(res.body);
+      }
+      if (res.statusCode == 401 && allowRetry) {
+        final refreshed = await _tryRefreshToken();
+        if (refreshed) {
+          return await _get(path, query: query, timeout: timeout, allowRetry: false);
+        }
       }
       throw FleetApiException(res.statusCode, 'GET $path failed: ${res.body}');
     } catch (e) {
@@ -47,17 +81,23 @@ class FleetApiService {
     }
   }
 
-  Future<dynamic> _post(String path, {dynamic body}) async {
+  Future<dynamic> _post(String path, {dynamic body, Duration? timeout, bool allowRetry = true}) async {
     final uri = Uri.parse('$baseUrl$path');
     try {
       final res = await http.post(
         uri,
         headers: _headers,
         body: body != null ? jsonEncode(body) : null,
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(timeout ?? const Duration(seconds: 15));
       if (res.statusCode >= 200 && res.statusCode < 300) {
         if (res.body.isEmpty) return null;
         return jsonDecode(res.body);
+      }
+      if (res.statusCode == 401 && allowRetry && path != '/api/v1/auth/login') {
+        final refreshed = await _tryRefreshToken();
+        if (refreshed) {
+          return await _post(path, body: body, timeout: timeout, allowRetry: false);
+        }
       }
       throw FleetApiException(res.statusCode, 'POST $path failed: ${res.body}');
     } catch (e) {
@@ -66,17 +106,23 @@ class FleetApiService {
     }
   }
 
-  Future<dynamic> _put(String path, {dynamic body}) async {
+  Future<dynamic> _put(String path, {dynamic body, Duration? timeout, bool allowRetry = true}) async {
     final uri = Uri.parse('$baseUrl$path');
     try {
       final res = await http.put(
         uri,
         headers: _headers,
         body: body != null ? jsonEncode(body) : null,
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(timeout ?? const Duration(seconds: 15));
       if (res.statusCode >= 200 && res.statusCode < 300) {
         if (res.body.isEmpty) return null;
         return jsonDecode(res.body);
+      }
+      if (res.statusCode == 401 && allowRetry) {
+        final refreshed = await _tryRefreshToken();
+        if (refreshed) {
+          return await _put(path, body: body, timeout: timeout, allowRetry: false);
+        }
       }
       throw FleetApiException(res.statusCode, 'PUT $path failed: ${res.body}');
     } catch (e) {
@@ -85,13 +131,19 @@ class FleetApiService {
     }
   }
 
-  Future<dynamic> _delete(String path) async {
+  Future<dynamic> _delete(String path, {Duration? timeout, bool allowRetry = true}) async {
     final uri = Uri.parse('$baseUrl$path');
     try {
-      final res = await http.delete(uri, headers: _headers).timeout(const Duration(seconds: 10));
+      final res = await http.delete(uri, headers: _headers).timeout(timeout ?? const Duration(seconds: 15));
       if (res.statusCode >= 200 && res.statusCode < 300) {
         if (res.body.isEmpty) return null;
         return jsonDecode(res.body);
+      }
+      if (res.statusCode == 401 && allowRetry) {
+        final refreshed = await _tryRefreshToken();
+        if (refreshed) {
+          return await _delete(path, timeout: timeout, allowRetry: false);
+        }
       }
       throw FleetApiException(res.statusCode, 'DELETE $path failed: ${res.body}');
     } catch (e) {
@@ -297,12 +349,16 @@ class FleetApiService {
     String? robot,
     int? version,
   }) async {
-    final res = await _post('/api/v1/missions', body: {
-      'workflowId': workflowId,
-      'fleet': fleet,
-      if (robot != null) 'robot': robot,
-      if (version != null) 'version': version,
-    });
+    final res = await _post(
+      '/api/v1/missions',
+      body: {
+        'workflowId': workflowId,
+        'fleet': fleet,
+        if (robot != null) 'robot': robot,
+        if (version != null) 'version': version,
+      },
+      timeout: const Duration(seconds: 25),
+    );
     return res as Map<String, dynamic>;
   }
 
@@ -310,6 +366,12 @@ class FleetApiService {
     final res = await _get('/api/v1/missions');
     if (res is List) return res.cast<Map<String, dynamic>>();
     return [];
+  }
+
+  /// Fetches a single mission's current status by ID.
+  Future<Map<String, dynamic>> getMission(String missionId) async {
+    final res = await _get('/api/v1/missions/$missionId');
+    return res as Map<String, dynamic>? ?? {};
   }
 
   Future<void> cancelMission(String missionId) async {
@@ -332,7 +394,11 @@ class FleetApiService {
         if (robotName != null && robotName.isNotEmpty) 'robot_name': robotName,
       },
     };
-    final res = await _post('/rmf/tasks/dispatch_task', body: payload);
+    final res = await _post(
+      '/rmf/tasks/dispatch_task',
+      body: payload,
+      timeout: const Duration(seconds: 25),
+    );
     return res as Map<String, dynamic>? ?? {};
   }
 

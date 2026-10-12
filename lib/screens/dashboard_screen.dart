@@ -1631,6 +1631,7 @@ class _MapPreviewCard extends StatefulWidget {
 class _MapPreviewCardState extends State<_MapPreviewCard> {
   ({double x, double y, double theta})? _dockPose;
   bool _gridLoaded = false;
+  bool _enableInteractions = false;
 
   @override
   void initState() {
@@ -1744,7 +1745,19 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                         ),
                       ),
                     ],
-                    const Spacer(),
+                    if (widget.interactive)
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: _enableInteractions
+                            ? 'Map zoom/pan unlocked (wheel zooms map). Click to lock.'
+                            : 'Map zoom/pan locked (wheel scrolls page). Click to interact with map.',
+                        icon: Icon(
+                          _enableInteractions ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                          size: 18,
+                          color: _enableInteractions ? AppColors.accent : AppColors.textTertiary,
+                        ),
+                        onPressed: () => setState(() => _enableInteractions = !_enableInteractions),
+                      ),
                     if (isCurrentlyMapping)
                       TextButton(
                         onPressed: () => Navigator.of(context).push(
@@ -1815,7 +1828,7 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                                   builder: (context, visibleLayers, _) =>
                                       OccupancyGridView(
                                     ros2: widget.ros2,
-                                    interactive: widget.interactive,
+                                    interactive: widget.interactive && _enableInteractions,
                                     isMapping: isCurrentlyMapping,
                                     showDock: visibleLayers
                                         .contains(MapLayer.dock),

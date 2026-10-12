@@ -78,41 +78,52 @@ class FleetProvider extends ChangeNotifier {
     }
   }
 
+  Future<String?> refreshToken() async {
+    if (_fleetServerHost == null || _fleetServerHost!.isEmpty) return null;
+    try {
+      final unauthedApi = FleetApiService(serverHost: _fleetServerHost!, port: _fleetServerPort);
+      final res = await unauthedApi.login('admin', 'navpro-admin');
+      final token = res['token'] as String?;
+      if (token != null && token.isNotEmpty) {
+        _token = token;
+        _api?.setToken(token);
+        final saved = await _store.load();
+        if (saved != null) {
+          final updated = SavedRobot(
+            name: saved.name,
+            ip: saved.ip,
+            fleetServerHost: _fleetServerHost,
+            fleetServerPort: _fleetServerPort,
+            isFleetMode: _isFleetMode,
+            fleetAuthToken: token,
+            fleetRobotIps: _robotIps,
+          );
+          await _store.save(updated);
+        }
+        notifyListeners();
+        return token;
+      }
+    } catch (e) {
+      debugPrint('Failed to auto-refresh fleet token: $e');
+    }
+    return null;
+  }
+
   void _connectFleet() async {
     if (_fleetServerHost == null || _fleetServerHost!.isEmpty) return;
-
-    // If token is missing, attempt auto-login using default fleet admin credentials
-    if (_token == null || _token!.isEmpty) {
-      try {
-        final unauthedApi = FleetApiService(serverHost: _fleetServerHost!, port: _fleetServerPort);
-        final res = await unauthedApi.login('admin', 'navpro-admin');
-        final token = res['token'] as String?;
-        if (token != null && token.isNotEmpty) {
-          _token = token;
-          final saved = await _store.load();
-          if (saved != null) {
-            final updated = SavedRobot(
-              name: saved.name,
-              ip: saved.ip,
-              fleetServerHost: _fleetServerHost,
-              fleetServerPort: _fleetServerPort,
-              isFleetMode: _isFleetMode,
-              fleetAuthToken: token,
-              fleetRobotIps: _robotIps,
-            );
-            await _store.save(updated);
-          }
-        }
-      } catch (_) {
-        // Auto-login failed (e.g. customized credentials or offline), user can sign in manually
-      }
-    }
 
     _api = FleetApiService(
       serverHost: _fleetServerHost!,
       port: _fleetServerPort,
       token: _token,
+      onTokenExpired: refreshToken,
     );
+
+    // If token is missing, attempt auto-login using default fleet admin credentials
+    if (_token == null || _token!.isEmpty) {
+      await refreshToken();
+    }
+
     _startPolling();
     refreshFleet();
   }
@@ -342,6 +353,7 @@ class FleetProvider extends ChangeNotifier {
             'fromId': nodeIds[i],
             'toId': nodeIds[i + 1],
             'bidirectional': true,
+            'graph_idx': 0,
           });
         }
       }

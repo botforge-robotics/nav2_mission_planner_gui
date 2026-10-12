@@ -310,36 +310,17 @@ class _DesktopTopBar extends StatelessWidget {
               border: Border.all(color: isFleet ? Colors.blue.withValues(alpha: 0.3) : AppColors.border),
             ),
             padding: const EdgeInsets.all(4),
-            child: isFleet
-                ? const Icon(Icons.hub_rounded, color: Colors.blue, size: 20)
-                : Image.asset('assets/robot_photo.png', fit: BoxFit.contain),
+            child: Image.asset('assets/robot_photo.png', fit: BoxFit.contain),
           ),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                isFleet ? 'NavPro Mini Fleet' : 'NavPro Mini',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                  letterSpacing: -0.3,
-                ),
-              ),
-              Text(
-                isFleet
-                    ? (fleet.selectedRobot != null ? 'Unit: ${fleet.selectedRobot!.name}' : '${fleet.robots.length} Robots Online')
-                    : (robot?.name ?? 'Robot Dashboard'),
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isFleet ? Colors.blue : AppColors.textSecondary,
-                  fontWeight: isFleet ? FontWeight.w600 : FontWeight.normal,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+          Text(
+            isFleet ? 'NavPro Mini Fleet' : 'NavPro Mini',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.3,
+            ),
           ),
           const SizedBox(width: 24),
           const VerticalDivider(width: 1, indent: 14, endIndent: 14, color: AppColors.border),
