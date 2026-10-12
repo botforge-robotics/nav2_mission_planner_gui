@@ -542,6 +542,31 @@ class _RobotCard extends StatelessWidget {
   }
 }
 
+String _formatMissionProgressText(SdkState sdkState) {
+  final status = sdkState.missionStatus?.toLowerCase();
+  if (status == null || status == 'idle' || status == '') return 'IDLE';
+  if (status == 'paused' && sdkState.pauseReason == 'low_battery') {
+    return 'PAUSED (CHARGING)';
+  }
+
+  final parts = <String>[status.toUpperCase()];
+  if (sdkState.stepIndex != null && sdkState.stepIndex! >= 0) {
+    final stepNum = sdkState.stepIndex! + 1;
+    final total = sdkState.stepTotal;
+    parts.add(total != null && total > 0 ? 'Step $stepNum/$total' : 'Step $stepNum');
+  }
+  if (sdkState.loopIndex != null) {
+    final loopNum = sdkState.loopIndex! + 1;
+    final lTotal = sdkState.loopTotal;
+    if (lTotal != null && lTotal > 1) {
+      parts.add('Lap $loopNum/$lTotal');
+    } else if (lTotal == null) {
+      parts.add('Lap $loopNum (∞)');
+    }
+  }
+  return parts.join(' · ');
+}
+
 /// Two cards only — Speed and Mission — not the earlier four-tile grid
 /// (mode and current map now live in the robot card's status badge / the
 /// map preview header instead of being repeated here).
@@ -573,20 +598,25 @@ class _StatRow extends StatelessWidget {
             label: 'Mission Progress',
             value: AnimatedSwitcher(
               duration: AppMotion.fast,
-              child: Text(
-                sdkState.missionStatus == 'paused' &&
-                        sdkState.pauseReason == 'low_battery'
-                    ? 'PAUSED (CHARGING)'
-                    : (sdkState.missionStatus?.toUpperCase() ?? '—'),
-                key: ValueKey(
-                    '${sdkState.missionStatus}_${sdkState.pauseReason}'),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: sdkState.missionStatus == 'paused' &&
-                              sdkState.pauseReason == 'low_battery'
-                          ? AppColors.warning
-                          : null,
-                    ),
-                overflow: TextOverflow.ellipsis,
+              child: Tooltip(
+                message: sdkState.activeNodeLabel ??
+                    sdkState.missionMessage ??
+                    sdkState.missionName ??
+                    '',
+                child: Text(
+                  _formatMissionProgressText(sdkState),
+                  key: ValueKey(
+                      '${sdkState.missionStatus}_${sdkState.stepIndex}_${sdkState.loopIndex}'),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: sdkState.missionStatus == 'paused' &&
+                                sdkState.pauseReason == 'low_battery'
+                            ? AppColors.warning
+                            : (sdkState.missionStatus == 'failed'
+                                ? AppColors.danger
+                                : null),
+                      ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
           ),
@@ -876,18 +906,23 @@ class _StatGridDesktop extends StatelessWidget {
               child: _Stat(
                 icon: Icons.flag_rounded,
                 label: 'Mission Status',
-                value: Text(
-                  sdkState.missionStatus == 'paused' &&
-                          sdkState.pauseReason == 'low_battery'
-                      ? 'PAUSED (CHARGING)'
-                      : (sdkState.missionStatus?.toUpperCase() ?? 'IDLE'),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: sdkState.missionStatus == 'paused' &&
-                                sdkState.pauseReason == 'low_battery'
-                            ? AppColors.warning
-                            : null,
-                      ),
-                  overflow: TextOverflow.ellipsis,
+                value: Tooltip(
+                  message: sdkState.activeNodeLabel ??
+                      sdkState.missionMessage ??
+                      sdkState.missionName ??
+                      '',
+                  child: Text(
+                    _formatMissionProgressText(sdkState),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: sdkState.missionStatus == 'paused' &&
+                                  sdkState.pauseReason == 'low_battery'
+                              ? AppColors.warning
+                              : (sdkState.missionStatus == 'failed'
+                                  ? AppColors.danger
+                                  : null),
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ),

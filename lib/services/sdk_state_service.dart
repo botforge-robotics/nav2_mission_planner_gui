@@ -19,6 +19,15 @@ class SdkState {
     this.cpuLoadPct,
     this.cpuTempC,
     this.batteryTempC,
+    this.missionId,
+    this.missionName,
+    this.stepIndex,
+    this.stepTotal,
+    this.loopIndex,
+    this.loopTotal,
+    this.activeNodeLabel,
+    this.progressPct,
+    this.missionMessage,
   });
 
   final String? mode;
@@ -29,6 +38,17 @@ class SdkState {
   final double? cpuLoadPct;
   final double? cpuTempC;
   final double? batteryTempC;
+
+  // Enriched mission execution fields
+  final String? missionId;
+  final String? missionName;
+  final int? stepIndex;
+  final int? stepTotal;
+  final int? loopIndex;
+  final int? loopTotal;
+  final String? activeNodeLabel;
+  final int? progressPct;
+  final String? missionMessage;
 
   factory SdkState.fromJson(Map<String, dynamic> json) {
     final sys = json['system'] as Map?;
@@ -42,15 +62,38 @@ class SdkState {
         (json['battery_temperature_c'] as num?)?.toDouble() ??
         (temp?['battery_c'] as num?)?.toDouble();
 
+    final missionMap = json['mission'] as Map?;
+    final missionStatus = (missionMap?['status'] ?? missionMap?['state']) as String?;
+    final pauseReason = missionMap?['pause_reason'] as String?;
+    final missionId = missionMap?['mission_id'] as String?;
+    final missionName = missionMap?['mission_name'] as String?;
+    final stepIndex = (missionMap?['step_index'] as num?)?.toInt();
+    final stepTotal = (missionMap?['step_total'] as num?)?.toInt() ??
+        (missionMap?['step_count'] as num?)?.toInt();
+    final loopIndex = (missionMap?['loop_index'] as num?)?.toInt();
+    final loopTotal = (missionMap?['loop_total'] as num?)?.toInt();
+    final activeNodeLabel = missionMap?['active_node_label'] as String?;
+    final progressPct = (missionMap?['progress_pct'] as num?)?.toInt();
+    final missionMessage = missionMap?['message'] as String?;
+
     return SdkState(
       mode: json['mode'] as String?,
       mapName: (json['map'] as Map?)?['name'] as String?,
-      missionStatus: (json['mission'] as Map?)?['status'] as String?,
-      pauseReason: (json['mission'] as Map?)?['pause_reason'] as String?,
+      missionStatus: missionStatus,
+      pauseReason: pauseReason,
       lifecycle: json['lifecycle'] as String?,
       cpuLoadPct: cpuLoad,
       cpuTempC: cpuTemp,
       batteryTempC: battTemp,
+      missionId: missionId,
+      missionName: missionName,
+      stepIndex: stepIndex,
+      stepTotal: stepTotal,
+      loopIndex: loopIndex,
+      loopTotal: loopTotal,
+      activeNodeLabel: activeNodeLabel,
+      progressPct: progressPct,
+      missionMessage: missionMessage,
     );
   }
 

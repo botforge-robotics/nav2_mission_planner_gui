@@ -51,6 +51,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   GraphEdge? _selectedEdge;
   String? _activeNodeId;
   String? _missionState; // idle, running, waiting_for_user, paused, completed, failed
+  int? _stepIndex;
+  int? _stepTotal;
+  int? _loopIndex;
+  int? _loopTotal;
+  String? _activeNodeLabel;
+  String? _missionMessage;
   String? _currentMap;
   List<String> _availableMaps = [];
   List<Map<String, dynamic>> _availableMissions = [];
@@ -206,6 +212,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             _missionState = state;
             _activeNodeId = activeNode;
             _running = isMissionActive;
+            _stepIndex = (status['step_index'] as num?)?.toInt();
+            _stepTotal = (status['step_total'] as num?)?.toInt() ??
+                (status['step_count'] as num?)?.toInt();
+            _loopIndex = (status['loop_index'] as num?)?.toInt();
+            _loopTotal = (status['loop_total'] as num?)?.toInt();
+            _activeNodeLabel = status['active_node_label']?.toString();
+            _missionMessage = status['message']?.toString();
           });
 
           // Adapt polling speed dynamically: fast while running, relaxed while idle
@@ -1968,38 +1981,77 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       actions: [
         // Execution Status Pill
         if (_missionState != null && _missionState != 'idle')
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: _running ? AppColors.primary.withValues(alpha: 0.1) : AppColors.success.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: _running ? AppColors.primary : AppColors.success,
-                width: 1.2,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_running)
-                  const SizedBox(
-                    width: 10,
-                    height: 10,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-                  )
-                else
-                  const Icon(Icons.check_circle_outline, size: 14, color: AppColors.success),
-                const SizedBox(width: 8),
-                Text(
-                  _missionState!.toUpperCase(),
-                  style: TextStyle(
-                    color: _running ? AppColors.primary : AppColors.success,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+          Tooltip(
+            message: _activeNodeLabel ?? _missionMessage ?? '',
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: _running
+                    ? AppColors.primary.withValues(alpha: 0.1)
+                    : (_missionState == 'failed'
+                        ? AppColors.danger.withValues(alpha: 0.1)
+                        : AppColors.success.withValues(alpha: 0.1)),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _running
+                      ? AppColors.primary
+                      : (_missionState == 'failed'
+                          ? AppColors.danger
+                          : AppColors.success),
+                  width: 1.2,
                 ),
-              ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_running)
+                    const SizedBox(
+                      width: 10,
+                      height: 10,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.primary),
+                    )
+                  else if (_missionState == 'failed')
+                    const Icon(Icons.error_outline_rounded,
+                        size: 14, color: AppColors.danger)
+                  else
+                    const Icon(Icons.check_circle_outline,
+                        size: 14, color: AppColors.success),
+                  const SizedBox(width: 8),
+                  Text(
+                    () {
+                      final parts = <String>[_missionState!.toUpperCase()];
+                      if (_stepIndex != null && _stepIndex! >= 0) {
+                        final stepNum = _stepIndex! + 1;
+                        final total = _stepTotal;
+                        parts.add(total != null && total > 0
+                            ? 'Step $stepNum/$total'
+                            : 'Step $stepNum');
+                      }
+                      if (_loopIndex != null) {
+                        final loopNum = _loopIndex! + 1;
+                        final lTotal = _loopTotal;
+                        if (lTotal != null && lTotal > 1) {
+                          parts.add('Lap $loopNum/$lTotal');
+                        } else if (lTotal == null) {
+                          parts.add('Lap $loopNum (∞)');
+                        }
+                      }
+                      return parts.join(' · ');
+                    }(),
+                    style: TextStyle(
+                      color: _running
+                          ? AppColors.primary
+                          : (_missionState == 'failed'
+                              ? AppColors.danger
+                              : AppColors.success),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 

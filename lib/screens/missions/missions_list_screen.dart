@@ -767,19 +767,57 @@ class _Body extends StatelessWidget {
                                 )
                               else
                                 Builder(builder: (context) {
-                                  final totalSteps = (activeMission['steps']
-                                          as List? ??
-                                      []).length;
                                   final stepIdx = (runnerStatus?['step_index']
-                                          as int? ??
-                                      0);
-                                  final currentStepNum = (stepIdx + 1)
-                                      .clamp(1, totalSteps > 0 ? totalSteps : 1);
+                                          as num?)
+                                      ?.toInt() ??
+                                      0;
+                                  final stepTotal = (runnerStatus?['step_total']
+                                          as num?)
+                                      ?.toInt() ??
+                                      (runnerStatus?['step_count'] as num?)
+                                          ?.toInt() ??
+                                      (activeMission['steps'] as List? ?? [])
+                                          .length;
+                                  final currentStepNum = stepIdx + 1;
+                                  final loopIdx =
+                                      (runnerStatus?['loop_index'] as num?)
+                                          ?.toInt();
+                                  final loopTotal =
+                                      (runnerStatus?['loop_total'] as num?)
+                                          ?.toInt();
+                                  final activeNode =
+                                      runnerStatus?['active_node_label']
+                                          as String?;
+                                  final msg =
+                                      runnerStatus?['message'] as String?;
+
+                                  final parts = <String>[];
+                                  if (stepTotal > 0) {
+                                    parts.add('Step $currentStepNum of $stepTotal');
+                                  } else {
+                                    parts.add('Step $currentStepNum');
+                                  }
+                                  if (loopIdx != null) {
+                                    if (loopTotal != null && loopTotal > 1) {
+                                      parts.add('Lap ${loopIdx + 1}/$loopTotal');
+                                    } else if (loopTotal == null) {
+                                      parts.add('Lap ${loopIdx + 1} (repeating forever)');
+                                    }
+                                  }
+                                  if (activeState == 'failed' &&
+                                      msg != null &&
+                                      msg.isNotEmpty) {
+                                    parts.add('Error: $msg');
+                                  } else if (activeNode != null &&
+                                      activeNode.isNotEmpty) {
+                                    parts.add(activeNode);
+                                  }
                                   return Text(
-                                    'Step $currentStepNum of $totalSteps currently executing',
+                                    parts.join(' · '),
                                     style: const TextStyle(
                                         fontSize: 13,
                                         color: AppColors.textSecondary),
+                                    overflow: TextOverflow.ellipsis,
                                   );
                                 }),
                               const SizedBox(height: AppSpacing.sm),
@@ -852,25 +890,63 @@ class _Body extends StatelessWidget {
                                       )
                                     else
                                       Builder(builder: (context) {
-                                        final totalSteps =
+                                        final stepIdx =
+                                            (runnerStatus?['step_index']
+                                                    as num?)
+                                                ?.toInt() ??
+                                            0;
+                                        final stepTotal =
+                                            (runnerStatus?['step_total']
+                                                    as num?)
+                                                ?.toInt() ??
+                                            (runnerStatus?['step_count']
+                                                    as num?)
+                                                ?.toInt() ??
                                             (activeMission['steps'] as List? ??
                                                     [])
                                                 .length;
-                                        final stepIdx =
-                                            (runnerStatus?['step_index']
-                                                    as int? ??
-                                                0);
-                                        final currentStepNum = (stepIdx + 1)
-                                            .clamp(
-                                                1,
-                                                totalSteps > 0
-                                                    ? totalSteps
-                                                    : 1);
+                                        final currentStepNum = stepIdx + 1;
+                                        final loopIdx =
+                                            (runnerStatus?['loop_index']
+                                                    as num?)
+                                                ?.toInt();
+                                        final loopTotal =
+                                            (runnerStatus?['loop_total']
+                                                    as num?)
+                                                ?.toInt();
+                                        final activeNode =
+                                            runnerStatus?['active_node_label']
+                                                as String?;
+                                        final msg =
+                                            runnerStatus?['message'] as String?;
+
+                                        final parts = <String>[];
+                                        if (stepTotal > 0) {
+                                          parts.add('Step $currentStepNum of $stepTotal');
+                                        } else {
+                                          parts.add('Step $currentStepNum');
+                                        }
+                                        if (loopIdx != null) {
+                                          if (loopTotal != null && loopTotal > 1) {
+                                            parts.add('Lap ${loopIdx + 1}/$loopTotal');
+                                          } else if (loopTotal == null) {
+                                            parts.add('Lap ${loopIdx + 1} (repeating forever)');
+                                          }
+                                        }
+                                        if (activeState == 'failed' &&
+                                            msg != null &&
+                                            msg.isNotEmpty) {
+                                          parts.add('Error: $msg');
+                                        } else if (activeNode != null &&
+                                            activeNode.isNotEmpty) {
+                                          parts.add(activeNode);
+                                        }
                                         return Text(
-                                          'Step $currentStepNum of $totalSteps currently executing',
+                                          parts.join(' · '),
                                           style: const TextStyle(
                                               fontSize: 13,
                                               color: AppColors.textSecondary),
+                                          overflow: TextOverflow.ellipsis,
                                         );
                                       }),
                                   ],

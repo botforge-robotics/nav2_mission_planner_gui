@@ -359,13 +359,26 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                                             ?.copyWith(
                                                 fontWeight: FontWeight.bold),
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        '${steps.length} steps · ${widget.mission['loop_forever'] == true ? 'repeats forever' : 'repeats ${(widget.mission['loop_count'] ?? 1)}x'}',
-                                        style: const TextStyle(
-                                            color: AppColors.textSecondary,
-                                            fontSize: 13),
-                                      ),
+                                      Builder(builder: (context) {
+                                        final totalStepsCount = steps.isNotEmpty
+                                            ? steps.length
+                                            : ((_status?['step_total'] as num?)?.toInt() ??
+                                                (_status?['step_count'] as num?)?.toInt() ??
+                                                ((widget.mission['nodes'] as List?)
+                                                        ?.where((n) => n is Map && n['type'] != 'start' && n['type'] != 'end')
+                                                        .length ??
+                                                    0));
+                                        final loopCountVal = widget.mission['loop_count'] ?? (_status?['loop_total'] ?? 1);
+                                        final loopRepeatText = widget.mission['loop_forever'] == true
+                                            ? 'repeats forever'
+                                            : 'repeats ${loopCountVal}x';
+                                        return Text(
+                                          '$totalStepsCount steps · $loopRepeatText',
+                                          style: const TextStyle(
+                                              color: AppColors.textSecondary,
+                                              fontSize: 13),
+                                        );
+                                      }),
                                       if (widget.mission['map'] != null) ...[
                                         const SizedBox(height: 4),
                                         Builder(builder: (context) {
@@ -451,6 +464,47 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                                 ),
                               ],
                             ),
+                            if (_isThisMission && _state != 'idle') ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: _stateColor(_state)
+                                      .withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: _stateColor(_state)
+                                        .withValues(alpha: 0.25),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    if (_state == 'running') ...[
+                                      StatusPulseDot(
+                                          color: _stateColor(_state),
+                                          live: true,
+                                          size: 8),
+                                      const SizedBox(width: AppSpacing.sm),
+                                    ] else if (_state == 'failed') ...[
+                                      const Icon(Icons.error_outline_rounded,
+                                          size: 16, color: AppColors.danger),
+                                      const SizedBox(width: AppSpacing.sm),
+                                    ],
+                                    Expanded(
+                                      child: Text(
+                                        _statusLine(),
+                                        style: TextStyle(
+                                          color: _stateColor(_state),
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             if (isLowBatteryPaused) ...[
                               const SizedBox(height: AppSpacing.md),
                               _LowBatteryChargingNotice(
@@ -802,10 +856,18 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
 
   String _statusLine() {
     final msg = _status?['message'] as String?;
+    final stepTotal = (_status?['step_total'] as num?)?.toInt() ??
+        (_status?['step_count'] as num?)?.toInt() ??
+        (widget.mission['steps'] as List? ?? []).length;
+    final stepIndex = (_status?['step_index'] as num?)?.toInt();
+    final loopTotal = (_status?['loop_total'] as num?)?.toInt();
+    final loopIndex = (_status?['loop_index'] as num?)?.toInt();
+    final activeNode = _status?['active_node_label'] as String?;
+
     if (_state == 'completed') {
       return 'Mission Completed · All steps finished successfully';
     }
-    var base = _state[0].toUpperCase() + _state.substring(1);
+    var base = _state.isNotEmpty ? (_state[0].toUpperCase() + _state.substring(1)) : 'Idle';
     if (_state == 'paused') {
       if (_pauseReason == 'low_battery') {
         base = 'Paused for Recharge (Auto-resumes at 95%)';
@@ -813,12 +875,25 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
         base = 'Paused by operator';
       }
     }
-    final loopTotal = _status?['loop_total'];
-    final loopIndex = (_status?['loop_index'] as num?)?.toInt();
-    if (_isThisMission && loopIndex != null && (running || paused)) {
-      base += loopTotal == null
-          ? ' · lap ${loopIndex + 1} · repeating forever'
-          : ' · lap ${loopIndex + 1} of $loopTotal';
+
+    if (_isThisMission) {
+      final details = <String>[];
+      if (stepIndex != null && stepIndex >= 0) {
+        details.add(stepTotal > 0 ? 'Step ${stepIndex + 1}/$stepTotal' : 'Step ${stepIndex + 1}');
+      }
+      if (loopIndex != null) {
+        if (loopTotal != null && loopTotal > 1) {
+          details.add('Lap ${loopIndex + 1}/$loopTotal');
+        } else if (loopTotal == null) {
+          details.add('Lap ${loopIndex + 1} · repeating forever');
+        }
+      }
+      if (details.isNotEmpty) {
+        base += ' · ${details.join(" · ")}';
+      }
+      if (activeNode != null && activeNode.isNotEmpty && (running || paused)) {
+        base += ' · $activeNode';
+      }
     }
     return msg != null && msg.isNotEmpty ? '$base — $msg' : base;
   }
