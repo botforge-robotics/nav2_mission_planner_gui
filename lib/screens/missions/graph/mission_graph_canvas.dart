@@ -1829,7 +1829,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
       case 'notify':
         return ('Robot Signal', Icons.lightbulb_rounded, const Color(0xFF0D9488));
       case 'call_api':
-        return ('Webhook & API', Icons.http_rounded, const Color(0xFF7C3AED));
+        return ('REST API', Icons.http_rounded, const Color(0xFF7C3AED));
       case 'call_service':
         return ('ROS 2 Service', Icons.precision_manufacturing_rounded, const Color(0xFF4F46E5));
       case 'call_action':

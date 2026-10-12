@@ -64,6 +64,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   bool _running = false;
   bool _isModalShowing = false;
   Map<String, dynamic>? _activeRobotInteraction;
+  bool _submittingChoice = false;
 
   Timer? _statusPoller;
 
@@ -818,7 +819,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         defaultParams = {'text': 'NavPro Mini has arrived at your station.', 'wait_completion': true};
         break;
       case 'call_api':
-        defaultLabel = 'Send Web Notice';
+        defaultLabel = 'REST API';
         defaultParams = {
           'method': 'POST',
           'url': 'https://api.example.com/log',
@@ -829,7 +830,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         };
         break;
       case 'call_service':
-        defaultLabel = 'Trigger Robot Tool';
+        defaultLabel = 'Call ROS Service';
         defaultParams = {
           'service_name': '/set_mode',
           'service_type': 'std_srvs/srv/SetBool',
@@ -838,7 +839,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         };
         break;
       case 'call_action':
-        defaultLabel = 'Run Background Task';
+        defaultLabel = 'Send ROS Action';
         defaultParams = {
           'action_name': '/navigate_to_pose',
           'action_type': 'nav2_msgs/action/NavigateToPose',
@@ -847,7 +848,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         };
         break;
       case 'publish_topic':
-        defaultLabel = 'Broadcast Signal';
+        defaultLabel = 'Publish ROS Topic';
         defaultParams = {
           'topic_name': '/cmd_vel',
           'message_type': 'geometry_msgs/msg/Twist',
@@ -982,23 +983,40 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
-                        onPressed: () async {
-                          final api = _api;
-                          final inter = _activeRobotInteraction;
-                          if (api != null && inter != null) {
-                            final id = inter['interaction_id']?.toString() ?? inter['node_id']?.toString() ?? '';
-                            if (id.isNotEmpty) {
-                              await api.submitUiResponse(id, action: choice, selected: choice);
-                              if (mounted) {
-                                setState(() => _activeRobotInteraction = null);
-                              }
-                            }
-                          }
-                        },
-                        child: Text(
-                          choice,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                        ),
+                        onPressed: _submittingChoice
+                            ? null
+                            : () async {
+                                final api = _api;
+                                final inter = _activeRobotInteraction;
+                                if (api != null && inter != null) {
+                                  final id = inter['interaction_id']?.toString() ?? inter['node_id']?.toString() ?? '';
+                                  if (id.isNotEmpty) {
+                                    if (mounted) {
+                                      setState(() => _submittingChoice = true);
+                                    }
+                                    try {
+                                      await api.submitUiResponse(id, action: choice, selected: choice);
+                                    } catch (_) {}
+                                    if (mounted) {
+                                      setState(() {
+                                        _submittingChoice = false;
+                                        _activeRobotInteraction = null;
+                                      });
+                                    }
+                                    _startExecutionPolling(fast: true);
+                                  }
+                                }
+                              },
+                        child: _submittingChoice
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : Text(
+                                choice,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
                       ),
                       const SizedBox(width: 8),
                     ],
@@ -1161,6 +1179,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                         },
                         availableMissions: _availableMissions,
                         api: _api,
+                        ros2: context.read<ConnectionProvider>().ros2,
                       ),
                     ),
                   ],
@@ -2285,12 +2304,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       ],
     },
     {
-      'title': 'External Tools & Signals',
+      'title': 'REST API & ROS Integration',
       'items': [
-        _PaletteItem('call_api', 'Send Web Notice', 'Send alert/data to a website or app', Icons.http_rounded, Color(0xFF7C3AED)),
-        _PaletteItem('call_service', 'Trigger Robot Tool', 'Run internal robot function/tool', Icons.precision_manufacturing_rounded, Color(0xFF4F46E5)),
-        _PaletteItem('call_action', 'Run Background Task', 'Start long task and wait for it', Icons.settings_input_component_rounded, Color(0xFF4F46E5)),
-        _PaletteItem('publish_topic', 'Broadcast Signal', 'Send message to other robot parts', Icons.podcasts_rounded, Color(0xFF4F46E5)),
+        _PaletteItem('call_api', 'REST API', 'Send HTTP GET/POST/PUT/DELETE request to an API', Icons.http_rounded, Color(0xFF7C3AED)),
+        _PaletteItem('call_service', 'Call ROS Service', 'Call ROS 2 service with custom request', Icons.precision_manufacturing_rounded, Color(0xFF4F46E5)),
+        _PaletteItem('call_action', 'Send ROS Action', 'Send ROS 2 action goal and await result', Icons.settings_input_component_rounded, Color(0xFF4F46E5)),
+        _PaletteItem('publish_topic', 'Publish ROS Topic', 'Broadcast message to a ROS 2 topic', Icons.podcasts_rounded, Color(0xFF4F46E5)),
       ],
     },
   ];
@@ -3492,6 +3511,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     onDelete: () => _deleteNode(selectedNode),
                     availableMissions: _availableMissions,
                     api: _api,
+                    ros2: context.read<ConnectionProvider>().ros2,
                   ),
                 ),
                 Container(

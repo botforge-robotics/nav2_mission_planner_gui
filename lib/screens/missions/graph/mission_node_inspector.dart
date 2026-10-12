@@ -1,10 +1,16 @@
+import 'dart:convert' show jsonDecode;
 import 'dart:io' show File;
 import 'dart:typed_data' show Uint8List;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import 'package:ros2_api/ros2_api.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../providers/connection_provider.dart';
 import '../../../services/locations_controller.dart';
+import '../../../services/ros_raw_call.dart';
 import '../../../services/sdk_api_service.dart';
 import '../../../theme/app_theme.dart';
 import 'mission_graph_models.dart';
@@ -20,6 +26,7 @@ class MissionNodeInspector extends StatefulWidget {
     this.readOnly = false,
     this.availableMissions = const [],
     this.api,
+    this.ros2,
   });
 
   final GraphNode node;
@@ -29,6 +36,7 @@ class MissionNodeInspector extends StatefulWidget {
   final bool readOnly;
   final List<Map<String, dynamic>> availableMissions;
   final SdkApiService? api;
+  final Ros2? ros2;
 
   @override
   State<MissionNodeInspector> createState() => _MissionNodeInspectorState();
@@ -403,13 +411,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       case 'notify':
         return 'Lights & Chime Signal';
       case 'call_api':
-        return 'Send Web Notice';
+        return 'REST API';
       case 'call_service':
-        return 'Trigger Robot Tool';
+        return 'Call ROS Service';
       case 'call_action':
-        return 'Run Background Task';
+        return 'Send ROS Action';
       case 'publish_topic':
-        return 'Broadcast Signal';
+        return 'Publish ROS Topic';
       case 'switch_mission':
       case 'redirect_mission':
         return 'Switch Mission (Handoff)';
@@ -480,13 +488,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       case 'notify':
         return 'Flashes the LED lights and sounds a chime to get attention.';
       case 'call_api':
-        return 'Sends a notification or data over the network to a website or app like Slack.';
+        return 'Sends an HTTP/REST API request (GET, POST, PUT, DELETE) to any local device or cloud web service.';
       case 'call_service':
-        return 'Triggers a built-in robot hardware tool or toggles an internal setting.';
+        return 'Calls a ROS 2 service on the robot with custom request arguments and waits for response.';
       case 'call_action':
-        return 'Starts a longer robot activity and waits for it to complete.';
+        return 'Dispatches a ROS 2 Action Goal to the robot and waits for it to succeed or finish.';
       case 'publish_topic':
-        return 'Broadcasts a live message to other parts of the robot system.';
+        return 'Publishes a ROS 2 message to an active topic on the robot.';
       case 'switch_mission':
       case 'redirect_mission':
         return 'Hands off execution to another mission on the same map.';
@@ -2681,6 +2689,112 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.send_rounded, size: 16),
+          label: const Text('Test REST API Request', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF7C3AED),
+            side: const BorderSide(color: Color(0xFF7C3AED)),
+            minimumSize: const Size(double.infinity, 42),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onPressed: url.trim().isEmpty
+              ? null
+              : () async {
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                          const SizedBox(width: 12),
+                          Text('Testing $method $url...'),
+                        ],
+                      ),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+
+                  try {
+                    final uri = Uri.parse(url.trim());
+                    final reqHeaders = <String, String>{};
+                    if (token.trim().isNotEmpty) {
+                      reqHeaders['Authorization'] = 'Bearer ${token.trim()}';
+                    }
+                    if (headers.trim().isNotEmpty) {
+                      try {
+                        final parsedH = jsonDecode(headers.trim());
+                        if (parsedH is Map) {
+                          parsedH.forEach((k, v) => reqHeaders[k.toString()] = v.toString());
+                        }
+                      } catch (_) {}
+                    }
+                    if (!reqHeaders.containsKey('Content-Type') && ['POST', 'PUT', 'PATCH'].contains(method)) {
+                      reqHeaders['Content-Type'] = 'application/json';
+                    }
+
+                    final client = http.Client();
+                    late final http.Response res;
+                    final reqTimeout = Duration(seconds: ((widget.node.params['timeout_sec'] as num?)?.toInt() ?? 10).clamp(1, 60));
+
+                    switch (method.toUpperCase()) {
+                      case 'GET':
+                        res = await client.get(uri, headers: reqHeaders).timeout(reqTimeout);
+                        break;
+                      case 'PUT':
+                        res = await client.put(uri, headers: reqHeaders, body: payload.trim().isNotEmpty ? payload.trim() : null).timeout(reqTimeout);
+                        break;
+                      case 'DELETE':
+                        res = await client.delete(uri, headers: reqHeaders, body: payload.trim().isNotEmpty ? payload.trim() : null).timeout(reqTimeout);
+                        break;
+                      case 'PATCH':
+                        res = await client.patch(uri, headers: reqHeaders, body: payload.trim().isNotEmpty ? payload.trim() : null).timeout(reqTimeout);
+                        break;
+                      case 'POST':
+                      default:
+                        res = await client.post(uri, headers: reqHeaders, body: payload.trim().isNotEmpty ? payload.trim() : null).timeout(reqTimeout);
+                        break;
+                    }
+                    client.close();
+
+                    if (!mounted) return;
+                    final isOk = res.statusCode >= 200 && res.statusCode < 300;
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: AppColors.surface,
+                        title: Row(
+                          children: [
+                            Icon(isOk ? Icons.check_circle_rounded : Icons.error_outline_rounded, color: isOk ? Colors.green : Colors.red, size: 22),
+                            const SizedBox(width: 8),
+                            Text('HTTP ${res.statusCode}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        content: SingleChildScrollView(
+                          child: SelectableText(
+                            res.body.trim().isEmpty ? '(Empty response body)' : res.body,
+                            style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                          ),
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK')),
+                        ],
+                      ),
+                    );
+                  } catch (e) {
+                    if (!mounted) return;
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(
+                        backgroundColor: Colors.red.shade800,
+                        content: Text('Request failed: $e'),
+                        duration: const Duration(seconds: 4),
+                      ),
+                    );
+                  }
+                },
+        ),
       ],
     );
   }
@@ -4214,6 +4328,111 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.play_arrow_rounded, size: 16),
+          label: const Text('Test Call ROS Service', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF4F46E5),
+            side: const BorderSide(color: Color(0xFF4F46E5)),
+            minimumSize: const Size(double.infinity, 42),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onPressed: () async {
+            final srvName = (widget.node.params['service_name'] as String? ?? '').trim();
+            final srvType = (widget.node.params['service_type'] as String? ?? '').trim();
+            final rawPayload = (widget.node.params['payload'] as String? ?? '{}').trim();
+            final timeoutSec = (widget.node.params['timeout_sec'] as num?)?.toInt() ?? 5;
+
+            if (srvName.isEmpty || srvType.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please enter a Service Name and Message Type.')),
+              );
+              return;
+            }
+
+            final ros2 = widget.ros2 ?? context.read<ConnectionProvider>().ros2;
+            if (ros2 == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Robot is not connected via ROS bridge.')),
+              );
+              return;
+            }
+
+            Map<String, dynamic> args = {};
+            if (rawPayload.isNotEmpty) {
+              try {
+                final decoded = jsonDecode(rawPayload);
+                if (decoded is Map<String, dynamic>) {
+                  args = decoded;
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Invalid JSON in request payload: $e')),
+                );
+                return;
+              }
+            }
+
+            final messenger = ScaffoldMessenger.of(context);
+            messenger.showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                    const SizedBox(width: 12),
+                    Text('Calling $srvName...'),
+                  ],
+                ),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+
+            try {
+              final result = await callServiceRaw(
+                ros2,
+                service: srvName,
+                type: srvType,
+                args: args,
+                timeout: Duration(seconds: timeoutSec.clamp(1, 60)),
+              );
+
+              if (!mounted) return;
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: AppColors.surface,
+                  title: const Row(
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: Colors.green, size: 22),
+                      SizedBox(width: 8),
+                      Text('Service Call Succeeded', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  content: SingleChildScrollView(
+                    child: SelectableText(
+                      result.isEmpty ? '(Empty response)' : result.toString(),
+                      style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK')),
+                  ],
+                ),
+              );
+            } catch (e) {
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(
+                  backgroundColor: Colors.red.shade800,
+                  content: Text('Service call failed: $e'),
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+          },
+        ),
       ],
     );
   }
@@ -4252,6 +4471,111 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.rocket_launch_rounded, size: 16),
+          label: const Text('Test Send ROS Action', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF4F46E5),
+            side: const BorderSide(color: Color(0xFF4F46E5)),
+            minimumSize: const Size(double.infinity, 42),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onPressed: () async {
+            final actName = (widget.node.params['action_name'] as String? ?? '').trim();
+            final actType = (widget.node.params['action_type'] as String? ?? '').trim();
+            final rawPayload = (widget.node.params['payload'] as String? ?? '{}').trim();
+            final timeoutSec = (widget.node.params['timeout_sec'] as num?)?.toInt() ?? 60;
+
+            if (actName.isEmpty || actType.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please enter an Action Goal Name and Action Type.')),
+              );
+              return;
+            }
+
+            final ros2 = widget.ros2 ?? context.read<ConnectionProvider>().ros2;
+            if (ros2 == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Robot is not connected via ROS bridge.')),
+              );
+              return;
+            }
+
+            Map<String, dynamic> goal = {};
+            if (rawPayload.isNotEmpty) {
+              try {
+                final decoded = jsonDecode(rawPayload);
+                if (decoded is Map<String, dynamic>) {
+                  goal = decoded;
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Invalid JSON in goal payload: $e')),
+                );
+                return;
+              }
+            }
+
+            final messenger = ScaffoldMessenger.of(context);
+            messenger.showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                    const SizedBox(width: 12),
+                    Text('Sending action goal to $actName...'),
+                  ],
+                ),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+
+            try {
+              final result = await sendActionGoalRaw(
+                ros2,
+                action: actName,
+                actionType: actType,
+                goal: goal,
+                timeout: Duration(seconds: timeoutSec.clamp(2, 300)),
+              );
+
+              if (!mounted) return;
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: AppColors.surface,
+                  title: const Row(
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: Colors.green, size: 22),
+                      SizedBox(width: 8),
+                      Text('Action Goal Succeeded', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  content: SingleChildScrollView(
+                    child: SelectableText(
+                      result.isEmpty ? '(Action succeeded with no result payload)' : result.toString(),
+                      style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK')),
+                  ],
+                ),
+              );
+            } catch (e) {
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(
+                  backgroundColor: Colors.red.shade800,
+                  content: Text('Action goal failed: $e'),
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+          },
+        ),
       ],
     );
   }
@@ -4285,6 +4609,81 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               ),
             ],
           ),
+        ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.podcasts_rounded, size: 16),
+          label: const Text('Test Publish ROS Topic', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF4F46E5),
+            side: const BorderSide(color: Color(0xFF4F46E5)),
+            minimumSize: const Size(double.infinity, 42),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onPressed: () async {
+            final topicName = (widget.node.params['topic_name'] as String? ?? '').trim();
+            final msgType = (widget.node.params['message_type'] as String? ?? '').trim();
+            final rawPayload = (widget.node.params['payload'] as String? ?? '{}').trim();
+
+            if (topicName.isEmpty || msgType.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please enter a Topic Name and Message Type.')),
+              );
+              return;
+            }
+
+            final ros2 = widget.ros2 ?? context.read<ConnectionProvider>().ros2;
+            if (ros2 == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Robot is not connected via ROS bridge.')),
+              );
+              return;
+            }
+
+            Map<String, dynamic> msg = {};
+            if (rawPayload.isNotEmpty) {
+              try {
+                final decoded = jsonDecode(rawPayload);
+                if (decoded is Map<String, dynamic>) {
+                  msg = decoded;
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Invalid JSON in topic message payload: $e')),
+                );
+                return;
+              }
+            }
+
+            final messenger = ScaffoldMessenger.of(context);
+            try {
+              ros2.send({
+                'op': 'publish',
+                'topic': topicName,
+                'type': msgType,
+                'msg': msg,
+              });
+
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(
+                  backgroundColor: Colors.green.shade800,
+                  content: Text('Successfully published message to $topicName'),
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            } catch (e) {
+              if (!mounted) return;
+              messenger.showSnackBar(
+                SnackBar(
+                  backgroundColor: Colors.red.shade800,
+                  content: Text('Publishing topic failed: $e'),
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+          },
         ),
       ],
     );

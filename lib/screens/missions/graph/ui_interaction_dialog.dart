@@ -541,22 +541,28 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
               backgroundColor: AppColors.surfaceSunken,
             ),
             onPressed: _submitting ? null : () => _sendResponse(action: choice.toString(), selected: choice.toString()),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.arrow_right_alt, color: AppColors.primary),
-                const SizedBox(width: 8),
-                Text(
-                  choice.toString().toUpperCase(),
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.1,
+            child: _submitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.arrow_right_alt, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        choice.toString().toUpperCase(),
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
           ),
           const SizedBox(height: 12),
         ],
