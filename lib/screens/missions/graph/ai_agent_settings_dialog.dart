@@ -813,20 +813,20 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
                                   color: _voiceTestSuccess
-                                      ? (colors.isDark ? AppColors.success.withValues(alpha: 0.15) : const Color(0xFFDCFCE7))
-                                      : (colors.isDark ? AppColors.danger.withValues(alpha: 0.15) : const Color(0xFFFEE2E2)),
+                                      ? (colors.isDark ? colors.success.withValues(alpha: 0.15) : const Color(0xFFDCFCE7))
+                                      : (colors.isDark ? colors.danger.withValues(alpha: 0.15) : const Color(0xFFFEE2E2)),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
                                     color: _voiceTestSuccess
-                                        ? (colors.isDark ? AppColors.success.withValues(alpha: 0.3) : const Color(0xFF86EFAC))
-                                        : (colors.isDark ? AppColors.danger.withValues(alpha: 0.3) : const Color(0xFFFCA5A5)),
+                                        ? (colors.isDark ? colors.success.withValues(alpha: 0.3) : const Color(0xFF86EFAC))
+                                        : (colors.isDark ? colors.danger.withValues(alpha: 0.3) : const Color(0xFFFCA5A5)),
                                   ),
                                 ),
                                 child: Row(
                                   children: [
                                     Icon(
                                       _voiceTestSuccess ? Icons.check_circle_rounded : Icons.error_outline_rounded,
-                                      color: _voiceTestSuccess ? AppColors.success : AppColors.danger,
+                                      color: _voiceTestSuccess ? colors.success : colors.danger,
                                       size: 16,
                                     ),
                                     const SizedBox(width: 8),
@@ -835,8 +835,8 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                         _voiceTestResult!,
                                         style: TextStyle(
                                           color: _voiceTestSuccess
-                                              ? (colors.isDark ? AppColors.success : const Color(0xFF166534))
-                                              : (colors.isDark ? AppColors.danger : const Color(0xFF991B1B)),
+                                              ? (colors.isDark ? colors.success : const Color(0xFF166534))
+                                              : (colors.isDark ? colors.danger : const Color(0xFF991B1B)),
                                           fontSize: 11.5,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -880,20 +880,20 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 color: _testSuccess
-                                    ? (colors.isDark ? AppColors.success.withValues(alpha: 0.15) : const Color(0xFFDCFCE7))
-                                    : (colors.isDark ? AppColors.danger.withValues(alpha: 0.15) : const Color(0xFFFEE2E2)),
+                                    ? (colors.isDark ? colors.success.withValues(alpha: 0.15) : const Color(0xFFDCFCE7))
+                                    : (colors.isDark ? colors.danger.withValues(alpha: 0.15) : const Color(0xFFFEE2E2)),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: _testSuccess
-                                      ? (colors.isDark ? AppColors.success.withValues(alpha: 0.3) : const Color(0xFF86EFAC))
-                                      : (colors.isDark ? AppColors.danger.withValues(alpha: 0.3) : const Color(0xFFFCA5A5)),
+                                      ? (colors.isDark ? colors.success.withValues(alpha: 0.3) : const Color(0xFF86EFAC))
+                                      : (colors.isDark ? colors.danger.withValues(alpha: 0.3) : const Color(0xFFFCA5A5)),
                                 ),
                               ),
                               child: Row(
                                 children: [
                                   Icon(
                                     _testSuccess ? Icons.check_circle_rounded : Icons.error_outline_rounded,
-                                    color: _testSuccess ? AppColors.success : AppColors.danger,
+                                    color: _testSuccess ? colors.success : colors.danger,
                                     size: 18,
                                   ),
                                   const SizedBox(width: 8),
@@ -902,8 +902,8 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                       _testResult!,
                                       style: TextStyle(
                                         color: _testSuccess
-                                            ? (colors.isDark ? AppColors.success : const Color(0xFF166534))
-                                            : (colors.isDark ? AppColors.danger : const Color(0xFF991B1B)),
+                                            ? (colors.isDark ? colors.success : const Color(0xFF166534))
+                                            : (colors.isDark ? colors.danger : const Color(0xFF991B1B)),
                                         fontSize: 12,
                                         fontWeight: FontWeight.w500,
                                       ),

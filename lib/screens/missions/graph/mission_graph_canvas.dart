@@ -703,11 +703,11 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: AppColors.danger,
+                color: colors.danger,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.danger.withValues(alpha: 0.5),
+                    color: colors.danger.withValues(alpha: 0.5),
                     blurRadius: 10,
                     spreadRadius: 2,
                     offset: const Offset(0, 2),
@@ -736,10 +736,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
 
     final isValid = valResult?.isValid;
     final color = isValid == true
-        ? AppColors.success
+        ? colors.success
         : isValid == false
-            ? AppColors.danger
-            : AppColors.primary;
+            ? colors.danger
+            : colors.primary;
     final icon = isValid == true
         ? Icons.check_circle_rounded
         : isValid == false
@@ -800,7 +800,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
     WidgetsBinding.instance.addPostFrameCallback((_) => _updatePortOffsets());
 
     return Container(
-      color: AppColors.background,
+      color: colors.background,
       child: Stack(
         children: [
           // Infinite Grid + Edge Wire Painter
@@ -848,9 +848,15 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                   clipBehavior: Clip.none,
                   children: [
                     // Grid background
-                    const Positioned.fill(
+                    Positioned.fill(
                       child: RepaintBoundary(
-                        child: CustomPaint(painter: _GridBackgroundPainter()),
+                        child: CustomPaint(
+                          painter: _GridBackgroundPainter(
+                            dotColor: colors.isDark
+                                ? const Color(0xFF334155).withValues(alpha: 0.5)
+                                : const Color(0xFFCBD5E1).withValues(alpha: 0.6),
+                          ),
+                        ),
                       ),
                     ),
 
@@ -870,6 +876,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                                 activeNodeId: widget.activeNodeId,
                                 animProgress: _flowAnimController.value,
                                 isRunning: widget.isRunning,
+                                backgroundColor: colors.background,
+                                isDark: colors.isDark,
                                 drawingFromOffset: _drawingFromPort != null
                                     ? (_portOffsets['${_drawingFromNode!.id}_${_drawingFromIsInput == true ? 'in' : 'out'}_${_drawingFromPort!.id}'] ??
                                         _estimatePortOffset(_drawingFromNode!, _drawingFromPort!.id, _drawingFromIsInput ?? false))
@@ -879,7 +887,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                                         _estimatePortOffset(_hoveredTarget!.$1, _hoveredTarget!.$2.id, _hoveredTarget!.$3))
                                     : _drawingCurrentPos,
                                 drawingFromIsInput: _drawingFromIsInput ?? false,
-                                drawingColor: _drawingFromPort?.color ?? AppColors.primary,
+                                drawingColor: _drawingFromPort?.color ?? colors.primary,
                                 isValidTarget: _hoveredTarget != null ? (_hoveredValidation?.isValid ?? false) : null,
                               ),
                             ),
@@ -918,7 +926,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                   shadowColor: colors.shadowTint.withValues(alpha: 0.15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: const BorderSide(color: AppColors.danger),
+                    side: BorderSide(color: colors.danger),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -927,14 +935,14 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                       spacing: 8,
                       runSpacing: 4,
                       children: [
-                        const Icon(Icons.link_off, color: AppColors.danger, size: 18),
+                        Icon(Icons.link_off, color: colors.danger, size: 18),
                         Text(
                           'Connection: ${_selectedEdge!.fromNode} (${_selectedEdge!.fromPort}) → ${_selectedEdge!.toNode}',
                           style: TextStyle(color: colors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
                         ),
                         FilledButton.icon(
                           style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.danger,
+                            backgroundColor: colors.danger,
                             visualDensity: VisualDensity.compact,
                             padding: const EdgeInsets.symmetric(horizontal: 8),
                           ),
@@ -1086,16 +1094,16 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         ),
         if (node.type != 'start') ...[
           const PopupMenuDivider(height: 1),
-          const PopupMenuItem(
+          PopupMenuItem(
             value: 'delete',
             height: 38,
             child: Row(
               children: [
-                Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.danger),
-                SizedBox(width: 10),
-                Text('Delete Step', style: TextStyle(fontSize: 12, color: AppColors.danger)),
-                Spacer(),
-                Text('Del', style: TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+                Icon(Icons.delete_outline_rounded, size: 18, color: colors.danger),
+                const SizedBox(width: 10),
+                Text('Delete Step', style: TextStyle(fontSize: 12, color: colors.danger)),
+                const Spacer(),
+                Text('Del', style: TextStyle(fontSize: 10, color: colors.textTertiary)),
               ],
             ),
           ),
@@ -1158,22 +1166,22 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
               color: colors.surface,
               border: Border.all(
                 color: isActive
-                    ? Color.lerp(AppColors.primary, AppColors.primaryLight, pulse)!
+                    ? Color.lerp(colors.primary, colors.primaryLight, pulse)!
                     : isSelected
-                        ? AppColors.primary
+                        ? colors.primary
                         : categoryColor,
                 width: isSelected || isActive ? 2.6 : 2.0,
               ),
               boxShadow: [
                 if (isActive)
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: glowAlpha),
+                    color: colors.primary.withValues(alpha: glowAlpha),
                     blurRadius: glowBlur,
                     spreadRadius: 2.0,
                   )
                 else if (isSelected)
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.35),
+                    color: colors.primary.withValues(alpha: 0.35),
                     blurRadius: 10,
                     spreadRadius: 1.5,
                   )
@@ -1208,7 +1216,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                   child: Icon(
                     icon,
                     size: 28,
-                    color: isSelected ? AppColors.primary : categoryColor,
+                    color: isSelected ? colors.primary : categoryColor,
                   ),
                 ),
 
@@ -1220,13 +1228,13 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceElevated,
+                        color: colors.surfaceElevated,
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: AppColors.primary, width: 1.0),
+                        border: Border.all(color: colors.primary, width: 1.0),
                       ),
                       child: Text(
                         '${node.rotationDegrees}°',
-                        style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: AppColors.primary),
+                        style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: colors.primary),
                       ),
                     ),
                   ),
@@ -1264,7 +1272,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                        color: isSelected ? colors.primary : colors.textPrimary,
                         fontSize: 10.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1275,8 +1283,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.textTertiary,
+                      style: TextStyle(
+                        color: colors.textTertiary,
                         fontSize: 8.5,
                       ),
                     ),
@@ -1404,8 +1412,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         status == 'aborted';
 
     final Color badgeColor = isAborted
-        ? const Color(0xFFEF4444)
-        : (dockOnEnd ? const Color(0xFF10B981) : const Color(0xFF0D9488));
+        ? (colors.isDark ? const Color(0xFFF87171) : const Color(0xFFEF4444))
+        : (dockOnEnd
+            ? (colors.isDark ? const Color(0xFF34D399) : const Color(0xFF10B981))
+            : (colors.isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0D9488)));
 
     // Clear, distinct icons for Dock & Finish, Finish, and Abort
     final IconData badgeIcon = isAborted
@@ -1451,22 +1461,22 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                   color: colors.surface,
                   border: Border.all(
                     color: isActive
-                        ? Color.lerp(AppColors.primary, AppColors.primaryLight, pulse)!
+                        ? Color.lerp(colors.primary, colors.primaryLight, pulse)!
                         : isSelected
-                            ? AppColors.primary
+                            ? colors.primary
                             : badgeColor,
                     width: isSelected || isActive ? 2.6 : 2.0,
                   ),
                   boxShadow: [
                     if (isActive)
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: glowAlpha),
+                        color: colors.primary.withValues(alpha: glowAlpha),
                         blurRadius: glowBlur,
                         spreadRadius: 2.0 * pulse,
                       )
                     else if (isSelected)
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.3),
+                        color: colors.primary.withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 2),
                       )
@@ -1510,7 +1520,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                     style: TextStyle(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w800,
-                      color: isSelected ? AppColors.primary : badgeColor,
+                      color: isSelected ? colors.primary : badgeColor,
                       letterSpacing: 0.3,
                     ),
                     maxLines: 1,
@@ -1595,11 +1605,11 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
 
     Color activeColor = _getPortColor(port, isInput);
     if (isHoverValid) {
-      activeColor = AppColors.success;
+      activeColor = colors.success;
     } else if (isHoverInvalid) {
-      activeColor = AppColors.danger;
+      activeColor = colors.danger;
     } else if (isBeingDrawnFrom) {
-      activeColor = AppColors.primary;
+      activeColor = colors.primary;
     }
 
     const double baseSize = 18.0;
@@ -1755,8 +1765,8 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                               const SizedBox(width: 5),
                               Text(
                                 '${isInput ? "In: " : ""}${port.label}',
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
+                                style: TextStyle(
+                                  color: colors.textPrimary,
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: -0.1,
@@ -1777,76 +1787,77 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
   }
 
   (String, IconData, Color) _getNodeCategoryMeta(String type) {
+    final isDark = colors.isDark;
     switch (type) {
       case 'start':
-        return ('Trigger', Icons.play_arrow_rounded, AppColors.success);
+        return ('Trigger', Icons.play_arrow_rounded, colors.success);
       case 'end':
       case 'mission_end':
-        return ('Terminal', Icons.task_alt_rounded, const Color(0xFF0D9488));
+        return ('Terminal', Icons.task_alt_rounded, isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0D9488));
       case 'dock_and_end':
-        return ('Terminal', Icons.charging_station_rounded, const Color(0xFF10B981));
+        return ('Terminal', Icons.charging_station_rounded, isDark ? const Color(0xFF34D399) : const Color(0xFF10B981));
       case 'abort':
       case 'abort_and_end':
-        return ('Terminal', Icons.stop_rounded, const Color(0xFFEF4444));
+        return ('Terminal', Icons.stop_rounded, isDark ? const Color(0xFFF87171) : const Color(0xFFEF4444));
       case 'navigate_waypoint':
-        return ('Navigation', Icons.navigation_rounded, const Color(0xFF2563EB));
+        return ('Navigation', Icons.navigation_rounded, isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB));
       case 'navigate_coordinates':
-        return ('Coordinates', Icons.explore_rounded, const Color(0xFF2563EB));
+        return ('Coordinates', Icons.explore_rounded, isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB));
       case 'patrol_loop':
-        return ('Patrol Loop', Icons.sync_rounded, const Color(0xFF3B82F6));
+        return ('Patrol Loop', Icons.sync_rounded, isDark ? const Color(0xFF38BDF8) : const Color(0xFF3B82F6));
       case 'relocalize':
-        return ('Localization', Icons.my_location_rounded, const Color(0xFF0284C7));
+        return ('Localization', Icons.my_location_rounded, isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7));
       case 'cancel_navigation':
-        return ('Navigation', Icons.cancel_rounded, const Color(0xFFDC2626));
+        return ('Navigation', Icons.cancel_rounded, isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626));
       case 'wait':
-        return ('Timing', Icons.timer_outlined, AppColors.warning);
+        return ('Timing', Icons.timer_outlined, colors.warning);
       case 'dock':
-        return ('Power & Dock', Icons.charging_station_rounded, const Color(0xFF16A34A));
+        return ('Power & Dock', Icons.charging_station_rounded, isDark ? const Color(0xFF4ADE80) : const Color(0xFF16A34A));
       case 'undock':
-        return ('Power & Dock', Icons.power_settings_new_rounded, const Color(0xFF059669));
+        return ('Power & Dock', Icons.power_settings_new_rounded, isDark ? const Color(0xFF34D399) : const Color(0xFF059669));
       case 'jog_motion':
-        return ('Actuator', Icons.gamepad_outlined, const Color(0xFFD97706));
+        return ('Actuator', Icons.gamepad_outlined, isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706));
       case 'emergency_stop':
-        return ('Safety', Icons.emergency_rounded, const Color(0xFFDC2626));
+        return ('Safety', Icons.emergency_rounded, isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626));
       case 'loop':
       case 'loop_counter':
-        return ('Logic Flow', Icons.loop_rounded, const Color(0xFF7C3AED));
+        return ('Logic Flow', Icons.loop_rounded, isDark ? const Color(0xFFA78BFA) : const Color(0xFF7C3AED));
       case 'condition':
-        return ('Branch Logic', Icons.alt_route_rounded, const Color(0xFFEA580C));
+        return ('Branch Logic', Icons.alt_route_rounded, isDark ? const Color(0xFFFB923C) : const Color(0xFFEA580C));
       case 'parallel':
       case 'parallel_fork':
-        return ('Parallel Flow', Icons.call_split_rounded, const Color(0xFF00ACC1));
+        return ('Parallel Flow', Icons.call_split_rounded, isDark ? const Color(0xFF22D3EE) : const Color(0xFF00ACC1));
       case 'battery_guard':
-        return ('Safety Guard', Icons.battery_saver_rounded, const Color(0xFF059669));
+        return ('Safety Guard', Icons.battery_saver_rounded, isDark ? const Color(0xFF34D399) : const Color(0xFF059669));
       case 'set_variable':
-        return ('Variables', Icons.data_object_rounded, const Color(0xFF9333EA));
+        return ('Variables', Icons.data_object_rounded, isDark ? const Color(0xFFC084FC) : const Color(0xFF9333EA));
       case 'ui_interaction':
-        return ('Kiosk Form', Icons.touch_app_rounded, AppColors.primary);
+        return ('Kiosk Form', Icons.touch_app_rounded, colors.primary);
       case 'ui_notification':
-        return ('Kiosk Alert', Icons.notifications_active_rounded, const Color(0xFF0284C7));
+        return ('Kiosk Alert', Icons.notifications_active_rounded, isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7));
       case 'ui_choice':
-        return ('Kiosk Dialog', Icons.ads_click_rounded, AppColors.primary);
+        return ('Kiosk Dialog', Icons.ads_click_rounded, colors.primary);
       case 'ui_media':
-        return ('Kiosk Media', Icons.smart_display_rounded, const Color(0xFF0284C7));
+        return ('Kiosk Media', Icons.smart_display_rounded, isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7));
       case 'ui_browser':
-        return ('Web Browser', Icons.language_rounded, const Color(0xFF0D9488));
+        return ('Web Browser', Icons.language_rounded, isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0D9488));
       case 'ui_speech':
-        return ('Voice TTS', Icons.record_voice_over_rounded, const Color(0xFF8B5CF6));
+        return ('Voice TTS', Icons.record_voice_over_rounded, isDark ? const Color(0xFFA78BFA) : const Color(0xFF8B5CF6));
       case 'notify':
-        return ('Robot Signal', Icons.lightbulb_rounded, const Color(0xFF0D9488));
+        return ('Robot Signal', Icons.lightbulb_rounded, isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0D9488));
       case 'call_api':
-        return ('REST API', Icons.http_rounded, const Color(0xFF7C3AED));
+        return ('REST API', Icons.http_rounded, isDark ? const Color(0xFFA78BFA) : const Color(0xFF7C3AED));
       case 'call_service':
-        return ('ROS 2 Service', Icons.precision_manufacturing_rounded, const Color(0xFF4F46E5));
+        return ('ROS 2 Service', Icons.precision_manufacturing_rounded, isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5));
       case 'call_action':
-        return ('ROS 2 Action', Icons.settings_input_component_rounded, const Color(0xFF4F46E5));
+        return ('ROS 2 Action', Icons.settings_input_component_rounded, isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5));
       case 'publish_topic':
-        return ('ROS 2 Topic', Icons.podcasts_rounded, const Color(0xFF4F46E5));
+        return ('ROS 2 Topic', Icons.podcasts_rounded, isDark ? const Color(0xFF818CF8) : const Color(0xFF4F46E5));
       case 'switch_mission':
       case 'redirect_mission':
-        return ('Workflow', Icons.shuffle_rounded, const Color(0xFF009688));
+        return ('Workflow', Icons.shuffle_rounded, isDark ? const Color(0xFF2DD4BF) : const Color(0xFF009688));
       default:
-        return ('Step', Icons.circle_outlined, AppColors.textSecondary);
+        return ('Step', Icons.circle_outlined, colors.textSecondary);
     }
   }
 
@@ -2013,7 +2024,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         SnackBar(
           content: Text('Connected $fromNodeId ($fromPortId) → $toNodeId'),
           duration: const Duration(seconds: 2),
-          backgroundColor: AppColors.success,
+          backgroundColor: colors.success,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -2025,7 +2036,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         SnackBar(
           content: Text(val.errorMessage ?? 'Connection invalid'),
           duration: const Duration(seconds: 3),
-          backgroundColor: AppColors.danger,
+          backgroundColor: colors.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -2080,6 +2091,8 @@ class _EdgesPainter extends CustomPainter {
     this.activeNodeId,
     this.animProgress = 0.0,
     this.isRunning = false,
+    this.backgroundColor = const Color(0xFFF3F4F9),
+    this.isDark = false,
     this.drawingFromOffset,
     this.drawingCurrentOffset,
     this.drawingFromIsInput = false,
@@ -2095,6 +2108,8 @@ class _EdgesPainter extends CustomPainter {
   final String? activeNodeId;
   final double animProgress;
   final bool isRunning;
+  final Color backgroundColor;
+  final bool isDark;
   final Offset? drawingFromOffset;
   final Offset? drawingCurrentOffset;
   final bool drawingFromIsInput;
@@ -2121,25 +2136,26 @@ class _EdgesPainter extends CustomPainter {
           (selectedNodeId == edge.fromNode || selectedNodeId == edge.toNode);
       final isActive = activeNodeId == edge.fromNode || (activeNodeId != null && activeNodeId == edge.toNode);
 
-      Color edgeColor = const Color(0xFF475569);
+      Color edgeColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
       final pLow = edge.fromPort.toLowerCase();
       if (pLow == 'failed' || pLow == 'false' || pLow == 'no' || pLow == 'low_battery' || pLow == 'cancelled' || pLow == 'abort') {
-        edgeColor = AppColors.danger;
+        edgeColor = isDark ? const Color(0xFFF87171) : const Color(0xFFEF4444);
       } else if (pLow == 'timeout' || pLow == 'interrupted' || pLow == 'warning') {
-        edgeColor = AppColors.warning;
+        edgeColor = isDark ? const Color(0xFFFBBF24) : const Color(0xFFF59E0B);
       } else if (pLow == 'submitted' || pLow == 'true' || pLow == 'yes' || pLow == 'arrived' || pLow == 'completed' || pLow == 'docked' || pLow == 'undocked' || pLow == 'done' || pLow == 'confirmed' || pLow == 'next' || pLow == 'ok') {
-        edgeColor = AppColors.success;
+        edgeColor = isDark ? const Color(0xFF34D399) : const Color(0xFF22C55E);
       }
 
       final dir1 = layout?.dir1 ?? const Offset(1.0, 0.0);
       final dir2 = layout?.dir2 ?? const Offset(-1.0, 0.0);
 
       if (isEdgeSelected) {
+        final dangerColor = isDark ? const Color(0xFFF87171) : const Color(0xFFEF4444);
         _drawBezierEdge(
           canvas,
           p1,
           p2,
-          AppColors.danger.withValues(alpha: 0.35),
+          dangerColor.withValues(alpha: 0.35),
           8.0,
           dir1: dir1,
           dir2: dir2,
@@ -2153,7 +2169,7 @@ class _EdgesPainter extends CustomPainter {
           canvas,
           p1,
           p2,
-          AppColors.danger,
+          dangerColor,
           4.0,
           dir1: dir1,
           dir2: dir2,
@@ -2197,7 +2213,7 @@ class _EdgesPainter extends CustomPainter {
       // If multiple outgoing edges share this source port, draw a connector pin at p1
       if (totalInSource > 1) {
         final pinHalo = Paint()
-          ..color = AppColors.background
+          ..color = backgroundColor
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0;
         final pinPaint = Paint()
@@ -2214,7 +2230,7 @@ class _EdgesPainter extends CustomPainter {
       // If multiple incoming edges share this input port, draw a connector pin at p2
       if (totalInTarget > 1) {
         final pinHalo = Paint()
-          ..color = AppColors.background
+          ..color = backgroundColor
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0;
         final pinPaint = Paint()
@@ -2239,10 +2255,10 @@ class _EdgesPainter extends CustomPainter {
       bool isDashed = false;
 
       if (isValidTarget == true) {
-        wireColor = AppColors.success;
+        wireColor = isDark ? const Color(0xFF34D399) : const Color(0xFF22C55E);
         wireWidth = 3.6;
       } else if (isValidTarget == false) {
-        wireColor = AppColors.danger;
+        wireColor = isDark ? const Color(0xFFF87171) : const Color(0xFFEF4444);
         wireWidth = 2.6;
         isDashed = true;
       }
@@ -2309,7 +2325,7 @@ class _EdgesPainter extends CustomPainter {
     // ensuring underlaying wires are NEVER obscured into an indistinguishable mass.
     if (drawHalo) {
       final haloPaint = Paint()
-        ..color = AppColors.background
+        ..color = backgroundColor
         ..strokeWidth = width + 4.0
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
@@ -2407,7 +2423,7 @@ class _EdgesPainter extends CustomPainter {
 
     // Halo casing border on arrowhead to prevent blending with background or crossing lines
     final haloBorderPaint = Paint()
-      ..color = AppColors.background
+      ..color = backgroundColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
@@ -2448,7 +2464,7 @@ class _EdgesPainter extends CustomPainter {
     );
 
     final haloPaint = Paint()
-      ..color = AppColors.background
+      ..color = backgroundColor
       ..strokeWidth = width + 3.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -2497,6 +2513,8 @@ class _EdgesPainter extends CustomPainter {
         oldDelegate.activeNodeId != activeNodeId ||
         oldDelegate.animProgress != animProgress ||
         oldDelegate.isRunning != isRunning ||
+        oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.isDark != isDark ||
         oldDelegate.drawingFromOffset != drawingFromOffset ||
         oldDelegate.drawingCurrentOffset != drawingCurrentOffset ||
         oldDelegate.drawingFromIsInput != drawingFromIsInput ||
@@ -2505,14 +2523,15 @@ class _EdgesPainter extends CustomPainter {
   }
 }
 
-/// Subtle Dot Grid Background Painter matching light engineering canvas.
+/// Subtle Dot Grid Background Painter matching light or dark cockpit canvas.
 class _GridBackgroundPainter extends CustomPainter {
-  const _GridBackgroundPainter();
+  final Color dotColor;
+  const _GridBackgroundPainter({this.dotColor = const Color(0xFFCBD5E1)});
 
   @override
   void paint(Canvas canvas, Size size) {
     final dotPaint = Paint()
-      ..color = const Color(0xFFCBD5E1).withValues(alpha: 0.6)
+      ..color = dotColor
       ..strokeWidth = 2.3
       ..strokeCap = StrokeCap.round;
 
@@ -2527,5 +2546,6 @@ class _GridBackgroundPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GridBackgroundPainter oldDelegate) =>
+      oldDelegate.dotColor != dotColor;
 }

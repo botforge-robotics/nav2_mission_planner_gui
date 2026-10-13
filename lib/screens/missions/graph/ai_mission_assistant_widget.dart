@@ -352,21 +352,21 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           color: _isAiConfigured
-                              ? AppColors.primary.withValues(alpha: 0.12)
-                              : const Color(0xFFFEF3C7),
+                              ? colors.primary.withValues(alpha: 0.12)
+                              : (colors.isDark ? const Color(0xFF78350F).withValues(alpha: 0.35) : const Color(0xFFFEF3C7)),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           Icons.auto_awesome,
-                          color: _isAiConfigured ? AppColors.primary : const Color(0xFFD97706),
+                          color: _isAiConfigured ? colors.primary : (colors.isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706)),
                           size: 14,
                         ),
                       ),
                       const SizedBox(width: 6),
-                      const Text(
+                      Text(
                         'AI Assistant',
                         style: TextStyle(
-                          color: AppColors.textPrimary,
+                          color: colors.textPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
@@ -384,18 +384,18 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                       _toggleListening();
                     },
                     borderRadius: BorderRadius.circular(16),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                      child: Icon(Icons.mic_none_rounded, color: AppColors.primary, size: 16),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                      child: Icon(Icons.mic_none_rounded, color: colors.primary, size: 16),
                     ),
                   ),
                 ),
               InkWell(
                 onTap: () => setState(() => _isExpanded = true),
                 borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
-                child: const Padding(
-                  padding: EdgeInsets.fromLTRB(2, 6, 10, 6),
-                  child: Icon(Icons.keyboard_arrow_up_rounded, color: AppColors.textSecondary, size: 18),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(2, 6, 10, 6),
+                  child: Icon(Icons.keyboard_arrow_up_rounded, color: colors.textSecondary, size: 18),
                 ),
               ),
             ],
@@ -446,21 +446,21 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
                         color: _isAiConfigured
-                            ? AppColors.primary.withValues(alpha: 0.12)
-                            : const Color(0xFFFEF3C7),
+                            ? colors.primary.withValues(alpha: 0.12)
+                            : (colors.isDark ? const Color(0xFF78350F).withValues(alpha: 0.35) : const Color(0xFFFEF3C7)),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.auto_awesome,
-                        color: _isAiConfigured ? AppColors.primary : const Color(0xFFD97706),
+                        color: _isAiConfigured ? colors.primary : (colors.isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706)),
                         size: 16,
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const Text(
+                    Text(
                       'AI Workflow Assistant (Preview)',
                       style: TextStyle(
-                        color: AppColors.textPrimary,
+                        color: colors.textPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 13.5,
                         letterSpacing: -0.2,
@@ -471,14 +471,14 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
                       decoration: BoxDecoration(
                         color: _isAiConfigured
-                            ? AppColors.primary.withValues(alpha: 0.1)
-                            : const Color(0xFFFEF3C7),
+                            ? colors.primary.withValues(alpha: 0.1)
+                            : (colors.isDark ? const Color(0xFF78350F).withValues(alpha: 0.35) : const Color(0xFFFEF3C7)),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
                         _isAiConfigured ? 'PREVIEW' : 'NOT CONFIGURED',
                         style: TextStyle(
-                          color: _isAiConfigured ? AppColors.primary : const Color(0xFFD97706),
+                          color: _isAiConfigured ? colors.primary : (colors.isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706)),
                           fontSize: 9.5,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.5,
@@ -589,7 +589,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                       color: colors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 17),
+                    child: Icon(Icons.auto_awesome, color: colors.primary, size: 17),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -599,12 +599,12 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                       children: [
                         Row(
                           children: [
-                            const Flexible(
+                            Flexible(
                               child: Text(
                                 'AI Workflow Assistant',
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: AppColors.textPrimary,
+                                  color: colors.textPrimary,
                                   fontSize: 14.5,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: -0.2,
@@ -616,13 +616,13 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: _isAiConfigured
-                                    ? AppColors.success.withValues(alpha: 0.12)
-                                    : const Color(0xFFFEF3C7),
+                                    ? colors.success.withValues(alpha: 0.12)
+                                    : (colors.isDark ? const Color(0xFF78350F).withValues(alpha: 0.35) : const Color(0xFFFEF3C7)),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: _isAiConfigured
-                                      ? AppColors.success.withValues(alpha: 0.3)
-                                      : const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                                      ? colors.success.withValues(alpha: 0.3)
+                                      : (colors.isDark ? const Color(0xFFF59E0B).withValues(alpha: 0.35) : const Color(0xFFF59E0B).withValues(alpha: 0.4)),
                                 ),
                               ),
                               child: Row(
@@ -632,7 +632,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                     width: 6,
                                     height: 6,
                                     decoration: BoxDecoration(
-                                      color: _isAiConfigured ? AppColors.success : const Color(0xFFD97706),
+                                      color: _isAiConfigured ? colors.success : (colors.isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706)),
                                       shape: BoxShape.circle,
                                     ),
                                   ),
@@ -642,7 +642,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                         ? (_aiConfig?.provider.displayName ?? 'Ready')
                                         : 'Not Configured',
                                     style: TextStyle(
-                                      color: _isAiConfigured ? AppColors.success : const Color(0xFFB45309),
+                                      color: _isAiConfigured ? colors.success : (colors.isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309)),
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -653,10 +653,10 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                           ],
                         ),
                         const SizedBox(height: 1),
-                        const Text(
+                        Text(
                           'Preview version — review synthesized nodes and safety fallbacks before execution',
                           style: TextStyle(
-                            color: AppColors.textSecondary,
+                            color: colors.textSecondary,
                             fontSize: 11.5,
                           ),
                         ),
@@ -667,7 +667,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                   Tooltip(
                     message: 'AI Provider & Credentials',
                     child: IconButton(
-                      icon: const Icon(Icons.settings_outlined, color: AppColors.textSecondary, size: 20),
+                      icon: Icon(Icons.settings_outlined, color: colors.textSecondary, size: 20),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       splashRadius: 18,
@@ -679,7 +679,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                   Tooltip(
                     message: 'Minimize',
                     child: IconButton(
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondary, size: 22),
+                      icon: Icon(Icons.keyboard_arrow_down_rounded, color: colors.textSecondary, size: 22),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       splashRadius: 18,
@@ -754,13 +754,13 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
 
                   // Suggestions / Quick Prompts
                   Row(
-                    children: const [
-                      Icon(Icons.lightbulb_outline, size: 13, color: AppColors.textSecondary),
-                      SizedBox(width: 4),
+                    children: [
+                      Icon(Icons.lightbulb_outline, size: 13, color: colors.textSecondary),
+                      const SizedBox(width: 4),
                       Text(
                         'SAMPLE AMR WORKFLOWS',
                         style: TextStyle(
-                          color: AppColors.textSecondary,
+                          color: colors.textSecondary,
                           fontSize: 10.5,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 0.6,
@@ -854,17 +854,17 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.08),
+                        color: colors.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                        border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
                           Container(
                             width: 8,
                             height: 8,
-                            decoration: const BoxDecoration(
-                              color: AppColors.danger,
+                            decoration: BoxDecoration(
+                              color: colors.danger,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -872,7 +872,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                           Expanded(
                             child: Text(
                               'Recording audio (${_voiceEngineLabel ?? "Voice Model"})... Click stop when finished.',
-                              style: const TextStyle(color: AppColors.primary, fontSize: 11.5, fontWeight: FontWeight.w600),
+                              style: TextStyle(color: colors.primary, fontSize: 11.5, fontWeight: FontWeight.w600),
                             ),
                           ),
                           InkWell(
@@ -880,7 +880,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: AppColors.danger,
+                                color: colors.danger,
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: const Text(
@@ -960,7 +960,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                       ? FilledButton.icon(
                                           onPressed: (!_isAiConfigured || _isGenerating) ? null : _toggleListening,
                                           style: FilledButton.styleFrom(
-                                            backgroundColor: AppColors.danger,
+                                            backgroundColor: colors.danger,
                                             foregroundColor: Colors.white,
                                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -976,11 +976,11 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                       : OutlinedButton.icon(
                                           onPressed: (!_isAiConfigured || _isGenerating) ? null : _toggleListening,
                                           style: OutlinedButton.styleFrom(
-                                            foregroundColor: _isAiConfigured ? AppColors.primary : AppColors.textTertiary,
+                                            foregroundColor: _isAiConfigured ? colors.primary : colors.textTertiary,
                                             side: BorderSide(
                                               color: _isAiConfigured
-                                                  ? AppColors.primary.withValues(alpha: 0.35)
-                                                  : AppColors.border,
+                                                  ? colors.primary.withValues(alpha: 0.35)
+                                                  : colors.border,
                                             ),
                                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -988,14 +988,14 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                           icon: Icon(
                                             Icons.mic_none_rounded,
                                             size: 16,
-                                            color: _isAiConfigured ? null : AppColors.textTertiary,
+                                            color: _isAiConfigured ? null : colors.textTertiary,
                                           ),
                                           label: Text(
                                             'Voice Input',
                                             style: TextStyle(
                                               fontSize: 11.5,
                                               fontWeight: FontWeight.w600,
-                                              color: _isAiConfigured ? null : AppColors.textTertiary,
+                                              color: _isAiConfigured ? null : colors.textTertiary,
                                             ),
                                           ),
                                         ),
@@ -1008,9 +1008,9 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                   child: InkWell(
                                     onTap: () => setState(() => _promptController.clear()),
                                     borderRadius: BorderRadius.circular(6),
-                                    child: const Padding(
-                                      padding: EdgeInsets.all(4),
-                                      child: Icon(Icons.clear, color: AppColors.textSecondary, size: 16),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(4),
+                                      child: Icon(Icons.clear, color: colors.textSecondary, size: 16),
                                     ),
                                   ),
                                 ),
@@ -1028,9 +1028,9 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                       ? _generateMission
                                       : null,
                                   style: FilledButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
+                                    backgroundColor: colors.primary,
                                     foregroundColor: Colors.white,
-                                    disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.25),
+                                    disabledBackgroundColor: colors.primary.withValues(alpha: 0.25),
                                     disabledForegroundColor: Colors.white.withValues(alpha: 0.6),
                                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1062,10 +1062,14 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                       decoration: BoxDecoration(
-                        color: _isError ? const Color(0xFFFEE2E2) : const Color(0xFFDCFCE7),
+                        color: _isError
+                            ? (colors.isDark ? colors.danger.withValues(alpha: 0.15) : const Color(0xFFFEE2E2))
+                            : (colors.isDark ? colors.success.withValues(alpha: 0.15) : const Color(0xFFDCFCE7)),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: _isError ? const Color(0xFFFCA5A5) : const Color(0xFF86EFAC),
+                          color: _isError
+                              ? (colors.isDark ? colors.danger.withValues(alpha: 0.35) : const Color(0xFFFCA5A5))
+                              : (colors.isDark ? colors.success.withValues(alpha: 0.35) : const Color(0xFF86EFAC)),
                         ),
                       ),
                       child: Row(
@@ -1073,7 +1077,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                         children: [
                           Icon(
                             _isError ? Icons.error_outline_rounded : Icons.check_circle_rounded,
-                            color: _isError ? AppColors.danger : AppColors.success,
+                            color: _isError ? colors.danger : colors.success,
                             size: 17,
                           ),
                           const SizedBox(width: 8),
@@ -1081,7 +1085,9 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                             child: Text(
                               _statusMessage!,
                               style: TextStyle(
-                                color: _isError ? const Color(0xFF991B1B) : const Color(0xFF166534),
+                                color: _isError
+                                    ? (colors.isDark ? colors.danger : const Color(0xFF991B1B))
+                                    : (colors.isDark ? colors.success : const Color(0xFF166534)),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),

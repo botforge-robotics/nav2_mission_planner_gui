@@ -416,13 +416,14 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          icon: const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 36),
-          title: const Text('Mission is Running'),
-          content: const Text('Cannot delete this mission while it is actively executing. Please abort or cancel first.'),
+          backgroundColor: colors.surface,
+          icon: Icon(Icons.warning_amber_rounded, color: colors.warning, size: 36),
+          title: Text('Mission is Running', style: TextStyle(color: colors.textPrimary)),
+          content: Text('Cannot delete this mission while it is actively executing. Please abort or cancel first.', style: TextStyle(color: colors.textSecondary)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
+              child: Text('OK', style: TextStyle(color: colors.textPrimary)),
             ),
           ],
         ),
@@ -433,18 +434,20 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 36),
-        title: const Text('Delete Mission?'),
+        backgroundColor: colors.surface,
+        icon: Icon(Icons.delete_outline_rounded, color: colors.danger, size: 36),
+        title: Text('Delete Mission?', style: TextStyle(color: colors.textPrimary)),
         content: Text(
           'Are you sure you want to permanently delete "${_graph.name}"?\n\nThis will remove the entire visual node graph and all configured nodes.',
+          style: TextStyle(color: colors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
           ),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            style: FilledButton.styleFrom(backgroundColor: colors.danger),
             icon: const Icon(Icons.delete_forever_rounded, size: 18),
             label: const Text('Delete Mission'),
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -467,7 +470,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete mission: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text('Failed to delete mission: $e'), backgroundColor: colors.danger),
         );
       }
     }
@@ -545,11 +548,11 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1B202C),
+        backgroundColor: colors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
-            color: errors.isNotEmpty ? AppColors.danger : AppColors.warning,
+            color: errors.isNotEmpty ? colors.danger : colors.warning,
             width: 1.5,
           ),
         ),
@@ -557,13 +560,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           children: [
             Icon(
               errors.isNotEmpty ? Icons.error_outline : Icons.warning_amber_rounded,
-              color: errors.isNotEmpty ? AppColors.danger : AppColors.warning,
+              color: errors.isNotEmpty ? colors.danger : colors.warning,
               size: 24,
             ),
             const SizedBox(width: 10),
             Text(
               errors.isNotEmpty ? 'Validation Errors' : 'Validation Warnings',
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(color: colors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -574,9 +577,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (errors.isNotEmpty) ...[
-                const Text(
+                Text(
                   'The following critical issues must be resolved before running:',
-                  style: TextStyle(color: AppColors.danger, fontSize: 12.5, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: colors.danger, fontSize: 12.5, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 8),
                 for (final err in errors)
@@ -585,9 +588,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('• ', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
+                        Text('• ', style: TextStyle(color: colors.danger, fontWeight: FontWeight.bold)),
                         Expanded(
-                          child: Text(err, style: const TextStyle(color: Color(0xFFCFD8DC), fontSize: 12.5)),
+                          child: Text(err, style: TextStyle(color: colors.textPrimary, fontSize: 12.5)),
                         ),
                       ],
                     ),
@@ -600,7 +603,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                       ? 'The mission planner detected potential warnings. You can safely ignore these warnings if this behavior is intentional (e.g. mutually exclusive buttons or choices):'
                       : 'Additional warnings:',
                   style: TextStyle(
-                    color: errors.isEmpty ? AppColors.warning : AppColors.textSecondary,
+                    color: errors.isEmpty ? colors.warning : colors.textSecondary,
                     fontSize: 12.5,
                     fontWeight: FontWeight.w500,
                   ),
@@ -612,9 +615,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('• ', style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold)),
+                        Text('• ', style: TextStyle(color: colors.warning, fontWeight: FontWeight.bold)),
                         Expanded(
-                          child: Text(warn, style: const TextStyle(color: Color(0xFFCFD8DC), fontSize: 12.5)),
+                          child: Text(warn, style: TextStyle(color: colors.textPrimary, fontSize: 12.5)),
                         ),
                       ],
                     ),
@@ -628,13 +631,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(
               canProceed ? 'Cancel' : 'OK',
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: colors.textSecondary),
             ),
           ),
           if (canProceed && errors.isEmpty)
             FilledButton.icon(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.warning,
+                backgroundColor: colors.warning,
                 foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               ),
@@ -909,12 +912,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: (isBrowser ? const Color(0xFF0D9488) : AppColors.primary).withValues(alpha: 0.12),
+              color: (isBrowser ? (colors.isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0D9488)) : colors.primary).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               isBrowser ? Icons.language_rounded : Icons.tablet_mac_rounded,
-              color: isBrowser ? const Color(0xFF0D9488) : AppColors.primary,
+              color: isBrowser ? (colors.isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0D9488)) : colors.primary,
               size: 18,
             ),
           ),
@@ -926,7 +929,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 Text(
                   isBrowser ? 'Active on Robot Screen (Browser): $title' : 'Active on Robot Screen ($subtype): $title',
                   style: TextStyle(
-                    color: isBrowser ? const Color(0xFF0F766E) : AppColors.textPrimary,
+                    color: isBrowser ? (colors.isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0F766E)) : colors.textPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
@@ -935,7 +938,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   isBrowser
                       ? 'Embedded browser is open on the robot touchscreen. Mission will automatically resume once closed on the robot.'
                       : 'Awaiting physical interaction from on-site user on the robot screen terminal.',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 11),
                 ),
               ],
             ),
@@ -980,8 +983,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                           minimumSize: const Size(0, 34),
                           padding: const EdgeInsets.symmetric(horizontal: 14),
                           backgroundColor: (choice.toLowerCase() == 'no' || choice.toLowerCase() == 'cancel')
-                              ? AppColors.danger
-                              : AppColors.primary,
+                              ? colors.danger
+                              : colors.primary,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
@@ -1030,8 +1033,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 32),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                side: const BorderSide(color: AppColors.primary),
-                foregroundColor: AppColors.primary,
+                side: BorderSide(color: colors.primary),
+                foregroundColor: colors.primary,
               ),
               icon: const Icon(Icons.open_in_new, size: 14),
               label: const Text('Open Modal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
@@ -1072,7 +1075,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         }
       }
     }
-    return (Icons.account_tree_outlined, AppColors.primary);
+    return (Icons.account_tree_outlined, colors.primary);
   }
 
   void _openNodeLibraryModal() {
@@ -1141,8 +1144,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      decoration: const BoxDecoration(
-                        border: Border(bottom: BorderSide(color: AppColors.border)),
+                      decoration: BoxDecoration(
+                        border: Border(bottom: BorderSide(color: colors.border)),
                       ),
                       child: Row(
                         children: [
@@ -1150,7 +1153,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                             width: 36,
                             height: 4,
                             decoration: BoxDecoration(
-                              color: AppColors.border,
+                              color: colors.border,
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -1231,13 +1234,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     children: [
                       Text(
                         node.label.isNotEmpty ? node.label : node.id,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: colors.textPrimary),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const Text(
+                      Text(
                         'Tap to configure properties',
-                        style: TextStyle(fontSize: 10.5, color: AppColors.primary, fontWeight: FontWeight.w500),
+                        style: TextStyle(fontSize: 10.5, color: colors.primary, fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
@@ -1254,7 +1257,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               ),
               const SizedBox(width: 2),
               IconButton(
-                icon: const Icon(Icons.rotate_right_rounded, size: 19, color: AppColors.textSecondary),
+                icon: Icon(Icons.rotate_right_rounded, size: 19, color: colors.textSecondary),
                 tooltip: 'Rotate 90°',
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
@@ -1268,7 +1271,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               ),
               if (node.type != 'start')
                 IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded, size: 19, color: AppColors.danger),
+                  icon: Icon(Icons.delete_outline_rounded, size: 19, color: colors.danger),
                   tooltip: 'Delete Node',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
@@ -1276,7 +1279,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   onPressed: () => _deleteNode(node),
                 ),
               IconButton(
-                icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textSecondary),
+                icon: Icon(Icons.close_rounded, size: 18, color: colors.textSecondary),
                 tooltip: 'Deselect',
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
@@ -1357,15 +1360,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             children: [
               Icon(Icons.map_outlined, color: colors.primary, size: 20),
               const SizedBox(width: 8),
-              const Text('Select Mission Map', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text('Select Mission Map', style: TextStyle(color: colors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           content: SizedBox(
             width: double.maxFinite,
             child: mapList.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('No maps available.', style: TextStyle(color: AppColors.textSecondary)),
+                ? Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text('No maps available.', style: TextStyle(color: colors.textSecondary)),
                   )
                 : ListView.builder(
                     shrinkWrap: true,
@@ -1376,9 +1379,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                       return ListTile(
                         leading: Icon(
                           isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                          color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                          color: isSelected ? colors.primary : colors.textSecondary,
                         ),
-                        title: Text(m, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                        title: Text(m, style: TextStyle(color: colors.textPrimary, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
                         onTap: () {
                           setState(() => _graph.map = m);
                           Navigator.of(ctx).pop();
@@ -1390,7 +1393,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Close'),
+              child: Text('Close', style: TextStyle(color: colors.textSecondary)),
             ),
           ],
         );
@@ -1412,7 +1415,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: colors.background,
         appBar: _buildAppBar(isCompact: isCompact),
       body: Row(
         children: [
@@ -1650,8 +1653,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                       Flexible(
                         child: Text(
                           _graph.name.isNotEmpty ? _graph.name : 'Untitled',
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            color: colors.textPrimary,
                             fontWeight: FontWeight.bold,
                             fontSize: 13.5,
                           ),
@@ -1659,7 +1662,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.edit_outlined, size: 12, color: AppColors.primary),
+                      Icon(Icons.edit_outlined, size: 12, color: colors.primary),
                     ],
                   ),
                 ),
@@ -1670,17 +1673,17 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: _running ? AppColors.primary.withValues(alpha: 0.12) : AppColors.success.withValues(alpha: 0.12),
+                  color: _running ? colors.primary.withValues(alpha: 0.12) : colors.success.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: _running ? AppColors.primary : AppColors.success,
+                    color: _running ? colors.primary : colors.success,
                     width: 1.0,
                   ),
                 ),
                 child: Text(
                   _missionState!.toUpperCase(),
                   style: TextStyle(
-                    color: _running ? AppColors.primary : AppColors.success,
+                    color: _running ? colors.primary : colors.success,
                     fontSize: 9,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1691,18 +1694,18 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary),
+            icon: Icon(Icons.add_circle_outline_rounded, color: colors.primary),
             tooltip: 'Add Node',
             onPressed: _openNodeLibraryModal,
           ),
           IconButton(
             icon: _saving
-                ? const SizedBox(
+                ? SizedBox(
                     width: 14,
                     height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: colors.primary),
                   )
-                : const Icon(Icons.save_outlined, color: AppColors.textPrimary),
+                : Icon(Icons.save_outlined, color: colors.textPrimary),
             tooltip: 'Save Mission',
             onPressed: _saving ? null : _saveMission,
           ),
@@ -1711,7 +1714,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               style: FilledButton.styleFrom(
                 minimumSize: const Size(0, 32),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                backgroundColor: AppColors.danger,
+                backgroundColor: colors.danger,
                 foregroundColor: Colors.white,
               ),
               icon: const Icon(Icons.stop_rounded, size: 16),
@@ -1723,8 +1726,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               style: FilledButton.styleFrom(
                 minimumSize: const Size(0, 32),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.textOnPrimary,
+                backgroundColor: colors.primary,
+                foregroundColor: colors.textOnPrimary,
               ),
               icon: const Icon(Icons.play_arrow_rounded, size: 16),
               label: const Text('Run', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
@@ -1863,13 +1866,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
+              color: colors.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: const Text(
+            child: Text(
               'Workflow Editor',
               style: TextStyle(
-                color: AppColors.primary,
+                color: colors.primary,
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
               ),
@@ -1897,9 +1900,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceElevated.withValues(alpha: 0.6),
+                        color: colors.surfaceElevated.withValues(alpha: 0.6),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+                        border: Border.all(color: colors.border.withValues(alpha: 0.6)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1908,8 +1911,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                             constraints: const BoxConstraints(maxWidth: 240),
                             child: Text(
                               _graph.name.isNotEmpty ? _graph.name : 'Untitled Mission',
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
+                              style: TextStyle(
+                                color: colors.textPrimary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15,
                               ),
@@ -1917,10 +1920,10 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Icon(
+                          Icon(
                             Icons.edit_outlined,
                             size: 15,
-                            color: AppColors.primary,
+                            color: colors.primary,
                           ),
                         ],
                       ),
@@ -1936,8 +1939,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                       child: TextField(
                         controller: _nameController,
                         focusNode: _nameFocusNode,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -2057,17 +2060,17 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
                 color: _running
-                    ? AppColors.primary.withValues(alpha: 0.1)
+                    ? colors.primary.withValues(alpha: 0.15)
                     : (_missionState == 'failed'
-                        ? AppColors.danger.withValues(alpha: 0.1)
-                        : AppColors.success.withValues(alpha: 0.1)),
+                        ? colors.danger.withValues(alpha: 0.15)
+                        : colors.success.withValues(alpha: 0.15)),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: _running
-                      ? AppColors.primary
+                      ? colors.primary
                       : (_missionState == 'failed'
-                          ? AppColors.danger
-                          : AppColors.success),
+                          ? colors.danger
+                          : colors.success),
                   width: 1.2,
                 ),
               ),
@@ -2075,18 +2078,18 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (_running)
-                    const SizedBox(
+                    SizedBox(
                       width: 10,
                       height: 10,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: AppColors.primary),
+                          strokeWidth: 2, color: colors.primary),
                     )
                   else if (_missionState == 'failed')
-                    const Icon(Icons.error_outline_rounded,
-                        size: 14, color: AppColors.danger)
+                    Icon(Icons.error_outline_rounded,
+                        size: 14, color: colors.danger)
                   else
-                    const Icon(Icons.check_circle_outline,
-                        size: 14, color: AppColors.success),
+                    Icon(Icons.check_circle_outline,
+                        size: 14, color: colors.success),
                   const SizedBox(width: 8),
                   Text(
                     () {
@@ -2111,10 +2114,10 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     }(),
                     style: TextStyle(
                       color: _running
-                          ? AppColors.primary
+                          ? colors.primary
                           : (_missionState == 'failed'
-                              ? AppColors.danger
-                              : AppColors.success),
+                              ? colors.danger
+                              : colors.success),
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
@@ -2130,8 +2133,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(0, 36),
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              foregroundColor: AppColors.danger,
-              side: BorderSide(color: AppColors.danger.withValues(alpha: 0.4)),
+              foregroundColor: colors.danger,
+              side: BorderSide(color: colors.danger.withValues(alpha: 0.4)),
             ),
             icon: const Icon(Icons.delete_outline_rounded, size: 18),
             label: const Text('Delete'),
@@ -2145,8 +2148,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(0, 36),
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            foregroundColor: AppColors.textSecondary,
-            side: const BorderSide(color: AppColors.border),
+            foregroundColor: colors.textSecondary,
+            side: BorderSide(color: colors.border),
           ),
           icon: const Icon(Icons.verified_outlined, size: 18),
           label: const Text('Validate'),
@@ -2154,7 +2157,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             final validation = _validateGraph();
             if (validation.isValid) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Graph structure is valid!'), backgroundColor: AppColors.success),
+                SnackBar(content: const Text('Graph structure is valid!'), backgroundColor: colors.success),
               );
             } else {
               _showValidationDialog(
@@ -2172,10 +2175,10 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(0, 36),
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            foregroundColor: AppColors.textSecondary,
-            side: const BorderSide(color: AppColors.border),
+            foregroundColor: colors.textSecondary,
+            side: BorderSide(color: colors.border),
           ),
-          icon: const Icon(Icons.auto_fix_high_rounded, size: 17, color: AppColors.primary),
+          icon: Icon(Icons.auto_fix_high_rounded, size: 17, color: colors.primary),
           label: const Text('Auto-Align'),
           onPressed: () {
             setState(() {
@@ -2297,8 +2300,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       'title': 'Screen, Voice & Signals',
       'items': [
         _PaletteItem('ui_notification', 'Show Notification', 'Show notice banner with OK button', Icons.notifications_active_rounded, Color(0xFF0284C7)),
-        _PaletteItem('ui_interaction', 'Ask for Information', 'Show form on screen to fill out', Icons.touch_app_rounded, AppColors.primary),
-        _PaletteItem('ui_choice', 'Ask Choice (Buttons)', 'Show tap buttons on robot screen', Icons.ads_click_rounded, AppColors.primary),
+        _PaletteItem('ui_interaction', 'Ask for Information', 'Show form on screen to fill out', Icons.touch_app_rounded, Color(0xFF2563EB)),
+        _PaletteItem('ui_choice', 'Ask Choice (Buttons)', 'Show tap buttons on robot screen', Icons.ads_click_rounded, Color(0xFF2563EB)),
         _PaletteItem('ui_media', 'Show Picture or Video', 'Display image/video on robot screen', Icons.smart_display_rounded, Color(0xFF0284C7)),
         _PaletteItem('ui_browser', 'Open Web Page (Browser)', 'Display interactive web page on robot screen', Icons.language_rounded, Color(0xFF0D9488)),
         _PaletteItem('ui_speech', 'Speak Aloud', 'Say message aloud via speakers', Icons.record_voice_over_rounded, Color(0xFF8B5CF6)),
@@ -2455,14 +2458,16 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                             decoration: BoxDecoration(
                               color: _leftTabIndex == 1
-                                  ? const Color(0xFF9333EA).withValues(alpha: 0.15)
-                                  : AppColors.surfaceElevated,
+                                  ? (colors.isDark ? const Color(0xFFC084FC) : const Color(0xFF9333EA)).withValues(alpha: 0.15)
+                                  : colors.surfaceSunken,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
                               '${allVars.length}',
                               style: TextStyle(
-                                color: _leftTabIndex == 1 ? const Color(0xFF9333EA) : AppColors.textTertiary,
+                                color: _leftTabIndex == 1
+                                    ? (colors.isDark ? const Color(0xFFC084FC) : const Color(0xFF9333EA))
+                                    : colors.textTertiary,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -2511,15 +2516,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
           child: TextField(
             controller: _nodeSearchController,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+            style: TextStyle(color: colors.textPrimary, fontSize: 12),
             onChanged: (val) => setState(() => _nodeSearchQuery = val),
             decoration: InputDecoration(
               hintText: 'Search blocks...',
-              hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
-              prefixIcon: const Icon(Icons.search, size: 16, color: AppColors.textSecondary),
+              hintStyle: TextStyle(color: colors.textTertiary, fontSize: 12),
+              prefixIcon: Icon(Icons.search, size: 16, color: colors.textSecondary),
               suffixIcon: _nodeSearchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear, size: 16, color: AppColors.textTertiary),
+                      icon: Icon(Icons.clear, size: 16, color: colors.textTertiary),
                       onPressed: () {
                         _nodeSearchController.clear();
                         setState(() => _nodeSearchQuery = '');
@@ -2768,15 +2773,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               Expanded(
                 child: TextField(
                   controller: _variableSearchController,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 12),
                   onChanged: (val) => setState(() => _variableSearchQuery = val),
                   decoration: InputDecoration(
                     hintText: 'Filter variables...',
-                    hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
-                    prefixIcon: const Icon(Icons.search, size: 16, color: AppColors.textSecondary),
+                    hintStyle: TextStyle(color: colors.textTertiary, fontSize: 12),
+                    prefixIcon: Icon(Icons.search, size: 16, color: colors.textSecondary),
                     suffixIcon: _variableSearchQuery.isNotEmpty
                         ? IconButton(
-                            icon: const Icon(Icons.clear, size: 16, color: AppColors.textTertiary),
+                            icon: Icon(Icons.clear, size: 16, color: colors.textTertiary),
                             onPressed: () {
                               _variableSearchController.clear();
                               setState(() => _variableSearchQuery = '');
@@ -2984,6 +2989,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       valType = 'boolean';
     }
 
+    final purpleColor = colors.isDark ? const Color(0xFFC084FC) : const Color(0xFF9333EA);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(10),
@@ -3000,13 +3007,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF9333EA).withValues(alpha: 0.12),
+                  color: purpleColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   '{$key}',
-                  style: const TextStyle(
-                    color: Color(0xFF9333EA),
+                  style: TextStyle(
+                    color: purpleColor,
                     fontSize: 12,
                     fontFamily: 'monospace',
                     fontWeight: FontWeight.bold,
@@ -3036,7 +3043,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               ),
               // Edit Button
               IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 15, color: AppColors.textSecondary),
+                icon: Icon(Icons.edit_outlined, size: 15, color: colors.textSecondary),
                 tooltip: 'Edit Variable',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -3049,7 +3056,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               ),
               // Delete Button
               IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, size: 15, color: AppColors.danger),
+                icon: Icon(Icons.delete_outline_rounded, size: 15, color: colors.danger),
                 tooltip: 'Delete Variable',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -3060,11 +3067,11 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           const SizedBox(height: 6),
           Row(
             children: [
-              const Text('Value: ', style: TextStyle(color: AppColors.textTertiary, fontSize: 11)),
+              Text('Value: ', style: TextStyle(color: colors.textTertiary, fontSize: 11)),
               Expanded(
                 child: Text(
                   '$actualVal',
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 11.5, fontWeight: FontWeight.w600, fontFamily: 'monospace'),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 11.5, fontWeight: FontWeight.w600, fontFamily: 'monospace'),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -3072,7 +3079,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           ),
           if (desc != null && desc.isNotEmpty) ...[
             const SizedBox(height: 2),
-            Text(desc, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5, fontStyle: FontStyle.italic)),
+            Text(desc, style: TextStyle(color: colors.textSecondary, fontSize: 10.5, fontStyle: FontStyle.italic)),
           ],
         ],
       ),
@@ -3080,13 +3087,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   }
 
   Widget _buildNodeVariableCard(AvailableVariable v) {
+    final blueColor = colors.isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
+        color: colors.surfaceElevated,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3096,13 +3105,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                  color: blueColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   '{${v.name}}',
-                  style: const TextStyle(
-                    color: Color(0xFF0284C7),
+                  style: TextStyle(
+                    color: blueColor,
                     fontSize: 12,
                     fontFamily: 'monospace',
                     fontWeight: FontWeight.bold,
@@ -3112,7 +3121,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               const Spacer(),
               // Copy Button
               IconButton(
-                icon: const Icon(Icons.copy_rounded, size: 15, color: AppColors.textSecondary),
+                icon: Icon(Icons.copy_rounded, size: 15, color: colors.textSecondary),
                 tooltip: 'Copy {${v.name}}',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -3121,7 +3130,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               // Focus Node on Canvas Button
               if (v.sourceNodeId != null)
                 IconButton(
-                  icon: const Icon(Icons.filter_center_focus_rounded, size: 15, color: AppColors.primary),
+                  icon: Icon(Icons.filter_center_focus_rounded, size: 15, color: colors.primary),
                   tooltip: 'Focus step on canvas',
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -3132,12 +3141,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           const SizedBox(height: 4),
           Row(
             children: [
-              const Icon(Icons.account_tree_outlined, size: 13, color: AppColors.textTertiary),
+              Icon(Icons.account_tree_outlined, size: 13, color: colors.textTertiary),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
                   v.source,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 11),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -3149,13 +3158,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   }
 
   Widget _buildSystemVariableCard(AvailableVariable v) {
+    final greenColor = colors.isDark ? const Color(0xFF4ADE80) : const Color(0xFF16A34A);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
+        color: colors.surfaceElevated,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: colors.border),
       ),
       child: Row(
         children: [
@@ -3166,13 +3177,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                    color: greenColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     '{${v.name}}',
-                    style: const TextStyle(
-                      color: Color(0xFF16A34A),
+                    style: TextStyle(
+                      color: greenColor,
                       fontSize: 11.5,
                       fontFamily: 'monospace',
                       fontWeight: FontWeight.bold,
@@ -3182,13 +3193,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 const SizedBox(height: 4),
                 Text(
                   v.description ?? v.source,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 10.5),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 10.5),
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.copy_rounded, size: 15, color: AppColors.textSecondary),
+            icon: Icon(Icons.copy_rounded, size: 15, color: colors.textSecondary),
             tooltip: 'Copy {${v.name}}',
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -3239,7 +3250,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
+            style: TextStyle(color: colors.textTertiary, fontSize: 10),
           ),
         ],
       ),
@@ -3421,7 +3432,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Variable {$key} saved'),
-                      backgroundColor: AppColors.success,
+                      backgroundColor: colors.success,
                       duration: const Duration(seconds: 2),
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -3441,7 +3452,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Copied {$varName} to clipboard!'),
-        backgroundColor: AppColors.success,
+        backgroundColor: colors.success,
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
       ),
@@ -3456,14 +3467,14 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         return AlertDialog(
           backgroundColor: colors.surface,
           title: Text('Delete Variable?', style: TextStyle(color: colors.textPrimary, fontSize: 16)),
-          content: Text('Are you sure you want to delete variable "{$key}"? Steps referencing this variable might fail.'),
+          content: Text('Are you sure you want to delete variable "{$key}"? Steps referencing this variable might fail.', style: TextStyle(color: colors.textSecondary)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
               child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              style: FilledButton.styleFrom(backgroundColor: colors.danger),
               onPressed: () {
                 Navigator.of(ctx).pop();
                 final vars = Map<String, dynamic>.from(_graph.initialVariables);
@@ -3472,7 +3483,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   _graph.initialVariables = vars;
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Variable {$key} removed'), backgroundColor: AppColors.danger),
+                  SnackBar(content: Text('Variable {$key} removed'), backgroundColor: colors.danger),
                 );
               },
               child: const Text('Delete'),
@@ -3532,8 +3543,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.danger,
-                            side: const BorderSide(color: AppColors.danger),
+                            foregroundColor: colors.danger,
+                            side: BorderSide(color: colors.danger),
                             minimumSize: const Size(0, 36),
                             padding: const EdgeInsets.symmetric(horizontal: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
@@ -3643,7 +3654,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 ),
                 Text(
                   'Port: ${edge.toPort}',
-                  style: const TextStyle(color: AppColors.success, fontSize: 11),
+                  style: TextStyle(color: colors.success, fontSize: 11),
                 ),
               ],
             ),
@@ -3654,7 +3665,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               width: double.infinity,
               child: FilledButton.icon(
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.danger,
+                  backgroundColor: colors.danger,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
                 ),

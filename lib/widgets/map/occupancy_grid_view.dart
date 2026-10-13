@@ -375,6 +375,8 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   Subscriber<geometry_msgs.PoseWithCovarianceStamped>? _slamPoseSub;
   static nav_msgs.OccupancyGrid? _cachedGrid;
   static ui.Image? _cachedImage;
+  static bool? _cachedIsDark;
+  bool? _lastIsDark;
 
   nav_msgs.OccupancyGrid? _grid;
   ui.Image? _image;
@@ -457,12 +459,16 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       ..info.origin.position.z = 0.0
       ..info.origin.orientation.w = 1.0;
 
+    final isDark = mounted ? (Theme.of(context).brightness == Brightness.dark) : false;
     final pixels = Uint8List(width * height * 4);
+    final unkR = isDark ? 20 : 200;
+    final unkG = isDark ? 26 : 200;
+    final unkB = isDark ? 38 : 200;
     for (var i = 0; i < width * height; i++) {
       final pi = i * 4;
-      pixels[pi] = 200; // neutral gray for unexplored map canvas
-      pixels[pi + 1] = 200;
-      pixels[pi + 2] = 200;
+      pixels[pi] = unkR;
+      pixels[pi + 1] = unkG;
+      pixels[pi + 2] = unkB;
       pixels[pi + 3] = 255;
     }
 
@@ -528,6 +534,10 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     super.initState();
     _pose = widget.initialPose;
     _path = widget.initialPath;
+    final activeIsDark = AppThemeController.instance.isDarkMode;
+    if (_cachedIsDark != null && _cachedIsDark != activeIsDark) {
+      _cachedImage = null;
+    }
     if (widget.isMapping) {
       _initMappingPlaceholderGrid();
     } else if (_cachedGrid != null && _cachedImage != null) {
@@ -548,6 +558,24 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     // high zoom instead of staying a legible, constant-size "you are here".
     _controller.addListener(_onViewTransformChanged);
     _subscribeAll();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (_lastIsDark != null && _lastIsDark != isDark) {
+      _lastIsDark = isDark;
+      if (_cachedIsDark != isDark) {
+        _cachedImage = null;
+      }
+      final currentGrid = _grid;
+      if (currentGrid != null && !_building) {
+        _onGrid(currentGrid);
+      }
+    } else {
+      _lastIsDark = isDark;
+    }
   }
 
   void _subscribeMap() {
@@ -1013,7 +1041,20 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       final height = grid.info.height;
       if (width <= 0 || height <= 0) return;
 
+      final isDark = mounted ? (Theme.of(context).brightness == Brightness.dark) : false;
       final pixels = Uint8List(width * height * 4);
+      final unkR = isDark ? 20 : 200;
+      final unkG = isDark ? 26 : 200;
+      final unkB = isDark ? 38 : 200;
+
+      final freeR = isDark ? 30 : 255;
+      final freeG = isDark ? 39 : 255;
+      final freeB = isDark ? 54 : 255;
+
+      final occR = isDark ? 240 : 0;
+      final occG = isDark ? 245 : 0;
+      final occB = isDark ? 250 : 0;
+
       for (var row = 0; row < height; row++) {
         // Grid row 0 is the world-bottom row (increasing row = increasing map
         // Y); image row 0 is conventionally the top. Flip here so the
@@ -1021,13 +1062,19 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         final destRow = height - 1 - row;
         for (var col = 0; col < width; col++) {
           final value = grid.data[row * width + col];
-          final gray =
-              value < 0 ? 200 : (255 * (1 - value / 100)).round().clamp(0, 255);
           final i = (destRow * width + col) * 4;
-          pixels[i] = gray;
-          pixels[i + 1] = gray;
-          pixels[i + 2] = gray;
-          pixels[i + 3] = 255;
+          if (value < 0) {
+            pixels[i] = unkR;
+            pixels[i + 1] = unkG;
+            pixels[i + 2] = unkB;
+            pixels[i + 3] = 255;
+          } else {
+            final t = (value / 100.0).clamp(0.0, 1.0);
+            pixels[i] = (freeR + (occR - freeR) * t).round().clamp(0, 255);
+            pixels[i + 1] = (freeG + (occG - freeG) * t).round().clamp(0, 255);
+            pixels[i + 2] = (freeB + (occB - freeB) * t).round().clamp(0, 255);
+            pixels[i + 3] = 255;
+          }
         }
       }
 
@@ -1080,6 +1127,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       if (!widget.isMapping) {
         _cachedGrid = grid;
         _cachedImage = image;
+        _cachedIsDark = isDark;
       }
 
       setState(() {
@@ -1519,6 +1567,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       effectiveDraftYaw = widget.draftPoseOverride!.theta;
     }
 
+    final colors = AppColors.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     // Builds the painted map for a given marker counter-scale — a function
     // rather than a single built-once widget, because the right
     // counter-scale differs per branch below and, for the thumbnail branch,
@@ -1534,6 +1585,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           painter: _OccupancyGridPainter(
             image: image,
             grid: grid,
+            isDark: isDark,
             pose: widget.showRobot ? (_effectivePose ?? widget.initialPose) : null,
             dockPose:
                 (widget.showDock && showOverlays && !widget.dockEditorMode) ? _resolvedDockPose : null,
@@ -1608,7 +1660,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
                 -handleScreenDistance * markerScale * sin(effectiveDraftYaw),
               );
 
-      return SizedBox.expand(
+      return ColoredBox(
+        color: colors.background,
+        child: SizedBox.expand(
         child: Stack(
           children: [
             // Wraps (rather than nests inside) InteractiveViewer so the tap
@@ -1687,7 +1741,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
               ),
           ],
         ),
-      );
+      ));
     }
 
     // Fades in once, the moment the first grid decodes — the map "arrives"
@@ -1812,7 +1866,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         );
       }
 
-      return _withLocalizationBadge(LayoutBuilder(
+      return ColoredBox(
+        color: colors.background,
+        child: _withLocalizationBadge(LayoutBuilder(
         builder: (context, constraints) {
           final viewport = constraints.biggest;
           if (viewport.isFinite &&
@@ -1836,7 +1892,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           }
           return activeWidget;
         },
-      ));
+      )));
     }
 
 
@@ -1856,7 +1912,9 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     // that: it fits both axes and never crops, because the thing that has
     // to stay visible there is every pin along the route, not the robot —
     // which may not even be near any of them.
-    return _withLocalizationBadge(LayoutBuilder(
+    return ColoredBox(
+      color: colors.background,
+      child: _withLocalizationBadge(LayoutBuilder(
       builder: (context, constraints) {
         final viewport = constraints.biggest;
         if (!viewport.isFinite || grid.info.width <= 0) {
@@ -1922,7 +1980,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           ),
         );
       },
-    ));
+    )));
   }
 }
 
@@ -1966,10 +2024,12 @@ class _OccupancyGridPainter extends CustomPainter {
     this.laneDraftPoints = const [],
     this.laneDraftWidth = 1.2,
     this.mouseHoverWorld,
+    this.isDark = false,
   });
 
   final ui.Image image;
   final nav_msgs.OccupancyGrid grid;
+  final bool isDark;
   final geometry_msgs.PoseWithCovarianceStamped? pose;
   final geometry_msgs.PoseStamped? dockPose;
   final ({double x, double y, double theta})? standoffPose;
@@ -3111,6 +3171,10 @@ class _OccupancyGridPainter extends CustomPainter {
   void _drawPinLabel(Canvas canvas, Offset pinCenter, String name,
       {double sizeScale = 1.0}) {
     final radius = 12 * sizeScale;
+    final pillBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textColor = isDark ? const Color(0xFFF1F5F9) : AppColors.textPrimary;
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+
     final textPainter = TextPainter(
       textDirection: TextDirection.ltr,
       text: TextSpan(
@@ -3118,7 +3182,7 @@ class _OccupancyGridPainter extends CustomPainter {
         style: TextStyle(
           fontSize: 11 * sizeScale,
           fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
+          color: textColor,
         ),
       ),
     )..layout(maxWidth: 120 * sizeScale);
@@ -3138,10 +3202,17 @@ class _OccupancyGridPainter extends CustomPainter {
     canvas.drawRRect(
       pillRect,
       Paint()
-        ..color = Colors.black.withValues(alpha: 0.18)
+        ..color = Colors.black.withValues(alpha: isDark ? 0.45 : 0.18)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
     );
-    canvas.drawRRect(pillRect, Paint()..color = Colors.white);
+    canvas.drawRRect(pillRect, Paint()..color = pillBg);
+    canvas.drawRRect(
+      pillRect,
+      Paint()
+        ..color = borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0 * sizeScale,
+    );
     textPainter.paint(
       canvas,
       pillCenter - Offset(textPainter.width / 2, textPainter.height / 2),

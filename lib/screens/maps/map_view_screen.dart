@@ -1100,6 +1100,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final connection = context.watch<ConnectionProvider>();
     final ros2 = connection.ros2;
     final telemetry = context.watch<RobotTelemetryProvider>();
@@ -1132,7 +1133,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                 final visibleLayers =
                                     MapLayersController.instance.value;
                                 return Container(
-                                  color: AppColors.background,
+                                  color: colors.background,
                                   child: OccupancyGridView(
                                     ros2: ros2,
                                     interactive: true,
@@ -1377,7 +1378,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                           }
                           final visibleLayers = MapLayersController.instance.value;
                           return Container(
-                            color: AppColors.background,
+                            color: colors.background,
                             child: OccupancyGridView(
                               ros2: ros2,
                               interactive: true,

@@ -282,7 +282,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     }
     switch (node.type) {
       case 'start':
-        return (Icons.play_arrow_rounded, AppColors.success);
+        return (Icons.play_arrow_rounded, colors.success);
       case 'end':
       case 'mission_end':
         return (Icons.task_alt_rounded, const Color(0xFF0D9488));
@@ -319,11 +319,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       case 'set_variable':
         return (Icons.data_object_rounded, const Color(0xFF9333EA));
       case 'ui_interaction':
-        return (Icons.touch_app_rounded, AppColors.primary);
+        return (Icons.touch_app_rounded, colors.primary);
       case 'ui_notification':
         return (Icons.notifications_active_rounded, const Color(0xFF0284C7));
       case 'ui_choice':
-        return (Icons.ads_click_rounded, AppColors.primary);
+        return (Icons.ads_click_rounded, colors.primary);
       case 'ui_media':
         return (Icons.smart_display_rounded, const Color(0xFF0284C7));
       case 'ui_browser':
@@ -344,7 +344,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       case 'redirect_mission':
         return (Icons.shuffle_rounded, const Color(0xFF009688));
       default:
-        return (Icons.tune, AppColors.primary);
+        return (Icons.tune, colors.primary);
     }
   }
 
@@ -570,7 +570,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
 
         // Type specific inspectors
         if (node.type == 'start')
@@ -637,16 +637,16 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             decoration: BoxDecoration(
               color: colors.surfaceSunken,
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.border),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.check_circle_outline, size: 18, color: AppColors.primary),
+                Icon(Icons.check_circle_outline, size: 18, color: colors.primary),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'This step is ready! No extra settings needed.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
                   ),
                 ),
               ],
@@ -668,17 +668,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 24),
-        const Divider(color: AppColors.border),
-        const SizedBox(height: 12),
+        SizedBox(height: 24),
+        Divider(color: colors.border),
+        SizedBox(height: 12),
         Row(
           children: [
-            const Icon(Icons.hub_outlined, size: 16, color: AppColors.primary),
-            const SizedBox(width: 8),
-            const Text(
+            Icon(Icons.hub_outlined, size: 16, color: colors.primary),
+            SizedBox(width: 8),
+            Text(
               'Connected Lines',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: colors.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
               ),
@@ -689,12 +689,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               decoration: BoxDecoration(
                 color: colors.surfaceElevated,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: colors.border),
               ),
               child: Text(
                 '${incoming.length + outgoing.length}',
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: colors.textPrimary,
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),
@@ -702,23 +702,23 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         if (incoming.isEmpty && outgoing.isEmpty)
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: colors.surfaceSunken,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.border),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.link_off, size: 16, color: AppColors.textTertiary),
+                Icon(Icons.link_off, size: 16, color: colors.textTertiary),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'No lines connected to this step. Drag from an output port or tap a line to connect.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 11),
                   ),
                 ),
               ],
@@ -726,23 +726,23 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           )
         else ...[
           if (incoming.isNotEmpty) ...[
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 4, bottom: 6),
               child: Text(
                 'INCOMING (Inputs)',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                style: TextStyle(color: colors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
               ),
             ),
             for (final edge in incoming)
               _buildEdgeTile(edge, isIncoming: true),
           ],
           if (outgoing.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            const Padding(
+            SizedBox(height: 6),
+            Padding(
               padding: EdgeInsets.only(top: 4, bottom: 6),
               child: Text(
                 'OUTGOING (Outputs)',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                style: TextStyle(color: colors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
               ),
             ),
             for (final edge in outgoing)
@@ -771,24 +771,24 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       decoration: BoxDecoration(
         color: colors.surfaceSunken,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+        border: Border.all(color: colors.border.withValues(alpha: 0.7)),
       ),
       child: Row(
         children: [
           Icon(
             isIncoming ? Icons.arrow_back_rounded : Icons.arrow_forward_rounded,
             size: 15,
-            color: isIncoming ? AppColors.primary : AppColors.success,
+            color: isIncoming ? colors.primary : colors.success,
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   isIncoming ? 'From "$otherName"' : 'To "$otherName"',
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: colors.textPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -796,8 +796,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 ),
                 Text(
                   isIncoming ? 'Port: $portName (In)' : 'Port: $portName (Out)',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
+                    color: colors.textSecondary,
                     fontSize: 10.5,
                   ),
                 ),
@@ -806,7 +806,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           ),
           if (!widget.readOnly)
             IconButton(
-              icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.danger),
+              icon: Icon(Icons.delete_outline, size: 18, color: colors.danger),
               tooltip: 'Delete connection line',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -854,8 +854,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Where should the robot drive?', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
+        Text('Where should the robot drive?', style: TextStyle(color: colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+        SizedBox(height: 6),
         DropdownButtonFormField<String>(
           key: ValueKey('${widget.node.id}_wp_$currentWp'),
           isExpanded: true,
@@ -870,7 +870,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
-          hint: const Text('Choose a saved place or form variable', style: TextStyle(color: AppColors.textSecondary)),
+          hint: Text('Choose a saved place or form variable', style: TextStyle(color: colors.textSecondary)),
           items: [
             if (waypoints.isNotEmpty) ...[
               for (final wp in waypoints)
@@ -878,7 +878,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   value: wp['name']?.toString() ?? '',
                   child: Row(
                     children: [
-                      const Icon(Icons.place_rounded, size: 14, color: AppColors.primary),
+                      Icon(Icons.place_rounded, size: 14, color: colors.primary),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -896,12 +896,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   value: v,
                   child: Row(
                     children: [
-                      const Icon(Icons.input_rounded, size: 14, color: Color(0xFF8B5CF6)),
+                      Icon(Icons.input_rounded, size: 14, color: Color(0xFF8B5CF6)),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           'User Selected: $v (From Form)',
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8B5CF6)),
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8B5CF6)),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -914,12 +914,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 value: currentWp,
                 child: Row(
                   children: [
-                    const Icon(Icons.code_rounded, size: 14, color: Color(0xFF8B5CF6)),
+                    Icon(Icons.code_rounded, size: 14, color: Color(0xFF8B5CF6)),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'Variable: $currentWp',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8B5CF6)),
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8B5CF6)),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -936,22 +936,22 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   widget.onChanged();
                 },
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         TextFormField(
           initialValue: currentWp ?? '',
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+          style: TextStyle(color: colors.textPrimary, fontSize: 12),
           decoration: InputDecoration(
             isDense: true,
             labelText: 'Or type custom location / variable name',
             hintText: 'e.g. Kitchen or {field_1}',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
-            prefixIcon: const Icon(Icons.edit_note_rounded, size: 16),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 11),
+            prefixIcon: Icon(Icons.edit_note_rounded, size: 16),
             filled: true,
             fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           onChanged: widget.readOnly
               ? null
@@ -960,10 +960,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   widget.onChanged();
                 },
         ),
-        const SizedBox(height: 4),
-        const Text(
+        SizedBox(height: 4),
+        Text(
           '💡 Tip: Type a variable like {field_1} to navigate to the location chosen by the user in an earlier form step.',
-          style: TextStyle(fontSize: 10, color: AppColors.textTertiary),
+          style: TextStyle(fontSize: 10, color: colors.textTertiary),
         ),
         const SizedBox(height: 16),
         _buildNumberSlider(
@@ -1001,9 +1001,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   filled: true,
                   fillColor: colors.surfaceSunken,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
                 ),
                 onChanged: (v) {
                   widget.node.params['x'] = double.tryParse(v) ?? 0.0;
@@ -1011,7 +1011,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 },
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(
               child: TextFormField(
                 initialValue: y.toString(),
@@ -1023,9 +1023,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   filled: true,
                   fillColor: colors.surfaceSunken,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
                 ),
                 onChanged: (v) {
                   widget.node.params['y'] = double.tryParse(v) ?? 0.0;
@@ -1114,12 +1114,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           decoration: BoxDecoration(
             color: trigger == 'manual'
                 ? colors.surfaceSunken
-                : (enabled ? AppColors.primary.withValues(alpha: 0.08) : AppColors.warning.withValues(alpha: 0.1)),
+                : (enabled ? colors.primary.withValues(alpha: 0.08) : colors.warning.withValues(alpha: 0.1)),
             borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
             border: Border.all(
               color: trigger == 'manual'
-                  ? AppColors.border
-                  : (enabled ? AppColors.primary.withValues(alpha: 0.4) : AppColors.warning),
+                  ? colors.border
+                  : (enabled ? colors.primary.withValues(alpha: 0.4) : colors.warning),
             ),
           ),
           child: Row(
@@ -1130,10 +1130,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     : (trigger == 'interval' ? Icons.timer_rounded : Icons.alarm_rounded),
                 size: 22,
                 color: trigger == 'manual'
-                    ? AppColors.textSecondary
-                    : (enabled ? AppColors.primary : AppColors.warning),
+                    ? colors.textSecondary
+                    : (enabled ? colors.primary : colors.warning),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: Text(
                   summaryText(),
@@ -1141,25 +1141,25 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: trigger == 'manual'
-                        ? AppColors.textPrimary
-                        : (enabled ? AppColors.primary : AppColors.textPrimary),
+                        ? colors.textPrimary
+                        : (enabled ? colors.primary : colors.textPrimary),
                   ),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
 
         // Trigger Mode Selector
-        const Text(
+        Text(
           'Workflow Trigger Mode',
-          style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
         ),
-        const SizedBox(height: 4),
-        const Text(
+        SizedBox(height: 4),
+        Text(
           'Choose how this mission should be started:',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+          style: TextStyle(color: colors.textSecondary, fontSize: 11),
         ),
         const SizedBox(height: 8),
 
@@ -1215,7 +1215,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
 
         // If trigger is Interval
         if (trigger == 'interval') ...[
@@ -1224,36 +1224,36 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             decoration: BoxDecoration(
               color: colors.surface,
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.timer_outlined, size: 18, color: AppColors.primary),
-                    const SizedBox(width: 8),
-                    const Text(
+                    Icon(Icons.timer_outlined, size: 18, color: colors.primary),
+                    SizedBox(width: 8),
+                    Text(
                       'Recurring Interval Settings',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colors.textPrimary),
                     ),
                     const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
+                        color: colors.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         'Every $intervalMinutes min',
-                        style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: colors.primary, fontSize: 11, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                const Text('Quick Presets:', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
+                SizedBox(height: 12),
+                Text('Quick Presets:', style: TextStyle(color: colors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+                SizedBox(height: 6),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
@@ -1264,11 +1264,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         labelStyle: TextStyle(
                           fontSize: 11,
                           fontWeight: intervalMinutes == preset ? FontWeight.bold : FontWeight.normal,
-                          color: intervalMinutes == preset ? AppColors.textOnPrimary : AppColors.textPrimary,
+                          color: intervalMinutes == preset ? colors.textOnPrimary : colors.textPrimary,
                         ),
-                        backgroundColor: intervalMinutes == preset ? AppColors.primary : colors.surfaceSunken,
+                        backgroundColor: intervalMinutes == preset ? colors.primary : colors.surfaceSunken,
                         side: BorderSide(
-                          color: intervalMinutes == preset ? AppColors.primary : AppColors.border,
+                          color: intervalMinutes == preset ? colors.primary : colors.border,
                         ),
                         onPressed: widget.readOnly
                             ? null
@@ -1295,7 +1295,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
         ],
 
         // If trigger is Clock Alarm / Schedule
@@ -1305,18 +1305,18 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             decoration: BoxDecoration(
               color: colors.surface,
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.alarm_on_rounded, size: 18, color: AppColors.primary),
-                    const SizedBox(width: 8),
-                    const Text(
+                    Icon(Icons.alarm_on_rounded, size: 18, color: colors.primary),
+                    SizedBox(width: 8),
+                    Text(
                       'Alarm Time & Days',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colors.textPrimary),
                     ),
                   ],
                 ),
@@ -1343,33 +1343,33 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     decoration: BoxDecoration(
                       color: colors.surfaceSunken,
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                      border: Border.all(color: AppColors.border),
+                      border: Border.all(color: colors.border),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.access_time_rounded, color: AppColors.primary, size: 24),
-                        const SizedBox(width: 12),
+                        Icon(Icons.access_time_rounded, color: colors.primary, size: 24),
+                        SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Trigger Time', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                            Text('Trigger Time', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
                             Text(
                               timeFormatted(),
-                              style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                              style: TextStyle(color: colors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
                         const Spacer(),
-                        const Icon(Icons.edit_calendar_rounded, color: AppColors.primary, size: 18),
+                        Icon(Icons.edit_calendar_rounded, color: colors.primary, size: 18),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
 
                 // Repeat Mode Selector
-                const Text('Repeat Schedule:', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
+                Text('Repeat Schedule:', style: TextStyle(color: colors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+                SizedBox(height: 6),
                 Row(
                   children: [
                     for (final mode in [
@@ -1381,11 +1381,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         label: Text(mode.$2),
                         avatar: Icon(mode.$3, size: 14),
                         selected: scheduleType == mode.$1,
-                        selectedColor: AppColors.primary,
+                        selectedColor: colors.primary,
                         labelStyle: TextStyle(
                           fontSize: 11,
                           fontWeight: scheduleType == mode.$1 ? FontWeight.bold : FontWeight.normal,
-                          color: scheduleType == mode.$1 ? AppColors.textOnPrimary : AppColors.textPrimary,
+                          color: scheduleType == mode.$1 ? colors.textOnPrimary : colors.textPrimary,
                         ),
                         onSelected: widget.readOnly
                             ? null
@@ -1396,15 +1396,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                                 }
                               },
                       ),
-                      const SizedBox(width: 6),
+                      SizedBox(width: 6),
                     ],
                   ],
                 ),
 
                 // If Weekly: Day Chips
                 if (scheduleType == 'weekly') ...[
-                  const SizedBox(height: 12),
-                  const Text('Days of Week:', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+                  SizedBox(height: 12),
+                  Text('Days of Week:', style: TextStyle(color: colors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 6,
@@ -1414,11 +1414,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         FilterChip(
                           label: Text(weekdayLabels[i]),
                           selected: weekdays.contains(i),
-                          selectedColor: AppColors.primary,
+                          selectedColor: colors.primary,
                           labelStyle: TextStyle(
                             fontSize: 11,
                             fontWeight: weekdays.contains(i) ? FontWeight.bold : FontWeight.normal,
-                            color: weekdays.contains(i) ? AppColors.textOnPrimary : AppColors.textPrimary,
+                            color: weekdays.contains(i) ? colors.textOnPrimary : colors.textPrimary,
                           ),
                           onSelected: widget.readOnly
                               ? null
@@ -1440,8 +1440,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     children: [
                       TextButton.icon(
                         style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
-                        icon: const Icon(Icons.work_outline_rounded, size: 14),
-                        label: const Text('Mon–Fri (Weekdays)', style: TextStyle(fontSize: 11)),
+                        icon: Icon(Icons.work_outline_rounded, size: 14),
+                        label: Text('Mon–Fri (Weekdays)', style: TextStyle(fontSize: 11)),
                         onPressed: widget.readOnly
                             ? null
                             : () {
@@ -1451,8 +1451,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       ),
                       TextButton.icon(
                         style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
-                        icon: const Icon(Icons.weekend_outlined, size: 14),
-                        label: const Text('Sat–Sun (Weekends)', style: TextStyle(fontSize: 11)),
+                        icon: Icon(Icons.weekend_outlined, size: 14),
+                        label: Text('Sat–Sun (Weekends)', style: TextStyle(fontSize: 11)),
                         onPressed: widget.readOnly
                             ? null
                             : () {
@@ -1462,8 +1462,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       ),
                       TextButton.icon(
                         style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
-                        icon: const Icon(Icons.all_inclusive_rounded, size: 14),
-                        label: const Text('All 7 Days', style: TextStyle(fontSize: 11)),
+                        icon: Icon(Icons.all_inclusive_rounded, size: 14),
+                        label: Text('All 7 Days', style: TextStyle(fontSize: 11)),
                         onPressed: widget.readOnly
                             ? null
                             : () {
@@ -1502,15 +1502,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       decoration: BoxDecoration(
                         color: colors.surfaceSunken,
                         borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                        border: Border.all(color: AppColors.border),
+                        border: Border.all(color: colors.border),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.event_rounded, color: AppColors.primary, size: 18),
-                          const SizedBox(width: 8),
-                          Text('Date: $scheduleDate', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          Icon(Icons.event_rounded, color: colors.primary, size: 18),
+                          SizedBox(width: 8),
+                          Text('Date: $scheduleDate', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                           const Spacer(),
-                          const Text('Change Date', style: TextStyle(fontSize: 11, color: AppColors.primary)),
+                          Text('Change Date', style: TextStyle(fontSize: 11, color: colors.primary)),
                         ],
                       ),
                     ),
@@ -1519,7 +1519,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
         ],
 
         // If trigger is automated (interval or schedule), show Active Toggle & Safety
@@ -1528,15 +1528,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             decoration: BoxDecoration(
               color: colors.surface,
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.border),
             ),
             child: Column(
               children: [
                 SwitchListTile(
-                  title: const Text('Schedule Enabled & Active', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  title: Text('Schedule Enabled & Active', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                   subtitle: Text(
                     enabled ? 'Robot will automatically fire this workflow when due' : 'Trigger paused — will not fire automatically',
-                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    style: TextStyle(fontSize: 11, color: colors.textSecondary),
                   ),
                   value: enabled,
                   activeThumbColor: colors.primary,
@@ -1547,7 +1547,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           widget.onChanged();
                         },
                 ),
-                const Divider(height: 1, color: AppColors.border),
+                Divider(height: 1, color: colors.border),
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(
@@ -1555,9 +1555,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.shield_outlined, size: 16, color: AppColors.primary),
+                          Icon(Icons.shield_outlined, size: 16, color: colors.primary),
                           const SizedBox(width: 6),
-                          const Text('Auto-Trigger Safety Guards', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          Text('Auto-Trigger Safety Guards', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -1576,9 +1576,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       CheckboxListTile(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Skip trigger if robot is already busy', style: TextStyle(fontSize: 11.5)),
+                        title: Text('Skip trigger if robot is already busy', style: TextStyle(fontSize: 11.5)),
                         value: skipIfBusy,
-                        activeColor: AppColors.primary,
+                        activeColor: colors.primary,
                         onChanged: widget.readOnly
                             ? null
                             : (v) {
@@ -1589,9 +1589,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       CheckboxListTile(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Require active map to match mission map', style: TextStyle(fontSize: 11.5)),
+                        title: Text('Require active map to match mission map', style: TextStyle(fontSize: 11.5)),
                         value: requireActiveMap,
-                        activeColor: AppColors.primary,
+                        activeColor: colors.primary,
                         onChanged: widget.readOnly
                             ? null
                             : (v) {
@@ -1625,33 +1625,33 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primary.withValues(alpha: 0.08) : colors.surfaceSunken,
+          color: selected ? colors.primary.withValues(alpha: 0.08) : colors.surfaceSunken,
           borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
           border: Border.all(
-            color: selected ? AppColors.primary : AppColors.border,
+            color: selected ? colors.primary : colors.border,
             width: selected ? 1.8 : 1.0,
           ),
         ),
         child: Column(
           children: [
-            Icon(icon, size: 22, color: selected ? AppColors.primary : AppColors.textSecondary),
-            const SizedBox(height: 6),
+            Icon(icon, size: 22, color: selected ? colors.primary : colors.textSecondary),
+            SizedBox(height: 6),
             Text(
               title,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: selected ? FontWeight.bold : FontWeight.w600,
-                color: selected ? AppColors.primary : AppColors.textPrimary,
+                color: selected ? colors.primary : colors.textPrimary,
               ),
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             Text(
               subtitle,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 9.5,
-                color: selected ? AppColors.primary.withValues(alpha: 0.8) : AppColors.textSecondary,
+                color: selected ? colors.primary.withValues(alpha: 0.8) : colors.textSecondary,
               ),
             ),
           ],
@@ -1692,10 +1692,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
-        const SizedBox(height: 10),
-        const Text(
+        SizedBox(height: 10),
+        Text(
           'Quick Rule Examples (tap to use):',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
+          style: TextStyle(color: colors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
         Wrap(
@@ -1714,8 +1714,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   Widget _buildTokenChip(String token) {
     return ActionChip(
       backgroundColor: colors.surfaceSunken,
-      side: const BorderSide(color: AppColors.border),
-      label: Text(token, style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w500)),
+      side: BorderSide(color: colors.border),
+      label: Text(token, style: TextStyle(color: colors.primary, fontSize: 11, fontWeight: FontWeight.w500)),
       onPressed: widget.readOnly
           ? null
           : () {
@@ -1830,7 +1830,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           label: 'Save Entire Form to Variable (Optional)',
           initialValue: widget.node.params['output_variable'] as String? ?? widget.node.params['variable_name'] as String? ?? '',
           hintText: 'e.g. user_form_data',
-          prefixIcon: const Icon(Icons.data_object, size: 16),
+          prefixIcon: Icon(Icons.data_object, size: 16),
           onChanged: (v) {
             final val = v.trim();
             widget.node.params['output_variable'] = val;
@@ -1838,7 +1838,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
@@ -1846,15 +1846,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
-          child: const Row(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.auto_awesome, size: 16, color: AppColors.primary),
+              Icon(Icons.auto_awesome, size: 16, color: colors.primary),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
                   '💡 Every question key (e.g. {field_1} or custom key like {room}) is automatically saved as a variable! You can use {key} in later steps (such as HTTP requests, ROS topics, Screen titles, or TTS voice messages).',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.35),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 11, height: 1.35),
                 ),
               ),
             ],
@@ -2011,13 +2011,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   widget.onChanged();
                 },
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         SwitchListTile(
-          title: const Text('Play Alert Chime', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-          subtitle: const Text('Sound chime tone when notification appears', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          title: Text('Play Alert Chime', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textPrimary)),
+          subtitle: Text('Sound chime tone when notification appears', style: TextStyle(fontSize: 11, color: colors.textSecondary)),
           value: soundAlert,
           activeThumbColor: colors.primary,
-          activeTrackColor: AppColors.primary.withValues(alpha: 0.4),
+          activeTrackColor: colors.primary.withValues(alpha: 0.4),
           contentPadding: EdgeInsets.zero,
           onChanged: widget.readOnly
               ? null
@@ -2111,7 +2111,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           decoration: InputDecoration(
             labelText: 'Save Choice to Variable (Optional)',
             hintText: 'e.g. user_decision',
-            prefixIcon: const Icon(Icons.data_object, size: 16),
+            prefixIcon: Icon(Icons.data_object, size: 16),
             labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
             fillColor: colors.surfaceSunken,
@@ -2137,9 +2137,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         _buildChoiceOptionsEditor(),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
@@ -2147,15 +2147,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
-          child: const Row(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.lightbulb_outline, size: 16, color: AppColors.primary),
+              Icon(Icons.lightbulb_outline, size: 16, color: colors.primary),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
                   '💡 The selected choice is automatically saved to {selected_choice} (and your custom variable above). You can connect outgoing branch wires for each button name (e.g. "yes", "no").',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.35),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 11, height: 1.35),
                 ),
               ),
             ],
@@ -2176,7 +2176,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           label: 'Variable Name',
           initialValue: key,
           hintText: 'e.g. target_room or guest_count',
-          prefixIcon: const Icon(Icons.label_outline, size: 16),
+          prefixIcon: Icon(Icons.label_outline, size: 16),
           onChanged: (v) {
             final trimmed = v.trim();
             widget.node.params['key'] = trimmed;
@@ -2190,7 +2190,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: val,
           maxLines: 2,
           hintText: 'e.g. 302, "VIP", or {user_entered_room}',
-          prefixIcon: const Icon(Icons.edit_note, size: 16),
+          prefixIcon: Icon(Icons.edit_note, size: 16),
           onChanged: (v) {
             if (num.tryParse(v) != null && !v.contains('{')) {
               widget.node.params['value'] = num.parse(v);
@@ -2200,7 +2200,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
@@ -2208,15 +2208,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
-          child: const Row(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.auto_awesome, size: 16, color: AppColors.primary),
+              Icon(Icons.auto_awesome, size: 16, color: colors.primary),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
                   '💡 Stored variables can be used in later nodes (such as Screen text, Voice speech, HTTP URLs, or Waypoints) using {variable_name}.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.35),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 11, height: 1.35),
                 ),
               ),
             ],
@@ -2239,15 +2239,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               'Questions & Input Fields',
-              style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+              style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
             ),
             if (!widget.readOnly)
               TextButton.icon(
-                icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text('+ Add Question', style: TextStyle(fontSize: 12)),
-                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                icon: Icon(Icons.add_rounded, size: 16),
+                label: Text('+ Add Question', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(foregroundColor: colors.primary),
                 onPressed: () {
                   setState(() {
                     final newField = FormFieldDef(
@@ -2270,7 +2270,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: AppColors.border),
+              side: BorderSide(color: colors.border),
             ),
             margin: const EdgeInsets.only(bottom: 8),
             child: Padding(
@@ -2282,18 +2282,18 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       Expanded(
                         child: TextFormField(
                           initialValue: fields[i].label,
-                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
+                          style: TextStyle(color: colors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
                           decoration: InputDecoration(
                             isDense: true,
                             labelText: 'Question or Field Title',
                             hintText: 'e.g. What is the room temperature?',
-                            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 11),
                             filled: true,
                             fillColor: colors.surfaceSunken,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
-                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.border)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.border)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.primary, width: 1.5)),
                           ),
                           onChanged: (v) {
                             fields[i].label = v;
@@ -2303,7 +2303,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.textTertiary),
+                        icon: Icon(Icons.delete_outline, size: 16, color: colors.textTertiary),
                         tooltip: 'Remove Question',
                         onPressed: widget.readOnly
                             ? null
@@ -2317,7 +2317,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   Row(
                     children: [
                       Expanded(
@@ -2326,18 +2326,18 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           isExpanded: true,
                           initialValue: ['text', 'number', 'select', 'location', 'checkbox', 'switch', 'signature'].contains(fields[i].type) ? fields[i].type : 'text',
                           dropdownColor: colors.surface,
-                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w500),
+                          style: TextStyle(color: colors.textPrimary, fontSize: 11, fontWeight: FontWeight.w500),
                           isDense: true,
                           decoration: InputDecoration(
                             isDense: true,
                             labelText: 'Answer Type',
-                            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 11),
                             filled: true,
                             fillColor: colors.surfaceSunken,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
-                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.border)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.border)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.primary, width: 1.5)),
                           ),
                           items: const [
                             DropdownMenuItem(value: 'text', child: Text('Short Text (Type an answer)', overflow: TextOverflow.ellipsis)),
@@ -2359,10 +2359,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                                 },
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Checkbox(
                         value: fields[i].required,
-                        activeColor: AppColors.primary,
+                        activeColor: colors.primary,
                         onChanged: widget.readOnly
                             ? null
                             : (v) {
@@ -2373,32 +2373,32 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                                 widget.onChanged();
                               },
                       ),
-                      const Text('Required', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                      Text('Required', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
                     ],
                   ),
                   if (fields[i].type == 'select') ...[
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: colors.surface,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.border),
+                        border: Border.all(color: colors.border),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('List of Choices (Tap ✕ to remove):', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
+                          Text('List of Choices (Tap ✕ to remove):', style: TextStyle(color: colors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           Wrap(
                             spacing: 6,
                             runSpacing: 6,
                             children: fields[i].options.map((opt) {
                               return Chip(
-                                label: Text(opt, style: const TextStyle(fontSize: 11)),
+                                label: Text(opt, style: TextStyle(fontSize: 11)),
                                 padding: EdgeInsets.zero,
                                 backgroundColor: colors.surfaceSunken,
-                                deleteIcon: const Icon(Icons.close, size: 14),
+                                deleteIcon: Icon(Icons.close, size: 14),
                                 onDeleted: widget.readOnly ? null : () {
                                   setState(() {
                                     fields[i].options.remove(opt);
@@ -2410,7 +2410,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                               );
                             }).toList(),
                           ),
-                          const SizedBox(height: 6),
+                          SizedBox(height: 6),
                           Row(
                             children: [
                               Expanded(
@@ -2418,11 +2418,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                                   decoration: InputDecoration(
                                     isDense: true,
                                     hintText: 'Type choice & press Enter...',
-                                    hintStyle: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                                    hintStyle: TextStyle(fontSize: 11, color: colors.textTertiary),
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
                                   ),
-                                  style: const TextStyle(fontSize: 11),
+                                  style: TextStyle(fontSize: 11),
                                   onSubmitted: widget.readOnly ? null : (val) {
                                     if (val.trim().isNotEmpty && !fields[i].options.contains(val.trim())) {
                                       setState(() {
@@ -2436,7 +2436,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8),
                           DropdownButtonFormField<String>(
                             key: ValueKey('${widget.node.id}_field_${i}_def_${fields[i].defaultValue}'),
                             isExpanded: true,
@@ -2444,11 +2444,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                             decoration: InputDecoration(
                               isDense: true,
                               labelText: 'Pre-selected Default Choice (Optional)',
-                              labelStyle: const TextStyle(fontSize: 11),
+                              labelStyle: TextStyle(fontSize: 11),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
                             ),
-                            style: const TextStyle(fontSize: 11, color: AppColors.textPrimary),
+                            style: TextStyle(fontSize: 11, color: colors.textPrimary),
                             items: [
                               const DropdownMenuItem<String>(value: null, child: Text('None (User must choose)')),
                               for (final opt in fields[i].options)
@@ -2483,12 +2483,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Touch Buttons to Display', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+            Text('Touch Buttons to Display', style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
             if (!widget.readOnly)
               TextButton.icon(
-                icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text('+ Add Button', style: TextStyle(fontSize: 12)),
-                style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                icon: Icon(Icons.add_rounded, size: 16),
+                label: Text('+ Add Button', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(foregroundColor: colors.primary),
                 onPressed: () {
                   setState(() {
                     options.add('Button ${options.length + 1}');
@@ -2508,16 +2508,16 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 Expanded(
                   child: TextFormField(
                     initialValue: options[i],
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
+                    style: TextStyle(color: colors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
                     decoration: InputDecoration(
                       isDense: true,
                       hintText: 'Button Text (e.g. Yes, No, Done)',
                       filled: true,
                       fillColor: colors.surfaceSunken,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.border)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.primary, width: 1.5)),
                     ),
                     onChanged: (v) {
                       options[i] = v;
@@ -2527,7 +2527,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.textTertiary),
+                  icon: Icon(Icons.delete_outline, size: 16, color: colors.textTertiary),
                   tooltip: 'Delete Button',
                   onPressed: widget.readOnly
                       ? null
@@ -2615,7 +2615,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           label: 'Secret Key / Access Token (Optional)',
           initialValue: token,
           hintText: 'Bearer token or auth key',
-          prefixIcon: const Icon(Icons.key, size: 16),
+          prefixIcon: Icon(Icons.key, size: 16),
           onChanged: (v) {
             widget.node.params['bearer_token'] = v;
             widget.onChanged();
@@ -2660,7 +2660,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           label: 'Save API Response to Variable (Optional)',
           initialValue: widget.node.params['output_variable'] as String? ?? widget.node.params['variable_name'] as String? ?? '',
           hintText: 'e.g. api_response or weather_info',
-          prefixIcon: const Icon(Icons.data_object, size: 16),
+          prefixIcon: Icon(Icons.data_object, size: 16),
           onChanged: (v) {
             final val = v.trim();
             widget.node.params['output_variable'] = val;
@@ -2668,7 +2668,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
@@ -2676,15 +2676,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
-          child: const Row(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.lightbulb_outline, size: 16, color: AppColors.primary),
+              Icon(Icons.lightbulb_outline, size: 16, color: colors.primary),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
                   '💡 You can insert any previous variable into the URL, Headers, or Payload using {variable_name}. Any JSON response will be saved into the variable above!',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.35),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 11, height: 1.35),
                 ),
               ),
             ],
@@ -2692,11 +2692,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
         const SizedBox(height: 16),
         OutlinedButton.icon(
-          icon: const Icon(Icons.send_rounded, size: 16),
-          label: const Text('Test REST API Request', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          icon: Icon(Icons.send_rounded, size: 16),
+          label: Text('Test REST API Request', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           style: OutlinedButton.styleFrom(
             foregroundColor: const Color(0xFF7C3AED),
-            side: const BorderSide(color: Color(0xFF7C3AED)),
+            side: BorderSide(color: Color(0xFF7C3AED)),
             minimumSize: const Size(double.infinity, 42),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -2770,17 +2770,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           children: [
                             Icon(isOk ? Icons.check_circle_rounded : Icons.error_outline_rounded, color: isOk ? Colors.green : Colors.red, size: 22),
                             const SizedBox(width: 8),
-                            Text('HTTP ${res.statusCode}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            Text('HTTP ${res.statusCode}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                           ],
                         ),
                         content: SingleChildScrollView(
                           child: SelectableText(
                             res.body.trim().isEmpty ? '(Empty response body)' : res.body,
-                            style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                            style: TextStyle(fontSize: 12, fontFamily: 'monospace'),
                           ),
                         ),
                         actions: [
-                          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK')),
+                          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('OK')),
                         ],
                       ),
                     );
@@ -2840,15 +2840,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     ];
 
     return Container(
-      color: AppColors.background,
+      color: colors.background,
       padding: const EdgeInsets.all(16),
       child: Card(
         color: colors.surface,
         elevation: 2,
-        shadowColor: AppColors.shadowTint.withValues(alpha: 0.1),
+        shadowColor: colors.shadowTint.withValues(alpha: 0.1),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: AppColors.border),
+          side: BorderSide(color: colors.border),
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -2857,14 +2857,14 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             children: [
               Text(
                 title,
-                style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 15),
+                style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold, fontSize: 15),
               ),
-              const Divider(color: AppColors.border),
+              Divider(color: colors.border),
               if (fields.isEmpty)
-                const Center(
+                Center(
                   child: Padding(
                     padding: EdgeInsets.all(20),
-                    child: Text('No fields configured yet.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    child: Text('No fields configured yet.', style: TextStyle(color: colors.textSecondary, fontSize: 12)),
                   ),
                 )
               else
@@ -2879,24 +2879,24 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         children: [
                           Text(
                             '${f.label}${f.required ? ' *' : ''}',
-                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                            style: TextStyle(color: colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4),
                           if (f.type == 'switch')
-                            Switch(value: false, activeThumbColor: AppColors.primary, onChanged: (_) {})
+                            Switch(value: false, activeThumbColor: colors.primary, onChanged: (_) {})
                           else if (f.type == 'checkbox')
-                            Checkbox(value: false, activeColor: AppColors.primary, onChanged: (_) {})
+                            Checkbox(value: false, activeColor: colors.primary, onChanged: (_) {})
                           else
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               decoration: BoxDecoration(
                                 color: colors.surfaceSunken,
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.border),
+                                border: Border.all(color: colors.border),
                               ),
                               child: Text(
                                 f.type == 'select' ? 'Select from options...' : 'Enter ${f.label.toLowerCase()}...',
-                                style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                                style: TextStyle(color: colors.textTertiary, fontSize: 12),
                               ),
                             ),
                         ],
@@ -2904,15 +2904,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     },
                   ),
                 ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               FilledButton(
                 onPressed: () {},
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textOnPrimary,
+                  backgroundColor: colors.primary,
+                  foregroundColor: colors.textOnPrimary,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
                 ),
-                child: const Text('Submit Form'),
+                child: Text('Submit Form'),
               ),
             ],
           ),
@@ -2977,11 +2977,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Drive to Charger Automatically', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-          subtitle: const Text('Robot will safely return to charging dock when this step finishes', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          title: Text('Drive to Charger Automatically', style: TextStyle(color: colors.textPrimary, fontSize: 13)),
+          subtitle: Text('Robot will safely return to charging dock when this step finishes', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
           value: dockOnEnd,
           activeThumbColor: colors.primary,
           onChanged: widget.readOnly
@@ -3014,7 +3014,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         TextFormField(
           initialValue: varName,
           style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
@@ -3022,7 +3022,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             labelText: 'Repetition Counter Name (Optional)',
             labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             helperText: 'Stores current repetition count (0, 1, 2...) for rules or messages',
-            helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
+            helperStyle: TextStyle(color: colors.textTertiary, fontSize: 10),
             filled: true,
             fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -3035,7 +3035,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         TextFormField(
           initialValue: condition,
           style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
@@ -3044,7 +3044,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             hintText: 'e.g. form.keep_going == true',
             labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             helperText: 'If this rule becomes false, repeat stops early',
-            helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
+            helperStyle: TextStyle(color: colors.textTertiary, fontSize: 10),
             filled: true,
             fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -3075,7 +3075,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: const Color(0xFF00ACC1).withValues(alpha: 0.3)),
           ),
-          child: const Row(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.call_split_rounded, size: 20, color: Color(0xFF00ACC1)),
@@ -3083,16 +3083,16 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               Expanded(
                 child: Text(
                   'Executes all connected branch paths at the same time. For example, the robot can speak aloud while displaying an interactive form on screen.',
-                  style: TextStyle(color: AppColors.textPrimary, fontSize: 12, height: 1.35),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 12, height: 1.35),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        const Text(
+        SizedBox(height: 16),
+        Text(
           'Number of Concurrent Branches',
-          style: TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
+          style: TextStyle(color: colors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Row(
@@ -3114,14 +3114,14 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       color: count == i ? const Color(0xFF00ACC1) : colors.surfaceSunken,
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
-                        color: count == i ? const Color(0xFF00ACC1) : AppColors.border,
+                        color: count == i ? const Color(0xFF00ACC1) : colors.border,
                       ),
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       '$i Branches',
                       style: TextStyle(
-                        color: count == i ? Colors.white : AppColors.textPrimary,
+                        color: count == i ? Colors.white : colors.textPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
@@ -3155,11 +3155,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Must Be Plugged In to Charger', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-          subtitle: const Text('Robot must currently be docked and charging to pass this check', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          title: Text('Must Be Plugged In to Charger', style: TextStyle(color: colors.textPrimary, fontSize: 13)),
+          subtitle: Text('Robot must currently be docked and charging to pass this check', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
           value: requireCharging,
           activeThumbColor: colors.primary,
           onChanged: widget.readOnly
@@ -3186,9 +3186,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Saved Places to Visit in Order', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+            Text('Saved Places to Visit in Order', style: TextStyle(color: colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
             PopupMenuButton<String>(
-              icon: const Icon(Icons.add_location_alt_outlined, size: 18, color: AppColors.primary),
+              icon: Icon(Icons.add_location_alt_outlined, size: 18, color: colors.primary),
               tooltip: 'Add Place to Route',
               onSelected: (wpName) {
                 setState(() {
@@ -3207,16 +3207,16 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         if (waypoints.isEmpty)
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: colors.surfaceSunken,
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.border),
             ),
-            child: const Text('No stops added yet. Tap the + location icon above to add stops to patrol.', style: TextStyle(color: AppColors.textTertiary, fontSize: 11)),
+            child: Text('No stops added yet. Tap the + location icon above to add stops to patrol.', style: TextStyle(color: colors.textTertiary, fontSize: 11)),
           )
         else
           Column(
@@ -3229,19 +3229,19 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   decoration: BoxDecoration(
                     color: colors.surfaceSunken,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
+                    border: Border.all(color: colors.border),
                   ),
                   child: Row(
                     children: [
-                      Text('${i + 1}.', style: const TextStyle(color: AppColors.textTertiary, fontSize: 11, fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(waypoints[i], style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600))),
+                      Text('${i + 1}.', style: TextStyle(color: colors.textTertiary, fontSize: 11, fontWeight: FontWeight.bold)),
+                      SizedBox(width: 8),
+                      Expanded(child: Text(waypoints[i], style: TextStyle(color: colors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600))),
                       if (i > 0)
                         IconButton(
                           visualDensity: VisualDensity.compact,
                           padding: EdgeInsets.zero,
                           tooltip: 'Move Up',
-                          icon: const Icon(Icons.arrow_upward, size: 14, color: AppColors.textSecondary),
+                          icon: Icon(Icons.arrow_upward, size: 14, color: colors.textSecondary),
                           onPressed: () {
                             setState(() {
                               final item = waypoints.removeAt(i);
@@ -3256,7 +3256,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           visualDensity: VisualDensity.compact,
                           padding: EdgeInsets.zero,
                           tooltip: 'Move Down',
-                          icon: const Icon(Icons.arrow_downward, size: 14, color: AppColors.textSecondary),
+                          icon: Icon(Icons.arrow_downward, size: 14, color: colors.textSecondary),
                           onPressed: () {
                             setState(() {
                               final item = waypoints.removeAt(i);
@@ -3270,7 +3270,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         visualDensity: VisualDensity.compact,
                         padding: EdgeInsets.zero,
                         tooltip: 'Remove',
-                        icon: const Icon(Icons.close, size: 16, color: AppColors.danger),
+                        icon: Icon(Icons.close, size: 16, color: colors.danger),
                         onPressed: () {
                           setState(() {
                             waypoints.removeAt(i);
@@ -3371,7 +3371,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Uploaded "$uploadedFilename" to robot shared media library!'),
-            backgroundColor: AppColors.success,
+            backgroundColor: colors.success,
           ),
         );
       }
@@ -3381,7 +3381,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Upload failed: $e'),
-            backgroundColor: AppColors.danger,
+            backgroundColor: colors.danger,
           ),
         );
       }
@@ -3405,7 +3405,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         decoration: BoxDecoration(
           color: const Color(0xFF0F172A),
           borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: colors.border),
         ),
         child: Row(
           children: [
@@ -3413,10 +3413,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.2),
+                color: colors.primary.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.play_circle_fill_rounded, color: AppColors.primary, size: 28),
+              child: Icon(Icons.play_circle_fill_rounded, color: colors.primary, size: 28),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -3425,11 +3425,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 children: [
                   Text(
                     filename.isNotEmpty ? filename : url.split('/').last,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 3),
-                  const Text(
+                  Text(
                     'Video Preview • Plays full-screen on robot onboard touchscreen',
                     style: TextStyle(color: Colors.white60, fontSize: 11),
                   ),
@@ -3450,7 +3450,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         decoration: BoxDecoration(
           color: colors.surfaceSunken,
           borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: colors.border),
         ),
         child: Stack(
           alignment: Alignment.center,
@@ -3476,21 +3476,21 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 color: colors.surfaceSunken,
                 child: Row(
                   children: [
-                    const Icon(Icons.broken_image_rounded, color: AppColors.warning, size: 26),
-                    const SizedBox(width: 10),
+                    Icon(Icons.broken_image_rounded, color: colors.warning, size: 26),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
-                        children: const [
+                        children: [
                           Text(
                             'Media file missing or deleted on robot',
-                            style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold, fontSize: 12),
+                            style: TextStyle(color: colors.warning, fontWeight: FontWeight.bold, fontSize: 12),
                           ),
                           SizedBox(height: 2),
                           Text(
                             'Safe protection active: Mission will safely bypass this missing media node without failing.',
-                            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                            style: TextStyle(color: colors.textSecondary, fontSize: 11),
                           ),
                         ],
                       ),
@@ -3508,7 +3508,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   color: Colors.black.withValues(alpha: 0.65),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text(
+                child: Text(
                   'Preview',
                   style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
                 ),
@@ -3552,7 +3552,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           decoration: BoxDecoration(
             color: colors.surfaceSunken,
             borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: colors.border),
           ),
           padding: const EdgeInsets.all(3),
           child: Row(
@@ -3568,7 +3568,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: !_useCustomMediaUrl ? AppColors.primary : Colors.transparent,
+                      color: !_useCustomMediaUrl ? colors.primary : Colors.transparent,
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius - 2),
                     ),
                     alignment: Alignment.center,
@@ -3578,13 +3578,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         Icon(
                           Icons.folder_shared_outlined,
                           size: 16,
-                          color: !_useCustomMediaUrl ? Colors.white : AppColors.textSecondary,
+                          color: !_useCustomMediaUrl ? Colors.white : colors.textSecondary,
                         ),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6),
                         Text(
                           'Robot Media Folder${_robotMediaFiles.isNotEmpty ? ' (${_robotMediaFiles.length})' : ''}',
                           style: TextStyle(
-                            color: !_useCustomMediaUrl ? Colors.white : AppColors.textSecondary,
+                            color: !_useCustomMediaUrl ? Colors.white : colors.textSecondary,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
@@ -3605,7 +3605,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: _useCustomMediaUrl ? AppColors.primary : Colors.transparent,
+                      color: _useCustomMediaUrl ? colors.primary : Colors.transparent,
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius - 2),
                     ),
                     alignment: Alignment.center,
@@ -3615,13 +3615,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         Icon(
                           Icons.link_rounded,
                           size: 16,
-                          color: _useCustomMediaUrl ? Colors.white : AppColors.textSecondary,
+                          color: _useCustomMediaUrl ? Colors.white : colors.textSecondary,
                         ),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6),
                         Text(
                           'Custom URL / Link',
                           style: TextStyle(
-                            color: _useCustomMediaUrl ? Colors.white : AppColors.textSecondary,
+                            color: _useCustomMediaUrl ? Colors.white : colors.textSecondary,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
@@ -3634,7 +3634,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
 
         if (!_useCustomMediaUrl) ...[
           // Dropdown for robot media library
@@ -3659,7 +3659,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         : _robotMediaFiles.isEmpty
                             ? 'No media files on robot yet'
                             : 'Choose file from robot media folder...',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
                   dropdownColor: colors.surface,
@@ -3670,9 +3670,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     filled: true,
                     fillColor: colors.surfaceSunken,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
                   ),
                   items: _robotMediaFiles.map((m) {
                     final fName = m['filename']?.toString() ?? '';
@@ -3686,21 +3686,21 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           Icon(
                             isVid ? Icons.videocam_rounded : Icons.image_rounded,
                             size: 16,
-                            color: isVid ? AppColors.accent : AppColors.primary,
+                            color: isVid ? colors.accent : colors.primary,
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               displayName,
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           if (sizeStr.isNotEmpty) ...[
-                            const SizedBox(width: 6),
+                            SizedBox(width: 6),
                             Text(
                               sizeStr,
-                              style: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
+                              style: TextStyle(color: colors.textTertiary, fontSize: 10),
                             ),
                           ],
                         ],
@@ -3727,38 +3727,38 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         },
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Tooltip(
                 message: 'Refresh robot media files',
                 child: IconButton.outlined(
                   style: IconButton.styleFrom(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
-                    side: const BorderSide(color: AppColors.border),
+                    side: BorderSide(color: colors.border),
                   ),
                   onPressed: _isLoadingMediaList ? null : _fetchRobotMediaFiles,
                   icon: _isLoadingMediaList
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.refresh_rounded, size: 18),
+                      ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Icon(Icons.refresh_rounded, size: 18),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           // Upload button in robot library mode
           SizedBox(
             width: double.infinity,
             height: 38,
             child: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
+                foregroundColor: colors.primary,
+                side: BorderSide(color: colors.primary),
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
               ),
               onPressed: (widget.readOnly || _isUploadingMedia) ? null : _handleUploadMedia,
               icon: _isUploadingMedia
-                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
-                  : const Icon(Icons.cloud_upload_outlined, size: 18),
+                  ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: colors.primary))
+                  : Icon(Icons.cloud_upload_outlined, size: 18),
               label: Text(_isUploadingMedia ? 'Uploading to Robot Media...' : 'Upload New Image or Video to Robot'),
             ),
           ),
@@ -3779,9 +3779,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     filled: true,
                     fillColor: colors.surfaceSunken,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
                   ),
                   onChanged: (v) {
                     widget.node.params['url'] = v.trim();
@@ -3790,20 +3790,20 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   },
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               SizedBox(
                 height: 42,
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary),
+                    foregroundColor: colors.primary,
+                    side: BorderSide(color: colors.primary),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
                   ),
                   onPressed: (widget.readOnly || _isUploadingMedia) ? null : _handleUploadMedia,
                   icon: _isUploadingMedia
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
-                      : const Icon(Icons.cloud_upload_outlined, size: 18),
+                      ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: colors.primary))
+                      : Icon(Icons.cloud_upload_outlined, size: 18),
                   label: Text(_isUploadingMedia ? '...' : 'Upload'),
                 ),
               ),
@@ -3813,28 +3813,28 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
 
         // Media Live Preview Box
         if (url.isNotEmpty) ...[
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _buildMediaPreviewCard(url: url, filename: filename, mediaType: mediaType),
         ],
 
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         // Mission Safe Handle Badge
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: AppColors.success.withValues(alpha: 0.08),
+            color: colors.success.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.success.withValues(alpha: 0.25)),
+            border: Border.all(color: colors.success.withValues(alpha: 0.25)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Icon(Icons.shield_outlined, size: 16, color: AppColors.success),
+            children: [
+              Icon(Icons.shield_outlined, size: 16, color: colors.success),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Mission Safe Handle: If this file is deleted from the robot screen, the mission automatically closes this node safely and continues to the next step without stalling.',
-                  style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w500, height: 1.3),
+                  style: TextStyle(color: colors.success, fontSize: 11, fontWeight: FontWeight.w500, height: 1.3),
                 ),
               ),
             ],
@@ -3842,23 +3842,23 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
 
         if (mediaType == 'video') ...[
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.08),
+              color: colors.accent.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
+              border: Border.all(color: colors.accent.withValues(alpha: 0.25)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Icon(Icons.video_settings_rounded, size: 16, color: AppColors.accent),
+              children: [
+                Icon(Icons.video_settings_rounded, size: 16, color: colors.accent),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Smooth Video Tip: Best formats are MP4 (H.264/AVC, 8-bit YUV420p, AAC audio, 720p/1080p @ 30/60fps). Robot automatically optimizes MP4 files with faststart for zero-latency streaming.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w500, height: 1.3),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 11, fontWeight: FontWeight.w500, height: 1.3),
                   ),
                 ),
               ],
@@ -3936,11 +3936,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Show "Skip" or "Close" Button', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-          subtitle: const Text('Allows someone standing by the robot to dismiss the screen early', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          title: Text('Show "Skip" or "Close" Button', style: TextStyle(color: colors.textPrimary, fontSize: 13)),
+          subtitle: Text('Allows someone standing by the robot to dismiss the screen early', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
           value: showSkip,
           activeThumbColor: colors.primary,
           onChanged: widget.readOnly
@@ -3971,20 +3971,20 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
             border: Border.all(color: const Color(0xFF009688).withValues(alpha: 0.3)),
           ),
-          child: const Row(
+          child: Row(
             children: [
               Icon(Icons.alt_route_rounded, size: 20, color: Color(0xFF009688)),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Transfers autonomous control to another saved mission on this map.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         DropdownButtonFormField<String>(
           key: ValueKey('${widget.node.id}_target_mission_$targetId'),
           isExpanded: true,
@@ -4017,12 +4017,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.border,
+                          color: colors.border,
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           m['map'].toString(),
-                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                          style: TextStyle(fontSize: 10, color: colors.textSecondary),
                         ),
                       ),
                   ],
@@ -4033,7 +4033,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 value: '__deleted__',
                 child: Text(
                   '⚠️ Missing / Deleted Mission ($targetId)',
-                  style: const TextStyle(color: AppColors.danger, fontStyle: FontStyle.italic),
+                  style: TextStyle(color: colors.danger, fontStyle: FontStyle.italic),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -4046,23 +4046,23 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   widget.onChanged();
                 },
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: colors.surfaceSunken,
             borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: colors.border),
           ),
           child: Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('Pass Variables to Next Mission', style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+                  children: [
+                    Text('Pass Variables to Next Mission', style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
                     SizedBox(height: 2),
-                    Text('Forward current form responses, counters, and context', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                    Text('Forward current form responses, counters, and context', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
                   ],
                 ),
               ),
@@ -4103,13 +4103,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.language_rounded, color: Color(0xFF0D9488), size: 20),
-              const SizedBox(width: 10),
+              Icon(Icons.language_rounded, color: Color(0xFF0D9488), size: 20),
+              SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Embedded Robot Screen Browser',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
@@ -4117,10 +4117,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         color: Color(0xFF0D9488),
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    const Text(
+                    SizedBox(height: 3),
+                    Text(
                       'Renders the web page directly below the AppBar without showing the URL bar. A Close button is anchored at the bottom-left. The robot strictly stays on this screen until the Close button is pressed.',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.3),
+                      style: TextStyle(fontSize: 11.5, color: colors.textSecondary, height: 1.3),
                     ),
                   ],
                 ),
@@ -4209,11 +4209,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(double.infinity, 42),
-              side: const BorderSide(color: Color(0xFF0D9488)),
+              side: BorderSide(color: Color(0xFF0D9488)),
               foregroundColor: const Color(0xFF0D9488),
             ),
-            icon: const Icon(Icons.open_in_browser_rounded, size: 18),
-            label: const Text('Preview / Open URL Externally'),
+            icon: Icon(Icons.open_in_browser_rounded, size: 18),
+            label: Text('Preview / Open URL Externally'),
             onPressed: () async {
               try {
                 final uri = Uri.parse(url);
@@ -4250,11 +4250,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
             child: OutlinedButton.icon(
-              icon: const Icon(Icons.volume_up_rounded, size: 16),
-              label: const Text('Test Voice on Robot Speaker', style: TextStyle(fontSize: 12)),
+              icon: Icon(Icons.volume_up_rounded, size: 16),
+              label: Text('Test Voice on Robot Speaker', style: TextStyle(fontSize: 12)),
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF8B5CF6),
-                side: const BorderSide(color: Color(0xFF8B5CF6)),
+                side: BorderSide(color: Color(0xFF8B5CF6)),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
               onPressed: text.trim().isEmpty
@@ -4280,8 +4280,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Wait Until Finished Speaking', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-          subtitle: const Text('Pauses the mission until the robot completely finishes talking', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          title: Text('Wait Until Finished Speaking', style: TextStyle(color: colors.textPrimary, fontSize: 13)),
+          subtitle: Text('Pauses the mission until the robot completely finishes talking', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
           value: wait,
           activeThumbColor: colors.primary,
           onChanged: widget.readOnly
@@ -4309,7 +4309,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           label: 'Save Service Response to Variable (Optional)',
           initialValue: outVar,
           hintText: 'e.g. service_result',
-          prefixIcon: const Icon(Icons.data_object, size: 16),
+          prefixIcon: Icon(Icons.data_object, size: 16),
           onChanged: (v) {
             final val = v.trim();
             widget.node.params['output_variable'] = val;
@@ -4331,11 +4331,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
         const SizedBox(height: 16),
         OutlinedButton.icon(
-          icon: const Icon(Icons.play_arrow_rounded, size: 16),
-          label: const Text('Test Call ROS Service', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          icon: Icon(Icons.play_arrow_rounded, size: 16),
+          label: Text('Test Call ROS Service', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           style: OutlinedButton.styleFrom(
             foregroundColor: const Color(0xFF4F46E5),
-            side: const BorderSide(color: Color(0xFF4F46E5)),
+            side: BorderSide(color: Color(0xFF4F46E5)),
             minimumSize: const Size(double.infinity, 42),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -4414,11 +4414,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   content: SingleChildScrollView(
                     child: SelectableText(
                       result.isEmpty ? '(Empty response)' : result.toString(),
-                      style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                      style: TextStyle(fontSize: 12, fontFamily: 'monospace'),
                     ),
                   ),
                   actions: [
-                    TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK')),
+                    TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('OK')),
                   ],
                 ),
               );
@@ -4452,7 +4452,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           label: 'Save Action Result to Variable (Optional)',
           initialValue: outVar,
           hintText: 'e.g. action_result',
-          prefixIcon: const Icon(Icons.data_object, size: 16),
+          prefixIcon: Icon(Icons.data_object, size: 16),
           onChanged: (v) {
             final val = v.trim();
             widget.node.params['output_variable'] = val;
@@ -4474,11 +4474,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
         const SizedBox(height: 16),
         OutlinedButton.icon(
-          icon: const Icon(Icons.rocket_launch_rounded, size: 16),
-          label: const Text('Test Send ROS Action', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          icon: Icon(Icons.rocket_launch_rounded, size: 16),
+          label: Text('Test Send ROS Action', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           style: OutlinedButton.styleFrom(
             foregroundColor: const Color(0xFF4F46E5),
-            side: const BorderSide(color: Color(0xFF4F46E5)),
+            side: BorderSide(color: Color(0xFF4F46E5)),
             minimumSize: const Size(double.infinity, 42),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -4557,11 +4557,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   content: SingleChildScrollView(
                     child: SelectableText(
                       result.isEmpty ? '(Action succeeded with no result payload)' : result.toString(),
-                      style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                      style: TextStyle(fontSize: 12, fontFamily: 'monospace'),
                     ),
                   ),
                   actions: [
-                    TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('OK')),
+                    TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text('OK')),
                   ],
                 ),
               );
@@ -4585,11 +4585,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     return Column(
       children: [
         _buildTextField('Broadcast Topic Name (Advanced)', 'topic_name', '/cmd_vel'),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         _buildTextField('Topic Message Type', 'message_type', 'geometry_msgs/msg/Twist'),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         _buildTextField('Message Data to Broadcast (JSON, supports {variables})', 'payload', '{}', maxLines: 3),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
@@ -4597,15 +4597,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
-          child: const Row(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.lightbulb_outline, size: 14, color: AppColors.primary),
+              Icon(Icons.lightbulb_outline, size: 14, color: colors.primary),
               SizedBox(width: 6),
               Expanded(
                 child: Text(
                   '💡 You can insert any previous variable into the topic message payload using {variable_name}.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.3),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 11, height: 1.3),
                 ),
               ),
             ],
@@ -4613,11 +4613,11 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
         const SizedBox(height: 16),
         OutlinedButton.icon(
-          icon: const Icon(Icons.podcasts_rounded, size: 16),
-          label: const Text('Test Publish ROS Topic', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          icon: Icon(Icons.podcasts_rounded, size: 16),
+          label: Text('Test Publish ROS Topic', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           style: OutlinedButton.styleFrom(
             foregroundColor: const Color(0xFF4F46E5),
-            side: const BorderSide(color: Color(0xFF4F46E5)),
+            side: BorderSide(color: Color(0xFF4F46E5)),
             minimumSize: const Size(double.infinity, 42),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -4962,7 +4962,7 @@ class _VariableAwareTextFieldState extends State<_VariableAwareTextField> {
                             size: 13,
                             color: v.isSystem ? colors.textSecondary : colors.primary,
                           ),
-                          const SizedBox(width: 6),
+                          SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               '{${v.name}}',
@@ -4992,13 +4992,13 @@ class _VariableAwareTextFieldState extends State<_VariableAwareTextField> {
             : null,
         helperStyle: TextStyle(color: colors.textTertiary, fontSize: 10),
         hintStyle: TextStyle(color: colors.textTertiary),
-        labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
         filled: true,
         fillColor: colors.surfaceSunken,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
       ),
       onChanged: (val) {
         widget.onChanged(val);
