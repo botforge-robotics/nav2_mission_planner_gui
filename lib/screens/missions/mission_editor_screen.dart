@@ -68,6 +68,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
   String? _currentActiveMap;
 
   bool get _isEditing => widget.existing != null;
+  AppColorsTheme get colors => AppColors.of(context);
 
   @override
   void initState() {
@@ -130,23 +131,23 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
             const Text('Add Step',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             const SizedBox(height: AppSpacing.md),
-            _StepOptionGrid(options: const [
-              _StepOption('map', Icons.touch_app_rounded, AppColors.primary,
+            _StepOptionGrid(options: [
+              _StepOption('map', Icons.touch_app_rounded, colors.primary,
                   'Add Position', 'Tap the map'),
-              _StepOption('location', Icons.place_rounded, AppColors.primary,
+              _StepOption('location', Icons.place_rounded, colors.primary,
                   'Saved Location', 'Pick from your list'),
               _StepOption(
                   'current',
                   Icons.my_location_rounded,
-                  AppColors.primary,
+                  colors.primary,
                   'Current Position',
                   "Robot's position now"),
               _StepOption('wait', Icons.hourglass_bottom_rounded,
-                  AppColors.stateLocalizing, 'Wait', 'Pause for a duration'),
+                  colors.stateLocalizing, 'Wait', 'Pause for a duration'),
               _StepOption('dock', Icons.ev_station_rounded,
-                  AppColors.stateDocking, 'Dock', 'Navigate & dock'),
+                  colors.stateDocking, 'Dock', 'Navigate & dock'),
               _StepOption('undock', Icons.logout_rounded,
-                  AppColors.textSecondary, 'Undock', 'Leave the dock'),
+                  colors.textSecondary, 'Undock', 'Leave the dock'),
             ], onPick: (id) => Navigator.of(sheetContext).pop(id)),
             const SizedBox(height: AppSpacing.lg),
             Row(
@@ -159,7 +160,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                       style: Theme.of(context)
                           .textTheme
                           .labelSmall
-                          ?.copyWith(color: AppColors.textTertiary)),
+                          ?.copyWith(color: colors.textTertiary)),
                 ),
                 const Expanded(child: Divider()),
               ],
@@ -171,15 +172,15 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
               style: Theme.of(context)
                   .textTheme
                   .bodySmall
-                  ?.copyWith(color: AppColors.textSecondary),
+                  ?.copyWith(color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.sm),
-            _StepOptionGrid(options: const [
+            _StepOptionGrid(options: [
               _StepOption('call_service', Icons.settings_ethernet_rounded,
-                  AppColors.accent, 'Call Service', 'By name + type'),
-              _StepOption('call_action', Icons.bolt_rounded, AppColors.accent,
+                  colors.accent, 'Call Service', 'By name + type'),
+              _StepOption('call_action', Icons.bolt_rounded, colors.accent,
                   'Call Action', 'By name + type'),
-              _StepOption('call_api', Icons.http_rounded, AppColors.accent,
+              _StepOption('call_api', Icons.http_rounded, colors.accent,
                   'HTTP / API Call', 'Webhooks & endpoints'),
             ], onPick: (id) => Navigator.of(sheetContext).pop(id)),
           ],
@@ -235,11 +236,11 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
       showDragHandle: true,
       builder: (sheetContext) {
         if (locations.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(AppSpacing.lg),
+          return Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
             child: Text(
                 'No saved locations yet — add one from the Locations tab first.',
-                style: TextStyle(color: AppColors.textSecondary)),
+                style: TextStyle(color: colors.textSecondary)),
           );
         }
         return ListView(
@@ -254,7 +255,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
             for (final loc in locations)
               ListTile(
                 leading:
-                    const Icon(Icons.place_rounded, color: AppColors.primary),
+                    Icon(Icons.place_rounded, color: colors.primary),
                 title: Text(loc['name'] as String? ?? ''),
                 onTap: () =>
                     Navigator.of(sheetContext).pop(loc['name'] as String?),
@@ -696,9 +697,9 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.place_rounded, color: AppColors.primary),
+              Icon(Icons.place_rounded, color: colors.primary),
               SizedBox(width: AppSpacing.sm),
               Text('Edit Navigation Step'),
             ],
@@ -730,12 +731,12 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                   const SizedBox(height: AppSpacing.md),
                   if (selectedType == 'location') ...[
                     if (locations.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                         child: Text(
                           'No saved locations found. Switch to Coordinates or add locations in the Map tab.',
                           style: TextStyle(
-                              color: AppColors.textSecondary, fontSize: 13),
+                              color: colors.textSecondary, fontSize: 13),
                         ),
                       )
                     else
@@ -918,9 +919,9 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
     final seconds = await showDialog<double>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.hourglass_bottom_rounded, color: AppColors.primary),
+            Icon(Icons.hourglass_bottom_rounded, color: colors.primary),
             SizedBox(width: AppSpacing.sm),
             Text('Edit Wait Step'),
           ],
@@ -962,9 +963,9 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.ev_station_rounded, color: AppColors.primary),
+              Icon(Icons.ev_station_rounded, color: colors.primary),
               SizedBox(width: AppSpacing.sm),
               Text('Edit Dock Step'),
             ],
@@ -1010,9 +1011,9 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.logout_rounded, color: AppColors.primary),
+            Icon(Icons.logout_rounded, color: colors.primary),
             SizedBox(width: AppSpacing.sm),
             Text('Undock Step'),
           ],
@@ -1098,7 +1099,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 36),
+        icon: Icon(Icons.delete_outline_rounded, color: colors.danger, size: 36),
         title: const Text('Delete Mission?'),
         content: Text('Are you sure you want to permanently delete "$name"?\nThis action cannot be undone.'),
         actions: [
@@ -1107,7 +1108,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            style: FilledButton.styleFrom(backgroundColor: colors.danger),
             icon: const Icon(Icons.delete_forever_rounded, size: 18),
             label: const Text('Delete Mission'),
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -1129,7 +1130,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed: $e'), backgroundColor: AppColors.danger),
+          SnackBar(content: Text('Delete failed: $e'), backgroundColor: colors.danger),
         );
       }
     }
@@ -1207,8 +1208,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                 padding: const EdgeInsets.only(right: AppSpacing.sm),
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.danger,
-                    side: BorderSide(color: AppColors.danger.withValues(alpha: 0.4)),
+                    foregroundColor: colors.danger,
+                    side: BorderSide(color: colors.danger.withValues(alpha: 0.4)),
                   ),
                   icon: const Icon(Icons.delete_outline_rounded, size: 16),
                   label: const Text('Delete'),
@@ -1236,11 +1237,11 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
               child: ElevatedButton.icon(
                 onPressed: _saving ? null : _save,
                 icon: _saving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: AppColors.textOnPrimary),
+                            strokeWidth: 2, color: colors.textOnPrimary),
                       )
                     : const Icon(Icons.check_rounded, size: 18),
                 label: Text(_isEditing ? 'Save Changes' : 'Save Mission'),
@@ -1264,21 +1265,21 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                         margin: const EdgeInsets.only(bottom: AppSpacing.sm),
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.08),
+                          color: colors.primary.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                          border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.auto_awesome, color: AppColors.primary, size: 18),
+                            Icon(Icons.auto_awesome, color: colors.primary, size: 18),
                             const SizedBox(width: 8),
-                            const Expanded(
+                            Expanded(
                               child: Text(
                                 'Try Workflow Editor (n8n style)',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
+                                  color: colors.primary,
                                 ),
                               ),
                             ),
@@ -1334,15 +1335,15 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                       color: (_missionMap != null &&
                                               _currentActiveMap != null &&
                                               _missionMap != _currentActiveMap)
-                                          ? AppColors.warning.withValues(alpha: 0.12)
-                                          : AppColors.primary.withValues(alpha: 0.08),
+                                          ? colors.warning.withValues(alpha: 0.12)
+                                          : colors.primary.withValues(alpha: 0.08),
                                       borderRadius: BorderRadius.circular(6),
                                       border: Border.all(
                                         color: (_missionMap != null &&
                                                 _currentActiveMap != null &&
                                                 _missionMap != _currentActiveMap)
-                                            ? AppColors.warning.withValues(alpha: 0.4)
-                                            : AppColors.primary.withValues(alpha: 0.2),
+                                            ? colors.warning.withValues(alpha: 0.4)
+                                            : colors.primary.withValues(alpha: 0.2),
                                       ),
                                     ),
                                     child: Row(
@@ -1358,8 +1359,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                           color: (_missionMap != null &&
                                                   _currentActiveMap != null &&
                                                   _missionMap != _currentActiveMap)
-                                              ? AppColors.warning
-                                              : AppColors.primary,
+                                              ? colors.warning
+                                              : colors.primary,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
@@ -1370,8 +1371,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                             color: (_missionMap != null &&
                                                     _currentActiveMap != null &&
                                                     _missionMap != _currentActiveMap)
-                                                ? AppColors.warning
-                                                : AppColors.primary,
+                                                ? colors.warning
+                                                : colors.primary,
                                           ),
                                         ),
                                       ],
@@ -1385,8 +1386,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                 const SizedBox(height: 4),
                                 Text(
                                   'Warning: Active map on robot is "$_currentActiveMap". Waypoints may mismatch.',
-                                  style: const TextStyle(
-                                      fontSize: 11, color: AppColors.warning),
+                                  style: TextStyle(
+                                      fontSize: 11, color: colors.warning),
                                 ),
                               ],
                               const SizedBox(height: AppSpacing.md),
@@ -1418,49 +1419,49 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                     ?.copyWith(fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(height: 4),
-                              const Text(
+                              Text(
                                 'Click any tool to insert into route:',
                                 style: TextStyle(
                                     fontSize: 12,
-                                    color: AppColors.textSecondary),
+                                    color: colors.textSecondary),
                               ),
                               const SizedBox(height: AppSpacing.md),
                               _StepOptionGrid(
-                                options: const [
+                                options: [
                                   _StepOption(
                                       'map',
                                       Icons.touch_app_rounded,
-                                      AppColors.primary,
+                                      colors.primary,
                                       'Add Position',
                                       'Tap the map'),
                                   _StepOption(
                                       'location',
                                       Icons.place_rounded,
-                                      AppColors.primary,
+                                      colors.primary,
                                       'Saved Location',
                                       'Pick from list'),
                                   _StepOption(
                                       'current',
                                       Icons.my_location_rounded,
-                                      AppColors.primary,
+                                      colors.primary,
                                       'Current Pose',
                                       "Robot's pose now"),
                                   _StepOption(
                                       'wait',
                                       Icons.hourglass_bottom_rounded,
-                                      AppColors.stateLocalizing,
+                                      colors.stateLocalizing,
                                       'Wait Duration',
                                       'Pause timer'),
                                   _StepOption(
                                       'dock',
                                       Icons.ev_station_rounded,
-                                      AppColors.stateDocking,
+                                      colors.stateDocking,
                                       'Dock',
                                       'Navigate & dock'),
                                   _StepOption(
                                       'undock',
                                       Icons.logout_rounded,
-                                      AppColors.textSecondary,
+                                      colors.textSecondary,
                                       'Undock',
                                       'Leave dock'),
                                 ],
@@ -1469,12 +1470,12 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                               const SizedBox(height: AppSpacing.md),
                               const Divider(),
                               const SizedBox(height: AppSpacing.xs),
-                              const Text(
+                              Text(
                                 'Advanced & API Calls:',
                                 style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.textSecondary),
+                                    color: colors.textSecondary),
                               ),
                               const SizedBox(height: AppSpacing.sm),
                               Row(
@@ -1522,23 +1523,23 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
 
                       if (_saveError != null)
                         Card(
-                          color: AppColors.danger.withValues(alpha: 0.12),
+                          color: colors.danger.withValues(alpha: 0.12),
                           shape: RoundedRectangleBorder(
                             borderRadius:
                                 BorderRadius.circular(AppSpacing.cardRadius),
-                            side: const BorderSide(color: AppColors.danger),
+                            side: BorderSide(color: colors.danger),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.all(AppSpacing.md),
                             child: Row(
                               children: [
-                                const Icon(Icons.error_outline_rounded,
-                                    color: AppColors.danger, size: 20),
+                                Icon(Icons.error_outline_rounded,
+                                    color: colors.danger, size: 20),
                                 const SizedBox(width: AppSpacing.sm),
                                 Expanded(
                                   child: Text(_saveError!,
-                                      style: const TextStyle(
-                                          color: AppColors.danger,
+                                      style: TextStyle(
+                                          color: colors.danger,
                                           fontWeight: FontWeight.w600)),
                                 ),
                               ],
@@ -1585,8 +1586,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.map_rounded,
-                                      size: 16, color: AppColors.primary),
+                                  Icon(Icons.map_rounded,
+                                      size: 16, color: colors.primary),
                                   const SizedBox(width: AppSpacing.sm),
                                   Text(
                                     'Mission Route Preview • Map: ${_missionMap ?? _currentActiveMap ?? "Active Map"} (${routePins.length} waypoints plotted)',
@@ -1616,8 +1617,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.alt_route_rounded,
-                                  color: AppColors.primary, size: 20),
+                              Icon(Icons.alt_route_rounded,
+                                  color: colors.primary, size: 20),
                               const SizedBox(width: AppSpacing.sm),
                               Text(
                                 'Pipeline (${_steps.length} steps)',
@@ -1629,11 +1630,11 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                             ],
                           ),
                           const SizedBox(height: 2),
-                          const Text(
+                          Text(
                             'Drag handles to reorder execution flow',
                             style: TextStyle(
                                 fontSize: 11,
-                                color: AppColors.textSecondary),
+                                color: colors.textSecondary),
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           const Divider(),
@@ -1645,17 +1646,17 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                       children: [
                                         Icon(Icons.route_outlined,
                                             size: 40,
-                                            color: AppColors.textTertiary),
+                                            color: colors.textTertiary),
                                         const SizedBox(height: AppSpacing.sm),
                                         const Text('No steps added yet.',
                                             style: TextStyle(
                                                 fontWeight: FontWeight.bold)),
                                         const SizedBox(height: AppSpacing.xs),
-                                        const Text(
+                                        Text(
                                           'Use the palette on the left to add waypoints or actions.',
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
-                                              color: AppColors.textSecondary,
+                                              color: colors.textSecondary,
                                               fontSize: 12),
                                         ),
                                       ],
@@ -1688,17 +1689,17 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                                   fontSize: 13)),
                                           subtitle: Text(
                                               'Step ${i + 1} · ${_steps[i]['type']} · Click to edit',
-                                              style: const TextStyle(
-                                                  color: AppColors.textSecondary,
+                                              style: TextStyle(
+                                                  color: colors.textSecondary,
                                                   fontSize: 11)),
                                           trailing: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               IconButton(
-                                                icon: const Icon(
+                                                icon: Icon(
                                                     Icons.edit_outlined,
                                                     size: 18,
-                                                    color: AppColors.primary),
+                                                    color: colors.primary),
                                                 tooltip: 'Edit step',
                                                 onPressed: () => _editStep(i),
                                               ),
@@ -1712,13 +1713,13 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                               ),
                                               ReorderableDragStartListener(
                                                 index: i,
-                                                child: const Padding(
-                                                  padding: EdgeInsets.symmetric(
+                                                child: Padding(
+                                                  padding: const EdgeInsets.symmetric(
                                                       horizontal: 4),
                                                   child: Icon(
                                                       Icons.drag_handle_rounded,
                                                       color:
-                                                          AppColors.textTertiary,
+                                                          colors.textTertiary,
                                                       size: 20),
                                                 ),
                                               ),
@@ -1757,7 +1758,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
           actions: [
             if (_isEditing)
               IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+                icon: Icon(Icons.delete_outline_rounded, color: colors.danger),
                 tooltip: 'Delete Mission',
                 onPressed: _deleteMission,
               ),
@@ -1787,15 +1788,15 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                           color: (_missionMap != null &&
                                   _currentActiveMap != null &&
                                   _missionMap != _currentActiveMap)
-                              ? AppColors.warning.withValues(alpha: 0.12)
-                              : AppColors.primary.withValues(alpha: 0.08),
+                              ? colors.warning.withValues(alpha: 0.12)
+                              : colors.primary.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
                             color: (_missionMap != null &&
                                     _currentActiveMap != null &&
                                     _missionMap != _currentActiveMap)
-                                ? AppColors.warning.withValues(alpha: 0.4)
-                                : AppColors.primary.withValues(alpha: 0.2),
+                                ? colors.warning.withValues(alpha: 0.4)
+                                : colors.primary.withValues(alpha: 0.2),
                           ),
                         ),
                         child: Row(
@@ -1811,8 +1812,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                               color: (_missionMap != null &&
                                       _currentActiveMap != null &&
                                       _missionMap != _currentActiveMap)
-                                  ? AppColors.warning
-                                  : AppColors.primary,
+                                  ? colors.warning
+                                  : colors.primary,
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -1823,8 +1824,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                 color: (_missionMap != null &&
                                         _currentActiveMap != null &&
                                         _missionMap != _currentActiveMap)
-                                    ? AppColors.warning
-                                    : AppColors.primary,
+                                    ? colors.warning
+                                    : colors.primary,
                               ),
                             ),
                           ],
@@ -1838,8 +1839,8 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Warning: Active map on robot is "$_currentActiveMap". Waypoints may mismatch.',
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.warning),
+                      style: TextStyle(
+                          fontSize: 11, color: colors.warning),
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
@@ -1862,7 +1863,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                         _loadError!.isUnreachable
                             ? "Can't load saved locations — the SDK isn't reachable."
                             : _loadError!.message,
-                        style: const TextStyle(color: AppColors.danger),
+                        style: TextStyle(color: colors.danger),
                       ),
                     ),
                   Expanded(
@@ -1872,11 +1873,11 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.route_outlined,
-                                    size: 40, color: AppColors.textTertiary),
+                                    size: 40, color: colors.textTertiary),
                                 const SizedBox(height: AppSpacing.sm),
-                                const Text('No steps added yet.',
+                                Text('No steps added yet.',
                                     style: TextStyle(
-                                        color: AppColors.textSecondary)),
+                                        color: colors.textSecondary)),
                               ],
                             ),
                           )
@@ -1901,15 +1902,15 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                         fontWeight: FontWeight.w600)),
                                 subtitle: Text(
                                     'Step ${i + 1} · ${_steps[i]['type']} · Tap to edit',
-                                    style: const TextStyle(
-                                        color: AppColors.textSecondary,
+                                    style: TextStyle(
+                                        color: colors.textSecondary,
                                         fontSize: 12)),
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
-                                      icon: const Icon(Icons.edit_outlined,
-                                          size: 18, color: AppColors.primary),
+                                      icon: Icon(Icons.edit_outlined,
+                                          size: 18, color: colors.primary),
                                       tooltip: 'Edit step',
                                       onPressed: () => _editStep(i),
                                     ),
@@ -1922,11 +1923,11 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                     ),
                                     ReorderableDragStartListener(
                                       index: i,
-                                      child: const Padding(
+                                      child: Padding(
                                         padding:
-                                            EdgeInsets.symmetric(horizontal: 4),
+                                            const EdgeInsets.symmetric(horizontal: 4),
                                         child: Icon(Icons.drag_handle_rounded,
-                                            color: AppColors.textTertiary,
+                                            color: colors.textTertiary,
                                             size: 20),
                                       ),
                                     ),
@@ -1946,7 +1947,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                   const SizedBox(height: AppSpacing.md),
                   if (_saveError != null) ...[
                     Text(_saveError!,
-                        style: const TextStyle(color: AppColors.danger)),
+                        style: TextStyle(color: colors.danger)),
                     const SizedBox(height: AppSpacing.sm),
                   ],
                   Row(
@@ -1962,12 +1963,12 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                         child: ElevatedButton(
                           onPressed: _saving ? null : _save,
                           child: _saving
-                              ? const SizedBox(
+                              ? SizedBox(
                                   height: 20,
                                   width: 20,
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      color: AppColors.textOnPrimary),
+                                      color: colors.textOnPrimary),
                                 )
                               : Text(
                                   _isEditing ? 'Save Changes' : 'Create Mission'),
@@ -1986,7 +1987,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
 }
 
 class _StepOption {
-  const _StepOption(this.id, this.icon, this.color, this.label, this.caption);
+  _StepOption(this.id, this.icon, this.color, this.label, this.caption);
 
   final String id;
   final IconData icon;
@@ -2079,6 +2080,7 @@ class _RepeatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -2128,10 +2130,10 @@ class _RepeatCard extends StatelessWidget {
             ],
             if (repeat == _Repeat.forever) ...[
               const SizedBox(height: AppSpacing.sm),
-              const Text(
+              Text(
                 'The mission repeats until you cancel it — it will not stop '
                 'on its own.',
-                style: TextStyle(color: AppColors.warning, fontSize: 12),
+                style: TextStyle(color: colors.warning, fontSize: 12),
               ),
             ],
           ],

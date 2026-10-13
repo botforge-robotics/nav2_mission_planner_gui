@@ -12,13 +12,9 @@ import 'schedule_editor_screen.dart';
 
 const _weekdayShort = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-/// Mission alarms — reached from Missions' own AppBar. Runs entirely on the
-/// robot (server.py polls handlers/schedules.py every 20s), independent of
-/// this app being open; this screen only edits the definitions and reflects
-/// what's already there, same "server owns the truth" shape Missions itself
-/// uses. Polled every 5s for the same reason missions_list_screen.dart is —
-/// a schedule created on one device should show up here on another without
-/// needing this screen to be reopened.
+/// Autonomous Mission Scheduler & Recurrence Automation Center.
+/// Displays programmed mission alarms, daily routines, and weekly recurring
+/// AMR operations with digital HUD clock typography and active-day indicators.
 class SchedulesListScreen extends StatefulWidget {
   const SchedulesListScreen({super.key});
 
@@ -73,8 +69,6 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
   Future<void> _toggleEnabled(Map<String, dynamic> schedule, bool value) async {
     final api = _api;
     if (api == null) return;
-    // Optimistic — flips immediately, corrected by the next poll if the
-    // write actually failed.
     setState(() => schedule['enabled'] = value);
     try {
       await api.putSchedule(
@@ -110,21 +104,23 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
     final api = _api;
     if (api == null) return;
     final mapName = _missionMap(missionId);
+    final colors = AppColors.of(context);
+
     if (mapName != null && _currentMap != null && mapName != _currentMap) {
       if (!mounted) return;
       final proceed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: AppColors.warning),
-              SizedBox(width: 8),
-              Text('Map Mismatch'),
+              Icon(Icons.warning_amber_rounded, color: colors.warning),
+              const SizedBox(width: 8),
+              const Text('Map Mismatch Alert'),
             ],
           ),
           content: Text(
             'This mission was planned for map "$mapName", but the active map on the robot is "$_currentMap".\n\n'
-            'Starting it now may cause navigation errors or collisions. Do you want to proceed?',
+            'Starting it now may cause navigation errors or emergency stops. Do you want to proceed?',
           ),
           actions: [
             TextButton(
@@ -132,6 +128,7 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: colors.warning),
               onPressed: () => Navigator.of(ctx).pop(true),
               child: const Text('Run Anyway'),
             ),
@@ -144,12 +141,19 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
       await api.startMission(missionId);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Started mission "${_missionName(missionId)}"')),
+        SnackBar(
+          content: Text('Started mission "${_missionName(missionId)}"'),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     } on SdkApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to start mission: ${e.message}')),
+        SnackBar(
+          content: Text('Failed to start mission: ${e.message}'),
+          backgroundColor: colors.danger,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
@@ -171,7 +175,7 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
   String _repeatLabel(Map<String, dynamic> schedule) {
     switch (schedule['repeat']) {
       case 'once':
-        return 'Once · ${schedule['date']}';
+        return 'One-time · ${schedule['date']}';
       case 'weekly':
         final days = (schedule['weekdays'] as List? ?? const [])
             .cast<int>()
@@ -183,9 +187,9 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
         final h = mins ~/ 60;
         final m = mins % 60;
         final dStr = h > 0 ? (m > 0 ? '${h}h ${m}m' : '${h}h') : '${m}m';
-        return 'Every $dStr ($mins min)';
+        return 'Every $dStr';
       default:
-        return 'Daily';
+        return 'Daily Routine';
     }
   }
 
@@ -204,6 +208,7 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final robotIp = context.watch<ConnectionProvider>().robot?.ip;
     if (robotIp != null && (_api == null || _api!.robotIp != robotIp)) {
       _api = SdkApiService(robotIp);
@@ -219,6 +224,7 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
         _schedules?.where((s) => s['enabled'] == true).length ?? 0;
 
     return Scaffold(
+      backgroundColor: colors.background,
       appBar: AppBar(
         title: const Text('Mission Scheduler & Automation'),
         actions: [
@@ -234,6 +240,8 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(0, 36),
                   padding: const EdgeInsets.symmetric(horizontal: 14),
+                  backgroundColor: colors.primary,
+                  foregroundColor: colors.textOnPrimary,
                 ),
                 onPressed: () => _openEditor(),
                 icon: const Icon(Icons.add_alarm_rounded, size: 18),
@@ -251,7 +259,18 @@ class _SchedulesListScreenState extends State<SchedulesListScreen> {
           : null,
       body: SafeArea(
         child: robotIp == null
-            ? const Center(child: Text('Not connected.'))
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.wifi_off_rounded, size: 48, color: colors.textTertiary),
+                    const SizedBox(height: 12),
+                    Text('Robot Not Connected', style: TextStyle(fontWeight: FontWeight.bold, color: colors.textPrimary)),
+                    const SizedBox(height: 4),
+                    Text('Connect to your AMR to view and manage recurring schedules.', style: TextStyle(color: colors.textSecondary, fontSize: 13)),
+                  ],
+                ),
+              )
             : _Body(
                 isDesktop: isDesktop,
                 schedules: _schedules,
@@ -311,6 +330,8 @@ class _Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+
     if (error != null) {
       final unreachable = error!.isUnreachable;
       return Center(
@@ -318,11 +339,9 @@ class _Body extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              unreachable
-                  ? Icons.cloud_off_rounded
-                  : Icons.error_outline_rounded,
+              unreachable ? Icons.cloud_off_rounded : Icons.error_outline_rounded,
               size: 48,
-              color: unreachable ? AppColors.textSecondary : AppColors.danger,
+              color: unreachable ? colors.textSecondary : colors.danger,
             ),
             const SizedBox(height: AppSpacing.md),
             Text(
@@ -330,7 +349,7 @@ class _Body extends StatelessWidget {
                   ? "Schedules need navpro-sdk.service running on the robot — it isn't reachable right now."
                   : error!.message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.sm),
             TextButton(onPressed: onRetry, child: const Text('Retry')),
@@ -347,34 +366,43 @@ class _Body extends StatelessWidget {
     }
 
     if (schedules!.isEmpty) {
-      final colors = AppColors.of(context);
       return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.alarm_add_rounded,
-                size: 56, color: colors.textTertiary),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'No automated schedules configured',
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Schedule missions to run automatically at specific times or recurring weekdays.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: colors.textSecondary),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            FilledButton.icon(
-              onPressed: onAddNew,
-              icon: const Icon(Icons.add_alarm_rounded, size: 18),
-              label: const Text('Create First Schedule'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.alarm_add_rounded, size: 36, color: colors.primary),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'No Automated Schedules Active',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colors.textPrimary),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Text(
+                  'Automate autonomous delivery, security patrols, or sanitization at specific times or recurring weekdays.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton.icon(
+                onPressed: onAddNew,
+                icon: const Icon(Icons.add_alarm_rounded, size: 18),
+                label: const Text('Create First Schedule'),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -388,146 +416,107 @@ class _Body extends StatelessWidget {
             Row(
               children: [
                 _StatCard(
-                  title: 'Total Schedules',
+                  title: 'Total Programs',
                   value: '$totalCount',
                   icon: Icons.calendar_month_rounded,
-                  color: AppColors.primary,
+                  color: colors.primary,
                 ),
                 const SizedBox(width: AppSpacing.md),
                 _StatCard(
-                  title: 'Active / Running',
+                  title: 'Active Alarms',
                   value: '$activeCount',
                   icon: Icons.check_circle_outline_rounded,
-                  color: AppColors.success,
+                  color: colors.stateIdle,
                 ),
                 const SizedBox(width: AppSpacing.md),
                 _StatCard(
-                  title: 'Scheduler Engine',
-                  value: 'Autonomous (Robot)',
+                  title: 'Execution Engine',
+                  value: 'Autonomous AMR Daemon',
                   icon: Icons.memory_rounded,
-                  color: AppColors.accent,
+                  color: const Color(0xFF00E5FF),
                 ),
               ],
             ),
-            const SizedBox(height: AppSpacing.xl),
+            const SizedBox(height: AppSpacing.lg),
           ],
           Text(
-            'Active Automation Timers ($totalCount)',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
+            'Scheduled Timers ($totalCount)',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colors.textPrimary),
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.sm),
           Expanded(
             child: isDesktop
                 ? GridView.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 480,
-                      mainAxisExtent: 220,
-                      crossAxisSpacing: AppSpacing.lg,
-                      mainAxisSpacing: AppSpacing.lg,
+                      mainAxisExtent: 238,
+                      crossAxisSpacing: AppSpacing.md,
+                      mainAxisSpacing: AppSpacing.md,
                     ),
                     itemCount: schedules!.length,
                     itemBuilder: (context, i) => _ScheduleDesktopCard(
                       schedule: schedules![i],
-                      missionName:
-                          missionName(schedules![i]['mission_id'] as String),
-                      missionMap:
-                          missionMap(schedules![i]['mission_id'] as String),
+                      missionName: missionName(schedules![i]['mission_id'] as String),
+                      missionMap: missionMap(schedules![i]['mission_id'] as String),
                       currentMap: currentMap,
                       repeatLabel: repeatLabel(schedules![i]),
                       onToggle: (v) => onToggle(schedules![i], v),
                       onEdit: () => onEdit(schedules![i]),
                       onDelete: () => onDelete(schedules![i]['id'] as String),
-                      onRunNow: () =>
-                          onRunNow(schedules![i]['mission_id'] as String),
+                      onRunNow: () => onRunNow(schedules![i]['mission_id'] as String),
                     ),
                   )
                 : ListView.separated(
                     itemCount: schedules!.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: AppSpacing.sm),
+                    separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                     itemBuilder: (context, i) {
                       final schedule = schedules![i];
                       final enabled = schedule['enabled'] == true;
                       final hour = (schedule['hour'] as num).toInt();
                       final minute = (schedule['minute'] as num).toInt();
-                      final time =
-                          TimeOfDay(hour: hour, minute: minute).format(context);
-                      final mName =
-                          missionName(schedule['mission_id'] as String);
-                      final mMap =
-                          missionMap(schedule['mission_id'] as String);
-                      final isMismatch =
-                          mMap != null && currentMap != null && mMap != currentMap;
+                      final time = TimeOfDay(hour: hour, minute: minute).format(context);
+                      final mName = missionName(schedule['mission_id'] as String);
+                      final mMap = missionMap(schedule['mission_id'] as String);
+                      final isMismatch = mMap != null && currentMap != null && mMap != currentMap;
+
                       return Card(
+                        elevation: 0,
+                        color: colors.surfaceElevated,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: enabled ? colors.primary.withValues(alpha: 0.3) : colors.border),
+                        ),
                         child: ListTile(
                           onTap: () => onEdit(schedule),
                           leading: CircleAvatar(
-                            backgroundColor: (enabled
-                                    ? AppColors.primary
-                                    : AppColors.textTertiary)
-                                .withValues(alpha: 0.12),
-                            child: Icon(Icons.alarm_rounded,
-                                color: enabled
-                                    ? AppColors.primary
-                                    : AppColors.textTertiary),
+                            backgroundColor: (enabled ? colors.primary : colors.surfaceSunken).withValues(alpha: 0.15),
+                            child: Icon(
+                              Icons.alarm_rounded,
+                              color: enabled ? colors.primary : colors.textTertiary,
+                              size: 20,
+                            ),
                           ),
-                          title: Text(schedule['name'] as String? ?? mName),
+                          title: Text(
+                            schedule['name'] as String? ?? mName,
+                            style: TextStyle(fontWeight: FontWeight.bold, color: colors.textPrimary),
+                          ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                  '$time · ${repeatLabel(schedule)} · $mName'),
-                              if (mMap != null) ...[
-                                const SizedBox(height: 3),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 1.5),
-                                  decoration: BoxDecoration(
-                                    color: isMismatch
-                                        ? AppColors.warning
-                                            .withValues(alpha: 0.12)
-                                        : AppColors.primary
-                                            .withValues(alpha: 0.08),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: isMismatch
-                                          ? AppColors.warning
-                                              .withValues(alpha: 0.4)
-                                          : AppColors.primary
-                                              .withValues(alpha: 0.2),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        isMismatch
-                                            ? Icons.warning_amber_rounded
-                                            : Icons.map_outlined,
-                                        size: 10,
-                                        color: isMismatch
-                                            ? AppColors.warning
-                                            : AppColors.primary,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        isMismatch
-                                            ? '$mMap (Inactive Map)'
-                                            : 'Map: $mMap',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                          color: isMismatch
-                                              ? AppColors.warning
-                                              : AppColors.primary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                              const SizedBox(height: 2),
+                              Text('$time · ${repeatLabel(schedule)} · $mName',
+                                  style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+                              const SizedBox(height: 6),
+                              _WeekdaysPillStrip(schedule: schedule, colors: colors),
+                              if (isMismatch) ...[
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.warning_amber_rounded, size: 12, color: colors.warning),
+                                    const SizedBox(width: 4),
+                                    Text('Map mismatch: $mMap (active: $currentMap)',
+                                        style: TextStyle(fontSize: 10, color: colors.warning, fontWeight: FontWeight.bold)),
+                                  ],
                                 ),
                               ],
                             ],
@@ -540,9 +529,8 @@ class _Body extends StatelessWidget {
                                 onChanged: (v) => onToggle(schedule, v),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.delete_outline_rounded),
-                                onPressed: () =>
-                                    onDelete(schedule['id'] as String),
+                                icon: Icon(Icons.delete_outline_rounded, color: colors.danger.withValues(alpha: 0.8), size: 18),
+                                onPressed: () => onDelete(schedule['id'] as String),
                               ),
                             ],
                           ),
@@ -576,43 +564,32 @@ class _StatCard extends StatelessWidget {
     return Expanded(
       child: Card(
         elevation: 0,
-        color: Theme.of(context).cardColor,
+        color: colors.surfaceElevated,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(color: colors.border),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: color, size: 22),
+                child: Icon(icon, color: color, size: 20),
               ),
               const SizedBox(width: AppSpacing.md),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                        fontSize: 12, color: colors.textSecondary),
-                  ),
+                  Text(title, style: TextStyle(fontSize: 11, color: colors.textSecondary)),
                   const SizedBox(height: 2),
-                  Text(
-                    value,
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: colors.textPrimary),
-                  ),
+                  Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colors.textPrimary)),
                 ],
               ),
             ],
@@ -657,15 +634,15 @@ class _ScheduleDesktopCard extends StatelessWidget {
     final name = (schedule['name'] as String?)?.isNotEmpty == true
         ? schedule['name'] as String
         : missionName;
+    final isMismatch = missionMap != null && currentMap != null && missionMap != currentMap;
 
     return Card(
-      elevation: 1,
+      elevation: 0,
+      color: colors.surfaceElevated,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(
-          color: enabled
-              ? colors.primary.withValues(alpha: 0.25)
-              : colors.border,
+          color: enabled ? colors.primary.withValues(alpha: 0.35) : colors.border,
           width: enabled ? 1.5 : 1,
         ),
       ),
@@ -678,31 +655,28 @@ class _ScheduleDesktopCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: (enabled ? colors.primary : colors.surfaceSunken)
-                        .withValues(alpha: 0.12),
+                    color: (enabled ? colors.primary : colors.surfaceSunken).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: enabled ? colors.primary.withValues(alpha: 0.3) : colors.border),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         Icons.access_time_rounded,
-                        size: 16,
+                        size: 15,
                         color: enabled ? colors.primary : colors.textTertiary,
                       ),
                       const SizedBox(width: 6),
                       Text(
                         timeStr,
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 17,
                           fontWeight: FontWeight.bold,
                           fontFamily: 'monospace',
-                          color: enabled
-                              ? colors.primary
-                              : colors.textSecondary,
+                          color: enabled ? colors.primary : colors.textSecondary,
                         ),
                       ),
                     ],
@@ -710,20 +684,18 @@ class _ScheduleDesktopCard extends StatelessWidget {
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                   decoration: BoxDecoration(
-                    color: enabled
-                        ? AppColors.success.withValues(alpha: 0.12)
-                        : colors.surfaceSunken,
+                    color: (enabled ? colors.stateIdle : colors.surfaceSunken).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     enabled ? 'ACTIVE' : 'PAUSED',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: enabled ? AppColors.success : colors.textTertiary,
+                      letterSpacing: 0.5,
+                      color: enabled ? colors.stateIdle : colors.textTertiary,
                     ),
                   ),
                 ),
@@ -734,129 +706,83 @@ class _ScheduleDesktopCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: AppSpacing.xs),
             Text(
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: colors.textPrimary,
-              ),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colors.textPrimary),
             ),
             const SizedBox(height: 2),
             Row(
               children: [
-                Icon(Icons.route_rounded,
-                    size: 14, color: colors.textSecondary),
+                Icon(Icons.route_rounded, size: 13, color: colors.textSecondary),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     'Mission: $missionName',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: colors.textSecondary,
-                    ),
+                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
                   ),
                 ),
-                if (missionMap != null) ...[
+                if (isMismatch) ...[
                   const SizedBox(width: 6),
-                  Builder(builder: (context) {
-                    final isMismatch = currentMap != null && missionMap != currentMap;
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 1.5),
-                      decoration: BoxDecoration(
-                        color: isMismatch
-                            ? AppColors.warning.withValues(alpha: 0.12)
-                            : AppColors.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: isMismatch
-                              ? AppColors.warning.withValues(alpha: 0.4)
-                              : AppColors.primary.withValues(alpha: 0.2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: colors.warning.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: colors.warning.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.warning_amber_rounded, size: 10, color: colors.warning),
+                        const SizedBox(width: 3),
+                        Text(
+                          'Inactive Map ($missionMap)',
+                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: colors.warning),
                         ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isMismatch
-                                ? Icons.warning_amber_rounded
-                                : Icons.map_outlined,
-                            size: 10,
-                            color: isMismatch
-                                ? AppColors.warning
-                                : AppColors.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            isMismatch
-                                ? '$missionMap (Inactive)'
-                                : 'Map: $missionMap',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: isMismatch
-                                  ? AppColors.warning
-                                  : AppColors.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
+                      ],
+                    ),
+                  ),
                 ],
               ],
             ),
-            const SizedBox(height: AppSpacing.xs),
-            Row(
-              children: [
-                const Icon(Icons.repeat_rounded,
-                    size: 14, color: AppColors.textTertiary),
-                const SizedBox(width: 4),
-                Text(
-                  repeatLabel,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textTertiary,
-                  ),
-                ),
-              ],
-            ),
+            const SizedBox(height: 6),
+            _WeekdaysPillStrip(schedule: schedule, colors: colors),
             const Spacer(),
-            const Divider(height: 1),
+            Divider(height: 1, color: colors.border),
             const SizedBox(height: 6),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 32),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    minimumSize: const Size(0, 30),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    side: BorderSide(color: colors.border),
                   ),
                   onPressed: onRunNow,
-                  icon: const Icon(Icons.play_arrow_rounded, size: 16),
-                  label: const Text('Run Now', style: TextStyle(fontSize: 12)),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 15),
+                  label: const Text('Run Now', style: TextStyle(fontSize: 11)),
                 ),
-                const SizedBox(width: AppSpacing.xs),
+                const SizedBox(width: 6),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 32),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    minimumSize: const Size(0, 30),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    side: BorderSide(color: colors.border),
                   ),
                   onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined, size: 14),
-                  label: const Text('Edit', style: TextStyle(fontSize: 12)),
+                  icon: const Icon(Icons.edit_outlined, size: 13),
+                  label: const Text('Edit', style: TextStyle(fontSize: 11)),
                 ),
-                const SizedBox(width: AppSpacing.xs),
+                const SizedBox(width: 4),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded,
-                      size: 18, color: AppColors.textTertiary),
-                  tooltip: 'Delete',
+                  icon: Icon(Icons.delete_outline_rounded, size: 17, color: colors.danger.withValues(alpha: 0.8)),
+                  tooltip: 'Delete Schedule',
                   onPressed: onDelete,
                 ),
               ],
@@ -864,6 +790,72 @@ class _ScheduleDesktopCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 7-day pill strip [M] [T] [W] [T] [F] [S] [S] showing active days.
+class _WeekdaysPillStrip extends StatelessWidget {
+  const _WeekdaysPillStrip({required this.schedule, required this.colors});
+
+  final Map<String, dynamic> schedule;
+  final AppColorsTheme colors;
+
+  static const _days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  @override
+  Widget build(BuildContext context) {
+    final repeat = schedule['repeat'] as String? ?? 'daily';
+    final isDaily = repeat == 'daily';
+    final isInterval = repeat == 'interval';
+    final activeDays = (schedule['weekdays'] as List? ?? const []).cast<int>().toSet();
+
+    if (isInterval) {
+      final mins = (schedule['interval_minutes'] as num?)?.toInt() ?? 30;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text('Interval: every $mins min', style: const TextStyle(fontSize: 10, color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+      );
+    }
+
+    if (repeat == 'once') {
+      return Text('Runs once on ${schedule['date'] ?? 'scheduled date'}', style: TextStyle(fontSize: 11, color: colors.textSecondary));
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (int i = 0; i < 7; i++) ...[
+          Container(
+            width: 19,
+            height: 19,
+            alignment: Alignment.center,
+            margin: const EdgeInsets.only(right: 3),
+            decoration: BoxDecoration(
+              color: (isDaily || activeDays.contains(i))
+                  ? colors.primary.withValues(alpha: 0.18)
+                  : colors.surfaceSunken,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: (isDaily || activeDays.contains(i)) ? colors.primary : colors.border,
+                width: 1,
+              ),
+            ),
+            child: Text(
+              _days[i],
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: (isDaily || activeDays.contains(i)) ? colors.primary : colors.textTertiary,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

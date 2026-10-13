@@ -6,22 +6,19 @@ import 'package:provider/provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../services/sdk_api_service.dart';
-import '../../theme/app_motion.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../../utils/localize_at_dock.dart';
 import '../../utils/mission_step_summary.dart';
 import '../../widgets/app_shell/app_shell.dart';
-import '../../widgets/design/fade_in.dart';
 import '../../widgets/design/status_pulse.dart';
 import '../../widgets/map/occupancy_grid_view.dart';
 import 'mission_editor_screen.dart';
+import 'graph/mission_graph_editor_screen.dart';
 
-/// Reference §7's "Going to Kitchen" run view, generalized to any mission:
-/// ordered steps with the currently-executing one highlighted, driven by
-/// polling GET /missions/status (the mission runner is a single
-/// module-level singleton server-side — see missions.py's own docstring —
-/// so this poll reflects real state, not a client-side guess).
+/// Mission Detail & Live Execution Monitor.
+/// Provides real-time 2D Lidar Map tracking, live AMR telemetry HUD (speed, battery, ETAs),
+/// and step/node execution pipeline tracking for both Sequential Routes and Visual Graphs.
 class MissionDetailScreen extends StatefulWidget {
   const MissionDetailScreen({super.key, required this.mission});
 
@@ -59,15 +56,10 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
 
   void _startPoll({bool fast = false}) {
     _poll?.cancel();
-    final interval = fast ? const Duration(seconds: 2) : const Duration(seconds: 5);
+    final interval = fast ? const Duration(seconds: 2) : const Duration(seconds: 4);
     _poll = Timer.periodic(interval, (_) => _refresh());
   }
 
-  /// Saved locations + dock pose, used only to plot the route preview card
-  /// — `navigate` steps by name need a location's x/y looked up, and
-  /// `dock`/`undock` steps need the dock's pose (same fallback pattern as
-  /// Map View/Teleop: fetchDockPose covers the case where /dock_pose hasn't
-  /// freshly republished this run but the SDK still knows it).
   Future<void> _loadMapData() async {
     final api = _api;
     if (api == null) return;
@@ -81,7 +73,7 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
         });
       }
     } on SdkApiException {
-      // Route preview just won't have pins for by-name steps — not fatal.
+      // Non-fatal if offline
     }
     final dock = await fetchDockPose(api);
     if (mounted) setState(() => _dockPose = dock);
@@ -106,8 +98,7 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
         _startPoll(fast: isRunning);
       }
     } on SdkApiException {
-      // Transient poll failure — keep showing the last known status rather
-      // than flashing an error every 2s.
+      // Transient poll failure
     }
   }
 
@@ -118,6 +109,9 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
       _isThisMission ? (_status?['pause_reason'] as String?) : null;
   bool get isLowBatteryPaused =>
       _state == 'paused' && _pauseReason == 'low_battery';
+
+  bool get running => _state == 'running';
+  bool get paused => _state == 'paused';
 
   Future<void> _act(Future<void> Function(SdkApiService, String) action) async {
     final api = _api;
@@ -139,13 +133,14 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
   }
 
   Future<void> _edit() async {
+    final isGraph = widget.mission['type'] == 'graph' || widget.mission.containsKey('nodes');
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-          builder: (_) => MissionEditorScreen(existing: widget.mission)),
+        builder: (_) => isGraph
+            ? MissionGraphEditorScreen(existingMission: widget.mission)
+            : MissionEditorScreen(existing: widget.mission),
+      ),
     );
-    // widget.mission is now stale (edited server-side under the same id) —
-    // pop back to the list rather than keep showing it, so the list's own
-    // reload picks up the fresh steps/name.
     if (saved == true && mounted) {
       Navigator.of(context).pop(true);
     }
@@ -154,9 +149,9 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
   Future<void> _delete() async {
     final api = _api;
     if (api == null) return;
+    final colors = AppColors.of(context);
 
     try {
-      // Check if other missions link/redirect to this mission
       final allMissions = await api.listMissions();
       final referencingMissions = <String>[];
 
@@ -179,8 +174,13 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
+          icon: Icon(
+            referencingMissions.isNotEmpty ? Icons.warning_rounded : Icons.delete_outline_rounded,
+            color: colors.danger,
+            size: 36,
+          ),
           title: Text(referencingMissions.isNotEmpty
-              ? 'Warning: Mission is Referenced'
+              ? 'Warning: Referenced Mission'
               : 'Delete Mission?'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -188,8 +188,8 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
             children: [
               if (referencingMissions.isNotEmpty) ...[
                 Text(
-                  'This mission is called by other missions via "Switch Mission" nodes:\n• ${referencingMissions.join("\n• ")}\n\nDeleting it will cause those missions to fail or branch to their error paths.',
-                  style: TextStyle(color: AppColors.danger, fontSize: 13),
+                  'This mission is referenced by other missions:\n• ${referencingMissions.join("\n• ")}\n\nDeleting it will cause them to break.',
+                  style: TextStyle(color: colors.danger, fontSize: 13),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -202,7 +202,7 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              style: FilledButton.styleFrom(backgroundColor: colors.danger),
               onPressed: () => Navigator.of(ctx).pop(true),
               child: const Text('Delete'),
             ),
@@ -215,11 +215,10 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
       await api.deleteMission(_id);
       _changed = true;
       if (!mounted) return;
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true);
     } on SdkApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -235,408 +234,16 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final steps = (widget.mission['steps'] as List? ?? const [])
-        .cast<Map<String, dynamic>>();
-    final stepIndex =
-        _isThisMission ? (_status?['step_index'] as int? ?? -1) : -1;
+    final colors = AppColors.of(context);
     final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
     final ros2 = context.watch<ConnectionProvider>().ros2;
     final telemetry = context.watch<RobotTelemetryProvider>();
 
-    if (isDesktop) {
-      return PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, __) {
-          if (!didPop) _goBack();
-        },
-        child: Scaffold(
-          appBar: AppBar(
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_rounded),
-              tooltip: 'Back to Missions',
-              onPressed: _goBack,
-            ),
-            title: Text(widget.mission['name'] as String? ?? _id),
-            actions: [
-              if (!running && !paused) ...[
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: _edit,
-                  tooltip: 'Edit mission',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  onPressed: _delete,
-                  tooltip: 'Delete mission',
-                ),
-              ],
-            ],
-          ),
-          body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.xl),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Left Pane: Large Live Interactive Map & Route
-                  Expanded(
-                    flex: 6,
-                    child: Card(
-                      clipBehavior: Clip.antiAlias,
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: ros2 == null
-                                ? const Center(child: Text('Not connected.'))
-                                : OccupancyGridView(
-                                    ros2: ros2,
-                                    interactive: true,
-                                    initialPose: telemetry.rawPose,
-                                    initialPath: telemetry.currentPath,
-                                    locations: _routePins(steps),
-                                    showWaypointRoute: true,
-                                    fitWholeMap: false,
-                                    showRobot: true,
-                                    showDock: true,
-                                    showPath: true,
-                                  ),
-                          ),
-                          Positioned(
-                            left: AppSpacing.md,
-                            top: AppSpacing.md,
-                            child: Card(
-                              color: AppColors.of(context).surface.withValues(alpha: 0.9),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.md,
-                                    vertical: AppSpacing.xs),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.route_rounded,
-                                        size: 16, color: AppColors.primary),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Text(
-                                      'Route Preview (${_routePins(steps).length} points)',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.xl),
+    final isGraph = widget.mission['type'] == 'graph' || widget.mission.containsKey('nodes');
+    final steps = (widget.mission['steps'] as List? ?? const []).cast<Map<String, dynamic>>();
+    final nodes = (widget.mission['nodes'] as List? ?? const []).cast<Map<String, dynamic>>();
 
-                  // Right Pane: Mission Status, Controls & Steps Pipeline
-                  Expanded(
-                    flex: 5,
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Header
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        widget.mission['name'] as String? ??
-                                            _id,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleLarge
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.bold),
-                                      ),
-                                      Builder(builder: (context) {
-                                        final totalStepsCount = steps.isNotEmpty
-                                            ? steps.length
-                                            : ((_status?['step_total'] as num?)?.toInt() ??
-                                                (_status?['step_count'] as num?)?.toInt() ??
-                                                ((widget.mission['nodes'] as List?)
-                                                        ?.where((n) => n is Map && n['type'] != 'start' && n['type'] != 'end')
-                                                        .length ??
-                                                    0));
-                                        final loopCountVal = widget.mission['loop_count'] ?? (_status?['loop_total'] ?? 1);
-                                        final loopRepeatText = widget.mission['loop_forever'] == true
-                                            ? 'repeats forever'
-                                            : 'repeats ${loopCountVal}x';
-                                        return Text(
-                                          '$totalStepsCount steps · $loopRepeatText',
-                                          style: const TextStyle(
-                                              color: AppColors.textSecondary,
-                                              fontSize: 13),
-                                        );
-                                      }),
-                                      if (widget.mission['map'] != null) ...[
-                                        const SizedBox(height: 4),
-                                        Builder(builder: (context) {
-                                          final missionMap =
-                                              widget.mission['map'] as String;
-                                          final isMismatch = _currentMap != null &&
-                                              missionMap != _currentMap;
-                                          return Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 8, vertical: 3),
-                                            decoration: BoxDecoration(
-                                              color: isMismatch
-                                                  ? AppColors.warning
-                                                      .withValues(alpha: 0.12)
-                                                  : AppColors.primary
-                                                      .withValues(alpha: 0.08),
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                              border: Border.all(
-                                                color: isMismatch
-                                                    ? AppColors.warning
-                                                        .withValues(alpha: 0.4)
-                                                    : AppColors.primary
-                                                        .withValues(alpha: 0.2),
-                                              ),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  isMismatch
-                                                      ? Icons.warning_amber_rounded
-                                                      : Icons.map_outlined,
-                                                  size: 13,
-                                                  color: isMismatch
-                                                      ? AppColors.warning
-                                                      : AppColors.primary,
-                                                ),
-                                                const SizedBox(width: 5),
-                                                Text(
-                                                  isMismatch
-                                                      ? 'Map: $missionMap (Active map: $_currentMap)'
-                                                      : 'Map: $missionMap',
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: isMismatch
-                                                        ? AppColors.warning
-                                                        : AppColors.primary,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        }),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                                Chip(
-                                  avatar: _state == 'running'
-                                      ? StatusPulseDot(
-                                          color: _stateColor(_state),
-                                          live: true,
-                                          size: 8)
-                                      : (isLowBatteryPaused
-                                          ? const Icon(Icons.bolt_rounded,
-                                              size: 14,
-                                              color: AppColors.warning)
-                                          : null),
-                                  label: Text(
-                                      isLowBatteryPaused
-                                          ? 'PAUSED (CHARGING)'
-                                          : _state.toUpperCase(),
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12)),
-                                  backgroundColor: _stateColor(_state)
-                                      .withValues(alpha: 0.12),
-                                  labelStyle:
-                                      TextStyle(color: _stateColor(_state)),
-                                  side: BorderSide.none,
-                                ),
-                              ],
-                            ),
-                            if (_isThisMission && _state != 'idle') ...[
-                              const SizedBox(height: AppSpacing.sm),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: _stateColor(_state)
-                                      .withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: _stateColor(_state)
-                                        .withValues(alpha: 0.25),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    if (_state == 'running') ...[
-                                      StatusPulseDot(
-                                          color: _stateColor(_state),
-                                          live: true,
-                                          size: 8),
-                                      const SizedBox(width: AppSpacing.sm),
-                                    ] else if (_state == 'failed') ...[
-                                      const Icon(Icons.error_outline_rounded,
-                                          size: 16, color: AppColors.danger),
-                                      const SizedBox(width: AppSpacing.sm),
-                                    ],
-                                    Expanded(
-                                      child: Text(
-                                        _statusLine(),
-                                        style: TextStyle(
-                                          color: _stateColor(_state),
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                            if (isLowBatteryPaused) ...[
-                              const SizedBox(height: AppSpacing.md),
-                              _LowBatteryChargingNotice(
-                                batteryPercent: telemetry.batteryPercentage,
-                              ),
-                            ],
-                            const SizedBox(height: AppSpacing.md),
-
-                            // Controls Bar
-                            _Controls(
-                              state: _state,
-                              pauseReason: _pauseReason,
-                              busy: _busy,
-                              onStart: () => _act(
-                                  (api, id) => api.startMission(id)),
-                              onPause: () => _act(
-                                  (api, id) => api.pauseMission(id)),
-                              onResume: () => _act(
-                                  (api, id) => api.resumeMission(id)),
-                              onCancel: () => _act(
-                                  (api, id) => api.cancelMission(id)),
-                            ),
-                            if (_actionError != null) ...[
-                              const SizedBox(height: AppSpacing.sm),
-                              Text(_actionError!,
-                                  style: const TextStyle(
-                                      color: AppColors.danger)),
-                            ],
-                            const SizedBox(height: AppSpacing.md),
-                            const Divider(),
-                            const SizedBox(height: AppSpacing.xs),
-
-                            // Steps Pipeline Header
-                            Text(
-                              'Execution Sequence (${steps.length} steps)',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-
-                            // Steps Pipeline List
-                            Expanded(
-                              child: ListView.separated(
-                                itemCount: steps.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: AppSpacing.xs),
-                                itemBuilder: (context, i) {
-                                  final isCurrent = running && i == stepIndex;
-                                  final isDone = _isThisMission &&
-                                      ((stepIndex > i && (running || paused)) ||
-                                          _state == 'completed');
-                                  return Card(
-                                    elevation: isCurrent ? 2 : 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      side: BorderSide(
-                                        color: isCurrent
-                                            ? AppColors.primary
-                                            : AppColors.of(context).border,
-                                        width: isCurrent ? 1.5 : 1,
-                                      ),
-                                    ),
-                                    color: isCurrent
-                                        ? AppColors.primary
-                                            .withValues(alpha: 0.08)
-                                        : AppColors.of(context).surfaceSunken,
-                                    child: ListTile(
-                                      dense: true,
-                                      leading: CircleAvatar(
-                                        radius: 13,
-                                        backgroundColor: isDone
-                                            ? AppColors.stateIdle
-                                            : isCurrent
-                                                ? AppColors.primary
-                                                : AppColors.of(context).border,
-                                        child: isDone
-                                            ? const Icon(Icons.check_rounded,
-                                                size: 14, color: Colors.white)
-                                            : Text('${i + 1}',
-                                                style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: isCurrent
-                                                        ? AppColors.textOnPrimary
-                                                        : AppColors
-                                                            .textSecondary)),
-                                      ),
-                                      title: Text(
-                                          missionStepSummary(steps[i]),
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 13)),
-                                      subtitle: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(missionStepIcon(steps[i]),
-                                              size: 13,
-                                              color: AppColors.textSecondary),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                              steps[i]['type'] as String? ??
-                                                  '',
-                                              style: const TextStyle(
-                                                  color: AppColors
-                                                      .textSecondary,
-                                                  fontSize: 11)),
-                                        ],
-                                      ),
-                                      trailing: isCurrent
-                                          ? const Icon(
-                                              Icons.navigation_rounded,
-                                              color: AppColors.primary,
-                                              size: 18)
-                                          : null,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
+    final pins = _resolveRoutePins(steps, nodes, isGraph);
 
     return PopScope(
       canPop: false,
@@ -644,13 +251,34 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
         if (!didPop) _goBack();
       },
       child: Scaffold(
+        backgroundColor: colors.background,
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_rounded),
             tooltip: 'Back to Missions',
             onPressed: _goBack,
           ),
-          title: Text(widget.mission['name'] as String? ?? _id),
+          title: Row(
+            children: [
+              Text(widget.mission['name'] as String? ?? _id),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: (isGraph ? const Color(0xFF00E5FF) : colors.primary).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  isGraph ? 'VISUAL GRAPH' : 'LINEAR ROUTE',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: isGraph ? const Color(0xFF00E5FF) : colors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
           actions: [
             if (!running && !paused) ...[
               IconButton(
@@ -667,326 +295,634 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
           ],
         ),
         body: SafeArea(
-          child: CenteredFormColumn(
-            maxWidth: 640,
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _RouteMapCard(pins: _routePins(steps)),
-                  if (widget.mission['map'] != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Builder(builder: (context) {
-                      final missionMap = widget.mission['map'] as String;
-                      final isMismatch =
-                          _currentMap != null && missionMap != _currentMap;
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isMismatch
-                              ? AppColors.warning.withValues(alpha: 0.12)
-                              : AppColors.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: isMismatch
-                                ? AppColors.warning.withValues(alpha: 0.4)
-                                : AppColors.primary.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isMismatch
-                                  ? Icons.warning_amber_rounded
-                                  : Icons.map_outlined,
-                              size: 14,
-                              color: isMismatch
-                                  ? AppColors.warning
-                                  : AppColors.primary,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                isMismatch
-                                    ? 'Map Mismatch: Mission is for "$missionMap", active map is "$_currentMap"'
-                                    : 'Map: $missionMap',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: isMismatch
-                                      ? AppColors.warning
-                                      : AppColors.primary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
-                  if (_isThisMission) ...[
-                    FadeSlideIn(
-                      child: Card(
-                        color: _stateColor(_state).withValues(alpha: 0.08),
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.md),
-                          child: Row(
-                            children: [
-                              if (_state == 'running') ...[
-                                StatusPulseDot(
-                                    color: _stateColor(_state),
-                                    live: true,
-                                    size: 8),
-                                const SizedBox(width: AppSpacing.sm),
-                              ] else if (isLowBatteryPaused) ...[
-                                const Icon(Icons.bolt_rounded,
-                                    color: AppColors.warning),
-                                const SizedBox(width: AppSpacing.sm),
-                              ] else
-                                Icon(Icons.flag_rounded,
-                                    color: _stateColor(_state)),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(
-                                child: AnimatedSwitcher(
-                                  duration: AppMotion.fast,
-                                  child: Text(
-                                    _statusLine(),
-                                    key: ValueKey(_statusLine()),
-                                    style: TextStyle(
-                                        color: _stateColor(_state),
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (isLowBatteryPaused) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      _LowBatteryChargingNotice(
-                        batteryPercent: telemetry.batteryPercentage,
-                      ),
-                    ],
-                  ],
-                  if (_actionError != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(_actionError!,
-                        style: const TextStyle(color: AppColors.danger)),
-                  ],
-                  const SizedBox(height: AppSpacing.md),
-                  Text('Waypoint List (${steps.length})',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: AppSpacing.sm),
-                  Expanded(
-                    child: ListView.separated(
-                      itemCount: steps.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: AppSpacing.sm),
-                      itemBuilder: (context, i) {
-                        final isCurrent = running && i == stepIndex;
-                        final isDone = _isThisMission &&
-                            ((stepIndex > i && (running || paused)) ||
-                                _state == 'completed');
-                        return Card(
-                          color: isCurrent
-                              ? AppColors.primary.withValues(alpha: 0.06)
-                              : null,
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              radius: 14,
-                              backgroundColor: isDone
-                                  ? AppColors.stateIdle
-                                  : isCurrent
-                                      ? AppColors.primary
-                                      : AppColors.of(context).border,
-                              child: isDone
-                                  ? const Icon(Icons.check_rounded,
-                                      size: 14, color: Colors.white)
-                                  : Text('${i + 1}',
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          color: isCurrent
-                                              ? AppColors.textOnPrimary
-                                              : AppColors.of(context).textSecondary)),
-                            ),
-                            title: Text(missionStepSummary(steps[i])),
-                            subtitle: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(missionStepIcon(steps[i]),
-                                    size: 14, color: AppColors.textSecondary),
-                                const SizedBox(width: 4),
-                                Text(steps[i]['type'] as String? ?? '',
-                                    style: const TextStyle(
-                                        color: AppColors.textSecondary,
-                                        fontSize: 12)),
-                              ],
-                            ),
-                            trailing: isCurrent
-                                ? const Icon(Icons.navigation_rounded,
-                                    color: AppColors.primary)
-                                : null,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  _Controls(
-                    state: _state,
-                    pauseReason: _pauseReason,
-                    busy: _busy,
-                    onStart: () => _act((api, id) => api.startMission(id)),
-                    onPause: () => _act((api, id) => api.pauseMission(id)),
-                    onResume: () => _act((api, id) => api.resumeMission(id)),
-                    onCancel: () => _act((api, id) => api.cancelMission(id)),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          child: isDesktop
+              ? _buildDesktopLayout(context, colors, ros2, telemetry, pins, steps, nodes, isGraph)
+              : _buildMobileLayout(context, colors, ros2, telemetry, pins, steps, nodes, isGraph),
         ),
       ),
     );
   }
 
-  String _statusLine() {
-    final msg = _status?['message'] as String?;
-    final stepTotal = (_status?['step_total'] as num?)?.toInt() ??
-        (_status?['step_count'] as num?)?.toInt() ??
-        (widget.mission['steps'] as List? ?? []).length;
-    final stepIndex = (_status?['step_index'] as num?)?.toInt();
-    final loopTotal = (_status?['loop_total'] as num?)?.toInt();
-    final loopIndex = (_status?['loop_index'] as num?)?.toInt();
-    final activeNode = _status?['active_node_label'] as String?;
+  Widget _buildDesktopLayout(
+    BuildContext context,
+    AppColorsTheme colors,
+    dynamic ros2,
+    RobotTelemetryProvider telemetry,
+    List<Map<String, dynamic>> pins,
+    List<Map<String, dynamic>> steps,
+    List<Map<String, dynamic>> nodes,
+    bool isGraph,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Left Pane (60%): Interactive 2D Map & Route
+          Expanded(
+            flex: 6,
+            child: Card(
+              elevation: 0,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: colors.border),
+              ),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: ros2 == null
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.wifi_off_rounded, size: 40, color: colors.textTertiary),
+                                const SizedBox(height: 8),
+                                Text('Live ROS 2 Map stream disconnected', style: TextStyle(color: colors.textSecondary)),
+                              ],
+                            ),
+                          )
+                        : OccupancyGridView(
+                            ros2: ros2,
+                            interactive: true,
+                            initialPose: telemetry.rawPose,
+                            initialPath: telemetry.currentPath,
+                            locations: pins,
+                            showWaypointRoute: true,
+                            fitWholeMap: false,
+                            showRobot: true,
+                            showDock: true,
+                            showPath: true,
+                          ),
+                  ),
+                  Positioned(
+                    left: AppSpacing.md,
+                    top: AppSpacing.md,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceElevated.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: colors.border),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.route_rounded, size: 16, color: colors.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Route Preview (${pins.length} waypoints)',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: colors.textPrimary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
-    if (_state == 'completed') {
-      return 'Mission Completed · All steps finished successfully';
-    }
-    var base = _state.isNotEmpty ? (_state[0].toUpperCase() + _state.substring(1)) : 'Idle';
-    if (_state == 'paused') {
-      if (_pauseReason == 'low_battery') {
-        base = 'Paused for Recharge (Auto-resumes at 95%)';
-      } else if (_pauseReason == 'user') {
-        base = 'Paused by operator';
-      }
-    }
+          const SizedBox(width: AppSpacing.lg),
 
-    if (_isThisMission) {
-      final details = <String>[];
-      if (stepIndex != null && stepIndex >= 0) {
-        details.add(stepTotal > 0 ? 'Step ${stepIndex + 1}/$stepTotal' : 'Step ${stepIndex + 1}');
-      }
-      if (loopIndex != null) {
-        if (loopTotal != null && loopTotal > 1) {
-          details.add('Lap ${loopIndex + 1}/$loopTotal');
-        } else if (loopTotal == null) {
-          details.add('Lap ${loopIndex + 1} · repeating forever');
-        }
-      }
-      if (details.isNotEmpty) {
-        base += ' · ${details.join(" · ")}';
-      }
-      if (activeNode != null && activeNode.isNotEmpty && (running || paused)) {
-        base += ' · $activeNode';
-      }
-    }
-    return msg != null && msg.isNotEmpty ? '$base — $msg' : base;
+          // Right Pane (40%): Telemetry HUD, Controls & Execution Pipeline
+          Expanded(
+            flex: 4,
+            child: Card(
+              elevation: 0,
+              color: colors.surfaceElevated,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: colors.border),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildMissionHeader(colors, steps, nodes, isGraph),
+                    const SizedBox(height: AppSpacing.md),
+                    _LiveTelemetryHUD(telemetry: telemetry, isRunning: running, colors: colors),
+                    const SizedBox(height: AppSpacing.md),
+                    _Controls(
+                      colors: colors,
+                      state: _state,
+                      pauseReason: _pauseReason,
+                      busy: _busy,
+                      onStart: () => _act((api, id) => api.startMission(id)),
+                      onPause: () => _act((api, id) => api.pauseMission(id)),
+                      onResume: () => _act((api, id) => api.resumeMission(id)),
+                      onCancel: () => _act((api, id) => api.cancelMission(id)),
+                    ),
+                    if (_actionError != null) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(_actionError!, style: TextStyle(color: colors.danger, fontSize: 12)),
+                    ],
+                    const SizedBox(height: AppSpacing.md),
+                    Divider(color: colors.border, height: 1),
+                    const SizedBox(height: AppSpacing.sm),
+                    _buildPipelineHeader(colors, steps, nodes, isGraph),
+                    const SizedBox(height: AppSpacing.xs),
+                    Expanded(
+                      child: isGraph
+                          ? _buildGraphNodesPipeline(colors, nodes)
+                          : _buildLinearStepsPipeline(colors, steps),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  bool get running => _state == 'running';
-  bool get paused => _state == 'paused';
+  Widget _buildMobileLayout(
+    BuildContext context,
+    AppColorsTheme colors,
+    dynamic ros2,
+    RobotTelemetryProvider telemetry,
+    List<Map<String, dynamic>> pins,
+    List<Map<String, dynamic>> steps,
+    List<Map<String, dynamic>> nodes,
+    bool isGraph,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      children: [
+        _buildMissionHeader(colors, steps, nodes, isGraph),
+        const SizedBox(height: AppSpacing.md),
+        if (pins.isNotEmpty && ros2 != null) ...[
+          Card(
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: colors.border),
+            ),
+            child: SizedBox(
+              height: 200,
+              child: OccupancyGridView(
+                ros2: ros2,
+                interactive: false,
+                initialPose: telemetry.rawPose,
+                initialPath: telemetry.currentPath,
+                locations: pins,
+                showWaypointRoute: true,
+                fitWholeMap: true,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        _LiveTelemetryHUD(telemetry: telemetry, isRunning: running, colors: colors),
+        const SizedBox(height: AppSpacing.md),
+        _Controls(
+          colors: colors,
+          state: _state,
+          pauseReason: _pauseReason,
+          busy: _busy,
+          onStart: () => _act((api, id) => api.startMission(id)),
+          onPause: () => _act((api, id) => api.pauseMission(id)),
+          onResume: () => _act((api, id) => api.resumeMission(id)),
+          onCancel: () => _act((api, id) => api.cancelMission(id)),
+        ),
+        if (_actionError != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(_actionError!, style: TextStyle(color: colors.danger, fontSize: 12)),
+        ],
+        const SizedBox(height: AppSpacing.md),
+        _buildPipelineHeader(colors, steps, nodes, isGraph),
+        const SizedBox(height: AppSpacing.xs),
+        SizedBox(
+          height: 340,
+          child: isGraph
+              ? _buildGraphNodesPipeline(colors, nodes)
+              : _buildLinearStepsPipeline(colors, steps),
+        ),
+      ],
+    );
+  }
 
-  /// Numbered pins for the route preview card — `navigate` steps by raw
-  /// x/y or by resolved saved-location name, plus `dock`/`undock` steps
-  /// plotted at the known dock pose. Steps with no resolvable position
-  /// (wait, call_service, call_action, or a by-name navigate before
-  /// locations have loaded) are simply not pinned — they still show in the
-  /// waypoint list below.
-  List<Map<String, dynamic>> _routePins(List<Map<String, dynamic>> steps) {
+  Widget _buildMissionHeader(
+    AppColorsTheme colors,
+    List<Map<String, dynamic>> steps,
+    List<Map<String, dynamic>> nodes,
+    bool isGraph,
+  ) {
+    final statusColor = _stateColor(_state, colors);
+    final missionMap = widget.mission['map'] as String?;
+    final isMismatch = missionMap != null && _currentMap != null && missionMap != _currentMap;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.mission['name'] as String? ?? _id,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: colors.textPrimary),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                isGraph
+                    ? '${nodes.length} logic nodes · Visual Workflow'
+                    : '${steps.length} route waypoints',
+                style: TextStyle(color: colors.textSecondary, fontSize: 12),
+              ),
+              if (missionMap != null) ...[
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isMismatch ? colors.warning.withValues(alpha: 0.12) : colors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: isMismatch ? colors.warning.withValues(alpha: 0.4) : colors.primary.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(isMismatch ? Icons.warning_amber_rounded : Icons.map_outlined,
+                          size: 11, color: isMismatch ? colors.warning : colors.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        isMismatch ? 'Map: $missionMap (Inactive map: $_currentMap)' : 'Map: $missionMap',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: isMismatch ? colors.warning : colors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (running) ...[
+                StatusPulseDot(color: statusColor, live: true, size: 8),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                isLowBatteryPaused ? 'CHARGING' : _state.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.6,
+                  color: statusColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPipelineHeader(
+    AppColorsTheme colors,
+    List<Map<String, dynamic>> steps,
+    List<Map<String, dynamic>> nodes,
+    bool isGraph,
+  ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          isGraph ? 'Execution Node Pipeline (${nodes.length})' : 'Waypoint Sequence (${steps.length})',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: colors.textPrimary),
+        ),
+        if (running || paused)
+          Text(
+            _statusLine(),
+            style: TextStyle(fontSize: 11, color: colors.primary, fontWeight: FontWeight.w600),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildGraphNodesPipeline(AppColorsTheme colors, List<Map<String, dynamic>> nodes) {
+    if (nodes.isEmpty) {
+      return Center(child: Text('No nodes in graph', style: TextStyle(color: colors.textTertiary)));
+    }
+
+    final activeNodeId = _status?['active_node_id'] as String?;
+    final activeNodeLabel = _status?['active_node_label'] as String?;
+
+    return ListView.separated(
+      itemCount: nodes.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+      itemBuilder: (context, i) {
+        final node = nodes[i];
+        final id = node['id'] as String? ?? 'n_$i';
+        final type = node['type'] as String? ?? '';
+        final label = node['label'] as String? ?? type;
+
+        final isCurrent = running && (id == activeNodeId || label == activeNodeLabel);
+
+        return Card(
+          elevation: isCurrent ? 2 : 0,
+          margin: EdgeInsets.zero,
+          color: isCurrent ? colors.primary.withValues(alpha: 0.1) : colors.surfaceSunken,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(
+              color: isCurrent ? colors.primary : colors.border,
+              width: isCurrent ? 1.5 : 1,
+            ),
+          ),
+          child: ListTile(
+            dense: true,
+            leading: CircleAvatar(
+              radius: 13,
+              backgroundColor: isCurrent ? colors.primary : colors.border,
+              child: Icon(
+                _nodeTypeIcon(type),
+                size: 14,
+                color: isCurrent ? colors.textOnPrimary : colors.textSecondary,
+              ),
+            ),
+            title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            subtitle: Text(
+              _nodeParamsSummary(node),
+              style: TextStyle(color: colors.textSecondary, fontSize: 11),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: isCurrent
+                ? StatusPulseDot(color: colors.primary, live: true, size: 8)
+                : Text(type, style: TextStyle(color: colors.textTertiary, fontSize: 10)),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLinearStepsPipeline(AppColorsTheme colors, List<Map<String, dynamic>> steps) {
+    if (steps.isEmpty) {
+      return Center(child: Text('No waypoints defined', style: TextStyle(color: colors.textTertiary)));
+    }
+
+    final stepIndex = _isThisMission ? (_status?['step_index'] as int? ?? -1) : -1;
+
+    return ListView.separated(
+      itemCount: steps.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.xs),
+      itemBuilder: (context, i) {
+        final isCurrent = running && i == stepIndex;
+        final isDone = _isThisMission && ((stepIndex > i && (running || paused)) || _state == 'completed');
+
+        return Card(
+          elevation: isCurrent ? 2 : 0,
+          margin: EdgeInsets.zero,
+          color: isCurrent ? colors.primary.withValues(alpha: 0.1) : colors.surfaceSunken,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(
+              color: isCurrent ? colors.primary : colors.border,
+              width: isCurrent ? 1.5 : 1,
+            ),
+          ),
+          child: ListTile(
+            dense: true,
+            leading: CircleAvatar(
+              radius: 13,
+              backgroundColor: isDone
+                  ? colors.stateIdle
+                  : isCurrent
+                      ? colors.primary
+                      : colors.border,
+              child: isDone
+                  ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                  : Text('${i + 1}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isCurrent ? colors.textOnPrimary : colors.textSecondary,
+                      )),
+            ),
+            title: Text(missionStepSummary(steps[i]), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            subtitle: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(missionStepIcon(steps[i]), size: 12, color: colors.textSecondary),
+                const SizedBox(width: 4),
+                Text(steps[i]['type'] as String? ?? '', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
+              ],
+            ),
+            trailing: isCurrent
+                ? Icon(Icons.navigation_rounded, color: colors.primary, size: 18)
+                : null,
+          ),
+        );
+      },
+    );
+  }
+
+  String _nodeParamsSummary(Map<String, dynamic> node) {
+    final p = (node['params'] as Map?) ?? const {};
+    final type = node['type'] as String? ?? '';
+    if (type == 'navigate') return 'Target: ${p['waypoint'] ?? p['target_waypoint'] ?? '${p['x']}, ${p['y']}'}';
+    if (type == 'wait') return 'Wait: ${p['duration'] ?? p['wait_sec'] ?? '5'}s';
+    if (type == 'dock') return 'Recharging Bay';
+    if (type == 'loop') return 'Repeat: ${p['count'] ?? '3'} times';
+    if (type == 'condition') return 'Evaluate: ${p['expression'] ?? 'battery > 20%'}';
+    return type;
+  }
+
+  static IconData _nodeTypeIcon(String type) => switch (type) {
+        'navigate' => Icons.navigation_rounded,
+        'wait' => Icons.hourglass_bottom_rounded,
+        'dock' => Icons.ev_station_rounded,
+        'undock' => Icons.logout_rounded,
+        'condition' => Icons.call_split_rounded,
+        'loop' => Icons.repeat_rounded,
+        'ui_interaction' => Icons.touch_app_rounded,
+        'patrol' => Icons.sync_rounded,
+        'call_service' || 'call_action' => Icons.terminal_rounded,
+        _ => Icons.circle_outlined,
+      };
+
+  String _statusLine() {
+    final msg = _status?['message'] as String?;
+    final stepIndex = (_status?['step_index'] as num?)?.toInt();
+    final activeNode = _status?['active_node_label'] as String?;
+
+    if (_state == 'completed') return 'Completed Successfully';
+    if (_state == 'running') {
+      if (activeNode != null && activeNode.isNotEmpty) return activeNode;
+      if (stepIndex != null) return 'Step ${stepIndex + 1}';
+      return 'Navigating...';
+    }
+    return msg ?? _state.toUpperCase();
+  }
+
+  List<Map<String, dynamic>> _resolveRoutePins(
+    List<Map<String, dynamic>> steps,
+    List<Map<String, dynamic>> nodes,
+    bool isGraph,
+  ) {
     final pins = <Map<String, dynamic>>[];
-    for (var i = 0; i < steps.length; i++) {
-      final step = steps[i];
-      double? x, y;
-      if (step['type'] == 'navigate') {
-        final target = step['target'];
-        if (target is String) {
-          for (final loc in _locations ?? const <Map<String, dynamic>>[]) {
-            if (loc['name'] == target) {
-              x = (loc['x'] as num?)?.toDouble();
-              y = (loc['y'] as num?)?.toDouble();
-              break;
+    int pinIndex = 1;
+
+    if (!isGraph) {
+      for (final step in steps) {
+        double? x, y;
+        if (step['type'] == 'navigate') {
+          final target = step['target'];
+          if (target is String) {
+            for (final loc in _locations ?? const <Map<String, dynamic>>[]) {
+              if (loc['name'] == target) {
+                x = (loc['x'] as num?)?.toDouble();
+                y = (loc['y'] as num?)?.toDouble();
+                break;
+              }
             }
+          } else {
+            x = (step['x'] as num?)?.toDouble();
+            y = (step['y'] as num?)?.toDouble();
           }
-        } else {
-          x = (step['x'] as num?)?.toDouble();
-          y = (step['y'] as num?)?.toDouble();
+        } else if (step['type'] == 'dock' || step['type'] == 'undock') {
+          x = _dockPose?.x;
+          y = _dockPose?.y;
         }
-      } else if (step['type'] == 'dock' || step['type'] == 'undock') {
-        x = _dockPose?.x;
-        y = _dockPose?.y;
+        if (x != null && y != null) {
+          pins.add({'name': '${pinIndex++}', 'x': x, 'y': y});
+        }
       }
-      if (x != null && y != null) {
-        pins.add({'name': '${i + 1}', 'x': x, 'y': y});
+    } else {
+      for (final node in nodes) {
+        final type = node['type'] as String? ?? '';
+        final p = (node['params'] as Map?) ?? const {};
+        double? x, y;
+        if (type == 'navigate') {
+          final target = p['waypoint'] ?? p['target_waypoint'];
+          if (target is String) {
+            for (final loc in _locations ?? const <Map<String, dynamic>>[]) {
+              if (loc['name'] == target) {
+                x = (loc['x'] as num?)?.toDouble();
+                y = (loc['y'] as num?)?.toDouble();
+                break;
+              }
+            }
+          } else {
+            x = (p['x'] as num?)?.toDouble();
+            y = (p['y'] as num?)?.toDouble();
+          }
+        } else if (type == 'dock' || type == 'undock') {
+          x = _dockPose?.x;
+          y = _dockPose?.y;
+        }
+        if (x != null && y != null) {
+          pins.add({'name': '${pinIndex++}', 'x': x, 'y': y});
+        }
       }
     }
     return pins;
   }
 
-  Color _stateColor(String state) => switch (state) {
-        'running' => AppColors.stateExecuting,
-        'paused' => AppColors.warning,
-        'completed' => AppColors.stateIdle,
-        'failed' => AppColors.danger,
-        'canceled' => AppColors.textSecondary,
-        _ => AppColors.textSecondary,
+  Color _stateColor(String state, AppColorsTheme colors) => switch (state) {
+        'running' => colors.stateIdle,
+        'paused' => colors.warning,
+        'completed' => colors.stateIdle,
+        'failed' => colors.danger,
+        _ => colors.textSecondary,
       };
 }
 
-/// A small live-map preview showing the mission's route as numbered pins —
-/// mirrors the reference mockup's "Going to Kitchen" view. Renders nothing
-/// when there's no robot connection or no step resolves to a position yet
-/// (e.g. a by-name navigate step before locations have loaded), rather than
-/// showing an empty or broken map.
-class _RouteMapCard extends StatelessWidget {
-  const _RouteMapCard({required this.pins});
+/// Live Cockpit Telemetry HUD Card showing speed, battery, and execution stats.
+class _LiveTelemetryHUD extends StatelessWidget {
+  const _LiveTelemetryHUD({
+    required this.telemetry,
+    required this.isRunning,
+    required this.colors,
+  });
 
-  final List<Map<String, dynamic>> pins;
+  final RobotTelemetryProvider telemetry;
+  final bool isRunning;
+  final AppColorsTheme colors;
 
   @override
   Widget build(BuildContext context) {
-    final ros2 = context.watch<ConnectionProvider>().ros2;
-    final telemetry = context.watch<RobotTelemetryProvider>();
-    if (ros2 == null || pins.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: FadeSlideIn(
-        child: Card(
-          clipBehavior: Clip.antiAlias,
-          child: SizedBox(
-            height: 180,
-            child: OccupancyGridView(
-              ros2: ros2,
-              interactive: false,
-              initialPose: telemetry.rawPose,
-              initialPath: telemetry.currentPath,
-              locations: pins,
-              showWaypointRoute: true,
-              fitWholeMap: true,
-            ),
-          ),
-        ),
+    final speed = telemetry.linearSpeedMps?.abs() ?? 0.0;
+    final battery = telemetry.batteryPercentage ?? 100.0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.surfaceSunken,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.border),
       ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildMetric(
+            icon: Icons.speed_rounded,
+            color: colors.primary,
+            label: 'Velocity',
+            value: '${speed.toStringAsFixed(2)} m/s',
+          ),
+          Container(width: 1, height: 28, color: colors.border),
+          _buildMetric(
+            icon: battery < 20 ? Icons.battery_alert_rounded : Icons.battery_charging_full_rounded,
+            color: battery < 20 ? colors.danger : colors.stateIdle,
+            label: 'Battery SOC',
+            value: '${battery.round()}%',
+          ),
+          Container(width: 1, height: 28, color: colors.border),
+          _buildMetric(
+            icon: Icons.memory_rounded,
+            color: const Color(0xFF00E5FF),
+            label: 'Control Mode',
+            value: isRunning ? 'Auto Nav2' : 'Standby',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetric({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: colors.textPrimary)),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(label, style: TextStyle(fontSize: 10, color: colors.textTertiary)),
+      ],
     );
   }
 }
 
 class _Controls extends StatelessWidget {
   const _Controls({
+    required this.colors,
     required this.state,
     this.pauseReason,
     required this.busy,
@@ -996,6 +932,7 @@ class _Controls extends StatelessWidget {
     required this.onCancel,
   });
 
+  final AppColorsTheme colors;
   final String state;
   final String? pauseReason;
   final bool busy;
@@ -1012,134 +949,66 @@ class _Controls extends StatelessWidget {
           Expanded(
             child: OutlinedButton.icon(
               onPressed: busy ? null : onPause,
-              icon: const Icon(Icons.pause_rounded),
-              label: const Text('Pause'),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: colors.warning),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              icon: Icon(Icons.pause_rounded, color: colors.warning),
+              label: Text('Pause Mission', style: TextStyle(color: colors.warning, fontWeight: FontWeight.bold)),
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: ElevatedButton.icon(
+            child: FilledButton.icon(
               onPressed: busy ? null : onCancel,
-              style:
-                  ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+              style: FilledButton.styleFrom(
+                backgroundColor: colors.danger,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
               icon: const Icon(Icons.stop_rounded),
-              label: const Text('Cancel'),
+              label: const Text('Abort Mission', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ],
       );
     }
     if (state == 'paused') {
-      final isCharging = pauseReason == 'low_battery';
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      return Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: busy ? null : onResume,
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  label: Text(isCharging ? 'Resume Early' : 'Resume'),
-                ),
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: busy ? null : onResume,
+              style: FilledButton.styleFrom(
+                backgroundColor: colors.stateIdle,
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: busy ? null : onCancel,
-                  icon: const Icon(Icons.stop_rounded),
-                  label: Text(isCharging ? 'Cancel (Stay Docked)' : 'Cancel'),
-                ),
-              ),
-            ],
-          ),
-          if (isCharging) ...[
-            const SizedBox(height: AppSpacing.xs),
-            const Text(
-              'Robot auto-resumes once charged to 95%',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                color: AppColors.textTertiary,
-                fontStyle: FontStyle.italic,
-              ),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Resume Mission', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
-          ],
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: busy ? null : onCancel,
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: colors.danger.withValues(alpha: 0.5)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              icon: Icon(Icons.stop_rounded, color: colors.danger),
+              label: Text('Abort Mission', style: TextStyle(color: colors.danger)),
+            ),
+          ),
         ],
       );
     }
-    return ElevatedButton.icon(
+    return FilledButton.icon(
+      style: FilledButton.styleFrom(
+        backgroundColor: colors.primary,
+        padding: const EdgeInsets.symmetric(vertical: 13),
+      ),
       onPressed: busy ? null : onStart,
-      icon: const Icon(Icons.play_arrow_rounded),
-      label: const Text('Start Mission'),
-    );
-  }
-}
-
-class _LowBatteryChargingNotice extends StatelessWidget {
-  const _LowBatteryChargingNotice({this.batteryPercent});
-
-  final double? batteryPercent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-        border: Border.all(
-          color: AppColors.warning.withValues(alpha: 0.4),
-          width: 1.5,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.battery_charging_full_rounded,
-              color: AppColors.warning, size: 24),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Auto-Recharge in Progress',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: AppColors.warning,
-                      ),
-                    ),
-                    if (batteryPercent != null) ...[
-                      const SizedBox(width: AppSpacing.sm),
-                      Text(
-                        '(${batteryPercent!.round()}%)',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: AppColors.of(context).textPrimary,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Battery dropped ≤ 5%. Robot docked to recharge and will automatically undock and resume when battery reaches 95%.\n• Tap "Resume Early" to undock immediately.\n• Tap "Cancel" to stop mission (robot stays docked).',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.of(context).textSecondary,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      icon: const Icon(Icons.play_arrow_rounded, size: 20),
+      label: const Text('Start Mission Execution', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
     );
   }
 }

@@ -223,8 +223,8 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.repeat_rounded,
-                        size: 20, color: AppColors.primary),
+                    Icon(Icons.repeat_rounded,
+                        size: 20, color: colors.primary),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       'Recurrence & Frequency',
@@ -304,8 +304,8 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.access_time_rounded,
-                        size: 20, color: AppColors.primary),
+                    Icon(Icons.access_time_rounded,
+                        size: 20, color: colors.primary),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       'Trigger Time',
@@ -323,18 +323,18 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
+                        color: colors.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                            color: AppColors.primary.withValues(alpha: 0.3)),
+                            color: colors.primary.withValues(alpha: 0.3)),
                       ),
                       child: Text(
                         _time.format(context),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                           fontFamily: 'monospace',
-                          color: AppColors.primary,
+                          color: colors.primary,
                         ),
                       ),
                     ),
@@ -457,7 +457,7 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
             ],
             const Spacer(),
             if (_error != null) ...[
-              Text(_error!, style: const TextStyle(color: AppColors.danger)),
+              Text(_error!, style: TextStyle(color: colors.danger)),
               const SizedBox(height: AppSpacing.sm),
             ],
             SizedBox(
@@ -466,11 +466,11 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
               child: FilledButton.icon(
                 onPressed: _saving ? null : _save,
                 icon: _saving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: AppColors.textOnPrimary),
+                            strokeWidth: 2, color: colors.textOnPrimary),
                       )
                     : const Icon(Icons.check_rounded, size: 20),
                 label: Text(
