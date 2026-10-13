@@ -30,3 +30,7 @@ server/data/
 *.tar.gz
 *.zip
 *.apk
+
+# Agent artifacts
+.agents/
+skills-lock.json

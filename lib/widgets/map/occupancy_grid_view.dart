@@ -1239,6 +1239,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         _effectivePose != null) {
       return child;
     }
+    final colors = AppColors.of(context);
     return Stack(
       children: [
         child,
@@ -1248,20 +1249,20 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: AppColors.surface.withValues(alpha: 0.92),
+              color: colors.surface.withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.border),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.location_off_rounded,
-                    size: 12, color: AppColors.textSecondary),
-                SizedBox(width: 4),
+                    size: 12, color: colors.textSecondary),
+                const SizedBox(width: 4),
                 Text('Not localized',
                     style: TextStyle(
                         fontSize: 11,
-                        color: AppColors.textSecondary,
+                        color: colors.textSecondary,
                         fontWeight: FontWeight.w600)),
               ],
             ),
@@ -1525,45 +1526,49 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     // [trackRenderBox] wraps the CustomPaint in [_RenderBoxReporter] so
     // [_contentRenderBox] can capture the real RenderBox for [_globalToContent].
     Widget contentFor(double markerScale, {bool trackRenderBox = false}) {
-      final paint = CustomPaint(
-        size: Size(image.width.toDouble(), image.height.toDouble()),
-        painter: _OccupancyGridPainter(
-          image: image,
-          grid: grid,
-          pose: widget.showRobot ? (_effectivePose ?? widget.initialPose) : null,
-          dockPose:
-              (widget.showDock && showOverlays && !widget.dockEditorMode) ? _resolvedDockPose : null,
-          standoffPose:
-              (widget.showDock && showOverlays && !widget.dockEditorMode) ? widget.standoffPoseOverride : null,
-          path: (widget.showPath && showOverlays)
-              ? (_path ?? widget.initialPath)
-              : null,
-          globalCostmap: (widget.showGlobalCostmap && showOverlays)
-              ? _globalCostmap
-              : null,
-          localCostmap: (widget.showLocalCostmap && showOverlays)
-              ? _localCostmap
-              : null,
-          mapOdomTransform: _mapOdomTransform,
-          locations: showOverlays ? widget.locations : const [],
-          showWaypointRoute: widget.showWaypointRoute,
-          draftPixel: widget.posePicking ? effectiveDraftPixel : null,
-          draftYaw: effectiveDraftYaw,
-          markerScale: markerScale,
-          scan: (widget.showLaserScan && showOverlays) ? _scan : null,
-          dockEditorMode: widget.dockEditorMode,
-          dockEditorDockPoint: widget.dockEditorDockPoint,
-          dockEditorStandoffPoint: widget.dockEditorStandoffPoint,
-          dockEditorActiveIndex: widget.dockEditorActiveIndex,
-          zones: (widget.showZones && showOverlays) ? widget.zones : const [],
-          zoneEditorMode: widget.zoneEditorMode,
-          selectedZoneId: widget.selectedZoneId,
-          activeZoneVertexIndex:
-              widget.activeZoneVertexIndex ?? _draggingVertexIndex,
-          drawingLaneMode: widget.drawingLaneMode,
-          laneDraftPoints: widget.laneDraftPoints,
-          laneDraftWidth: widget.laneDraftWidth,
-          mouseHoverWorld: widget.mouseHoverWorld,
+      final paint = RepaintBoundary(
+        child: CustomPaint(
+          isComplex: true,
+          willChange: true,
+          size: Size(image.width.toDouble(), image.height.toDouble()),
+          painter: _OccupancyGridPainter(
+            image: image,
+            grid: grid,
+            pose: widget.showRobot ? (_effectivePose ?? widget.initialPose) : null,
+            dockPose:
+                (widget.showDock && showOverlays && !widget.dockEditorMode) ? _resolvedDockPose : null,
+            standoffPose:
+                (widget.showDock && showOverlays && !widget.dockEditorMode) ? widget.standoffPoseOverride : null,
+            path: (widget.showPath && showOverlays)
+                ? (_path ?? widget.initialPath)
+                : null,
+            globalCostmap: (widget.showGlobalCostmap && showOverlays)
+                ? _globalCostmap
+                : null,
+            localCostmap: (widget.showLocalCostmap && showOverlays)
+                ? _localCostmap
+                : null,
+            mapOdomTransform: _mapOdomTransform,
+            locations: showOverlays ? widget.locations : const [],
+            showWaypointRoute: widget.showWaypointRoute,
+            draftPixel: widget.posePicking ? effectiveDraftPixel : null,
+            draftYaw: effectiveDraftYaw,
+            markerScale: markerScale,
+            scan: (widget.showLaserScan && showOverlays) ? _scan : null,
+            dockEditorMode: widget.dockEditorMode,
+            dockEditorDockPoint: widget.dockEditorDockPoint,
+            dockEditorStandoffPoint: widget.dockEditorStandoffPoint,
+            dockEditorActiveIndex: widget.dockEditorActiveIndex,
+            zones: (widget.showZones && showOverlays) ? widget.zones : const [],
+            zoneEditorMode: widget.zoneEditorMode,
+            selectedZoneId: widget.selectedZoneId,
+            activeZoneVertexIndex:
+                widget.activeZoneVertexIndex ?? _draggingVertexIndex,
+            drawingLaneMode: widget.drawingLaneMode,
+            laneDraftPoints: widget.laneDraftPoints,
+            laneDraftWidth: widget.laneDraftWidth,
+            mouseHoverWorld: widget.mouseHoverWorld,
+          ),
         ),
       );
       if (trackRenderBox) {
@@ -3162,7 +3167,15 @@ class _OccupancyGridPainter extends CustomPainter {
       oldDelegate.dockEditorMode != dockEditorMode ||
       oldDelegate.dockEditorDockPoint != dockEditorDockPoint ||
       oldDelegate.dockEditorStandoffPoint != dockEditorStandoffPoint ||
-      oldDelegate.dockEditorActiveIndex != dockEditorActiveIndex;
+      oldDelegate.dockEditorActiveIndex != dockEditorActiveIndex ||
+      oldDelegate.zones != zones ||
+      oldDelegate.zoneEditorMode != zoneEditorMode ||
+      oldDelegate.selectedZoneId != selectedZoneId ||
+      oldDelegate.activeZoneVertexIndex != activeZoneVertexIndex ||
+      oldDelegate.drawingLaneMode != drawingLaneMode ||
+      oldDelegate.laneDraftPoints != laneDraftPoints ||
+      oldDelegate.laneDraftWidth != laneDraftWidth ||
+      oldDelegate.mouseHoverWorld != mouseHoverWorld;
 }
 
 /// A lightweight render proxy that captures the painted map's [RenderBox]

@@ -53,6 +53,15 @@ extension RobotStatusStyle on RobotStatus {
         RobotStatus.missionInProgress => 'MISSION IN PROGRESS',
       };
 
+  IconData get icon => switch (this) {
+        RobotStatus.idle => Icons.pause_circle_outline_rounded,
+        RobotStatus.charging => Icons.bolt_rounded,
+        RobotStatus.charged => Icons.battery_charging_full_rounded,
+        RobotStatus.moving => Icons.navigation_rounded,
+        RobotStatus.mapping => Icons.map_rounded,
+        RobotStatus.missionInProgress => Icons.play_circle_outline_rounded,
+      };
+
   // Reuses AppColors' own robot-state legend rather than a second palette —
   // not a perfect 1:1 (that legend was built for offline/idle/localizing/
   // executing/teleop/docking/fault/e-stopped), so a couple of these are the

@@ -245,6 +245,7 @@ class _Body extends StatefulWidget {
 
 class _BodyState extends State<_Body> {
   bool _switching = false;
+  AppColorsTheme get colors => AppColors.of(context);
 
   Future<void> _switchTo(String name) async {
     final ip = widget.robotIp;
@@ -400,15 +401,15 @@ class _BodyState extends State<_Body> {
         _list(context, filtered, activeMap, ros2),
         if (_switching)
           Container(
-            color: AppColors.surface.withValues(alpha: 0.7),
-            child: const Center(
+            color: colors.surface.withValues(alpha: 0.7),
+            child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: AppSpacing.md),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: AppSpacing.md),
                   Text('Switching maps — this can take up to a minute…',
-                      style: TextStyle(color: AppColors.textSecondary)),
+                      style: TextStyle(color: colors.textSecondary)),
                 ],
               ),
             ),
@@ -482,9 +483,9 @@ class _BodyState extends State<_Body> {
                                 ],
                               )
                             else
-                              const Text('Not currently active',
+                              Text('Not currently active',
                                   style: TextStyle(
-                                      color: AppColors.textSecondary)),
+                                      color: colors.textSecondary)),
                           ],
                         ),
                       ),
@@ -496,8 +497,8 @@ class _BodyState extends State<_Body> {
                           width: 84,
                           height: 84,
                           decoration: BoxDecoration(
-                            color: AppColors.surfaceSunken,
-                            border: Border.all(color: AppColors.border),
+                            color: colors.surfaceSunken,
+                            border: Border.all(color: colors.border),
                             borderRadius:
                                 BorderRadius.circular(AppSpacing.inputRadius),
                           ),
@@ -511,9 +512,9 @@ class _BodyState extends State<_Body> {
                                   ros2: ros2,
                                   interactive: false,
                                   showRobot: false)
-                              : const Center(
+                              : Center(
                                   child: Icon(Icons.map_outlined,
-                                      color: AppColors.textTertiary, size: 28),
+                                      color: colors.textTertiary, size: 28),
                                 ),
                         ),
                       ),
@@ -655,6 +656,7 @@ class _DesktopMapsViewState extends State<_DesktopMapsView> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final maps = widget.maps;
     final error = widget.error;
     final activeMap = widget.activeMap;
@@ -706,14 +708,14 @@ class _DesktopMapsViewState extends State<_DesktopMapsView> {
                         hintText: 'Search saved maps...',
                         prefixIcon: const Icon(Icons.search_rounded),
                         filled: true,
-                        fillColor: AppColors.surface,
+                        fillColor: AppColors.of(context).surfaceSunken,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.border),
+                          borderSide: BorderSide(color: AppColors.of(context).border),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.border),
+                          borderSide: BorderSide(color: AppColors.of(context).border),
                         ),
                       ),
                       onChanged: widget.onQueryChanged,
@@ -721,10 +723,11 @@ class _DesktopMapsViewState extends State<_DesktopMapsView> {
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Chip(
-                    avatar: const Icon(Icons.folder_copy_outlined,
-                        size: 16, color: AppColors.primary),
+                    avatar: Icon(Icons.folder_copy_outlined,
+                        size: 16, color: AppColors.of(context).primary),
                     label: Text('${maps.length} total maps'),
-                    backgroundColor: AppColors.surface,
+                    backgroundColor: AppColors.of(context).surfaceSunken,
+                    side: BorderSide(color: AppColors.of(context).border),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   if (activeMap != null)
@@ -732,7 +735,8 @@ class _DesktopMapsViewState extends State<_DesktopMapsView> {
                       avatar: StatusPulseDot(
                           color: AppColors.stateIdle, live: true, size: 8),
                       label: Text('Active: $activeMap'),
-                      backgroundColor: AppColors.surface,
+                      backgroundColor: AppColors.of(context).surfaceSunken,
+                      side: BorderSide(color: AppColors.of(context).border),
                     ),
                 ],
               ),
@@ -775,8 +779,8 @@ class _DesktopMapsViewState extends State<_DesktopMapsView> {
                                         AppSpacing.cardRadius),
                                     side: BorderSide(
                                       color: isActive
-                                          ? AppColors.primary
-                                          : AppColors.border,
+                                          ? AppColors.of(context).primary
+                                          : AppColors.of(context).border,
                                       width: isActive ? 2 : 1,
                                     ),
                                   ),
@@ -973,9 +977,9 @@ class _DesktopMapsViewState extends State<_DesktopMapsView> {
                                   child: Container(
                                     height: 280,
                                     decoration: BoxDecoration(
-                                      color: AppColors.surfaceSunken,
+                                      color: colors.surfaceSunken,
                                       border:
-                                          Border.all(color: AppColors.border),
+                                          Border.all(color: colors.border),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: OccupancyGridView(
@@ -1068,13 +1072,13 @@ class _DesktopMapsViewState extends State<_DesktopMapsView> {
                                           return ListTile(
                                             dense: true,
                                             contentPadding: EdgeInsets.zero,
-                                            leading: const CircleAvatar(
+                                            leading: CircleAvatar(
                                               radius: 12,
                                               backgroundColor:
-                                                  AppColors.surfaceSunken,
+                                                  colors.surfaceSunken,
                                               child: Icon(Icons.place_rounded,
                                                   size: 14,
-                                                  color: AppColors.primary),
+                                                  color: colors.primary),
                                             ),
                                             title: Text(name,
                                                 style: const TextStyle(
@@ -1082,10 +1086,10 @@ class _DesktopMapsViewState extends State<_DesktopMapsView> {
                                                         FontWeight.w600)),
                                             subtitle: Text(
                                               '(${x.toStringAsFixed(2)}, ${y.toStringAsFixed(2)})',
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                   fontSize: 11,
                                                   color:
-                                                      AppColors.textSecondary),
+                                                      colors.textSecondary),
                                             ),
                                           );
                                         },
@@ -1094,20 +1098,20 @@ class _DesktopMapsViewState extends State<_DesktopMapsView> {
                                   ),
                                 ),
                               ] else ...[
-                                const Expanded(
+                                Expanded(
                                   child: Center(
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(Icons.map_outlined,
                                             size: 40,
-                                            color: AppColors.textTertiary),
-                                        SizedBox(height: AppSpacing.sm),
+                                            color: colors.textTertiary),
+                                        const SizedBox(height: AppSpacing.sm),
                                         Text(
                                           'No active map loaded in navigation stack.',
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
-                                              color: AppColors.textSecondary),
+                                              color: colors.textSecondary),
                                         ),
                                       ],
                                     ),
@@ -1127,7 +1131,7 @@ class _DesktopMapsViewState extends State<_DesktopMapsView> {
         ),
         if (_switching)
           Container(
-            color: AppColors.surface.withValues(alpha: 0.7),
+            color: colors.surface.withValues(alpha: 0.7),
             child: const Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

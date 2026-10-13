@@ -438,7 +438,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
             Widget tile(
                 MapLayer layer, IconData icon, String title, String subtitle) {
               return CheckboxListTile(
-                secondary: Icon(icon, color: AppColors.textSecondary),
+                secondary: Icon(icon, color: AppColors.of(context).textSecondary),
                 title: Text(title),
                 subtitle: Text(subtitle),
                 value: visible.contains(layer),
@@ -521,7 +521,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
                 return IconButton(
                   icon: Icon(
                     Icons.sports_esports_rounded,
-                    color: connected ? Colors.green : AppColors.textSecondary,
+                    color: connected ? Colors.green : AppColors.of(context).textSecondary,
                   ),
                   tooltip: connected ? 'Gamepad Connected: ${GamepadService.instance.controllerName}' : 'Gamepad Disconnected',
                   onPressed: () => Navigator.of(context).push(
@@ -539,11 +539,16 @@ class _TeleopScreenState extends State<TeleopScreen> {
               Padding(
                 padding: const EdgeInsets.only(right: AppSpacing.md),
                 child: Chip(
-                  avatar: const Icon(Icons.speed_rounded,
-                      size: 16, color: AppColors.textSecondary),
+                  avatar: Icon(Icons.speed_rounded,
+                      size: 16, color: AppColors.of(context).textSecondary),
                   label: Text(
-                      '${telemetry.linearSpeedMps!.abs().toStringAsFixed(2)} m/s'),
-                  backgroundColor: AppColors.surfaceSunken,
+                    '${telemetry.linearSpeedMps!.abs().toStringAsFixed(2)} m/s',
+                    style: const TextStyle(
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  backgroundColor: AppColors.of(context).surfaceSunken,
+                  side: BorderSide(color: AppColors.of(context).border),
                 ),
               ),
           ],
@@ -576,7 +581,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
                         ),
                       ),
                     ),
-                    const VerticalDivider(width: 1, color: AppColors.border),
+                    VerticalDivider(width: 1, color: AppColors.of(context).border),
                     // Right 40%: Drive & Navigation Controls
                     SizedBox(
                       width: isLandscape && !isDesktop ? 340 : 440,
@@ -684,7 +689,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
               return IconButton(
                 icon: Icon(
                   Icons.sports_esports_rounded,
-                  color: connected ? Colors.green : AppColors.textSecondary,
+                  color: connected ? Colors.green : AppColors.of(context).textSecondary,
                 ),
                 tooltip: connected ? 'Gamepad Connected: ${GamepadService.instance.controllerName}' : 'Gamepad Disconnected',
                 onPressed: () => Navigator.of(context).push(
@@ -875,7 +880,7 @@ class _LiveMapSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget mapContent = Container(
-      color: AppColors.surfaceSunken,
+      color: AppColors.of(context).surfaceSunken,
       child: ros2 == null
           ? const Center(child: Text('Not connected.'))
           : Stack(
@@ -1009,10 +1014,11 @@ class _DockUndockControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Container(
       height: 52,
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: colors.border),
         borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
       ),
       clipBehavior: Clip.antiAlias,
@@ -1026,7 +1032,7 @@ class _DockUndockControl extends StatelessWidget {
               onTap: docking || undocking ? null : onDock,
             ),
           ),
-          Container(width: 1, color: AppColors.border),
+          Container(width: 1, color: colors.border),
           Expanded(
             child: _DockUndockHalf(
               icon: Icons.logout_rounded,
@@ -1056,6 +1062,7 @@ class _DockUndockHalf extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return InkWell(
       onTap: onTap,
       child: Center(
@@ -1067,11 +1074,11 @@ class _DockUndockHalf extends StatelessWidget {
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 18, color: AppColors.textPrimary),
+                  Icon(icon, size: 18, color: colors.textPrimary),
                   const SizedBox(width: 6),
                   Text(label,
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
+                      style: TextStyle(
+                          color: colors.textPrimary,
                           fontWeight: FontWeight.w600)),
                 ],
               ),
@@ -1112,7 +1119,7 @@ class _GoToLocationCardState extends State<_GoToLocationCard> {
             }
             return Row(
               children: [
-                const Icon(Icons.place_rounded, color: AppColors.primary),
+                Icon(Icons.place_rounded, color: AppColors.of(context).primary),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: DropdownButtonFormField<String>(
@@ -1162,8 +1169,9 @@ class _DockBusyOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Container(
-      color: AppColors.surface.withValues(alpha: 0.85),
+      color: colors.surface.withValues(alpha: 0.85),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1176,10 +1184,10 @@ class _DockBusyOverlay extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             Text(label,
                 style:
-                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                    TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: colors.textPrimary)),
             const SizedBox(height: AppSpacing.xs),
-            const Text('Controls are disabled until this finishes.',
-                style: TextStyle(color: AppColors.textSecondary)),
+            Text('Controls are disabled until this finishes.',
+                style: TextStyle(color: colors.textSecondary)),
           ],
         ),
       ),
@@ -1202,6 +1210,7 @@ class _NavProgressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final target = navStatus['target'] as Map<String, dynamic>?;
     final destName = (target?['waypoint'] as String?)?.isNotEmpty == true
         ? target!['waypoint'] as String
@@ -1215,10 +1224,10 @@ class _NavProgressCard extends StatelessWidget {
 
     return Card(
       elevation: 2,
-      color: AppColors.surface,
+      color: Theme.of(context).cardColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: AppColors.primary, width: 1.5),
+        side: BorderSide(color: colors.primary, width: 1.5),
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -1232,27 +1241,27 @@ class _NavProgressCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.15),
+                    color: colors.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
+                    children: [
                       SizedBox(
                         width: 10,
                         height: 10,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.primary,
+                          color: colors.primary,
                         ),
                       ),
-                      SizedBox(width: 6),
+                      const SizedBox(width: 6),
                       Text(
                         'NAVIGATING',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
+                          color: colors.primary,
                         ),
                       ),
                     ],
@@ -1264,10 +1273,10 @@ class _NavProgressCard extends StatelessWidget {
                     'To: $destName',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: colors.textPrimary,
                     ),
                   ),
                 ),
@@ -1337,10 +1346,11 @@ class _ProgressMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: AppColors.primary),
+        Icon(icon, size: 16, color: colors.primary),
         const SizedBox(width: 6),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1349,14 +1359,14 @@ class _ProgressMetric extends StatelessWidget {
             Text(
               label,
               style:
-                  const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                  TextStyle(fontSize: 10, color: colors.textSecondary),
             ),
             Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: colors.textPrimary,
               ),
             ),
           ],

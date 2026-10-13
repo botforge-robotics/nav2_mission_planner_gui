@@ -134,6 +134,29 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                   padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   child: Divider(),
                 ),
+                AnimatedBuilder(
+                  animation: AppThemeController.instance,
+                  builder: (context, _) {
+                    return Card(
+                      child: SwitchListTile(
+                        secondary: Icon(
+                          AppThemeController.instance.isDarkMode
+                              ? Icons.dark_mode_rounded
+                              : Icons.light_mode_rounded,
+                        ),
+                        title: const Text('Industrial Dark Mode'),
+                        subtitle: Text(
+                          AppThemeController.instance.isDarkMode
+                              ? 'Low-glare HUD Cockpit theme active'
+                              : 'Standard daytime Factory Light theme',
+                        ),
+                        value: AppThemeController.instance.isDarkMode,
+                        onChanged: (_) =>
+                            AppThemeController.instance.toggleTheme(),
+                      ),
+                    );
+                  },
+                ),
                 Card(
                   child: SwitchListTile(
                     secondary: const Icon(Icons.code_rounded),
@@ -218,8 +241,8 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                   child: Center(
                     child: Text(
                       _version != null ? 'App version $_version' : '',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12),
+                      style: TextStyle(
+                          color: AppColors.of(context).textSecondary, fontSize: 12),
                     ),
                   ),
                 ),
@@ -252,6 +275,7 @@ class _RobotSummaryCard extends StatelessWidget {
       initialData: SdkState.unknown,
       stream: SdkStateService(robot.ip).watch(),
       builder: (context, snapshot) {
+        final colors = AppColors.of(context);
         final sdkState = snapshot.data ?? SdkState.unknown;
         final status =
             deriveRobotStatus(telemetry: telemetry, sdkState: sdkState);
@@ -292,13 +316,15 @@ class _RobotSummaryCard extends StatelessWidget {
                                     live: isActive,
                                     size: 7),
                                 const SizedBox(width: 6),
+                                Icon(status.icon, size: 13, color: status.color),
+                                const SizedBox(width: 4),
                                 AnimatedSwitcher(
                                   duration: AppMotion.fast,
                                   child: Text(
                                     'Online · ${status.label}',
                                     key: ValueKey(status),
-                                    style: const TextStyle(
-                                        color: AppColors.textSecondary,
+                                    style: TextStyle(
+                                        color: colors.textSecondary,
                                         fontSize: 13),
                                   ),
                                 ),
@@ -307,8 +333,8 @@ class _RobotSummaryCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right_rounded,
-                          color: AppColors.textSecondary),
+                      Icon(Icons.chevron_right_rounded,
+                          color: colors.textSecondary),
                     ],
                   ),
                 ),
@@ -328,15 +354,15 @@ class _RobotSummaryCard extends StatelessWidget {
                         size: 16,
                         color: charging
                             ? AppColors.success
-                            : AppColors.textSecondary,
+                            : colors.textSecondary,
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: AnimatedMetricBar(
                           value: battery != null ? battery / 100 : 0,
-                          backgroundColor: AppColors.border,
+                          backgroundColor: colors.border,
                           color:
-                              charging ? AppColors.success : AppColors.primary,
+                              charging ? AppColors.success : colors.primary,
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
@@ -346,8 +372,8 @@ class _RobotSummaryCard extends StatelessWidget {
                         style: AppTextStyles.metricSmall,
                       ),
                       const SizedBox(width: 4),
-                      const Icon(Icons.chevron_right_rounded,
-                          size: 18, color: AppColors.textSecondary),
+                      Icon(Icons.chevron_right_rounded,
+                          size: 18, color: colors.textSecondary),
                     ],
                   ),
                 ),
@@ -377,13 +403,14 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Card(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: ListTile(
-        leading: Icon(icon, color: AppColors.primary),
+        leading: Icon(icon, color: colors.primary),
         title: Text(title),
         subtitle: Text(subtitle,
-            style: const TextStyle(color: AppColors.textSecondary)),
+            style: TextStyle(color: colors.textSecondary)),
         trailing: trailing ?? const Icon(Icons.chevron_right_rounded),
         onTap: onTap,
       ),

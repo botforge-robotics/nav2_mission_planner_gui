@@ -17,6 +17,7 @@ class SetupDockMapScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isDesktop = screenWidth >= 768;
 
@@ -53,9 +54,9 @@ class SetupDockMapScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               child: Container(
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated,
+                  color: colors.surfaceElevated,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: colors.border),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
@@ -78,23 +79,23 @@ class SetupDockMapScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: colors.surface,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: colors.border),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.check_circle_outline_rounded, size: 18, color: AppColors.primary),
+                      Icon(Icons.check_circle_outline_rounded, size: 18, color: colors.primary),
                       const SizedBox(width: 8),
                       Text(
                         'QUICK CHECKLIST BEFORE MAPPING',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                               letterSpacing: 1.1,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.textSecondary,
+                              color: colors.textSecondary,
                             ),
                       ),
                     ],
@@ -122,6 +123,7 @@ class SetupDockMapScreen extends StatelessWidget {
   }
 
   Widget _buildCheckItem(BuildContext context, String text) {
+    final colors = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -136,7 +138,7 @@ class SetupDockMapScreen extends StatelessWidget {
             child: Text(
               text,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.textPrimary,
+                    color: colors.textPrimary,
                     height: 1.35,
                   ),
             ),
@@ -153,12 +155,13 @@ class _DockPlacementDiagram extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Container(
       height: 160,
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
+        color: colors.surfaceElevated,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: colors.border),
       ),
       child: Stack(
         alignment: Alignment.center,
@@ -171,27 +174,27 @@ class _DockPlacementDiagram extends StatelessWidget {
             child: Container(
               height: 28,
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: colors.surface,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(18),
                   topRight: Radius.circular(18),
                 ),
-                border: const Border(
-                  bottom: BorderSide(color: AppColors.borderStrong, width: 2),
+                border: Border(
+                  bottom: BorderSide(color: colors.borderStrong, width: 2),
                 ),
               ),
               child: Center(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.fence_rounded, size: 14, color: AppColors.textSecondary),
+                    Icon(Icons.fence_rounded, size: 14, color: colors.textSecondary),
                     const SizedBox(width: 6),
                     Text(
                       'SOLID WALL',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                             letterSpacing: 1.5,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.textSecondary,
+                            color: colors.textSecondary,
                           ),
                     ),
                   ],
@@ -207,24 +210,24 @@ class _DockPlacementDiagram extends StatelessWidget {
               width: 100,
               height: 26,
               decoration: BoxDecoration(
-                color: AppColors.accent.withValues(alpha: 0.2),
+                color: colors.accent.withValues(alpha: 0.2),
                 borderRadius: const BorderRadius.only(
                   bottomLeft: Radius.circular(8),
                   bottomRight: Radius.circular(8),
                 ),
-                border: Border.all(color: AppColors.accent, width: 1.5),
+                border: Border.all(color: colors.accent, width: 1.5),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.flash_on_rounded, size: 14, color: AppColors.accent),
-                  SizedBox(width: 4),
+                  Icon(Icons.flash_on_rounded, size: 14, color: colors.accent),
+                  const SizedBox(width: 4),
                   Text(
                     'CHARGER',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.accent,
+                      color: colors.accent,
                     ),
                   ),
                 ],
@@ -233,31 +236,31 @@ class _DockPlacementDiagram extends StatelessWidget {
           ),
 
           // Clearance arrows
-          const Positioned(
+          Positioned(
             top: 36,
             left: 20,
             child: Row(
               children: [
-                Icon(Icons.arrow_back_rounded, size: 14, color: AppColors.textTertiary),
-                SizedBox(width: 2),
+                Icon(Icons.arrow_back_rounded, size: 14, color: colors.textTertiary),
+                const SizedBox(width: 2),
                 Text(
                   '>0.5m',
-                  style: TextStyle(fontSize: 10, color: AppColors.textTertiary),
+                  style: TextStyle(fontSize: 10, color: colors.textTertiary),
                 ),
               ],
             ),
           ),
-          const Positioned(
+          Positioned(
             top: 36,
             right: 20,
             child: Row(
               children: [
                 Text(
                   '>0.5m',
-                  style: TextStyle(fontSize: 10, color: AppColors.textTertiary),
+                  style: TextStyle(fontSize: 10, color: colors.textTertiary),
                 ),
-                SizedBox(width: 2),
-                Icon(Icons.arrow_forward_rounded, size: 14, color: AppColors.textTertiary),
+                const SizedBox(width: 2),
+                Icon(Icons.arrow_forward_rounded, size: 14, color: colors.textTertiary),
               ],
             ),
           ),
@@ -272,36 +275,36 @@ class _DockPlacementDiagram extends StatelessWidget {
                   width: 58,
                   height: 58,
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: colors.primary,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.35),
+                        color: colors.primary.withValues(alpha: 0.35),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Icon(
                       Icons.smart_toy_rounded,
                       size: 32,
-                      color: AppColors.textOnPrimary,
+                      color: colors.textOnPrimary,
                     ),
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Row(
+                Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.arrow_downward_rounded,
-                        size: 14, color: AppColors.primary),
+                        size: 14, color: colors.primary),
                     Text(
                       'Facing Outward',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
+                        color: colors.primary,
                       ),
                     ),
                   ],

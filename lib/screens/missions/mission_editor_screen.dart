@@ -1577,7 +1577,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                           left: AppSpacing.md,
                           top: AppSpacing.md,
                           child: Card(
-                            color: AppColors.surface.withValues(alpha: 0.92),
+                            color: AppColors.of(context).surface.withValues(alpha: 0.92),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: AppSpacing.md,
@@ -1676,7 +1676,7 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                                             '$i-${_steps[i].hashCode}'),
                                         margin: const EdgeInsets.only(
                                             bottom: AppSpacing.xs),
-                                        color: AppColors.surfaceSunken,
+                                        color: AppColors.of(context).surfaceSunken,
                                         child: ListTile(
                                           dense: true,
                                           onTap: () => _editStep(i),
@@ -2006,6 +2006,7 @@ class _StepOptionGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -2016,7 +2017,7 @@ class _StepOptionGrid extends StatelessWidget {
       children: [
         for (final opt in options)
           Material(
-            color: AppColors.surfaceSunken,
+            color: colors.surfaceSunken,
             borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
             child: InkWell(
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
@@ -2045,8 +2046,8 @@ class _StepOptionGrid extends StatelessWidget {
                           Text(opt.caption,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: AppColors.textSecondary,
+                              style: TextStyle(
+                                  color: colors.textSecondary,
                                   fontSize: 11)),
                         ],
                       ),

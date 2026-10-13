@@ -182,14 +182,14 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
                           child: Column(
                             children: [
                               SizedBox(
-                                height: 160,
-                                width: 160,
+                                height: 168,
+                                width: 168,
                                 child: Stack(
                                   alignment: Alignment.center,
                                   children: [
                                     SizedBox(
-                                      height: 160,
-                                      width: 160,
+                                      height: 168,
+                                      width: 168,
                                       child: TweenAnimationBuilder<double>(
                                         tween: Tween(
                                           begin: battery != null
@@ -199,18 +199,23 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
                                               ? battery / 100
                                               : 0,
                                         ),
-                                        duration: AppMotion.slow,
+                                        duration: AppMotion.resolveDuration(context, AppMotion.slow),
                                         curve: AppMotion.settle,
                                         builder: (context, animated, _) =>
                                             CircularProgressIndicator(
                                           value: battery != null
                                               ? animated.clamp(0, 1)
                                               : null,
-                                          strokeWidth: 10,
-                                          backgroundColor: AppColors.border,
+                                          strokeWidth: 12,
+                                          strokeCap: StrokeCap.round,
+                                          backgroundColor: Theme.of(context)
+                                              .colorScheme
+                                              .surfaceContainerHighest,
                                           color: charging
                                               ? AppColors.success
-                                              : AppColors.primary,
+                                              : (battery != null && battery < 20
+                                                  ? AppColors.danger
+                                                  : AppColors.of(context).primary),
                                         ),
                                       ),
                                     ),
@@ -221,15 +226,39 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
                                           battery != null
                                               ? telemetry.formatBatteryPercent()
                                               : '—',
-                                          style: AppTextStyles.metricLarge,
+                                          style: AppTextStyles.metricLarge.copyWith(
+                                            fontFeatures: const [FontFeature.tabularFigures()],
+                                          ),
                                         ),
                                         if (charging)
-                                          BreathingOpacity(
-                                            active: true,
-                                            child: const Icon(
-                                                Icons.bolt_rounded,
-                                                color: AppColors.success,
-                                                size: 18),
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 2),
+                                            child: BreathingOpacity(
+                                              active: true,
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.success.withValues(alpha: 0.15),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: const Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.bolt_rounded, color: AppColors.success, size: 14),
+                                                    SizedBox(width: 2),
+                                                    Text(
+                                                      'CHARGING',
+                                                      style: TextStyle(
+                                                        color: AppColors.success,
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.bold,
+                                                        letterSpacing: 0.5,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
                                           ),
                                       ],
                                     ),
@@ -238,29 +267,45 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
                               ),
                               const SizedBox(height: AppSpacing.md),
                               AnimatedSwitcher(
-                                duration: AppMotion.fast,
-                                child: Row(
-                                  key: ValueKey(_statusLabel(
-                                      telemetry.dockStatus, charging)),
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      charging
-                                          ? Icons.bolt_rounded
-                                          : Icons.power_off_rounded,
-                                      size: 16,
-                                      color: charging
-                                          ? AppColors.success
-                                          : AppColors.textSecondary,
+                                duration: AppMotion.resolveDuration(context, AppMotion.fast),
+                                child: Container(
+                                  key: ValueKey(_statusLabel(telemetry.dockStatus, charging)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: (charging ? AppColors.success : AppColors.of(context).textSecondary)
+                                        .withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: (charging ? AppColors.success : AppColors.of(context).border)
+                                          .withValues(alpha: 0.3),
                                     ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      _statusLabel(
-                                          telemetry.dockStatus, charging),
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w600),
-                                    ),
-                                  ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        charging
+                                            ? Icons.bolt_rounded
+                                            : Icons.power_off_rounded,
+                                        size: 15,
+                                        color: charging
+                                            ? AppColors.success
+                                            : AppColors.of(context).textSecondary,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        _statusLabel(
+                                            telemetry.dockStatus, charging),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                          color: charging
+                                              ? AppColors.success
+                                              : Theme.of(context).colorScheme.onSurface,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],
@@ -344,27 +389,35 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: OutlinedButton(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              icon: const Icon(Icons.logout_rounded, size: 18),
                               onPressed: busy
                                   ? null
                                   : () => _act((api) => api.undock()),
-                              child: const Text('Undock'),
+                              label: const Text('Undock'),
                             ),
                           ),
-                          const SizedBox(width: AppSpacing.sm),
+                          const SizedBox(width: AppSpacing.md),
                           Expanded(
-                            child: ElevatedButton(
-                              onPressed:
-                                  busy ? null : () => _act((api) => api.dock()),
-                              child: busy
+                            child: FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              icon: busy
                                   ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
+                                      height: 18,
+                                      width: 18,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          color: AppColors.textOnPrimary),
+                                          color: Colors.white),
                                     )
-                                  : const Text('Send to Dock'),
+                                  : const Icon(Icons.ev_station_rounded, size: 18),
+                              onPressed:
+                                  busy ? null : () => _act((api) => api.dock()),
+                              label: const Text('Send to Dock'),
                             ),
                           ),
                         ],
@@ -416,22 +469,27 @@ class _BatteryStatsRow extends StatelessWidget {
               children: [
                 Expanded(
                   child: _Stat(
+                    icon: Icons.timer_outlined,
                     label: 'Time to Full',
                     value: charging && timeToFull != null
                         ? _formatDuration(timeToFull!)
                         : '—',
                   ),
                 ),
+                const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: _Stat(
+                    icon: Icons.bolt_outlined,
                     label: 'Voltage',
                     value: voltage != null
                         ? '${voltage!.toStringAsFixed(1)} V'
                         : '—',
                   ),
                 ),
+                const SizedBox(width: AppSpacing.xs),
                 Expanded(
                   child: _Stat(
+                    icon: Icons.electric_meter_outlined,
                     label: 'Current',
                     value: current != null
                         ? '${current!.toStringAsFixed(1)} A'
@@ -446,8 +504,10 @@ class _BatteryStatsRow extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               Row(
                 children: [
-                  const Text('Battery Status',
-                      style: TextStyle(color: AppColors.textSecondary)),
+                  Text(
+                    'Battery Health (BMS)',
+                    style: TextStyle(color: AppColors.of(context).textSecondary, fontSize: 13),
+                  ),
                   const Spacer(),
                   Icon(
                     healthy! ? Icons.check_circle_rounded : Icons.error_rounded,
@@ -455,11 +515,12 @@ class _BatteryStatsRow extends StatelessWidget {
                     color: healthy! ? AppColors.success : AppColors.danger,
                   ),
                   const SizedBox(width: 4),
-                  Text(healthy! ? 'Good' : 'Fault',
+                  Text(healthy! ? 'Optimal' : 'Fault Detected',
                       style: TextStyle(
                           color:
                               healthy! ? AppColors.success : AppColors.danger,
-                          fontWeight: FontWeight.w600)),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13)),
                 ],
               ),
             ],
@@ -478,21 +539,48 @@ class _BatteryStatsRow extends StatelessWidget {
 }
 
 class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
+  const _Stat({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
+  final IconData icon;
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(value, style: AppTextStyles.metric),
-        const SizedBox(height: 2),
-        Text(label,
-            style:
-                const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppColors.of(context).surfaceSunken,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 16, color: AppColors.of(context).primary),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: AppTextStyles.metric.copyWith(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.of(context).textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -516,11 +604,12 @@ class _DockStatusRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final color = !known
-        ? AppColors.textSecondary
+        ? colors.textSecondary
         : ok
             ? AppColors.success
-            : (neutral ? AppColors.textSecondary : AppColors.danger);
+            : (neutral ? colors.textSecondary : AppColors.danger);
     return Row(
       children: [
         Icon(
@@ -533,7 +622,7 @@ class _DockStatusRow extends StatelessWidget {
           color: color,
         ),
         const SizedBox(width: AppSpacing.sm),
-        Text(known ? label : 'Checking…', style: TextStyle(color: color)),
+        Text(known ? label : 'Checking…', style: TextStyle(color: color, fontSize: 13)),
       ],
     );
   }

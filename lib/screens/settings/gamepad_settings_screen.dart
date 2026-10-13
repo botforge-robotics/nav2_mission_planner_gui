@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:gamepads/gamepads.dart';
 import '../../services/gamepad_service.dart';
+import '../../theme/app_theme.dart';
 
 class GamepadSettingsScreen extends StatefulWidget {
   const GamepadSettingsScreen({super.key});
@@ -39,6 +40,8 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+
     return AnimatedBuilder(
       animation: _service,
       builder: (context, _) {
@@ -65,23 +68,23 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
           body: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             children: [
-                            // Safety Mode Indicator Banner
+              // Safety Mode Indicator Banner
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.15),
+                  color: AppColors.warning.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.amber.shade700),
+                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.5)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.shield_outlined, size: 20, color: Colors.amber.shade900),
+                    const Icon(Icons.shield_outlined, size: 20, color: AppColors.warning),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'Safe Configuration Mode: Physical robot movement and commands are disabled on this screen.',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.amber.shade900),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary),
                       ),
                     ),
                   ],
@@ -90,12 +93,12 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
               // Controller Status Banner
               Card(
                 color: connected
-                    ? Colors.green.withValues(alpha: 0.12)
-                    : Colors.red.withValues(alpha: 0.08),
+                    ? AppColors.success.withValues(alpha: 0.1)
+                    : colors.surfaceSunken,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(
-                    color: connected ? Colors.green.shade400 : Colors.red.shade300,
+                    color: connected ? AppColors.success.withValues(alpha: 0.4) : colors.border,
                   ),
                 ),
                 child: Padding(
@@ -103,9 +106,9 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                   child: Row(
                     children: [
                       Icon(
-                        Icons.sports_esports,
+                        Icons.sports_esports_rounded,
                         size: 34,
-                        color: connected ? Colors.green : Colors.grey,
+                        color: connected ? AppColors.success : colors.textSecondary,
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -123,17 +126,24 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                                   : 'Connect via Bluetooth or USB to configure & drive',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: connected ? Colors.green.shade800 : Colors.grey.shade600,
+                                color: colors.textSecondary,
                               ),
                             ),
                           ],
                         ),
                       ),
                       if (connected)
-                        const Chip(
-                          label: Text('ONLINE',
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green)),
-                          backgroundColor: Colors.white,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.success),
+                          ),
+                          child: const Text(
+                            'ONLINE',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.success),
+                          ),
                         ),
                     ],
                   ),
@@ -149,27 +159,27 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                   children: [
                     Expanded(
                       flex: 5,
-                      child: _buildVisualGamepadCard(),
+                      child: _buildVisualGamepadCard(colors),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       flex: 4,
-                      child: _buildActionLegendCard(),
+                      child: _buildActionLegendCard(colors),
                     ),
                   ],
                 )
               else ...[
-                _buildVisualGamepadCard(),
+                _buildVisualGamepadCard(colors),
                 const SizedBox(height: 16),
-                _buildActionLegendCard(),
+                _buildActionLegendCard(colors),
               ],
 
               const SizedBox(height: 16),
 
               // Calibration & Speeds
-              const Text(
+              Text(
                 'Speed & Sensitivity Calibration',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               Card(
@@ -194,6 +204,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                       ),
                       const Divider(),
                       _buildSliderTile(
+                        colors: colors,
                         title: 'Normal Linear Speed',
                         subtitle: 'Default pace (Min: 0.07 m/s, Default: 0.10 m/s)',
                         value: _service.normalLinearSpeed,
@@ -210,6 +221,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                       ),
                       const Divider(),
                       _buildSliderTile(
+                        colors: colors,
                         title: 'Turbo Linear Speed',
                         subtitle: 'Speed when Turbo (RB / R1) is held (Max: 0.70 m/s)',
                         value: _service.turboLinearSpeed,
@@ -218,32 +230,10 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                         display: '${(_service.turboLinearSpeed * 100).toInt()} cm/s (${_service.turboLinearSpeed.toStringAsFixed(2)} m/s)',
                         onChanged: (v) => _service.setTurboLinearSpeed(v),
                       ),
-                      const Divider(),
-                      _buildSliderTile(
-                        title: 'Analog Stick Deadzone',
-                        subtitle: 'Filter center drift',
-                        value: _service.deadzone,
-                        min: 0.02,
-                        max: 0.35,
-                        display: '${(_service.deadzone * 100).toInt()}%',
-                        onChanged: (v) => _service.setDeadzone(v),
-                      ),
-                      const Divider(),
-                      _buildSliderTile(
-                        title: 'Turn Speed (Angular)',
-                        subtitle: 'Rotation rate on steering',
-                        value: _service.normalAngularSpeed,
-                        min: 0.15,
-                        max: 1.20,
-                        display: '${_service.normalAngularSpeed.toStringAsFixed(2)} rad/s',
-                        onChanged: (v) => _service.setNormalAngularSpeed(v),
-                      ),
                     ],
                   ),
                 ),
               ),
-
-              const SizedBox(height: 32),
             ],
           ),
         );
@@ -251,74 +241,72 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
     );
   }
 
-  Widget _buildVisualGamepadCard() {
+  Widget _buildVisualGamepadCard(AppColorsTheme colors) {
     return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colors.border),
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        padding: const EdgeInsets.all(12),
         child: Column(
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                Icon(Icons.gamepad_rounded, size: 20, color: colors.primary),
+                const SizedBox(width: 8),
                 const Text(
-                  '  Interactive Controller',
+                  'Interactive Controller Map',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
-                if (_selectedButtonForRemap != null)
-                  TextButton.icon(
-                    onPressed: () => setState(() => _selectedButtonForRemap = null),
-                    icon: const Icon(Icons.clear, size: 16),
-                    label: const Text('Deselect', style: TextStyle(fontSize: 12)),
-                  ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 12),
             Center(
               child: SizedBox(
                 width: 340,
-                height: 315,
+                height: 250,
                 child: Stack(
-                  alignment: Alignment.center,
+                  clipBehavior: Clip.none,
                   children: [
-                    // Background Gamepad Diagram Image
-                    Opacity(
-                      opacity: 0.85,
+                    Positioned.fill(
                       child: Image.asset(
-                        'assets/gamepad_diagram.png',
-                        width: 340,
-                        height: 315,
+                        'assets/gamepad_blueprint.png',
                         fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Center(
+                          child: Icon(Icons.videogame_asset_rounded, size: 100, color: colors.textSecondary),
+                        ),
                       ),
                     ),
 
-                    // Interactive Hotspot Targets
-                    // Top Triggers & Bumpers
-                    _buildHotspot(GamepadButton.leftTrigger, 111, 40, 'LT', isTrigger: true),
-                    _buildHotspot(GamepadButton.leftBumper, 107, 65, 'LB'),
-                    _buildHotspot(GamepadButton.rightTrigger, 229, 40, 'RT', isTrigger: true),
-                    _buildHotspot(GamepadButton.rightBumper, 232, 65, 'RB'),
+                    // Left Shoulder & Triggers
+                    _buildHotspot(colors, GamepadButton.leftTrigger, 111, 40, 'LT', isTrigger: true),
+                    _buildHotspot(colors, GamepadButton.leftBumper, 108, 65, 'LB'),
+
+                    // Right Shoulder & Triggers
+                    _buildHotspot(colors, GamepadButton.rightTrigger, 229, 40, 'RT', isTrigger: true),
+                    _buildHotspot(colors, GamepadButton.rightBumper, 232, 65, 'RB'),
 
                     // Center Buttons (Back / Start)
-                    _buildHotspot(GamepadButton.back, 145, 131, 'SEL'),
-                    _buildHotspot(GamepadButton.start, 197, 131, 'STR'),
+                    _buildHotspot(colors, GamepadButton.back, 145, 131, 'SEL'),
+                    _buildHotspot(colors, GamepadButton.start, 197, 131, 'STR'),
 
                     // D-Pad (Left side)
-                    _buildHotspot(GamepadButton.dpadUp, 95, 118, '▲'),
-                    _buildHotspot(GamepadButton.dpadDown, 95, 140, '▼'),
-                    _buildHotspot(GamepadButton.dpadLeft, 83, 129, '◀'),
-                    _buildHotspot(GamepadButton.dpadRight, 107, 129, '▶'),
+                    _buildHotspot(colors, GamepadButton.dpadUp, 95, 118, '▲'),
+                    _buildHotspot(colors, GamepadButton.dpadDown, 95, 140, '▼'),
+                    _buildHotspot(colors, GamepadButton.dpadLeft, 83, 129, '◀'),
+                    _buildHotspot(colors, GamepadButton.dpadRight, 107, 129, '▶'),
 
                     // Face Action Buttons (Right side: X, Y, A, B)
-                    _buildHotspot(GamepadButton.y, 245, 118, 'Y'),
-                    _buildHotspot(GamepadButton.a, 246, 140, 'A'),
-                    _buildHotspot(GamepadButton.x, 234, 129, 'X'),
-                    _buildHotspot(GamepadButton.b, 258, 129, 'B'),
+                    _buildHotspot(colors, GamepadButton.y, 245, 118, 'Y'),
+                    _buildHotspot(colors, GamepadButton.a, 246, 140, 'A'),
+                    _buildHotspot(colors, GamepadButton.x, 234, 129, 'X'),
+                    _buildHotspot(colors, GamepadButton.b, 258, 129, 'B'),
 
                     // Analog Thumbsticks (Clickable L3 / R3)
-                    _buildHotspot(GamepadButton.leftStick, 132, 185, 'L3', isStick: true),
-                    _buildHotspot(GamepadButton.rightStick, 210, 185, 'R3', isStick: true),
+                    _buildHotspot(colors, GamepadButton.leftStick, 132, 185, 'L3', isStick: true),
+                    _buildHotspot(colors, GamepadButton.rightStick, 210, 185, 'R3', isStick: true),
                   ],
                 ),
               ),
@@ -326,17 +314,20 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
             const SizedBox(height: 8),
 
             // Selected Button Details & Action Assignment
-            _buildSelectedButtonBanner(),
+            _buildSelectedButtonBanner(colors),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActionLegendCard() {
+  Widget _buildActionLegendCard(AppColorsTheme colors) {
     return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colors.border),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -344,7 +335,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.list_alt_rounded, size: 20, color: Colors.blue.shade700),
+                Icon(Icons.list_alt_rounded, size: 20, color: colors.primary),
                 const SizedBox(width: 8),
                 const Text(
                   'Assigned Actions Legend',
@@ -370,14 +361,18 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                   leading: CircleAvatar(
                     radius: 13,
                     backgroundColor: isPressed
-                        ? Colors.green
-                        : (isSelected ? Colors.blue : (action != GamepadAction.none ? Colors.blue.shade50 : Colors.grey.shade200)),
+                        ? AppColors.success
+                        : (isSelected
+                            ? colors.primary
+                            : (action != GamepadAction.none ? colors.primary.withValues(alpha: 0.15) : colors.surfaceSunken)),
                     child: Text(
                       _buttonShortName(btn),
                       style: TextStyle(
                         fontSize: 9.5,
                         fontWeight: FontWeight.bold,
-                        color: isPressed || isSelected ? Colors.white : (action != GamepadAction.none ? Colors.blue.shade900 : Colors.black87),
+                        color: isPressed || isSelected
+                            ? Colors.white
+                            : (action != GamepadAction.none ? colors.primary : colors.textSecondary),
                       ),
                     ),
                   ),
@@ -391,10 +386,10 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: action != GamepadAction.none ? Colors.blue.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1),
+                      color: action != GamepadAction.none ? colors.primary.withValues(alpha: 0.1) : colors.surfaceSunken,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: action != GamepadAction.none ? Colors.blue.shade300 : Colors.grey.shade300,
+                        color: action != GamepadAction.none ? colors.primary.withValues(alpha: 0.3) : colors.border,
                       ),
                     ),
                     child: Text(
@@ -402,7 +397,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: action != GamepadAction.none ? FontWeight.bold : FontWeight.normal,
-                        color: action != GamepadAction.none ? Colors.blue.shade800 : Colors.grey.shade600,
+                        color: action != GamepadAction.none ? colors.primary : colors.textSecondary,
                       ),
                     ),
                   ),
@@ -422,6 +417,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
   }
 
   Widget _buildHotspot(
+    AppColorsTheme colors,
     GamepadButton button,
     double x,
     double y,
@@ -436,22 +432,22 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
 
     Color bg;
     if (isPressed) {
-      bg = Colors.green;
+      bg = AppColors.success;
     } else if (isSelected) {
-      bg = Colors.blue.shade600;
+      bg = colors.primary;
     } else if (hasAction) {
-      bg = Colors.blue.shade100;
+      bg = colors.primary.withValues(alpha: 0.2);
     } else {
-      bg = Colors.grey.shade200;
+      bg = colors.surfaceSunken;
     }
 
     Color textCol;
     if (isPressed || isSelected) {
       textCol = Colors.white;
     } else if (hasAction) {
-      textCol = Colors.blue.shade900;
+      textCol = colors.primary;
     } else {
-      textCol = Colors.black87;
+      textCol = colors.textPrimary;
     }
 
     final double width = isStick ? 36 : (isTrigger ? 32 : 26);
@@ -475,14 +471,14 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
             borderRadius: BorderRadius.circular(isStick ? 20 : (isTrigger ? 6 : 12)),
             border: Border.all(
               color: isSelected
-                  ? Colors.blue.shade800
-                  : (isPressed ? Colors.green.shade800 : Colors.black45),
+                  ? colors.primary
+                  : (isPressed ? AppColors.success : colors.border),
               width: isSelected || isPressed ? 2.2 : 1.2,
             ),
             boxShadow: isSelected || isPressed
                 ? [
                     BoxShadow(
-                      color: (isPressed ? Colors.green : Colors.blue).withValues(alpha: 0.4),
+                      color: (isPressed ? AppColors.success : colors.primary).withValues(alpha: 0.4),
                       blurRadius: 6,
                       spreadRadius: 2,
                     )
@@ -504,25 +500,25 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
     );
   }
 
-  Widget _buildSelectedButtonBanner() {
+  Widget _buildSelectedButtonBanner(AppColorsTheme colors) {
     final btn = _selectedButtonForRemap;
     if (btn == null) {
       return Container(
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
+          color: colors.surfaceSunken,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: colors.border),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.touch_app, size: 20, color: Colors.blue),
-            SizedBox(width: 10),
+            Icon(Icons.touch_app_rounded, size: 20, color: colors.primary),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'Tap any button above or press it physically to assign its action.',
-                style: TextStyle(fontSize: 12.5, color: Colors.black87),
+                style: TextStyle(fontSize: 12.5, color: colors.textSecondary),
               ),
             ),
           ],
@@ -537,10 +533,10 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isPressed ? Colors.green.withValues(alpha: 0.12) : Colors.blue.withValues(alpha: 0.08),
+        color: isPressed ? AppColors.success.withValues(alpha: 0.12) : colors.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isPressed ? Colors.green : Colors.blue.shade400,
+          color: isPressed ? AppColors.success : colors.primary.withValues(alpha: 0.4),
           width: 1.5,
         ),
       ),
@@ -551,7 +547,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
             children: [
               CircleAvatar(
                 radius: 14,
-                backgroundColor: isPressed ? Colors.green : Colors.blue,
+                backgroundColor: isPressed ? AppColors.success : colors.primary,
                 child: Text(
                   _buttonShortName(btn),
                   style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
@@ -571,17 +567,17 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: currentAction != GamepadAction.none ? Colors.blue.shade800 : Colors.grey,
+                        color: currentAction != GamepadAction.none ? colors.primary : colors.textSecondary,
                       ),
                     ),
                   ],
                 ),
               ),
-              ElevatedButton.icon(
+              FilledButton.tonalIcon(
                 onPressed: () => _showRemapDialog(btn, currentAction),
                 icon: const Icon(Icons.edit, size: 14),
                 label: const Text('Change Action', style: TextStyle(fontSize: 11)),
-                style: ElevatedButton.styleFrom(
+                style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 ),
               ),
@@ -592,11 +588,11 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
               padding: const EdgeInsets.only(top: 6),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle, size: 14, color: Colors.green),
+                  const Icon(Icons.check_circle, size: 14, color: AppColors.success),
                   const SizedBox(width: 4),
                   Text(
                     'Physically pressed on controller right now',
-                    style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -607,6 +603,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
   }
 
   Widget _buildSliderTile({
+    required AppColorsTheme colors,
     required String title,
     required String subtitle,
     required double value,
@@ -622,10 +619,10 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-            Text(display, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+            Text(display, style: TextStyle(fontWeight: FontWeight.bold, color: colors.primary)),
           ],
         ),
-        Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        Text(subtitle, style: TextStyle(fontSize: 12, color: colors.textSecondary)),
         Slider(
           value: value,
           min: min,
@@ -640,6 +637,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
     showDialog(
       context: context,
       builder: (ctx) {
+        final colors = AppColors.of(ctx);
         return AlertDialog(
           title: Text('Assign ${_buttonFullName(button)}'),
           content: SingleChildScrollView(
@@ -650,7 +648,7 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                 return ListTile(
                   leading: Icon(
                     isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                    color: isSelected ? Colors.blue : Colors.grey,
+                    color: isSelected ? colors.primary : colors.textSecondary,
                   ),
                   title: Text(action.label),
                   selected: isSelected,

@@ -41,12 +41,13 @@ class _SkeletonBoxState extends State<SkeletonBox>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
+        final colors = AppColors.of(context);
         final t = AppMotion.breathe.transform(_controller.value);
         return Container(
           width: widget.width,
           height: widget.height,
           decoration: BoxDecoration(
-            color: Color.lerp(AppColors.surfaceSunken, AppColors.border, t),
+            color: Color.lerp(colors.surfaceSunken, colors.border, t),
             borderRadius: BorderRadius.circular(widget.radius),
           ),
         );

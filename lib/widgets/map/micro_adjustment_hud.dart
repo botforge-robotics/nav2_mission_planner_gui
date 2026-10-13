@@ -39,14 +39,15 @@ class _MicroAdjustmentHudState extends State<MicroAdjustmentHud> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Card(
       elevation: 6,
       shadowColor: Colors.black45,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.border, width: 1),
+        side: BorderSide(color: colors.border, width: 1),
       ),
-      color: AppColors.surface.withValues(alpha: 0.95),
+      color: colors.surface.withValues(alpha: 0.95),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.sm),
         child: Column(
@@ -55,7 +56,7 @@ class _MicroAdjustmentHudState extends State<MicroAdjustmentHud> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.tune_rounded, size: 16, color: AppColors.primary),
+                Icon(Icons.tune_rounded, size: 16, color: colors.primary),
                 const SizedBox(width: AppSpacing.xs),
                 Text(
                   widget.title,
@@ -128,13 +129,13 @@ class _MicroAdjustmentHudState extends State<MicroAdjustmentHud> {
                         width: 24,
                         height: 24,
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceSunken,
+                          color: colors.surfaceSunken,
                           shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.border),
+                          border: Border.all(color: colors.border),
                         ),
-                        child: const Center(
+                        child: Center(
                           child: Icon(Icons.control_camera_rounded,
-                              size: 14, color: AppColors.textTertiary),
+                              size: 14, color: colors.textTertiary),
                         ),
                       ),
                     ],
@@ -224,9 +225,10 @@ class _ArrowBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Material(
-      color: AppColors.surfaceSunken,
-      shape: const CircleBorder(side: BorderSide(color: AppColors.border)),
+      color: colors.surfaceSunken,
+      shape: CircleBorder(side: BorderSide(color: colors.border)),
       clipBehavior: Clip.antiAlias,
       child: IconButton(
         icon: Icon(icon, size: 20),

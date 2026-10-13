@@ -53,11 +53,18 @@ class NavProMiniApp extends StatelessWidget {
           },
         ),
       ],
-      child: MaterialApp(
-        title: 'NavPro Mini',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        home: const SplashScreen(),
+      child: ListenableBuilder(
+        listenable: AppThemeController.instance,
+        builder: (context, _) {
+          return MaterialApp(
+            title: 'NavPro Mini',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: AppThemeController.instance.mode,
+            home: const SplashScreen(),
+          );
+        },
       ),
     );
   }

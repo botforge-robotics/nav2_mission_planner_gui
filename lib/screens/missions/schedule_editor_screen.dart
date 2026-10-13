@@ -149,6 +149,7 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
     final selectedMission = widget.missions
         .cast<Map<String, dynamic>?>()
@@ -166,8 +167,8 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.alt_route_rounded,
-                        size: 20, color: AppColors.primary),
+                    Icon(Icons.alt_route_rounded,
+                        size: 20, color: colors.primary),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       'Mission to Execute',
@@ -266,9 +267,9 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
                 ],
                 if (_repeat == 'weekly') ...[
                   const SizedBox(height: AppSpacing.md),
-                  const Text('Repeat on days:',
+                  Text('Repeat on days:',
                       style: TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary)),
+                          fontSize: 13, color: colors.textSecondary)),
                   const SizedBox(height: AppSpacing.xs),
                   Wrap(
                     spacing: AppSpacing.xs,
@@ -397,8 +398,8 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.preview_rounded,
-                    size: 20, color: AppColors.accent),
+                Icon(Icons.preview_rounded,
+                    size: 20, color: colors.accent),
                 const SizedBox(width: AppSpacing.sm),
                 Text(
                   'Schedule Summary',
@@ -413,9 +414,9 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: AppColors.surfaceSunken,
+                color: colors.surfaceSunken,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: colors.border),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -425,15 +426,15 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textSecondary),
+                        color: colors.textSecondary),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'The robot will autonomously start "$missionTitle" at ${_time.format(context)} ($repeatSummary).',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: colors.textPrimary,
                     ),
                   ),
                 ],
@@ -443,13 +444,13 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
               const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
-                  const Icon(Icons.alt_route_rounded,
-                      size: 16, color: AppColors.textSecondary),
+                  Icon(Icons.alt_route_rounded,
+                      size: 16, color: colors.textSecondary),
                   const SizedBox(width: 6),
                   Text(
                     'Route steps: ${(selectedMission['steps'] as List? ?? const []).length} steps configured',
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary),
+                    style: TextStyle(
+                        fontSize: 13, color: colors.textSecondary),
                   ),
                 ],
               ),

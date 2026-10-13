@@ -305,7 +305,7 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                             left: AppSpacing.md,
                             top: AppSpacing.md,
                             child: Card(
-                              color: AppColors.surface.withValues(alpha: 0.9),
+                              color: AppColors.of(context).surface.withValues(alpha: 0.9),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: AppSpacing.md,
@@ -565,14 +565,14 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                                       side: BorderSide(
                                         color: isCurrent
                                             ? AppColors.primary
-                                            : AppColors.border,
+                                            : AppColors.of(context).border,
                                         width: isCurrent ? 1.5 : 1,
                                       ),
                                     ),
                                     color: isCurrent
                                         ? AppColors.primary
                                             .withValues(alpha: 0.08)
-                                        : AppColors.surfaceSunken,
+                                        : AppColors.of(context).surfaceSunken,
                                     child: ListTile(
                                       dense: true,
                                       leading: CircleAvatar(
@@ -581,7 +581,7 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                                             ? AppColors.stateIdle
                                             : isCurrent
                                                 ? AppColors.primary
-                                                : AppColors.border,
+                                                : AppColors.of(context).border,
                                         child: isDone
                                             ? const Icon(Icons.check_rounded,
                                                 size: 14, color: Colors.white)
@@ -802,7 +802,7 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                                   ? AppColors.stateIdle
                                   : isCurrent
                                       ? AppColors.primary
-                                      : AppColors.border,
+                                      : AppColors.of(context).border,
                               child: isDone
                                   ? const Icon(Icons.check_rounded,
                                       size: 14, color: Colors.white)
@@ -811,7 +811,7 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                                           fontSize: 12,
                                           color: isCurrent
                                               ? AppColors.textOnPrimary
-                                              : AppColors.textSecondary)),
+                                              : AppColors.of(context).textSecondary)),
                             ),
                             title: Text(missionStepSummary(steps[i])),
                             subtitle: Row(
@@ -1117,21 +1117,21 @@ class _LowBatteryChargingNotice extends StatelessWidget {
                       const SizedBox(width: AppSpacing.sm),
                       Text(
                         '(${batteryPercent!.round()}%)',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
-                          color: AppColors.textPrimary,
+                          color: AppColors.of(context).textPrimary,
                         ),
                       ),
                     ],
                   ],
                 ),
                 const SizedBox(height: 3),
-                const Text(
+                Text(
                   'Battery dropped ≤ 5%. Robot docked to recharge and will automatically undock and resume when battery reaches 95%.\n• Tap "Resume Early" to undock immediately.\n• Tap "Cancel" to stop mission (robot stays docked).',
                   style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.textSecondary,
+                    color: AppColors.of(context).textSecondary,
                     height: 1.35,
                   ),
                 ),

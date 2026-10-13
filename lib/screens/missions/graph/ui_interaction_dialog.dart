@@ -178,14 +178,15 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final progress = _timeoutSec > 0 ? (_remainingSec / _timeoutSec).clamp(0.0, 1.0) : 1.0;
 
     return Dialog(
-      backgroundColor: AppColors.surface,
+      backgroundColor: colors.surface,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-        side: const BorderSide(color: AppColors.border, width: 1.2),
+        side: BorderSide(color: colors.border, width: 1.2),
       ),
       child: Container(
         width: _subtype == 'browser' ? 950 : 520,
@@ -197,10 +198,10 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
             // Header
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(
-                color: AppColors.surfaceElevated,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
-                border: Border(bottom: BorderSide(color: AppColors.border)),
+              decoration: BoxDecoration(
+                color: colors.surfaceElevated,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
+                border: Border(bottom: BorderSide(color: colors.border)),
               ),
               child: Row(
                 children: [
@@ -208,12 +209,12 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: (_subtype == 'browser' ? const Color(0xFF0D9488) : AppColors.primary).withValues(alpha: 0.1),
+                      color: (_subtype == 'browser' ? const Color(0xFF0D9488) : colors.primary).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
                       _subtype == 'browser' ? Icons.language_rounded : Icons.touch_app,
-                      color: _subtype == 'browser' ? const Color(0xFF0D9488) : AppColors.primary,
+                      color: _subtype == 'browser' ? const Color(0xFF0D9488) : colors.primary,
                       size: 20,
                     ),
                   ),
@@ -221,8 +222,8 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                   Expanded(
                     child: Text(
                       _title,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
+                      style: TextStyle(
+                        color: colors.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -233,13 +234,13 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: _remainingSec < 10
-                            ? AppColors.danger.withValues(alpha: 0.1)
-                            : AppColors.surfaceSunken,
+                            ? colors.danger.withValues(alpha: 0.1)
+                            : colors.surfaceSunken,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: _remainingSec < 10
-                              ? AppColors.danger.withValues(alpha: 0.3)
-                              : AppColors.border,
+                              ? colors.danger.withValues(alpha: 0.3)
+                              : colors.border,
                         ),
                       ),
                       child: Row(
@@ -248,13 +249,13 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                           Icon(
                             Icons.timer_outlined,
                             size: 14,
-                            color: _remainingSec < 10 ? AppColors.danger : AppColors.textSecondary,
+                            color: _remainingSec < 10 ? colors.danger : colors.textSecondary,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             '${_remainingSec.toStringAsFixed(1)}s',
                             style: TextStyle(
-                              color: _remainingSec < 10 ? AppColors.danger : AppColors.textPrimary,
+                              color: _remainingSec < 10 ? colors.danger : colors.textPrimary,
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                             ),
@@ -271,8 +272,8 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
               LinearProgressIndicator(
                 value: progress,
                 minHeight: 3,
-                backgroundColor: AppColors.surfaceSunken,
-                color: _remainingSec < 10 ? AppColors.danger : AppColors.primary,
+                backgroundColor: colors.surfaceSunken,
+                color: _remainingSec < 10 ? colors.danger : colors.primary,
               ),
 
             // Scrollable Content
@@ -285,7 +286,7 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                     if (_message.isNotEmpty) ...[
                       Text(
                         _message,
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.4),
+                        style: TextStyle(color: colors.textSecondary, fontSize: 14, height: 1.4),
                       ),
                       const SizedBox(height: 16),
                     ],
@@ -298,16 +299,16 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             height: 120,
-                            color: AppColors.surfaceSunken,
+                            color: colors.surfaceSunken,
                             padding: const EdgeInsets.all(12),
-                            child: const Column(
+                            child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.broken_image_rounded, color: AppColors.warning, size: 32),
-                                SizedBox(height: 6),
+                                const Icon(Icons.broken_image_rounded, color: AppColors.warning, size: 32),
+                                const SizedBox(height: 6),
                                 Text(
                                   'Media file not found or deleted from robot',
-                                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
                                 ),
                               ],
                             ),
@@ -337,10 +338,10 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
             if (_subtype == 'form' || _subtype == 'modal' || _subtype == 'media_display')
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                decoration: const BoxDecoration(
-                  color: AppColors.surfaceElevated,
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(AppSpacing.cardRadius)),
-                  border: Border(top: BorderSide(color: AppColors.border)),
+                decoration: BoxDecoration(
+                  color: colors.surfaceElevated,
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(AppSpacing.cardRadius)),
+                  border: Border(top: BorderSide(color: colors.border)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -349,13 +350,13 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                       onPressed: _submitting
                           ? null
                           : () => _sendResponse(action: 'cancel'),
-                      child: const Text('Cancel / Skip', style: TextStyle(color: AppColors.textSecondary)),
+                      child: Text('Cancel / Skip', style: TextStyle(color: colors.textSecondary)),
                     ),
                     const SizedBox(width: 12),
                     FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: AppColors.textOnPrimary,
+                        backgroundColor: colors.primary,
+                        foregroundColor: colors.textOnPrimary,
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
                       ),
@@ -376,10 +377,10 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
             if (_subtype == 'browser')
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                decoration: const BoxDecoration(
-                  color: AppColors.surfaceElevated,
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(AppSpacing.cardRadius)),
-                  border: Border(top: BorderSide(color: AppColors.border)),
+                decoration: BoxDecoration(
+                  color: colors.surfaceElevated,
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(AppSpacing.cardRadius)),
+                  border: Border(top: BorderSide(color: colors.border)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.start,
@@ -417,6 +418,7 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
   }
 
   Widget _buildFormBody() {
+    final colors = AppColors.of(context);
     return Form(
       key: _formKey,
       child: Column(
@@ -425,31 +427,31 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
           for (final field in _fields) ...[
             Text(
               '${field.label}${field.required ? ' *' : ''}',
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
+              style: TextStyle(color: colors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
             if (field.type == 'text' || field.type == 'number')
               TextFormField(
                 initialValue: field.defaultValue?.toString() ?? '',
                 keyboardType: field.type == 'number' ? TextInputType.number : TextInputType.text,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                style: TextStyle(color: colors.textPrimary, fontSize: 13),
                 decoration: InputDecoration(
                   hintText: 'Enter ${field.label}',
-                  hintStyle: const TextStyle(color: AppColors.textTertiary),
+                  hintStyle: TextStyle(color: colors.textTertiary),
                   filled: true,
-                  fillColor: AppColors.surfaceSunken,
+                  fillColor: colors.surfaceSunken,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: colors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: colors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    borderSide: BorderSide(color: colors.primary, width: 1.5),
                   ),
                 ),
                 validator: (v) {
@@ -474,23 +476,23 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                   initialValue: locOptions.contains(_formData[field.key])
                       ? _formData[field.key]
                       : (locOptions.isNotEmpty ? locOptions.first : null),
-                  dropdownColor: AppColors.surfaceElevated,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                  dropdownColor: colors.surfaceElevated,
+                  style: TextStyle(color: colors.textPrimary, fontSize: 13),
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: AppColors.surfaceSunken,
+                    fillColor: colors.surfaceSunken,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                      borderSide: const BorderSide(color: AppColors.border),
+                      borderSide: BorderSide(color: colors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                      borderSide: const BorderSide(color: AppColors.border),
+                      borderSide: BorderSide(color: colors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                      borderSide: BorderSide(color: colors.primary, width: 1.5),
                     ),
                   ),
                   items: [
@@ -500,7 +502,7 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                         child: Row(
                           children: [
                             if (field.type == 'location') ...[
-                              const Icon(Icons.place_rounded, size: 14, color: AppColors.primary),
+                              Icon(Icons.place_rounded, size: 14, color: colors.primary),
                               const SizedBox(width: 6),
                             ],
                             Expanded(child: Text(opt, overflow: TextOverflow.ellipsis)),
@@ -515,9 +517,9 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
             else if (field.type == 'checkbox' || field.type == 'switch')
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
-                activeColor: AppColors.primary,
+                activeColor: colors.primary,
                 title: Text(field.label,
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                    style: TextStyle(color: colors.textPrimary, fontSize: 13)),
                 value: _formData[field.key] == true,
                 onChanged: (v) => setState(() => _formData[field.key] = v ?? false),
               ),
@@ -529,6 +531,7 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
   }
 
   Widget _buildChoicesBody() {
+    final colors = AppColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -536,26 +539,26 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
           OutlinedButton(
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-              side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5), width: 1.2),
+              side: BorderSide(color: colors.primary.withValues(alpha: 0.5), width: 1.2),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
-              backgroundColor: AppColors.surfaceSunken,
+              backgroundColor: colors.surfaceSunken,
             ),
             onPressed: _submitting ? null : () => _sendResponse(action: choice.toString(), selected: choice.toString()),
             child: _submitting
-                ? const SizedBox(
+                ? SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: colors.primary),
                   )
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.arrow_right_alt, color: AppColors.primary),
+                      Icon(Icons.arrow_right_alt, color: colors.primary),
                       const SizedBox(width: 8),
                       Text(
                         choice.toString().toUpperCase(),
-                        style: const TextStyle(
-                          color: AppColors.primary,
+                        style: TextStyle(
+                          color: colors.primary,
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.1,
@@ -571,12 +574,13 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
   }
 
   Widget _buildKioskPickerBody() {
+    final colors = AppColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
+        Text(
           'Select your destination station:',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+          style: TextStyle(color: colors.textSecondary, fontSize: 12),
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -586,16 +590,16 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
             for (final choice in _choices)
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  backgroundColor: AppColors.surfaceSunken,
-                  foregroundColor: AppColors.textPrimary,
+                  backgroundColor: colors.surfaceSunken,
+                  foregroundColor: colors.textPrimary,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
                   ),
-                  side: const BorderSide(color: AppColors.border),
+                  side: BorderSide(color: colors.border),
                 ),
-                icon: const Icon(Icons.place, color: AppColors.primary, size: 18),
-                label: Text(choice.toString(), style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                icon: Icon(Icons.place, color: colors.primary, size: 18),
+                label: Text(choice.toString(), style: TextStyle(color: colors.textPrimary, fontSize: 13)),
                 onPressed: _submitting
                     ? null
                     : () => _sendResponse(action: 'destination_selected', selected: choice.toString()),

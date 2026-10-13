@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../../theme/app_theme.dart';
 import 'mission_graph_models.dart';
@@ -61,6 +62,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
   double _canvasHeight = 8000;
   final GlobalKey _canvasKey = GlobalKey();
   late final AnimationController _flowAnimController;
+  AppColorsTheme get colors => AppColors.of(context);
 
   // Wire drawing state
   GraphNode? _drawingFromNode;
@@ -758,7 +760,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
-            color: AppColors.surfaceElevated,
+            color: colors.surfaceElevated,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: color, width: 1.5),
             boxShadow: [
@@ -847,7 +849,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                   children: [
                     // Grid background
                     const Positioned.fill(
-                      child: CustomPaint(painter: _GridBackgroundPainter()),
+                      child: RepaintBoundary(
+                        child: CustomPaint(painter: _GridBackgroundPainter()),
+                      ),
                     ),
 
                     // Edges & In-Progress Wire
@@ -855,27 +859,29 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                       child: AnimatedBuilder(
                         animation: _flowAnimController,
                         builder: (context, _) {
-                          return CustomPaint(
-                            painter: _EdgesPainter(
-                              graph: widget.graph,
-                              portOffsets: _portOffsets,
-                              edgeLayouts: _calculateEdgeLayouts(),
-                              selectedEdge: _selectedEdge,
-                              selectedNodeId: widget.selectedNode?.id,
-                              activeNodeId: widget.activeNodeId,
-                              animProgress: _flowAnimController.value,
-                              isRunning: widget.isRunning,
-                              drawingFromOffset: _drawingFromPort != null
-                                  ? (_portOffsets['${_drawingFromNode!.id}_${_drawingFromIsInput == true ? 'in' : 'out'}_${_drawingFromPort!.id}'] ??
-                                      _estimatePortOffset(_drawingFromNode!, _drawingFromPort!.id, _drawingFromIsInput ?? false))
-                                  : null,
-                              drawingCurrentOffset: _drawingCurrentPos != null && _hoveredTarget != null && (_hoveredValidation?.isValid ?? false)
-                                  ? (_portOffsets['${_hoveredTarget!.$1.id}_${_hoveredTarget!.$3 ? 'in' : 'out'}_${_hoveredTarget!.$2.id}'] ??
-                                      _estimatePortOffset(_hoveredTarget!.$1, _hoveredTarget!.$2.id, _hoveredTarget!.$3))
-                                  : _drawingCurrentPos,
-                              drawingFromIsInput: _drawingFromIsInput ?? false,
-                              drawingColor: _drawingFromPort?.color ?? AppColors.primary,
-                              isValidTarget: _hoveredTarget != null ? (_hoveredValidation?.isValid ?? false) : null,
+                          return RepaintBoundary(
+                            child: CustomPaint(
+                              painter: _EdgesPainter(
+                                graph: widget.graph,
+                                portOffsets: _portOffsets,
+                                edgeLayouts: _calculateEdgeLayouts(),
+                                selectedEdge: _selectedEdge,
+                                selectedNodeId: widget.selectedNode?.id,
+                                activeNodeId: widget.activeNodeId,
+                                animProgress: _flowAnimController.value,
+                                isRunning: widget.isRunning,
+                                drawingFromOffset: _drawingFromPort != null
+                                    ? (_portOffsets['${_drawingFromNode!.id}_${_drawingFromIsInput == true ? 'in' : 'out'}_${_drawingFromPort!.id}'] ??
+                                        _estimatePortOffset(_drawingFromNode!, _drawingFromPort!.id, _drawingFromIsInput ?? false))
+                                    : null,
+                                drawingCurrentOffset: _drawingCurrentPos != null && _hoveredTarget != null && (_hoveredValidation?.isValid ?? false)
+                                    ? (_portOffsets['${_hoveredTarget!.$1.id}_${_hoveredTarget!.$3 ? 'in' : 'out'}_${_hoveredTarget!.$2.id}'] ??
+                                        _estimatePortOffset(_hoveredTarget!.$1, _hoveredTarget!.$2.id, _hoveredTarget!.$3))
+                                    : _drawingCurrentPos,
+                                drawingFromIsInput: _drawingFromIsInput ?? false,
+                                drawingColor: _drawingFromPort?.color ?? AppColors.primary,
+                                isValidTarget: _hoveredTarget != null ? (_hoveredValidation?.isValid ?? false) : null,
+                              ),
                             ),
                           );
                         },
@@ -907,9 +913,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
               child: Align(
                 alignment: Alignment.topLeft,
                 child: Card(
-                  color: AppColors.surface,
+                  color: colors.surface,
                   elevation: 4,
-                  shadowColor: AppColors.shadowTint.withValues(alpha: 0.15),
+                  shadowColor: colors.shadowTint.withValues(alpha: 0.15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                     side: const BorderSide(color: AppColors.danger),
@@ -924,7 +930,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                         const Icon(Icons.link_off, color: AppColors.danger, size: 18),
                         Text(
                           'Connection: ${_selectedEdge!.fromNode} (${_selectedEdge!.fromPort}) → ${_selectedEdge!.toNode}',
-                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
+                          style: TextStyle(color: colors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
                         ),
                         FilledButton.icon(
                           style: FilledButton.styleFrom(
@@ -941,7 +947,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                           label: const Text('Delete Edge', style: TextStyle(fontSize: 11.5)),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close, size: 16, color: AppColors.textSecondary),
+                          icon: Icon(Icons.close, size: 16, color: colors.textSecondary),
                           visualDensity: VisualDensity.compact,
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
@@ -960,18 +966,18 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
             bottom: 16,
             left: 16,
             child: Card(
-              color: AppColors.surface,
+              color: colors.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: AppColors.border),
+                side: BorderSide(color: colors.border),
               ),
               elevation: 3,
-              shadowColor: AppColors.shadowTint.withValues(alpha: 0.14),
+              shadowColor: colors.shadowTint.withValues(alpha: 0.14),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.add, color: AppColors.textPrimary, size: 20),
+                    icon: Icon(Icons.add, color: colors.textPrimary, size: 20),
                     tooltip: 'Zoom In',
                     visualDensity: VisualDensity.compact,
                     onPressed: () {
@@ -980,9 +986,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                       _effectiveTransformController.value = matrix;
                     },
                   ),
-                  const Divider(height: 1, thickness: 1, color: AppColors.border),
+                  Divider(height: 1, thickness: 1, color: colors.border),
                   IconButton(
-                    icon: const Icon(Icons.remove, color: AppColors.textPrimary, size: 20),
+                    icon: Icon(Icons.remove, color: colors.textPrimary, size: 20),
                     tooltip: 'Zoom Out',
                     visualDensity: VisualDensity.compact,
                     onPressed: () {
@@ -991,9 +997,9 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                       _effectiveTransformController.value = matrix;
                     },
                   ),
-                  const Divider(height: 1, thickness: 1, color: AppColors.border),
+                  Divider(height: 1, thickness: 1, color: colors.border),
                   IconButton(
-                    icon: const Icon(Icons.center_focus_strong, color: AppColors.textPrimary, size: 18),
+                    icon: Icon(Icons.center_focus_strong, color: colors.textPrimary, size: 18),
                     tooltip: 'Reset View',
                     visualDensity: VisualDensity.compact,
                     onPressed: () {
@@ -1042,10 +1048,10 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
         Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 1, 1),
         Offset.zero & overlay.size,
       ),
-      color: AppColors.surfaceElevated,
+      color: colors.surfaceElevated,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: colors.border),
       ),
       items: [
         PopupMenuItem(
@@ -1053,27 +1059,27 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
           height: 38,
           child: Row(
             children: [
-              const Icon(Icons.rotate_right_rounded, size: 18, color: AppColors.primary),
+              Icon(Icons.rotate_right_rounded, size: 18, color: colors.primary),
               const SizedBox(width: 10),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('Rotate to ${sideName(nextRotation)}',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary)),
                   Text('Current: ${sideName(node.rotationDegrees)}',
-                      style: const TextStyle(fontSize: 9.5, color: AppColors.textTertiary)),
+                      style: TextStyle(fontSize: 9.5, color: colors.textTertiary)),
                 ],
               ),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceSunken,
+                  color: colors.surfaceSunken,
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text('R',
-                    style: TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+                child: Text('R',
+                    style: TextStyle(fontSize: 10, color: colors.textSecondary, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -1149,7 +1155,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
             height: nodeDiameter,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.surface,
+              color: colors.surface,
               border: Border.all(
                 color: isActive
                     ? Color.lerp(AppColors.primary, AppColors.primaryLight, pulse)!
@@ -1239,12 +1245,12 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? AppColors.surfaceElevated
-                      : AppColors.surface.withValues(alpha: 0.95),
+                      ? colors.surfaceElevated
+                      : colors.surface.withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(6),
                   border: isSelected
-                      ? Border.all(color: AppColors.primary.withValues(alpha: 0.8), width: 1.2)
-                      : Border.all(color: AppColors.border.withValues(alpha: 0.7), width: 0.8),
+                      ? Border.all(color: colors.primary.withValues(alpha: 0.8), width: 1.2)
+                      : Border.all(color: colors.border.withValues(alpha: 0.7), width: 0.8),
                   boxShadow: const [
                     BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 1)),
                   ],
@@ -1442,7 +1448,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                 height: badgeSize,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppColors.surface,
+                  color: colors.surface,
                   border: Border.all(
                     color: isActive
                         ? Color.lerp(AppColors.primary, AppColors.primaryLight, pulse)!
@@ -1489,11 +1495,11 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? AppColors.surfaceElevated
-                        : AppColors.surface.withValues(alpha: 0.95),
+                        ? colors.surfaceElevated
+                        : colors.surface.withValues(alpha: 0.95),
                     borderRadius: BorderRadius.circular(5),
                     border: isSelected
-                        ? Border.all(color: AppColors.primary.withValues(alpha: 0.8), width: 1.2)
+                        ? Border.all(color: colors.primary.withValues(alpha: 0.8), width: 1.2)
                         : Border.all(color: badgeColor.withValues(alpha: 0.4), width: 0.8),
                     boxShadow: const [
                       BoxShadow(color: Colors.black12, blurRadius: 3, offset: Offset(0, 1)),
@@ -1551,11 +1557,11 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                   child: Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppColors.surface,
-                      border: Border.all(color: AppColors.border),
+                      color: colors.surface,
+                      border: Border.all(color: colors.border),
                     ),
                     padding: const EdgeInsets.all(2.5),
-                    child: const Icon(Icons.close_rounded, size: 11, color: AppColors.textTertiary),
+                    child: Icon(Icons.close_rounded, size: 11, color: colors.textTertiary),
                   ),
                 ),
               ),
@@ -1679,7 +1685,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                   height: pinSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.surface,
+                    color: colors.surface,
                     border: Border.all(
                       color: activeColor,
                       width: (isHovered || isBeingDrawnFrom || isMouseOver) ? 2.6 : 2.2,
@@ -1719,7 +1725,7 @@ class _MissionGraphCanvasState extends State<MissionGraphCanvas>
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
                           decoration: BoxDecoration(
-                            color: AppColors.surfaceElevated,
+                            color: colors.surfaceElevated,
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: activeColor, width: 1.4),
                             boxShadow: [
@@ -2482,7 +2488,21 @@ class _EdgesPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _EdgesPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _EdgesPainter oldDelegate) {
+    return oldDelegate.graph != graph ||
+        oldDelegate.portOffsets != portOffsets ||
+        oldDelegate.edgeLayouts != edgeLayouts ||
+        oldDelegate.selectedEdge != selectedEdge ||
+        oldDelegate.selectedNodeId != selectedNodeId ||
+        oldDelegate.activeNodeId != activeNodeId ||
+        oldDelegate.animProgress != animProgress ||
+        oldDelegate.isRunning != isRunning ||
+        oldDelegate.drawingFromOffset != drawingFromOffset ||
+        oldDelegate.drawingCurrentOffset != drawingCurrentOffset ||
+        oldDelegate.drawingFromIsInput != drawingFromIsInput ||
+        oldDelegate.drawingColor != drawingColor ||
+        oldDelegate.isValidTarget != isValidTarget;
+  }
 }
 
 /// Subtle Dot Grid Background Painter matching light engineering canvas.
@@ -2493,14 +2513,17 @@ class _GridBackgroundPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final dotPaint = Paint()
       ..color = const Color(0xFFCBD5E1).withValues(alpha: 0.6)
-      ..style = PaintingStyle.fill;
+      ..strokeWidth = 2.3
+      ..strokeCap = StrokeCap.round;
 
     const double spacing = 28.0;
+    final List<Offset> points = [];
     for (double x = 0; x < size.width; x += spacing) {
       for (double y = 0; y < size.height; y += spacing) {
-        canvas.drawCircle(Offset(x, y), 1.15, dotPaint);
+        points.add(Offset(x, y));
       }
     }
+    canvas.drawPoints(ui.PointMode.points, points, dotPaint);
   }
 
   @override

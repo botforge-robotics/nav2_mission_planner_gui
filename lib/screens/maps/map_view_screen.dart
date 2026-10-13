@@ -809,6 +809,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                     separatorBuilder: (_, __) =>
                         const SizedBox(height: AppSpacing.xs),
                     itemBuilder: (context, i) {
+                      final sheetColors = AppColors.of(context);
                       final loc = locations[i];
                       final name = loc['name'] as String? ?? '';
                       final x = (loc['x'] as num?)?.toDouble() ?? 0.0;
@@ -816,7 +817,11 @@ class _MapViewScreenState extends State<MapViewScreen> {
                       return Card(
                         margin: EdgeInsets.zero,
                         elevation: 0,
-                        color: AppColors.surfaceSunken,
+                        color: sheetColors.surfaceSunken,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: sheetColors.border),
+                        ),
                         child: ListTile(
                           dense: true,
                           leading: const Icon(Icons.pin_drop_rounded,
@@ -826,8 +831,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                   fontWeight: FontWeight.bold)),
                           subtitle: Text(
                             '(${x.toStringAsFixed(2)}, ${y.toStringAsFixed(2)})',
-                            style: const TextStyle(
-                                color: AppColors.textSecondary,
+                            style: TextStyle(
+                                color: sheetColors.textSecondary,
                                 fontSize: 12),
                           ),
                           trailing: Row(
@@ -1245,6 +1250,13 @@ class _MapViewScreenState extends State<MapViewScreen> {
                               },
                               onCenterRobot:
                                   telemetry.localized ? _centerOnRobot : null,
+                              onResetNorth: () {
+                                if (_activeGrid != null) {
+                                  _fitMapToViewport(_activeGrid!);
+                                } else {
+                                  _transformController.value = Matrix4.identity();
+                                }
+                              },
                             ),
                           ),
                           if (_drawingLaneMode)
@@ -1734,11 +1746,12 @@ class _PosePickingBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.border)),
       ),
       child: SafeArea(
         top: false,
@@ -1792,12 +1805,14 @@ class _DesktopZoomHud extends StatelessWidget {
     required this.onZoomOut,
     required this.onFitMap,
     this.onCenterRobot,
+    this.onResetNorth,
   });
 
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onFitMap;
   final VoidCallback? onCenterRobot;
+  final VoidCallback? onResetNorth;
 
   @override
   Widget build(BuildContext context) {
@@ -1827,6 +1842,15 @@ class _DesktopZoomHud extends StatelessWidget {
             icon: const Icon(Icons.crop_free_rounded, size: 18),
             onPressed: onFitMap,
           ),
+          if (onResetNorth != null) ...[
+            const Divider(height: 1),
+            IconButton(
+              tooltip: 'Realign North (Reset Heading)',
+              icon: const Icon(Icons.explore_rounded,
+                  size: 18, color: AppColors.accent),
+              onPressed: onResetNorth,
+            ),
+          ],
           if (onCenterRobot != null) ...[
             const Divider(height: 1),
             IconButton(
@@ -1877,12 +1901,13 @@ class _DesktopStudioSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Material(
-      color: AppColors.surface,
+      color: colors.surface,
       child: Container(
         width: 320,
-        decoration: const BoxDecoration(
-          border: Border(left: BorderSide(color: AppColors.border)),
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: colors.border)),
         ),
         child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -1966,12 +1991,12 @@ class _DesktopStudioSidebar extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSunken,
+              color: colors.surfaceSunken,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: zoneEditorMode
-                    ? AppColors.primary.withValues(alpha: 0.5)
-                    : AppColors.border,
+                    ? colors.primary.withValues(alpha: 0.5)
+                    : colors.border,
               ),
             ),
             child: Column(
@@ -1979,8 +2004,8 @@ class _DesktopStudioSidebar extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.polyline_rounded,
-                        size: 14, color: AppColors.primary),
+                    Icon(Icons.polyline_rounded,
+                        size: 14, color: colors.primary),
                     const SizedBox(width: 6),
                     const Text('Map Zones',
                         style: TextStyle(
@@ -1991,14 +2016,14 @@ class _DesktopStudioSidebar extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.15),
+                          color: colors.primary.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Text('EDITING',
+                        child: Text('EDITING',
                             style: TextStyle(
                                 fontSize: 9,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.primary)),
+                                color: colors.primary)),
                       ),
                   ],
                 ),
@@ -2035,9 +2060,9 @@ class _DesktopStudioSidebar extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSunken,
+              color: colors.surfaceSunken,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2151,24 +2176,24 @@ class _DesktopStudioSidebar extends StatelessWidget {
                   return Card(
                     margin: const EdgeInsets.only(bottom: AppSpacing.xs),
                     elevation: 0,
-                    color: AppColors.surfaceSunken,
+                    color: colors.surfaceSunken,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
-                      side: const BorderSide(color: AppColors.border),
+                      side: BorderSide(color: colors.border),
                     ),
                     child: ListTile(
                       dense: true,
                       contentPadding:
                           const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                      leading: const Icon(Icons.pin_drop_rounded,
-                          size: 18, color: AppColors.primary),
+                      leading: Icon(Icons.pin_drop_rounded,
+                          size: 18, color: colors.primary),
                       title: Text(name,
                           style: const TextStyle(
                               fontSize: 12, fontWeight: FontWeight.bold)),
                       subtitle: Text(
                         '(${x.toStringAsFixed(1)}, ${y.toStringAsFixed(1)})',
-                        style: const TextStyle(
-                            fontSize: 10, color: AppColors.textSecondary),
+                        style: TextStyle(
+                            fontSize: 10, color: colors.textSecondary),
                       ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -2198,8 +2223,8 @@ class _DesktopStudioSidebar extends StatelessWidget {
           // Section 4: Map Zones
           Row(
             children: [
-              const Icon(Icons.polyline_rounded,
-                  size: 18, color: AppColors.primary),
+              Icon(Icons.polyline_rounded,
+                  size: 18, color: colors.primary),
               const SizedBox(width: AppSpacing.sm),
               Text(
                 'Map Zones',
@@ -2213,10 +2238,10 @@ class _DesktopStudioSidebar extends StatelessWidget {
                 valueListenable: ZonesController.instance,
                 builder: (context, zones, _) => Text(
                   '${zones.length}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textSecondary),
+                      color: colors.textSecondary),
                 ),
               ),
             ],
@@ -2226,14 +2251,14 @@ class _DesktopStudioSidebar extends StatelessWidget {
             valueListenable: ZonesController.instance,
             builder: (context, zones, _) {
               if (zones.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
                   child: Center(
                     child: Text(
                       'No zones on this map.\nClick "Add Map Zone" above.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
+                          fontSize: 12, color: colors.textSecondary),
                     ),
                   ),
                 );
@@ -2246,11 +2271,11 @@ class _DesktopStudioSidebar extends StatelessWidget {
                     elevation: 0,
                     color: isSelected
                         ? z.color.withValues(alpha: 0.15)
-                        : AppColors.surfaceSunken,
+                        : colors.surfaceSunken,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                       side: BorderSide(
-                          color: isSelected ? z.color : AppColors.border),
+                          color: isSelected ? z.color : colors.border),
                     ),
                     child: ListTile(
                       dense: true,
@@ -2314,6 +2339,7 @@ class _DrawLaneHud extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
 
     return Card(
@@ -2366,7 +2392,7 @@ class _DrawLaneHud extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceSunken,
+                    color: colors.surfaceSunken,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -2375,8 +2401,8 @@ class _DrawLaneHud extends StatelessWidget {
                         : pointsCount == 1
                             ? '1 node placed · click to add turn'
                             : '$pointsCount nodes placed',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary),
+                    style: TextStyle(
+                        fontSize: 11, color: colors.textSecondary),
                   ),
                 ),
                 const Spacer(),
@@ -2808,8 +2834,13 @@ class _AddZoneDialogState extends State<_AddZoneDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colors.border),
+      ),
+      backgroundColor: colors.surface,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
         child: Padding(
@@ -2847,8 +2878,8 @@ class _AddZoneDialogState extends State<_AddZoneDialog> {
                             widget.mapName != null
                                 ? 'Linked to map: ${widget.mapName}'
                                 : 'Define virtual zones & speed limits',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textSecondary),
+                            style: TextStyle(
+                                fontSize: 12, color: colors.textSecondary),
                           ),
                         ],
                       ),
@@ -2909,12 +2940,12 @@ class _AddZoneDialogState extends State<_AddZoneDialog> {
                         decoration: BoxDecoration(
                           color: isSelected
                               ? type.defaultColor.withValues(alpha: 0.08)
-                              : AppColors.surfaceSunken,
+                              : colors.surfaceSunken,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: isSelected
                                 ? type.defaultColor
-                                : AppColors.border,
+                                : colors.border,
                             width: isSelected ? 2.0 : 1.0,
                           ),
                         ),
@@ -3156,20 +3187,20 @@ class _AddZoneDialogState extends State<_AddZoneDialog> {
                   Container(
                     padding: const EdgeInsets.all(AppSpacing.sm),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSunken,
+                      color: colors.surfaceSunken,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.border),
+                      border: Border.all(color: colors.border),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         Icon(Icons.info_outline_rounded,
-                            size: 16, color: AppColors.primary),
-                        SizedBox(width: AppSpacing.sm),
+                            size: 16, color: colors.primary),
+                        const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(
                             'Zone will be placed as a 2m × 2m rectangle. In the editor, drag any node or tap "+" on an edge to contour into custom polygon shapes.',
                             style: TextStyle(
-                                fontSize: 11, color: AppColors.textSecondary),
+                                fontSize: 11, color: colors.textSecondary),
                           ),
                         ),
                       ],

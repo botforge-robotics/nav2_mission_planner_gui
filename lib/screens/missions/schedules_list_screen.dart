@@ -347,25 +347,26 @@ class _Body extends StatelessWidget {
     }
 
     if (schedules!.isEmpty) {
+      final colors = AppColors.of(context);
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.alarm_add_rounded,
-                size: 56, color: AppColors.textTertiary),
+            Icon(Icons.alarm_add_rounded,
+                size: 56, color: colors.textTertiary),
             const SizedBox(height: AppSpacing.md),
-            const Text(
+            Text(
               'No automated schedules configured',
               style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary),
+                  color: colors.textPrimary),
             ),
             const SizedBox(height: AppSpacing.xs),
-            const Text(
+            Text(
               'Schedule missions to run automatically at specific times or recurring weekdays.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton.icon(
@@ -571,13 +572,14 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Expanded(
       child: Card(
         elevation: 0,
-        color: AppColors.surface,
+        color: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppColors.border),
+          side: BorderSide(color: colors.border),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(
@@ -600,16 +602,16 @@ class _StatCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
+                    style: TextStyle(
+                        fontSize: 12, color: colors.textSecondary),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     value,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary),
+                        color: colors.textPrimary),
                   ),
                 ],
               ),
@@ -646,6 +648,7 @@ class _ScheduleDesktopCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final enabled = schedule['enabled'] == true;
     final hour = (schedule['hour'] as num).toInt();
     final minute = (schedule['minute'] as num).toInt();
@@ -661,8 +664,8 @@ class _ScheduleDesktopCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(
           color: enabled
-              ? AppColors.primary.withValues(alpha: 0.25)
-              : AppColors.border,
+              ? colors.primary.withValues(alpha: 0.25)
+              : colors.border,
           width: enabled ? 1.5 : 1,
         ),
       ),
@@ -678,7 +681,7 @@ class _ScheduleDesktopCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: (enabled ? AppColors.primary : AppColors.surfaceSunken)
+                    color: (enabled ? colors.primary : colors.surfaceSunken)
                         .withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -688,7 +691,7 @@ class _ScheduleDesktopCard extends StatelessWidget {
                       Icon(
                         Icons.access_time_rounded,
                         size: 16,
-                        color: enabled ? AppColors.primary : AppColors.textTertiary,
+                        color: enabled ? colors.primary : colors.textTertiary,
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -698,8 +701,8 @@ class _ScheduleDesktopCard extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                           fontFamily: 'monospace',
                           color: enabled
-                              ? AppColors.primary
-                              : AppColors.textSecondary,
+                              ? colors.primary
+                              : colors.textSecondary,
                         ),
                       ),
                     ],
@@ -712,7 +715,7 @@ class _ScheduleDesktopCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: enabled
                         ? AppColors.success.withValues(alpha: 0.12)
-                        : AppColors.surfaceSunken,
+                        : colors.surfaceSunken,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -720,7 +723,7 @@ class _ScheduleDesktopCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: enabled ? AppColors.success : AppColors.textTertiary,
+                      color: enabled ? AppColors.success : colors.textTertiary,
                     ),
                   ),
                 ),
@@ -736,26 +739,26 @@ class _ScheduleDesktopCard extends StatelessWidget {
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+                color: colors.textPrimary,
               ),
             ),
             const SizedBox(height: 2),
             Row(
               children: [
-                const Icon(Icons.route_rounded,
-                    size: 14, color: AppColors.textSecondary),
+                Icon(Icons.route_rounded,
+                    size: 14, color: colors.textSecondary),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     'Mission: $missionName',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: colors.textSecondary,
                     ),
                   ),
                 ),

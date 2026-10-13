@@ -82,6 +82,7 @@ class _PickMapPositionScreenState extends State<PickMapPositionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final ros2 = context.watch<ConnectionProvider>().ros2;
     final telemetry = context.watch<RobotTelemetryProvider>();
 
@@ -124,9 +125,9 @@ class _PickMapPositionScreenState extends State<PickMapPositionScreen> {
                         elevation: 4,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
-                          side: const BorderSide(color: AppColors.border),
+                          side: BorderSide(color: colors.border),
                         ),
-                        color: AppColors.surface.withValues(alpha: 0.95),
+                        color: colors.surface.withValues(alpha: 0.95),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.md,
@@ -139,8 +140,8 @@ class _PickMapPositionScreenState extends State<PickMapPositionScreen> {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.place_rounded,
-                                      size: 16, color: AppColors.accent),
+                                  Icon(Icons.place_rounded,
+                                      size: 16, color: colors.accent),
                                   const SizedBox(width: 4),
                                   Text(
                                     'X: ${_draft!.x.toStringAsFixed(3)} m',
@@ -152,8 +153,8 @@ class _PickMapPositionScreenState extends State<PickMapPositionScreen> {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.place_rounded,
-                                      size: 16, color: AppColors.accent),
+                                  Icon(Icons.place_rounded,
+                                      size: 16, color: colors.accent),
                                   const SizedBox(width: 4),
                                   Text(
                                     'Y: ${_draft!.y.toStringAsFixed(3)} m',
@@ -165,8 +166,8 @@ class _PickMapPositionScreenState extends State<PickMapPositionScreen> {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.navigation_rounded,
-                                      size: 16, color: AppColors.accent),
+                                  Icon(Icons.navigation_rounded,
+                                      size: 16, color: colors.accent),
                                   const SizedBox(width: 4),
                                   Text(
                                     'θ: ${(_draft!.theta * 180 / pi).toStringAsFixed(1)}°',
@@ -205,9 +206,9 @@ class _PickMapPositionScreenState extends State<PickMapPositionScreen> {
                       horizontal: AppSpacing.md,
                       vertical: AppSpacing.sm,
                     ),
-                    decoration: const BoxDecoration(
-                      color: AppColors.surface,
-                      border: Border(top: BorderSide(color: AppColors.border)),
+                    decoration: BoxDecoration(
+                      color: colors.surface,
+                      border: Border(top: BorderSide(color: colors.border)),
                     ),
                     child: SafeArea(
                       top: false,

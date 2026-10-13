@@ -154,6 +154,7 @@ class _ShellNavState extends State<_ShellNav> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final body = IndexedStack(
       index: _index,
       children: [for (final d in _destinations) d.screen],
@@ -178,7 +179,7 @@ class _ShellNavState extends State<_ShellNav> {
               selectedIndex: _index,
               onDestinationSelected: (i) => setState(() => _index = i),
               labelType: NavigationRailLabelType.all,
-              backgroundColor: AppColors.surface,
+              backgroundColor: colors.surface,
               destinations: [
                 for (final d in _destinations)
                   NavigationRailDestination(
@@ -188,7 +189,7 @@ class _ShellNavState extends State<_ShellNav> {
                   ),
               ],
             ),
-            const VerticalDivider(width: 1, color: AppColors.border),
+            VerticalDivider(width: 1, color: colors.border),
           ],
           Expanded(child: body),
         ],
@@ -227,12 +228,13 @@ class _DesktopSidebar extends StatelessWidget {
     final connection = context.watch<ConnectionProvider>();
     final telemetry = context.watch<RobotTelemetryProvider>();
     final robot = connection.robot;
+    final colors = AppColors.of(context);
 
     return Container(
       width: 250,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(right: BorderSide(color: AppColors.border, width: 1)),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(right: BorderSide(color: colors.border, width: 1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -246,9 +248,9 @@ class _DesktopSidebar extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceSunken,
+                    color: colors.surfaceSunken,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
+                    border: Border.all(color: colors.border),
                   ),
                   padding: const EdgeInsets.all(4),
                   child: Image.asset('assets/robot_photo.png', fit: BoxFit.contain),
@@ -259,21 +261,21 @@ class _DesktopSidebar extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
+                      Text(
                         'NavPro Mini',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
+                          color: colors.textPrimary,
                           letterSpacing: -0.3,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         robot?.name ?? 'Robot Dashboard',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary,
+                          color: colors.textSecondary,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -283,7 +285,7 @@ class _DesktopSidebar extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.border),
+          Divider(height: 1, color: colors.border),
           const SizedBox(height: 12),
 
           // 2. Navigation List
@@ -305,15 +307,61 @@ class _DesktopSidebar extends StatelessWidget {
             ),
           ),
 
-          // 3. Bottom Robot Telemetry Card
+          // 3. Quick Theme Toggle
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: InkWell(
+              onTap: () => AppThemeController.instance.toggleTheme(),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: colors.surfaceSunken,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: colors.border),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      AppThemeController.instance.isDarkMode
+                          ? Icons.dark_mode_rounded
+                          : Icons.light_mode_rounded,
+                      size: 16,
+                      color: colors.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        AppThemeController.instance.isDarkMode
+                            ? 'Industrial Dark'
+                            : 'Factory Light',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.swap_horiz_rounded,
+                      size: 16,
+                      color: colors.textSecondary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // 4. Bottom Robot Telemetry Card
           Padding(
             padding: const EdgeInsets.all(12),
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.surfaceSunken,
+                color: colors.surfaceSunken,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: colors.border),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,8 +372,8 @@ class _DesktopSidebar extends StatelessWidget {
                       Container(
                         width: 8,
                         height: 8,
-                        decoration: const BoxDecoration(
-                          color: AppColors.success,
+                        decoration: BoxDecoration(
+                          color: colors.success,
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -333,17 +381,17 @@ class _DesktopSidebar extends StatelessWidget {
                       Expanded(
                         child: Text(
                           robot?.ip ?? '127.0.0.1',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
+                            color: colors.textPrimary,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (telemetry.chargeStatus == ChargeStatus.charging ||
                           telemetry.chargeStatus == ChargeStatus.full)
-                        const Icon(Icons.bolt_rounded, size: 16, color: AppColors.success),
+                        Icon(Icons.bolt_rounded, size: 16, color: colors.success),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -354,11 +402,11 @@ class _DesktopSidebar extends StatelessWidget {
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
                             value: (telemetry.batteryPercentage ?? 0) / 100.0,
-                            backgroundColor: AppColors.border,
+                            backgroundColor: colors.border,
                             valueColor: AlwaysStoppedAnimation<Color>(
                               (telemetry.batteryPercentage ?? 0) <= 20
-                                  ? AppColors.danger
-                                  : AppColors.success,
+                                  ? colors.danger
+                                  : colors.success,
                             ),
                             minHeight: 6,
                           ),
@@ -369,10 +417,10 @@ class _DesktopSidebar extends StatelessWidget {
                         telemetry.batteryPercentage != null
                             ? telemetry.formatBatteryPercent()
                             : '—',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textSecondary,
+                          color: colors.textSecondary,
                         ),
                       ),
                     ],
@@ -409,11 +457,12 @@ class _SidebarItemState extends State<_SidebarItem> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final active = widget.isSelected;
     final bg = active
-        ? AppColors.primary.withValues(alpha: 0.10)
-        : (_hovered ? AppColors.surfaceSunken : Colors.transparent);
-    final fg = active ? AppColors.primary : AppColors.textPrimary;
+        ? colors.primary.withValues(alpha: 0.12)
+        : (_hovered ? colors.surfaceSunken : Colors.transparent);
+    final fg = active ? colors.primary : colors.textPrimary;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -433,7 +482,7 @@ class _SidebarItemState extends State<_SidebarItem> {
               Icon(
                 widget.icon,
                 size: 20,
-                color: active ? AppColors.primary : AppColors.textSecondary,
+                color: active ? colors.primary : colors.textSecondary,
               ),
               const SizedBox(width: 12),
               Text(

@@ -44,6 +44,7 @@ class MissionNodeInspector extends StatefulWidget {
 
 class _MissionNodeInspectorState extends State<MissionNodeInspector>
     with SingleTickerProviderStateMixin {
+  AppColorsTheme get colors => AppColors.of(context);
   late TabController _tabController;
   late TextEditingController _labelController;
   late FocusNode _labelFocusNode;
@@ -166,15 +167,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
 
     return Container(
       width: 320,
-      color: AppColors.surface,
+      color: colors.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: AppColors.border)),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: colors.border)),
             ),
             child: Row(
               children: [
@@ -200,8 +201,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     children: [
                       Text(
                         _getNodeFriendlyTitle(node),
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
@@ -209,10 +210,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
-                      const Text(
+                      Text(
                         'Step Settings',
                         style: TextStyle(
-                          color: AppColors.textSecondary,
+                          color: colors.textSecondary,
                           fontSize: 11,
                         ),
                       ),
@@ -221,7 +222,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 ),
                 if (!widget.readOnly)
                   IconButton(
-                    icon: const Icon(Icons.rotate_right_rounded, color: AppColors.primary, size: 20),
+                    icon: Icon(Icons.rotate_right_rounded, color: colors.primary, size: 20),
                     tooltip: 'Rotate Connection Points (Press R to cycle 90°)',
                     onPressed: () {
                       node.rotationDegrees = (node.rotationDegrees + 90) % 360;
@@ -230,7 +231,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   ),
                 if (widget.onDelete != null && node.type != 'start' && !widget.readOnly)
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 20),
+                    icon: Icon(Icons.delete_outline, color: colors.danger, size: 20),
                     tooltip: 'Delete this step',
                     onPressed: widget.onDelete,
                   ),
@@ -243,9 +244,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           if (isUiInteraction)
             TabBar(
               controller: _tabController,
-              indicatorColor: AppColors.primary,
-              labelColor: AppColors.primary,
-              unselectedLabelColor: AppColors.textSecondary,
+              indicatorColor: colors.primary,
+              labelColor: colors.primary,
+              unselectedLabelColor: colors.textSecondary,
               tabs: const [
                 Tab(text: 'Settings'),
                 Tab(text: 'Screen Preview'),
@@ -514,20 +515,20 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           margin: const EdgeInsets.only(bottom: 14),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.08),
+            color: colors.primary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+            border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.lightbulb_outline, size: 16, color: AppColors.primary),
+              Icon(Icons.lightbulb_outline, size: 16, color: colors.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   _getNodeFriendlyDescription(node),
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
+                    color: colors.textSecondary,
                     fontSize: 11,
                     height: 1.35,
                   ),
@@ -542,7 +543,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           controller: _labelController,
           focusNode: _labelFocusNode,
           enabled: !widget.readOnly,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           onTap: () {
             _setActiveField(
               controller: _labelController,
@@ -556,13 +557,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           decoration: InputDecoration(
             labelText: 'Step Name (Shown on Canvas)',
             hintText: 'e.g. Drive to Charging Station',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           onChanged: (val) {
             node.label = val;
@@ -634,7 +635,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSunken,
+              color: colors.surfaceSunken,
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
               border: Border.all(color: AppColors.border),
             ),
@@ -686,7 +687,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: AppColors.surfaceElevated,
+                color: colors.surfaceElevated,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.border),
               ),
@@ -706,7 +707,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSunken,
+              color: colors.surfaceSunken,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: AppColors.border),
             ),
@@ -768,7 +769,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSunken,
+        color: colors.surfaceSunken,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
       ),
@@ -859,15 +860,15 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           key: ValueKey('${widget.node.id}_wp_$currentWp'),
           isExpanded: true,
           initialValue: allKnownValues.contains(currentWp) ? currentWp : null,
-          dropdownColor: AppColors.surfaceElevated,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          dropdownColor: colors.surfaceElevated,
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           hint: const Text('Choose a saved place or form variable', style: TextStyle(color: AppColors.textSecondary)),
           items: [
@@ -946,7 +947,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
             prefixIcon: const Icon(Icons.edit_note_rounded, size: 16),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
@@ -993,12 +994,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               child: TextFormField(
                 initialValue: x.toString(),
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
                 decoration: InputDecoration(
                   labelText: 'X Position on Map (meters)',
-                  labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
                   filled: true,
-                  fillColor: AppColors.surfaceSunken,
+                  fillColor: colors.surfaceSunken,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
                   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
@@ -1015,12 +1016,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               child: TextFormField(
                 initialValue: y.toString(),
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
                 decoration: InputDecoration(
                   labelText: 'Y Position on Map (meters)',
-                  labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
                   filled: true,
-                  fillColor: AppColors.surfaceSunken,
+                  fillColor: colors.surfaceSunken,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
                   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
@@ -1038,16 +1039,16 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         TextFormField(
           initialValue: theta.toString(),
           keyboardType: TextInputType.number,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Facing Direction (Radians, 0 = forward)',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           onChanged: (v) {
             widget.node.params['theta'] = double.tryParse(v) ?? 0.0;
@@ -1112,7 +1113,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: trigger == 'manual'
-                ? AppColors.surfaceSunken
+                ? colors.surfaceSunken
                 : (enabled ? AppColors.primary.withValues(alpha: 0.08) : AppColors.warning.withValues(alpha: 0.1)),
             borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
             border: Border.all(
@@ -1221,7 +1222,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: colors.surface,
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
               border: Border.all(color: AppColors.border),
             ),
@@ -1265,7 +1266,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           fontWeight: intervalMinutes == preset ? FontWeight.bold : FontWeight.normal,
                           color: intervalMinutes == preset ? AppColors.textOnPrimary : AppColors.textPrimary,
                         ),
-                        backgroundColor: intervalMinutes == preset ? AppColors.primary : AppColors.surfaceSunken,
+                        backgroundColor: intervalMinutes == preset ? AppColors.primary : colors.surfaceSunken,
                         side: BorderSide(
                           color: intervalMinutes == preset ? AppColors.primary : AppColors.border,
                         ),
@@ -1302,7 +1303,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: colors.surface,
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
               border: Border.all(color: AppColors.border),
             ),
@@ -1340,7 +1341,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSunken,
+                      color: colors.surfaceSunken,
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
                       border: Border.all(color: AppColors.border),
                     ),
@@ -1499,7 +1500,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceSunken,
+                        color: colors.surfaceSunken,
                         borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
                         border: Border.all(color: AppColors.border),
                       ),
@@ -1525,7 +1526,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         if (trigger != 'manual') ...[
           Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: colors.surface,
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
               border: Border.all(color: AppColors.border),
             ),
@@ -1538,7 +1539,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                   ),
                   value: enabled,
-                  activeThumbColor: AppColors.primary,
+                  activeThumbColor: colors.primary,
                   onChanged: widget.readOnly
                       ? null
                       : (val) {
@@ -1624,7 +1625,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surfaceSunken,
+          color: selected ? AppColors.primary.withValues(alpha: 0.08) : colors.surfaceSunken,
           borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
           border: Border.all(
             color: selected ? AppColors.primary : AppColors.border,
@@ -1712,7 +1713,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
 
   Widget _buildTokenChip(String token) {
     return ActionChip(
-      backgroundColor: AppColors.surfaceSunken,
+      backgroundColor: colors.surfaceSunken,
       side: const BorderSide(color: AppColors.border),
       label: Text(token, style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w500)),
       onPressed: widget.readOnly
@@ -1739,17 +1740,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           key: ValueKey('${widget.node.id}_subtype_$subtype'),
           isExpanded: true,
           initialValue: ['dynamic_form', 'kiosk'].contains(subtype) ? subtype : 'dynamic_form',
-          dropdownColor: AppColors.surface,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          dropdownColor: colors.surface,
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'What kind of screen to show?',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           items: [
             const DropdownMenuItem(value: 'dynamic_form', child: Text('Form / Checklist (Questions to answer)', overflow: TextOverflow.ellipsis)),
@@ -1775,17 +1776,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: ['robot_screen', 'operator_app', 'both'].contains(widget.node.params['target'])
               ? widget.node.params['target']
               : 'robot_screen',
-          dropdownColor: AppColors.surface,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          dropdownColor: colors.surface,
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Where should this screen appear?',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           items: const [
             DropdownMenuItem(value: 'robot_screen', child: Text('Robot Screen (Touchscreen on robot)', overflow: TextOverflow.ellipsis)),
@@ -1841,9 +1842,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.08),
+            color: colors.primary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+            border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
           child: const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1886,13 +1887,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: ['robot_screen', 'operator_app', 'both'].contains(widget.node.params['target'])
               ? widget.node.params['target']
               : 'robot_screen',
-          dropdownColor: AppColors.surface,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          dropdownColor: colors.surface,
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Where should notification appear?',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
           ),
@@ -1911,13 +1912,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         TextFormField(
           initialValue: title,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Notification Title',
             hintText: 'e.g. Delivery Arrived',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
           ),
@@ -1932,13 +1933,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         TextFormField(
           initialValue: message,
           maxLines: 3,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Description / Message',
             hintText: 'e.g. The robot has arrived. Tap OK to acknowledge.',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
           ),
@@ -1952,13 +1953,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         TextFormField(
           initialValue: buttonText,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Confirmation Button Label',
             hintText: 'e.g. OK or Got It',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
           ),
@@ -1973,13 +1974,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         TextFormField(
           initialValue: timeout.toString(),
           keyboardType: TextInputType.number,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Auto-Dismiss Timeout (Seconds)',
             hintText: '30 (0 for indefinite until tapped)',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
           ),
@@ -1993,13 +1994,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         TextFormField(
           initialValue: speechText,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Spoken Voice Announcement (Optional TTS)',
             hintText: 'e.g. Robot has arrived. Please tap OK.',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
           ),
@@ -2015,7 +2016,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           title: const Text('Play Alert Chime', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
           subtitle: const Text('Sound chime tone when notification appears', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
           value: soundAlert,
-          activeThumbColor: AppColors.primary,
+          activeThumbColor: colors.primary,
           activeTrackColor: AppColors.primary.withValues(alpha: 0.4),
           contentPadding: EdgeInsets.zero,
           onChanged: widget.readOnly
@@ -2044,13 +2045,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           initialValue: ['robot_screen', 'operator_app', 'both'].contains(widget.node.params['target'])
               ? widget.node.params['target']
               : 'robot_screen',
-          dropdownColor: AppColors.surface,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          dropdownColor: colors.surface,
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Where should choices appear?',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
           ),
@@ -2069,13 +2070,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         TextFormField(
           initialValue: title,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Dialog Title',
             hintText: 'e.g. Confirm Delivery',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
           ),
@@ -2088,13 +2089,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         TextFormField(
           initialValue: message,
           maxLines: 2,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Prompt Message (supports {variable})',
             hintText: 'e.g. Deliver items to room {room}?',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
           ),
@@ -2106,14 +2107,14 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         TextFormField(
           initialValue: outVar,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Save Choice to Variable (Optional)',
             hintText: 'e.g. user_decision',
             prefixIcon: const Icon(Icons.data_object, size: 16),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
           ),
@@ -2142,9 +2143,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.08),
+            color: colors.primary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+            border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
           child: const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2203,9 +2204,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.08),
+            color: colors.primary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+            border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
           child: const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2265,7 +2266,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 8),
         for (int i = 0; i < fields.length; i++)
           Card(
-            color: AppColors.surfaceElevated,
+            color: colors.surfaceElevated,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -2288,7 +2289,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                             hintText: 'e.g. What is the room temperature?',
                             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                             filled: true,
-                            fillColor: AppColors.surfaceSunken,
+                            fillColor: colors.surfaceSunken,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
                             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
@@ -2324,7 +2325,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           key: ValueKey('${widget.node.id}_field_${i}_${fields[i].type}'),
                           isExpanded: true,
                           initialValue: ['text', 'number', 'select', 'location', 'checkbox', 'switch', 'signature'].contains(fields[i].type) ? fields[i].type : 'text',
-                          dropdownColor: AppColors.surface,
+                          dropdownColor: colors.surface,
                           style: const TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w500),
                           isDense: true,
                           decoration: InputDecoration(
@@ -2332,7 +2333,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                             labelText: 'Answer Type',
                             labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                             filled: true,
-                            fillColor: AppColors.surfaceSunken,
+                            fillColor: colors.surfaceSunken,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
                             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
@@ -2380,7 +2381,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: AppColors.surface,
+                        color: colors.surface,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: AppColors.border),
                       ),
@@ -2396,7 +2397,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                               return Chip(
                                 label: Text(opt, style: const TextStyle(fontSize: 11)),
                                 padding: EdgeInsets.zero,
-                                backgroundColor: AppColors.surfaceSunken,
+                                backgroundColor: colors.surfaceSunken,
                                 deleteIcon: const Icon(Icons.close, size: 14),
                                 onDeleted: widget.readOnly ? null : () {
                                   setState(() {
@@ -2512,7 +2513,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       isDense: true,
                       hintText: 'Button Text (e.g. Yes, No, Done)',
                       filled: true,
-                      fillColor: AppColors.surfaceSunken,
+                      fillColor: colors.surfaceSunken,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
                       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.border)),
@@ -2573,17 +2574,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           key: ValueKey('${widget.node.id}_method_$method'),
           isExpanded: true,
           initialValue: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].contains(method) ? method : 'POST',
-          dropdownColor: AppColors.surface,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          dropdownColor: colors.surface,
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Web Request Type',
-            labelStyle: const TextStyle(color: AppColors.textSecondary),
+            labelStyle: TextStyle(color: colors.textSecondary),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           items: const [
             DropdownMenuItem(value: 'GET', child: Text('GET (Retrieve Data)')),
@@ -2671,9 +2672,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.08),
+            color: colors.primary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+            border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
           child: const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2764,7 +2765,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     showDialog(
                       context: context,
                       builder: (ctx) => AlertDialog(
-                        backgroundColor: AppColors.surface,
+                        backgroundColor: colors.surface,
                         title: Row(
                           children: [
                             Icon(isOk ? Icons.check_circle_rounded : Icons.error_outline_rounded, color: isOk ? Colors.green : Colors.red, size: 22),
@@ -2842,7 +2843,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       color: AppColors.background,
       padding: const EdgeInsets.all(16),
       child: Card(
-        color: AppColors.surface,
+        color: colors.surface,
         elevation: 2,
         shadowColor: AppColors.shadowTint.withValues(alpha: 0.1),
         shape: RoundedRectangleBorder(
@@ -2889,7 +2890,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               decoration: BoxDecoration(
-                                color: AppColors.surfaceSunken,
+                                color: colors.surfaceSunken,
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(color: AppColors.border),
                               ),
@@ -2932,17 +2933,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           key: ValueKey('${widget.node.id}_status_$status'),
           isExpanded: true,
           initialValue: ['success', 'failed', 'aborted'].contains(status) ? status : 'success',
-          dropdownColor: AppColors.surface,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          dropdownColor: colors.surface,
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Final Mission Outcome',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           items: const [
             DropdownMenuItem(value: 'success', child: Text('Success (Mission finished well)', overflow: TextOverflow.ellipsis)),
@@ -2959,17 +2960,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         TextFormField(
           initialValue: message,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Farewell / Summary Note',
             hintText: 'e.g. Mission completed successfully.',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           onChanged: (v) {
             widget.node.params['message'] = v;
@@ -2982,7 +2983,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           title: const Text('Drive to Charger Automatically', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
           subtitle: const Text('Robot will safely return to charging dock when this step finishes', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           value: dockOnEnd,
-          activeThumbColor: AppColors.primary,
+          activeThumbColor: colors.primary,
           onChanged: widget.readOnly
               ? null
               : (v) {
@@ -3016,18 +3017,18 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         TextFormField(
           initialValue: varName,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Repetition Counter Name (Optional)',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             helperText: 'Stores current repetition count (0, 1, 2...) for rules or messages',
             helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           onChanged: (v) {
             widget.node.params['variable_name'] = v.trim();
@@ -3037,19 +3038,19 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         const SizedBox(height: 12),
         TextFormField(
           initialValue: condition,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Stop Early Rule (Optional)',
             hintText: 'e.g. form.keep_going == true',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             helperText: 'If this rule becomes false, repeat stops early',
             helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           onChanged: (v) {
             widget.node.params['condition'] = v.trim();
@@ -3110,7 +3111,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: count == i ? const Color(0xFF00ACC1) : AppColors.surfaceSunken,
+                      color: count == i ? const Color(0xFF00ACC1) : colors.surfaceSunken,
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
                         color: count == i ? const Color(0xFF00ACC1) : AppColors.border,
@@ -3160,7 +3161,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           title: const Text('Must Be Plugged In to Charger', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
           subtitle: const Text('Robot must currently be docked and charging to pass this check', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           value: requireCharging,
-          activeThumbColor: AppColors.primary,
+          activeThumbColor: colors.primary,
           onChanged: widget.readOnly
               ? null
               : (v) {
@@ -3211,7 +3212,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSunken,
+              color: colors.surfaceSunken,
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
               border: Border.all(color: AppColors.border),
             ),
@@ -3226,7 +3227,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   margin: const EdgeInsets.only(bottom: 6),
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceSunken,
+                    color: colors.surfaceSunken,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: AppColors.border),
                   ),
@@ -3447,7 +3448,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         constraints: const BoxConstraints(maxHeight: 180),
         width: double.infinity,
         decoration: BoxDecoration(
-          color: AppColors.surfaceSunken,
+          color: colors.surfaceSunken,
           borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
           border: Border.all(color: AppColors.border),
         ),
@@ -3472,7 +3473,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               },
               errorBuilder: (_, __, ___) => Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                color: AppColors.surfaceSunken,
+                color: colors.surfaceSunken,
                 child: Row(
                   children: [
                     const Icon(Icons.broken_image_rounded, color: AppColors.warning, size: 26),
@@ -3549,7 +3550,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         // Mode selector: Robot Shared Library vs Custom URL
         Container(
           decoration: BoxDecoration(
-            color: AppColors.surfaceSunken,
+            color: colors.surfaceSunken,
             borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
             border: Border.all(color: AppColors.border),
           ),
@@ -3661,13 +3662,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  dropdownColor: AppColors.surface,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                  dropdownColor: colors.surface,
+                  style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
                   decoration: InputDecoration(
                     labelText: 'Select Robot File',
-                    labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
                     filled: true,
-                    fillColor: AppColors.surfaceSunken,
+                    fillColor: colors.surfaceSunken,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
                     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
@@ -3770,13 +3771,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                 child: TextFormField(
                   key: ValueKey('${widget.node.id}_url_${widget.node.params['url']}'),
                   initialValue: url,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
                   decoration: InputDecoration(
                     labelText: 'Custom Web Link or Media URL',
                     hintText: 'https://... or http://<robot>:8090/media/...',
-                    labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
                     filled: true,
-                    fillColor: AppColors.surfaceSunken,
+                    fillColor: colors.surfaceSunken,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
                     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
@@ -3870,17 +3871,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           key: ValueKey('${widget.node.id}_media_type_$mediaType'),
           isExpanded: true,
           initialValue: ['image', 'video', 'web_url'].contains(mediaType) ? mediaType : 'image',
-          dropdownColor: AppColors.surface,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          dropdownColor: colors.surface,
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'What kind of media to show?',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           items: const [
             DropdownMenuItem(value: 'image', child: Text('Photo / Image (PNG or JPG)', overflow: TextOverflow.ellipsis)),
@@ -3899,17 +3900,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           key: ValueKey('${widget.node.id}_media_target_$target'),
           isExpanded: true,
           initialValue: ['robot_screen', 'operator_app', 'both'].contains(target) ? target : 'robot_screen',
-          dropdownColor: AppColors.surface,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          dropdownColor: colors.surface,
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Where should this appear?',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           items: const [
             DropdownMenuItem(value: 'robot_screen', child: Text('Robot Screen (Touchscreen)', overflow: TextOverflow.ellipsis)),
@@ -3941,7 +3942,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           title: const Text('Show "Skip" or "Close" Button', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
           subtitle: const Text('Allows someone standing by the robot to dismiss the screen early', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           value: showSkip,
-          activeThumbColor: AppColors.primary,
+          activeThumbColor: colors.primary,
           onChanged: widget.readOnly
               ? null
               : (v) {
@@ -3988,17 +3989,17 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           key: ValueKey('${widget.node.id}_target_mission_$targetId'),
           isExpanded: true,
           initialValue: effectiveValue,
-          dropdownColor: AppColors.surface,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+          dropdownColor: colors.surface,
+          style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             labelText: 'Target Mission to Switch To',
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 12),
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           items: [
             for (final m in missions)
@@ -4049,7 +4050,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.surfaceSunken,
+            color: colors.surfaceSunken,
             borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
             border: Border.all(color: AppColors.border),
           ),
@@ -4067,7 +4068,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               ),
               Switch(
                 value: transferContext,
-                activeThumbColor: AppColors.primary,
+                activeThumbColor: colors.primary,
                 onChanged: widget.readOnly
                     ? null
                     : (val) {
@@ -4162,7 +4163,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             labelText: 'Target Screen',
             helperText: 'Where the embedded browser should appear',
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
           ),
           items: const [
@@ -4189,7 +4190,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             labelText: 'Auto-close Timeout (seconds)',
             helperText: '0 = Wait indefinitely until user taps the Close button',
             filled: true,
-            fillColor: AppColors.surfaceSunken,
+            fillColor: colors.surfaceSunken,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
             suffixText: 'sec',
           ),
@@ -4282,7 +4283,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           title: const Text('Wait Until Finished Speaking', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
           subtitle: const Text('Pauses the mission until the robot completely finishes talking', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           value: wait,
-          activeThumbColor: AppColors.primary,
+          activeThumbColor: colors.primary,
           onChanged: widget.readOnly
               ? null
               : (v) {
@@ -4402,7 +4403,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  backgroundColor: AppColors.surface,
+                  backgroundColor: colors.surface,
                   title: const Row(
                     children: [
                       Icon(Icons.check_circle_rounded, color: Colors.green, size: 22),
@@ -4545,7 +4546,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  backgroundColor: AppColors.surface,
+                  backgroundColor: colors.surface,
                   title: const Row(
                     children: [
                       Icon(Icons.check_circle_rounded, color: Colors.green, size: 22),
@@ -4592,9 +4593,9 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.08),
+            color: colors.primary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+            border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
           child: const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -4695,12 +4696,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       key: ValueKey('${widget.node.id}_mode_$mode'),
       isExpanded: true,
       initialValue: ['global_scan', 'dock_seed'].contains(mode) ? mode : 'global_scan',
-      dropdownColor: AppColors.surface,
+      dropdownColor: colors.surface,
       decoration: InputDecoration(
         labelText: 'How should the robot find its position?',
-        labelStyle: const TextStyle(color: AppColors.textSecondary),
+        labelStyle: TextStyle(color: colors.textSecondary),
         filled: true,
-        fillColor: AppColors.surfaceSunken,
+        fillColor: colors.surfaceSunken,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
       ),
@@ -4745,10 +4746,10 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     final sound = widget.node.params['sound_alert'] as bool? ?? true;
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      title: const Text('Sound Safety Alarm Buzzer', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-      subtitle: const Text('Beep the robot onboard alarm buzzer while emergency stop is active', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+      title: Text('Sound Safety Alarm Buzzer', style: TextStyle(color: colors.textPrimary, fontSize: 13)),
+      subtitle: Text('Beep the robot onboard alarm buzzer while emergency stop is active', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
       value: sound,
-      activeThumbColor: AppColors.primary,
+      activeThumbColor: colors.primary,
       onChanged: widget.readOnly ? null : (v) {
         setState(() => widget.node.params['sound_alert'] = v);
         widget.onChanged();
@@ -4762,12 +4763,12 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       key: ValueKey('${widget.node.id}_halt_$haltType'),
       isExpanded: true,
       initialValue: ['abort_goal', 'zero_vel'].contains(haltType) ? haltType : 'abort_goal',
-      dropdownColor: AppColors.surface,
+      dropdownColor: colors.surface,
       decoration: InputDecoration(
         labelText: 'How to stop navigation',
-        labelStyle: const TextStyle(color: AppColors.textSecondary),
+        labelStyle: TextStyle(color: colors.textSecondary),
         filled: true,
-        fillColor: AppColors.surfaceSunken,
+        fillColor: colors.surfaceSunken,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
       ),
@@ -4812,8 +4813,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-            Text(value.toStringAsFixed(1), style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
+            Text(label, style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+            Text(value.toStringAsFixed(1), style: TextStyle(color: colors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
           ],
         ),
         Slider(
@@ -4821,8 +4822,8 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
           min: min,
           max: max,
           divisions: divisions,
-          activeColor: AppColors.primary,
-          inactiveColor: AppColors.borderStrong,
+          activeColor: colors.primary,
+          inactiveColor: colors.borderStrong,
           onChanged: widget.readOnly ? null : onChanged,
         ),
       ],
@@ -4863,6 +4864,7 @@ class _VariableAwareTextField extends StatefulWidget {
 }
 
 class _VariableAwareTextFieldState extends State<_VariableAwareTextField> {
+  AppColorsTheme get colors => AppColors.of(context);
   late TextEditingController _controller;
   late FocusNode _focusNode;
 
@@ -4922,7 +4924,7 @@ class _VariableAwareTextFieldState extends State<_VariableAwareTextField> {
       enabled: widget.enabled,
       maxLines: widget.maxLines,
       keyboardType: widget.keyboardType,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+      style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
       onTap: () {
         widget.onFocus?.call(_controller, _focusNode, widget.onChanged);
       },
@@ -4934,18 +4936,18 @@ class _VariableAwareTextFieldState extends State<_VariableAwareTextField> {
         suffixIcon: widget.availableVariables.isNotEmpty && widget.enabled
             ? PopupMenuButton<String>(
                 tooltip: 'Insert Variable into ${widget.labelText}',
-                icon: const Icon(Icons.data_object, size: 16, color: AppColors.primary),
+                icon: Icon(Icons.data_object, size: 16, color: colors.primary),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(maxHeight: 280, maxWidth: 260),
-                color: AppColors.surfaceElevated,
+                color: colors.surfaceElevated,
                 onSelected: (varName) => _insertToken(varName),
                 itemBuilder: (ctx) => [
-                  const PopupMenuItem<String>(
+                  PopupMenuItem<String>(
                     enabled: false,
                     height: 24,
                     child: Text(
                       'INSERT VARIABLE',
-                      style: TextStyle(color: AppColors.textTertiary, fontSize: 9, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: colors.textTertiary, fontSize: 9, fontWeight: FontWeight.bold),
                     ),
                   ),
                   const PopupMenuDivider(height: 1),
@@ -4958,14 +4960,14 @@ class _VariableAwareTextFieldState extends State<_VariableAwareTextField> {
                           Icon(
                             v.isSystem ? Icons.memory : Icons.data_array,
                             size: 13,
-                            color: v.isSystem ? AppColors.textSecondary : AppColors.primary,
+                            color: v.isSystem ? colors.textSecondary : colors.primary,
                           ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               '{${v.name}}',
                               style: TextStyle(
-                                color: v.isSystem ? AppColors.textPrimary : AppColors.primary,
+                                color: v.isSystem ? colors.textPrimary : colors.primary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 fontFamily: 'monospace',
@@ -4977,10 +4979,10 @@ class _VariableAwareTextFieldState extends State<_VariableAwareTextField> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                               decoration: BoxDecoration(
-                                color: AppColors.surfaceSunken,
+                                color: colors.surfaceSunken,
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: const Text('SYS', style: TextStyle(fontSize: 8, color: AppColors.textTertiary)),
+                              child: Text('SYS', style: TextStyle(fontSize: 8, color: colors.textTertiary)),
                             ),
                         ],
                       ),
@@ -4988,11 +4990,11 @@ class _VariableAwareTextFieldState extends State<_VariableAwareTextField> {
                 ],
               )
             : null,
-        helperStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 10),
-        hintStyle: const TextStyle(color: AppColors.textTertiary),
+        helperStyle: TextStyle(color: colors.textTertiary, fontSize: 10),
+        hintStyle: TextStyle(color: colors.textTertiary),
         labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
         filled: true,
-        fillColor: AppColors.surfaceSunken,
+        fillColor: colors.surfaceSunken,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),

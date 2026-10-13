@@ -83,6 +83,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     return ip == null ? null : SdkApiService(ip);
   }
 
+  AppColorsTheme get colors => AppColors.of(context);
+
   void _setLandscapeOrientation() {
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
@@ -1078,7 +1080,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
       ),
@@ -1102,7 +1104,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
       ),
@@ -1125,7 +1127,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
       ),
@@ -1199,12 +1201,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       left: 12,
       right: 12,
       child: Card(
-        color: AppColors.surface,
+        color: colors.surface,
         elevation: 6,
-        shadowColor: AppColors.shadowTint.withValues(alpha: 0.18),
+        shadowColor: colors.shadowTint.withValues(alpha: 0.18),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: AppColors.primary, width: 1.5),
+          side: BorderSide(color: colors.primary, width: 1.5),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1294,15 +1296,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          backgroundColor: AppColors.surface,
+          backgroundColor: colors.surface,
           title: const Text('Rename Mission', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           content: TextField(
             controller: _nameController,
             autofocus: true,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'Mission Name',
               filled: true,
-              fillColor: AppColors.surfaceSunken,
+              fillColor: colors.surfaceSunken,
             ),
             onSubmitted: (val) {
               setState(() {
@@ -1350,12 +1352,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          backgroundColor: AppColors.surface,
+          backgroundColor: colors.surface,
           title: Row(
-            children: const [
-              Icon(Icons.map_outlined, color: AppColors.primary, size: 20),
-              SizedBox(width: 8),
-              Text('Select Mission Map', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            children: [
+              Icon(Icons.map_outlined, color: colors.primary, size: 20),
+              const SizedBox(width: 8),
+              const Text('Select Mission Map', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           content: SizedBox(
@@ -1514,11 +1516,11 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                               });
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  backgroundColor: AppColors.surface,
+                                  backgroundColor: colors.surface,
                                   behavior: SnackBarBehavior.floating,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-                                    side: const BorderSide(color: AppColors.border, width: 1.2),
+                                    side: BorderSide(color: colors.border, width: 1.2),
                                   ),
                                   elevation: 6,
                                   content: Row(
@@ -1526,17 +1528,17 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                                       Container(
                                         padding: const EdgeInsets.all(6),
                                         decoration: BoxDecoration(
-                                          color: AppColors.primary.withValues(alpha: 0.1),
+                                          color: colors.primary.withValues(alpha: 0.1),
                                           borderRadius: BorderRadius.circular(8),
                                         ),
-                                        child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 18),
+                                        child: Icon(Icons.auto_awesome, color: colors.primary, size: 18),
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Text(
                                           'Workflow generated: "${newGraph.name}" (${newGraph.nodes.length} nodes, ${newGraph.edges.length} edges).',
-                                          style: const TextStyle(
-                                            color: AppColors.textPrimary,
+                                          style: TextStyle(
+                                            color: colors.textPrimary,
                                             fontSize: 13,
                                             fontWeight: FontWeight.w600,
                                           ),
@@ -1563,12 +1565,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                                   height: 38,
                                   padding: const EdgeInsets.symmetric(horizontal: 12),
                                   decoration: BoxDecoration(
-                                    color: AppColors.surface,
+                                    color: colors.surface,
                                     borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.45), width: 1.2),
+                                    border: Border.all(color: colors.primary.withValues(alpha: 0.45), width: 1.2),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppColors.shadowTint.withValues(alpha: 0.12),
+                                        color: colors.shadowTint.withValues(alpha: 0.12),
                                         blurRadius: 10,
                                         offset: const Offset(0, 3),
                                       ),
@@ -1576,13 +1578,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
-                                    children: const [
-                                      Icon(Icons.add_rounded, color: AppColors.primary, size: 18),
-                                      SizedBox(width: 4),
+                                    children: [
+                                      Icon(Icons.add_rounded, color: colors.primary, size: 18),
+                                      const SizedBox(width: 4),
                                       Text(
                                         'Add Node',
                                         style: TextStyle(
-                                          color: AppColors.primary,
+                                          color: colors.primary,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 12,
                                         ),
@@ -1616,15 +1618,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
     if (isCompact) {
       return AppBar(
         toolbarHeight: 40,
-        backgroundColor: AppColors.surface,
+        backgroundColor: colors.surface,
         elevation: 0,
         scrolledUnderElevation: 0.5,
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1),
-          child: Divider(height: 1, thickness: 1, color: AppColors.border),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, thickness: 1, color: colors.border),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back, color: colors.textPrimary),
           onPressed: () {
             _restoreAllOrientations();
             Navigator.of(context).pop();
@@ -1634,7 +1636,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.account_tree_outlined, color: AppColors.primary, size: 20),
+            Icon(Icons.account_tree_outlined, color: colors.primary, size: 20),
             const SizedBox(width: 6),
             Flexible(
               child: InkWell(
@@ -1730,9 +1732,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             ),
           const SizedBox(width: 2),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
+            icon: Icon(Icons.more_vert, color: colors.textPrimary),
             tooltip: 'More actions',
-            color: AppColors.surface,
+            color: colors.surface,
             onSelected: (val) {
               switch (val) {
                 case 'map':
@@ -1755,7 +1757,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   final validation = _validateGraph();
                   if (validation.isValid) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Graph structure is valid!'), backgroundColor: AppColors.success),
+                      SnackBar(content: const Text('Graph structure is valid!'), backgroundColor: colors.success),
                     );
                   } else {
                     _showValidationDialog(
@@ -1778,7 +1780,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 value: 'map',
                 child: Row(
                   children: [
-                    const Icon(Icons.map_outlined, size: 18, color: AppColors.textSecondary),
+                    Icon(Icons.map_outlined, size: 18, color: colors.textSecondary),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -1790,23 +1792,23 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'auto_align',
                 child: Row(
                   children: [
-                    Icon(Icons.auto_fix_high_rounded, size: 18, color: AppColors.primary),
-                    SizedBox(width: 10),
-                    Text('Auto-Align Layout', style: TextStyle(fontSize: 13)),
+                    Icon(Icons.auto_fix_high_rounded, size: 18, color: colors.primary),
+                    const SizedBox(width: 10),
+                    const Text('Auto-Align Layout', style: TextStyle(fontSize: 13)),
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'validate',
                 child: Row(
                   children: [
-                    Icon(Icons.verified_outlined, size: 18, color: AppColors.textSecondary),
-                    SizedBox(width: 10),
-                    Text('Validate Graph', style: TextStyle(fontSize: 13)),
+                    Icon(Icons.verified_outlined, size: 18, color: colors.textSecondary),
+                    const SizedBox(width: 10),
+                    const Text('Validate Graph', style: TextStyle(fontSize: 13)),
                   ],
                 ),
               ),
@@ -1821,13 +1823,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 ),
               ),
               if (widget.existingMission != null)
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'delete',
                   child: Row(
                     children: [
-                      Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.danger),
-                      SizedBox(width: 10),
-                      Text('Delete Mission', style: TextStyle(fontSize: 13, color: AppColors.danger)),
+                      Icon(Icons.delete_outline_rounded, size: 18, color: colors.danger),
+                      const SizedBox(width: 10),
+                      Text('Delete Mission', style: TextStyle(fontSize: 13, color: colors.danger)),
                     ],
                   ),
                 ),
@@ -1840,15 +1842,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
     return AppBar(
       toolbarHeight: 46,
-      backgroundColor: AppColors.surface,
+      backgroundColor: colors.surface,
       elevation: 0,
       scrolledUnderElevation: 0.5,
-      bottom: const PreferredSize(
-        preferredSize: Size.fromHeight(1),
-        child: Divider(height: 1, thickness: 1, color: AppColors.border),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Divider(height: 1, thickness: 1, color: colors.border),
       ),
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+        icon: Icon(Icons.arrow_back, color: colors.textPrimary),
         onPressed: () {
           _restoreAllOrientations();
           Navigator.of(context).pop();
@@ -1856,7 +1858,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       ),
       title: Row(
         children: [
-          const Icon(Icons.account_tree_outlined, color: AppColors.primary, size: 22),
+          Icon(Icons.account_tree_outlined, color: colors.primary, size: 22),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -1941,21 +1943,21 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                         ),
                         decoration: InputDecoration(
                           hintText: 'Mission Name',
-                          hintStyle: const TextStyle(color: AppColors.textTertiary),
+                          hintStyle: TextStyle(color: colors.textTertiary),
                           filled: true,
-                          fillColor: AppColors.surfaceSunken,
+                          fillColor: colors.surfaceSunken,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(6),
-                            borderSide: const BorderSide(color: AppColors.primary),
+                            borderSide: BorderSide(color: colors.primary),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(6),
-                            borderSide: const BorderSide(color: AppColors.primary),
+                            borderSide: BorderSide(color: colors.primary),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(6),
-                            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                            borderSide: BorderSide(color: colors.primary, width: 1.5),
                           ),
                         ),
                         onSubmitted: (val) {
@@ -1969,7 +1971,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     ),
                     const SizedBox(width: 4),
                     IconButton(
-                      icon: const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 22),
+                      icon: Icon(Icons.check_circle_rounded, color: colors.success, size: 22),
                       tooltip: 'Save Name',
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -1989,19 +1991,19 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSunken,
+              color: colors.surfaceSunken,
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.border),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.map_outlined, size: 15, color: AppColors.textSecondary),
+                Icon(Icons.map_outlined, size: 15, color: colors.textSecondary),
                 const SizedBox(width: 6),
-                const Text(
+                Text(
                   'Map:',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: colors.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -2024,9 +2026,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
                       return DropdownButton<String>(
                         value: selectedMap,
-                        dropdownColor: AppColors.surface,
-                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
-                        hint: const Text('Select Map', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        dropdownColor: colors.surface,
+                        style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                        hint: Text('Select Map', style: TextStyle(color: colors.textSecondary, fontSize: 12)),
                         items: [
                           for (final m in mapList)
                             DropdownMenuItem(value: m, child: Text(m)),
@@ -2196,11 +2198,11 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           style: FilledButton.styleFrom(
             minimumSize: const Size(0, 36),
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            backgroundColor: AppColors.surfaceSunken,
-            foregroundColor: AppColors.textPrimary,
+            backgroundColor: colors.surfaceSunken,
+            foregroundColor: colors.textPrimary,
           ),
           icon: _saving
-              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+              ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: colors.primary))
               : const Icon(Icons.save_outlined, size: 18),
           label: const Text('Save'),
           onPressed: _saving ? null : _saveMission,
@@ -2213,7 +2215,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             style: FilledButton.styleFrom(
               minimumSize: const Size(0, 36),
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              backgroundColor: AppColors.danger,
+              backgroundColor: colors.danger,
               foregroundColor: Colors.white,
             ),
             icon: const Icon(Icons.stop_rounded, size: 18),
@@ -2225,8 +2227,8 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             style: FilledButton.styleFrom(
               minimumSize: const Size(0, 36),
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.textOnPrimary,
+              backgroundColor: colors.primary,
+              foregroundColor: colors.textOnPrimary,
             ),
             icon: const Icon(Icons.play_arrow_rounded, size: 18),
             label: const Text('Execute Graph'),
@@ -2317,9 +2319,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   Widget _buildLeftSidebar() {
     return Container(
       width: 320,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(right: BorderSide(color: AppColors.border, width: 1.0)),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(right: BorderSide(color: colors.border, width: 1.0)),
       ),
       child: _buildLeftSidebarContent(isModal: false),
     );
@@ -2333,16 +2335,16 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         if (isModal)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: AppColors.border)),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: colors.border)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.widgets_outlined, color: AppColors.primary, size: 20),
+                Icon(Icons.widgets_outlined, color: colors.primary, size: 20),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   'Add Node & Variables',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: colors.textPrimary),
                 ),
                 const Spacer(),
                 IconButton(
@@ -2356,15 +2358,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         // Segmented Tab Switcher (Node Library vs Variables)
         Container(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: AppColors.border)),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: colors.border)),
           ),
           child: Container(
             padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSunken,
+              color: colors.surfaceSunken,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.border),
             ),
             child: Row(
               children: [
@@ -2376,7 +2378,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: BoxDecoration(
-                        color: _leftTabIndex == 0 ? AppColors.surface : Colors.transparent,
+                        color: _leftTabIndex == 0 ? colors.surface : Colors.transparent,
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: _leftTabIndex == 0
                             ? [
@@ -2394,13 +2396,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                           Icon(
                             Icons.widgets_outlined,
                             size: 16,
-                            color: _leftTabIndex == 0 ? AppColors.primary : AppColors.textSecondary,
+                            color: _leftTabIndex == 0 ? colors.primary : colors.textSecondary,
                           ),
                           const SizedBox(width: 6),
                           Text(
                             'Node Library',
                             style: TextStyle(
-                              color: _leftTabIndex == 0 ? AppColors.textPrimary : AppColors.textSecondary,
+                              color: _leftTabIndex == 0 ? colors.textPrimary : colors.textSecondary,
                               fontWeight: _leftTabIndex == 0 ? FontWeight.bold : FontWeight.w600,
                               fontSize: 12,
                             ),
@@ -2419,7 +2421,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: BoxDecoration(
-                        color: _leftTabIndex == 1 ? AppColors.surface : Colors.transparent,
+                        color: _leftTabIndex == 1 ? colors.surface : Colors.transparent,
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: _leftTabIndex == 1
                             ? [
@@ -2437,13 +2439,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                           Icon(
                             Icons.data_object_rounded,
                             size: 16,
-                            color: _leftTabIndex == 1 ? const Color(0xFF9333EA) : AppColors.textSecondary,
+                            color: _leftTabIndex == 1 ? const Color(0xFF9333EA) : colors.textSecondary,
                           ),
                           const SizedBox(width: 6),
                           Text(
                             'Variables',
                             style: TextStyle(
-                              color: _leftTabIndex == 1 ? AppColors.textPrimary : AppColors.textSecondary,
+                              color: _leftTabIndex == 1 ? colors.textPrimary : colors.textSecondary,
                               fontWeight: _leftTabIndex == 1 ? FontWeight.bold : FontWeight.w600,
                               fontSize: 12,
                             ),
@@ -2525,19 +2527,19 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                     )
                   : null,
               filled: true,
-              fillColor: AppColors.surfaceSunken,
+              fillColor: colors.surfaceSunken,
               contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                borderSide: const BorderSide(color: AppColors.border),
+                borderSide: BorderSide(color: colors.border),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                borderSide: const BorderSide(color: AppColors.border),
+                borderSide: BorderSide(color: colors.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                borderSide: BorderSide(color: colors.primary, width: 1.5),
               ),
             ),
           ),
@@ -2553,11 +2555,11 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.search_off_rounded, size: 36, color: AppColors.textTertiary),
+                            Icon(Icons.search_off_rounded, size: 36, color: colors.textTertiary),
                             const SizedBox(height: 8),
                             Text(
                               'No blocks matching "$query"',
-                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                              style: TextStyle(color: colors.textSecondary, fontSize: 12),
                             ),
                           ],
                         ),
@@ -2570,7 +2572,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                           padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
                           child: Text(
                             'SEARCH RESULTS (${filteredItems.length})',
-                            style: const TextStyle(color: AppColors.textTertiary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                            style: TextStyle(color: colors.textTertiary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
                           ),
                         ),
                         for (final item in filteredItems) _buildPaletteCard(item, isModal: isModal),
@@ -2600,7 +2602,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           padding: const EdgeInsets.fromLTRB(6, 12, 6, 6),
           child: Text(
             title.toUpperCase(),
-            style: const TextStyle(color: AppColors.textTertiary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+            style: TextStyle(color: colors.textTertiary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
           ),
         ),
         for (final item in items) _buildPaletteCard(item, isModal: isModal),
@@ -2613,9 +2615,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
       margin: const EdgeInsets.symmetric(vertical: 2.5),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
+        color: colors.surfaceElevated,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: colors.border),
       ),
       child: Row(
         children: [
@@ -2632,12 +2634,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
-                Text(item.subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                Text(item.title, style: TextStyle(color: colors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+                Text(item.subtitle, style: TextStyle(color: colors.textSecondary, fontSize: 10)),
               ],
             ),
           ),
-          const Icon(Icons.add_rounded, size: 18, color: AppColors.textTertiary),
+          Icon(Icons.add_rounded, size: 18, color: colors.textTertiary),
         ],
       ),
     );
@@ -2659,7 +2661,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         }
       },
       borderRadius: BorderRadius.circular(10),
-      hoverColor: AppColors.surfaceSunken,
+      hoverColor: colors.surfaceSunken,
       child: _buildPaletteCardContent(item),
     );
 
@@ -2679,7 +2681,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           width: 210,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: colors.surface,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: item.color, width: 2),
             boxShadow: [
@@ -2709,12 +2711,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   children: [
                     Text(
                       item.title,
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       item.subtitle,
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                      style: TextStyle(color: colors.textSecondary, fontSize: 10),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -2782,19 +2784,19 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                           )
                         : null,
                     filled: true,
-                    fillColor: AppColors.surfaceSunken,
+                    fillColor: colors.surfaceSunken,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                      borderSide: const BorderSide(color: AppColors.border),
+                      borderSide: BorderSide(color: colors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                      borderSide: const BorderSide(color: AppColors.border),
+                      borderSide: BorderSide(color: colors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                      borderSide: BorderSide(color: colors.primary, width: 1.5),
                     ),
                   ),
                 ),
@@ -2841,15 +2843,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceSunken,
+                    color: colors.surfaceSunken,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+                    border: Border.all(color: colors.border.withValues(alpha: 0.6)),
                   ),
                   child: Column(
                     children: [
-                      const Text(
+                      Text(
                         'No custom variables defined yet.',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w500),
+                        style: TextStyle(color: colors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w500),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 6),
@@ -2883,15 +2885,15 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceSunken,
+                    color: colors.surfaceSunken,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+                    border: Border.all(color: colors.border.withValues(alpha: 0.6)),
                   ),
                   child: Column(
                     children: [
-                      const Text(
+                      Text(
                         'No step variables detected in graph.',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w500),
+                        style: TextStyle(color: colors.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w500),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 6),
@@ -2929,31 +2931,31 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated,
+                  color: colors.surfaceElevated,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: colors.border),
                 ),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.lightbulb_outline_rounded, size: 16, color: Color(0xFFEAB308)),
-                        SizedBox(width: 6),
+                        const Icon(Icons.lightbulb_outline_rounded, size: 16, color: Color(0xFFEAB308)),
+                        const SizedBox(width: 6),
                         Text(
                           'HOW TO USE VARIABLES',
-                          style: TextStyle(color: AppColors.textPrimary, fontSize: 10.5, fontWeight: FontWeight.bold, letterSpacing: 0.6),
+                          style: TextStyle(color: colors.textPrimary, fontSize: 10.5, fontWeight: FontWeight.bold, letterSpacing: 0.6),
                         ),
                       ],
                     ),
-                    SizedBox(height: 6),
+                    const SizedBox(height: 6),
                     Text(
                       'Wrap any variable name in curly braces to inject it into any field:\n'
                       '• Voice Speech: "Hello {guest_name}!"\n'
                       '• Screen Form: Room {target_room}\n'
                       '• Web URL: /status?batt={battery_pct}\n'
                       '• Condition: {battery_pct} < 20',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.45),
+                      style: TextStyle(color: colors.textSecondary, fontSize: 11, height: 1.45),
                     ),
                   ],
                 ),
@@ -2986,9 +2988,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
+        color: colors.surfaceElevated,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3015,18 +3017,18 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceSunken,
+                  color: colors.surfaceSunken,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   valType.toUpperCase(),
-                  style: const TextStyle(color: AppColors.textTertiary, fontSize: 9.5, fontWeight: FontWeight.w700),
+                  style: TextStyle(color: colors.textTertiary, fontSize: 9.5, fontWeight: FontWeight.w700),
                 ),
               ),
               const Spacer(),
               // Copy Button
               IconButton(
-                icon: const Icon(Icons.copy_rounded, size: 15, color: AppColors.textSecondary),
+                icon: Icon(Icons.copy_rounded, size: 15, color: colors.textSecondary),
                 tooltip: 'Copy {$key}',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -3259,11 +3261,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) {
+          final colors = AppColors.of(ctx);
           return AlertDialog(
-            backgroundColor: AppColors.surface,
+            backgroundColor: colors.surface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-              side: const BorderSide(color: AppColors.border),
+              side: BorderSide(color: colors.border),
             ),
             title: Row(
               children: [
@@ -3271,7 +3274,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 const SizedBox(width: 10),
                 Text(
                   initialKey != null ? 'Edit Variable' : 'New Mission Variable',
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -3281,45 +3284,45 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Variable Name (Key)',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 6),
                   TextField(
                     controller: keyController,
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontFamily: 'monospace'),
+                    style: TextStyle(color: colors.textPrimary, fontSize: 13, fontFamily: 'monospace'),
                     decoration: InputDecoration(
                       hintText: 'e.g. guest_name, target_room, retry_count',
-                      hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                      hintStyle: TextStyle(color: colors.textTertiary, fontSize: 12),
                       filled: true,
-                      fillColor: AppColors.surfaceSunken,
+                      fillColor: colors.surfaceSunken,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
                     ),
                   ),
                   const SizedBox(height: 14),
 
-                  const Text(
+                  Text(
                     'Data Type',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSunken,
+                      color: colors.surfaceSunken,
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                      border: Border.all(color: AppColors.border),
+                      border: Border.all(color: colors.border),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         isExpanded: true,
                         value: selectedType,
-                        dropdownColor: AppColors.surface,
-                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                        dropdownColor: colors.surface,
+                        style: TextStyle(color: colors.textPrimary, fontSize: 13),
                         items: const [
                           DropdownMenuItem(value: 'string', child: Text('Text (String)')),
                           DropdownMenuItem(value: 'number', child: Text('Number (Integer / Decimal)')),
@@ -3335,45 +3338,45 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  const Text(
+                  Text(
                     'Default / Initial Value',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 6),
                   TextField(
                     controller: valController,
                     keyboardType: selectedType == 'number' ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                    style: TextStyle(color: colors.textPrimary, fontSize: 13),
                     decoration: InputDecoration(
                       hintText: selectedType == 'boolean' ? 'true or false' : (selectedType == 'number' ? '0' : 'Default text...'),
-                      hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                      hintStyle: TextStyle(color: colors.textTertiary, fontSize: 12),
                       filled: true,
-                      fillColor: AppColors.surfaceSunken,
+                      fillColor: colors.surfaceSunken,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
                     ),
                   ),
                   const SizedBox(height: 14),
 
-                  const Text(
+                  Text(
                     'Description / Note (Optional)',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 6),
                   TextField(
                     controller: descController,
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                    style: TextStyle(color: colors.textPrimary, fontSize: 13),
                     decoration: InputDecoration(
                       hintText: 'What is this variable used for?',
-                      hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                      hintStyle: TextStyle(color: colors.textTertiary, fontSize: 12),
                       filled: true,
-                      fillColor: AppColors.surfaceSunken,
+                      fillColor: colors.surfaceSunken,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
                     ),
                   ),
                 ],
@@ -3382,7 +3385,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+                child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
               ),
               FilledButton(
                 style: FilledButton.styleFrom(
@@ -3448,32 +3451,35 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   void _deleteVariable(String key) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Delete Variable?', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
-        content: Text('Are you sure you want to delete variable "{$key}"? Steps referencing this variable might fail.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              final vars = Map<String, dynamic>.from(_graph.initialVariables);
-              vars.remove(key);
-              setState(() {
-                _graph.initialVariables = vars;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Variable {$key} removed'), backgroundColor: AppColors.danger),
-              );
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        final colors = AppColors.of(ctx);
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text('Delete Variable?', style: TextStyle(color: colors.textPrimary, fontSize: 16)),
+          content: Text('Are you sure you want to delete variable "{$key}"? Steps referencing this variable might fail.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                final vars = Map<String, dynamic>.from(_graph.initialVariables);
+                vars.remove(key);
+                setState(() {
+                  _graph.initialVariables = vars;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Variable {$key} removed'), backgroundColor: AppColors.danger),
+                );
+              },
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -3494,11 +3500,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   }
 
   Widget _buildRightSidebar(GraphNode? selectedNode) {
+    final colors = AppColors.of(context);
     return Container(
       width: 320,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(left: BorderSide(color: AppColors.border, width: 1.0)),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(left: BorderSide(color: colors.border, width: 1.0)),
       ),
       child: selectedNode != null
           ? Column(
@@ -3516,9 +3523,9 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 ),
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: const BoxDecoration(
-                    color: AppColors.surfaceSunken,
-                    border: Border(top: BorderSide(color: AppColors.border)),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceSunken,
+                    border: Border(top: BorderSide(color: colors.border)),
                   ),
                   child: Row(
                     children: [
@@ -3541,7 +3548,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                         tooltip: 'Set as Entrypoint',
                         icon: Icon(
                           _graph.entrypoint == selectedNode.id ? Icons.flag : Icons.outlined_flag,
-                          color: AppColors.primary,
+                          color: colors.primary,
                         ),
                         onPressed: () {
                           setState(() {
@@ -3559,6 +3566,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   }
 
   Widget _buildEdgeInspector(GraphEdge edge) {
+    final colors = AppColors.of(context);
     final fromNode = _graph.nodes.firstWhere(
       (n) => n.id == edge.fromNode,
       orElse: () => GraphNode(id: edge.fromNode, type: 'unknown', position: Offset.zero),
@@ -3577,19 +3585,19 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.alt_route, size: 20, color: AppColors.primary),
+              Icon(Icons.alt_route, size: 20, color: colors.primary),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'Connection Line',
                 style: TextStyle(
-                  color: AppColors.textPrimary,
+                  color: colors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.close, size: 18, color: AppColors.textSecondary),
+                icon: Icon(Icons.close, size: 18, color: colors.textSecondary),
                 tooltip: 'Deselect line',
                 onPressed: () => setState(() => _selectedEdge = null),
               ),
@@ -3599,39 +3607,39 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSunken,
+              color: colors.surfaceSunken,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'SOURCE STEP (OUT)',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   fromName,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
                 ),
                 Text(
                   'Port: ${edge.fromPort}',
-                  style: const TextStyle(color: AppColors.primary, fontSize: 11),
+                  style: TextStyle(color: colors.primary, fontSize: 11),
                 ),
                 const SizedBox(height: 12),
-                const Center(
-                  child: Icon(Icons.south, size: 18, color: AppColors.textSecondary),
+                Center(
+                  child: Icon(Icons.south, size: 18, color: colors.textSecondary),
                 ),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   'TARGET STEP (IN)',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   toName,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
                 ),
                 Text(
                   'Port: ${edge.toPort}',
@@ -3666,12 +3674,13 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   }
 
   Widget _buildGraphOverview() {
+    final colors = AppColors.of(context);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('MISSION OVERVIEW', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.6)),
+          Text('MISSION OVERVIEW', style: TextStyle(color: colors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.6)),
           const SizedBox(height: 16),
 
           _buildStatCard('Total Nodes', '${_graph.nodes.length}', Icons.grid_view),
@@ -3679,7 +3688,7 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           _buildStatCard('Total Connections', '${_graph.edges.length}', Icons.alt_route),
           const SizedBox(height: 16),
 
-          const Text('Entrypoint Node', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text('Entrypoint Node', style: TextStyle(color: colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Builder(
             builder: (context) {
@@ -3699,17 +3708,17 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                 key: ValueKey('entrypoint_${validEntrypoint}_${_graph.nodes.length}'),
                 isExpanded: true,
                 initialValue: validEntrypoint,
-                dropdownColor: AppColors.surface,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
+                dropdownColor: colors.surface,
+                style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: AppColors.surfaceSunken,
+                  fillColor: colors.surfaceSunken,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.border)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.border)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
                 ),
-                hint: const Text('No entrypoint selected', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                hint: Text('No entrypoint selected', style: TextStyle(color: colors.textSecondary, fontSize: 12)),
                 items: [
                   for (final n in _graph.nodes)
                     DropdownMenuItem(
@@ -3726,16 +3735,16 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
           ),
           const SizedBox(height: 20),
 
-          const Divider(color: AppColors.border),
+          Divider(color: colors.border),
           const SizedBox(height: 10),
-          const Text('TIPS', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.6)),
+          Text('TIPS', style: TextStyle(color: colors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.6)),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             '• Drag from any output port circle to an input port circle to create a connection wire.\n'
             '• Click on any connection wire to delete it.\n'
             '• Pan the canvas using mouse drag or scroll wheel.\n'
             '• Use the Node Library on the left to add new action blocks.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
+            style: TextStyle(color: colors.textSecondary, fontSize: 12, height: 1.4),
           ),
         ],
       ),
@@ -3743,20 +3752,21 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
   }
 
   Widget _buildStatCard(String label, String value, IconData icon) {
+    final colors = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSunken,
+        color: colors.surfaceSunken,
         borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: colors.border),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: AppColors.primary),
+          Icon(icon, size: 20, color: colors.primary),
           const SizedBox(width: 12),
-          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          Text(label, style: TextStyle(color: colors.textSecondary, fontSize: 12)),
           const Spacer(),
-          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(value, style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
         ],
       ),
     );

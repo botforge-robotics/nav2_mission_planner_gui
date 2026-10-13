@@ -121,6 +121,7 @@ class _NotLocalizedBannerState extends State<NotLocalizedBanner> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return ValueListenableBuilder<bool>(
       valueListenable: dockLocalizeDismissed,
       builder: (context, dismissed, _) {
@@ -129,9 +130,9 @@ class _NotLocalizedBannerState extends State<NotLocalizedBanner> {
           padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
           decoration: BoxDecoration(
-            color: AppColors.surface.withValues(alpha: 0.96),
+            color: colors.surface.withValues(alpha: 0.96),
             borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: colors.border),
             boxShadow: [
               BoxShadow(
                   color: Colors.black.withValues(alpha: 0.12),

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
 import 'package:ros2_msg_utils/ros2_msg_utils.dart';
@@ -170,34 +171,61 @@ class _ApiTabState extends State<_ApiTab> {
               const SizedBox(height: AppSpacing.lg),
               Row(
                 children: [
-                  Text('Response',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text('Response Payload',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          )),
                   const Spacer(),
                   if (_status != null)
-                    Chip(
-                      label: Text(_status == 0 ? 'NO RESPONSE' : '$_status'),
-                      backgroundColor:
-                          (_status != null && _status! >= 200 && _status! < 300
-                                  ? AppColors.success
-                                  : AppColors.danger)
-                              .withValues(alpha: 0.12),
-                      side: BorderSide.none,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: (_status != null && _status! >= 200 && _status! < 300
+                                ? AppColors.success
+                                : AppColors.danger)
+                            .withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        _status == 0 ? 'NO RESPONSE' : 'HTTP $_status',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: _status != null && _status! >= 200 && _status! < 300
+                              ? AppColors.success
+                              : AppColors.danger,
+                        ),
+                      ),
                     ),
+                  const SizedBox(width: AppSpacing.sm),
+                  IconButton(
+                    icon: const Icon(Icons.copy_rounded, size: 18),
+                    tooltip: 'Copy response',
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: _responseText!));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Response copied to clipboard')),
+                      );
+                    },
+                  ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.xs),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: AppColors.background,
+                  color: AppColors.of(context).surfaceSunken,
                   borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: AppColors.of(context).border),
                 ),
                 child: SelectableText(
                   _responseText!,
-                  style:
-                      const TextStyle(fontFamily: 'monospace', fontSize: 12.5),
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12.5,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
               ),
             ],

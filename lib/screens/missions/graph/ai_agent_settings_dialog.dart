@@ -309,21 +309,22 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Dialog(
-      backgroundColor: AppColors.surface,
+      backgroundColor: colors.surface,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-        side: const BorderSide(color: AppColors.border, width: 1.2),
+        side: BorderSide(color: colors.border, width: 1.2),
       ),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
         child: _loading
-            ? const Padding(
-                padding: EdgeInsets.all(48),
+            ? Padding(
+                padding: const EdgeInsets.all(48),
                 child: Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
+                  child: CircularProgressIndicator(color: colors.primary),
                 ),
               )
             : Column(
@@ -333,10 +334,10 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                   // Header
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    decoration: const BoxDecoration(
-                      color: AppColors.surfaceElevated,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
-                      border: Border(bottom: BorderSide(color: AppColors.border)),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceElevated,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
+                      border: Border(bottom: BorderSide(color: colors.border)),
                     ),
                     child: Row(
                       children: [
@@ -344,31 +345,31 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           width: 36,
                           height: 36,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.1),
+                            color: colors.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.psychology_outlined, color: AppColors.primary, size: 20),
+                          child: Icon(Icons.psychology_outlined, color: colors.primary, size: 20),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
-                            children: const [
+                            children: [
                               Text(
                                 'AI Workflow Assistant Settings (Preview)',
                                 style: TextStyle(
-                                  color: AppColors.textPrimary,
+                                  color: colors.textPrimary,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: -0.2,
                                 ),
                               ),
-                              SizedBox(height: 1),
+                              const SizedBox(height: 1),
                               Text(
                                 'Preview version: Configure LLM credentials & voice models (workflows may need manual adjustments)',
                                 style: TextStyle(
-                                  color: AppColors.textSecondary,
+                                  color: colors.textSecondary,
                                   fontSize: 12,
                                 ),
                               ),
@@ -376,7 +377,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close, color: AppColors.textSecondary, size: 20),
+                          icon: Icon(Icons.close, color: colors.textSecondary, size: 20),
                           splashRadius: 18,
                           onPressed: () => Navigator.of(context).pop(),
                         ),
@@ -393,10 +394,10 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           // Provider Dropdown
-                          const Text(
+                          Text(
                             'AI Provider',
                             style: TextStyle(
-                              color: AppColors.textPrimary,
+                              color: colors.textPrimary,
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -405,16 +406,16 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14),
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceSunken,
+                              color: colors.surfaceSunken,
                               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                              border: Border.all(color: AppColors.border),
+                              border: Border.all(color: colors.border),
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<AiProvider>(
                                 value: _provider,
                                 isExpanded: true,
-                                dropdownColor: AppColors.surface,
-                                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5),
+                                dropdownColor: colors.surface,
+                                style: TextStyle(color: colors.textPrimary, fontSize: 13.5),
                                 onChanged: _onProviderChanged,
                                 items: AiProvider.values.map((p) {
                                   return DropdownMenuItem<AiProvider>(
@@ -428,7 +429,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                                   ? Icons.tune_rounded
                                                   : Icons.cloud_queue_rounded),
                                           size: 16,
-                                          color: p.isLocal ? AppColors.accent : AppColors.primary,
+                                          color: p.isLocal ? colors.accent : colors.primary,
                                         ),
                                         const SizedBox(width: 8),
                                         Text(p.displayName),
@@ -444,10 +445,10 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           // Model Name Input + Suggestion Chips
                           Row(
                             children: [
-                              const Text(
+                              Text(
                                 'Model Name',
                                 style: TextStyle(
-                                  color: AppColors.textPrimary,
+                                  color: colors.textPrimary,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -455,31 +456,31 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                               const Spacer(),
                               Text(
                                 '${_provider.displayName} models',
-                                style: const TextStyle(color: AppColors.textTertiary, fontSize: 11),
+                                style: TextStyle(color: colors.textTertiary, fontSize: 11),
                               ),
                             ],
                           ),
                           const SizedBox(height: 8),
                           TextField(
                             controller: _modelController,
-                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5),
+                            style: TextStyle(color: colors.textPrimary, fontSize: 13.5),
                             decoration: InputDecoration(
                               filled: true,
-                              fillColor: AppColors.surfaceSunken,
+                              fillColor: colors.surfaceSunken,
                               hintText: 'e.g. ${_provider.defaultModels.first}',
-                              hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                              hintStyle: TextStyle(color: colors.textTertiary, fontSize: 13),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                borderSide: const BorderSide(color: AppColors.border),
+                                borderSide: BorderSide(color: colors.border),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                borderSide: const BorderSide(color: AppColors.border),
+                                borderSide: BorderSide(color: colors.border),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                                borderSide: BorderSide(color: colors.primary, width: 1.5),
                               ),
                             ),
                           ),
@@ -497,18 +498,18 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
                                     color: isSelected
-                                        ? AppColors.primary.withValues(alpha: 0.1)
-                                        : AppColors.surfaceSunken,
+                                        ? colors.primary.withValues(alpha: 0.1)
+                                        : colors.surfaceSunken,
                                     borderRadius: BorderRadius.circular(6),
                                     border: Border.all(
-                                      color: isSelected ? AppColors.primary : AppColors.border,
+                                      color: isSelected ? colors.primary : colors.border,
                                       width: isSelected ? 1.2 : 1.0,
                                     ),
                                   ),
                                   child: Text(
                                     m,
                                     style: TextStyle(
-                                      color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                                      color: isSelected ? colors.primary : colors.textSecondary,
                                       fontSize: 11,
                                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                     ),
@@ -522,20 +523,20 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           // API Key Input
                           Row(
                             children: [
-                              const Text(
+                              Text(
                                 'API Key',
                                 style: TextStyle(
-                                  color: AppColors.textPrimary,
+                                  color: colors.textPrimary,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                               if (_provider.isLocal)
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 6),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 6),
                                   child: Text(
                                     '(Optional for local runner)',
-                                    style: TextStyle(color: AppColors.textTertiary, fontSize: 11.5),
+                                    style: TextStyle(color: colors.textTertiary, fontSize: 11.5),
                                   ),
                                 ),
                             ],
@@ -544,21 +545,21 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           TextField(
                             controller: _apiKeyController,
                             obscureText: _obscureApiKey,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
+                            style: TextStyle(
+                              color: colors.textPrimary,
                               fontSize: 13.5,
                               letterSpacing: 1.1,
                             ),
                             decoration: InputDecoration(
                               filled: true,
-                              fillColor: AppColors.surfaceSunken,
+                              fillColor: colors.surfaceSunken,
                               hintText: _provider.isLocal ? 'Optional (No API key needed)' : 'sk-... or AIza...',
-                              hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13, letterSpacing: 0),
+                              hintStyle: TextStyle(color: colors.textTertiary, fontSize: 13, letterSpacing: 0),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureApiKey ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                                  color: AppColors.textSecondary,
+                                  color: colors.textSecondary,
                                   size: 20,
                                 ),
                                 splashRadius: 18,
@@ -566,15 +567,15 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                borderSide: const BorderSide(color: AppColors.border),
+                                borderSide: BorderSide(color: colors.border),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                borderSide: const BorderSide(color: AppColors.border),
+                                borderSide: BorderSide(color: colors.border),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                                borderSide: BorderSide(color: colors.primary, width: 1.5),
                               ),
                             ),
                           ),
@@ -583,10 +584,10 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           // Base URL (Custom or Pre-filled)
                           Row(
                             children: [
-                              const Text(
+                              Text(
                                 'API Base URL',
                                 style: TextStyle(
-                                  color: AppColors.textPrimary,
+                                  color: colors.textPrimary,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -596,9 +597,9 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                   _baseUrlController.text != _provider.defaultBaseUrl)
                                 InkWell(
                                   onTap: () => setState(() => _baseUrlController.text = _provider.defaultBaseUrl),
-                                  child: const Text(
+                                  child: Text(
                                     'Reset default',
-                                    style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w600),
+                                    style: TextStyle(color: colors.primary, fontSize: 11, fontWeight: FontWeight.w600),
                                   ),
                                 ),
                             ],
@@ -606,48 +607,48 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           const SizedBox(height: 8),
                           TextField(
                             controller: _baseUrlController,
-                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5),
+                            style: TextStyle(color: colors.textPrimary, fontSize: 13.5),
                             decoration: InputDecoration(
                               filled: true,
-                              fillColor: AppColors.surfaceSunken,
+                              fillColor: colors.surfaceSunken,
                               hintText: _provider.defaultBaseUrl.isNotEmpty
                                   ? _provider.defaultBaseUrl
                                   : 'https://api.example.com/v1',
-                              hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                              hintStyle: TextStyle(color: colors.textTertiary, fontSize: 13),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                borderSide: const BorderSide(color: AppColors.border),
+                                borderSide: BorderSide(color: colors.border),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                borderSide: const BorderSide(color: AppColors.border),
+                                borderSide: BorderSide(color: colors.border),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                                borderSide: BorderSide(color: colors.primary, width: 1.5),
                               ),
                             ),
                           ),
                           const SizedBox(height: 18),
 
                           // Voice AI Section
-                          const Divider(height: 36, thickness: 1, color: AppColors.border),
+                          Divider(height: 36, thickness: 1, color: colors.border),
                           Row(
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.1),
+                                  color: colors.primary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Icon(Icons.mic_rounded, color: AppColors.primary, size: 18),
+                                child: Icon(Icons.mic_rounded, color: colors.primary, size: 18),
                               ),
                               const SizedBox(width: 10),
-                              const Text(
+                              Text(
                                 'Voice Speech-to-Text Model',
                                 style: TextStyle(
-                                  color: AppColors.textPrimary,
+                                  color: colors.textPrimary,
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -655,9 +656,9 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                             ],
                           ),
                           const SizedBox(height: 6),
-                          const Text(
+                          Text(
                             'Select the speech recognition model used when speaking voice mission prompts.',
-                            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                            style: TextStyle(color: colors.textSecondary, fontSize: 12),
                           ),
                           const SizedBox(height: 12),
 
@@ -665,21 +666,21 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceSunken,
+                              color: colors.surfaceSunken,
                               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                              border: Border.all(color: AppColors.border),
+                              border: Border.all(color: colors.border),
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<VoiceTranscriptionProvider>(
                                 value: _voiceProvider,
                                 isExpanded: true,
-                                icon: const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary),
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
+                                icon: Icon(Icons.arrow_drop_down, color: colors.textSecondary),
+                                style: TextStyle(
+                                  color: colors.textPrimary,
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w600,
                                 ),
-                                dropdownColor: AppColors.surfaceElevated,
+                                dropdownColor: colors.surfaceElevated,
                                 items: VoiceTranscriptionProvider.values.map((v) {
                                   return DropdownMenuItem<VoiceTranscriptionProvider>(
                                     value: v,
@@ -690,12 +691,13 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                               ? Icons.phone_android_rounded
                                               : Icons.auto_awesome_rounded,
                                           size: 16,
-                                          color: AppColors.primary,
+                                          color: colors.primary,
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
                                             v.displayName,
+                                            style: TextStyle(color: colors.textPrimary),
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
@@ -718,7 +720,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           // Voice Provider description
                           Text(
                             _voiceProvider.description,
-                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5, height: 1.3),
+                            style: TextStyle(color: colors.textSecondary, fontSize: 11.5, height: 1.3),
                           ),
 
                           if (_voiceProvider != VoiceTranscriptionProvider.deviceNative) ...[
@@ -727,8 +729,8 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                               children: [
                                 Text(
                                   '${_voiceProvider == VoiceTranscriptionProvider.groqWhisper ? "Groq" : "OpenAI"} Voice API Key',
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
+                                  style: TextStyle(
+                                    color: colors.textPrimary,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -739,7 +741,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                           (_voiceProvider == VoiceTranscriptionProvider.openAiWhisper && _provider == AiProvider.openai)
                                       ? 'Using primary key'
                                       : 'Separate key optional',
-                                  style: const TextStyle(color: AppColors.textTertiary, fontSize: 11),
+                                  style: TextStyle(color: colors.textTertiary, fontSize: 11),
                                 ),
                               ],
                             ),
@@ -747,20 +749,20 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                             TextField(
                               controller: _voiceApiKeyController,
                               obscureText: _obscureVoiceApiKey,
-                              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13.5, letterSpacing: 0.5),
+                              style: TextStyle(color: colors.textPrimary, fontSize: 13.5, letterSpacing: 0.5),
                               decoration: InputDecoration(
                                 filled: true,
-                                fillColor: AppColors.surfaceSunken,
+                                fillColor: colors.surfaceSunken,
                                 hintText: (_voiceProvider == VoiceTranscriptionProvider.groqWhisper && _provider == AiProvider.groq) ||
                                         (_voiceProvider == VoiceTranscriptionProvider.openAiWhisper && _provider == AiProvider.openai)
                                     ? 'Leave blank to use primary AI Provider key'
                                     : 'Enter dedicated Whisper API key',
-                                hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12, letterSpacing: 0),
+                                hintStyle: TextStyle(color: colors.textTertiary, fontSize: 12, letterSpacing: 0),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                 suffixIcon: IconButton(
                                   icon: Icon(
                                     _obscureVoiceApiKey ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                                    color: AppColors.textSecondary,
+                                    color: colors.textSecondary,
                                     size: 20,
                                   ),
                                   splashRadius: 18,
@@ -768,15 +770,15 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                 ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                  borderSide: const BorderSide(color: AppColors.border),
+                                  borderSide: BorderSide(color: colors.border),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                  borderSide: const BorderSide(color: AppColors.border),
+                                  borderSide: BorderSide(color: colors.border),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-                                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                                  borderSide: BorderSide(color: colors.primary, width: 1.5),
                                 ),
                               ),
                             ),
@@ -788,16 +790,16 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                 style: OutlinedButton.styleFrom(
                                   minimumSize: const Size(0, 34),
                                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  foregroundColor: AppColors.textPrimary,
-                                  side: const BorderSide(color: AppColors.border),
+                                  foregroundColor: colors.textPrimary,
+                                  side: BorderSide(color: colors.border),
                                 ),
                                 icon: _testingVoiceConnection
-                                    ? const SizedBox(
+                                    ? SizedBox(
                                         width: 14,
                                         height: 14,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: colors.primary),
                                       )
-                                    : const Icon(Icons.record_voice_over_rounded, size: 16, color: AppColors.primary),
+                                    : Icon(Icons.record_voice_over_rounded, size: 16, color: colors.primary),
                                 label: Text(
                                   _testingVoiceConnection ? 'Verifying Voice...' : 'Test Voice Model API',
                                   style: const TextStyle(fontSize: 12),
@@ -810,10 +812,14 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: _voiceTestSuccess ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                                  color: _voiceTestSuccess
+                                      ? (colors.isDark ? AppColors.success.withValues(alpha: 0.15) : const Color(0xFFDCFCE7))
+                                      : (colors.isDark ? AppColors.danger.withValues(alpha: 0.15) : const Color(0xFFFEE2E2)),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: _voiceTestSuccess ? const Color(0xFF86EFAC) : const Color(0xFFFCA5A5),
+                                    color: _voiceTestSuccess
+                                        ? (colors.isDark ? AppColors.success.withValues(alpha: 0.3) : const Color(0xFF86EFAC))
+                                        : (colors.isDark ? AppColors.danger.withValues(alpha: 0.3) : const Color(0xFFFCA5A5)),
                                   ),
                                 ),
                                 child: Row(
@@ -828,7 +834,9 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                       child: Text(
                                         _voiceTestResult!,
                                         style: TextStyle(
-                                          color: _voiceTestSuccess ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                                          color: _voiceTestSuccess
+                                              ? (colors.isDark ? AppColors.success : const Color(0xFF166534))
+                                              : (colors.isDark ? AppColors.danger : const Color(0xFF991B1B)),
                                           fontSize: 11.5,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -845,19 +853,19 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF0F9FF),
+                              color: colors.isDark ? colors.info.withValues(alpha: 0.12) : const Color(0xFFF0F9FF),
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFFBAE6FD)),
+                              border: Border.all(color: colors.isDark ? colors.info.withValues(alpha: 0.3) : const Color(0xFFBAE6FD)),
                             ),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Icon(Icons.info_outline_rounded, color: Color(0xFF0284C7), size: 18),
-                                SizedBox(width: 10),
+                              children: [
+                                Icon(Icons.info_outline_rounded, color: colors.info, size: 18),
+                                const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
                                     'Offline Guard: If no API key is provided or the robot is offline, the agent automatically activates the built-in deterministic mission synthesizer with full safety fail-safes.',
-                                    style: TextStyle(color: Color(0xFF0369A1), fontSize: 12, height: 1.35),
+                                    style: TextStyle(color: colors.isDark ? colors.info : const Color(0xFF0369A1), fontSize: 12, height: 1.35),
                                   ),
                                 ),
                               ],
@@ -871,10 +879,14 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                               margin: const EdgeInsets.only(bottom: 14),
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: _testSuccess ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                                color: _testSuccess
+                                    ? (colors.isDark ? AppColors.success.withValues(alpha: 0.15) : const Color(0xFFDCFCE7))
+                                    : (colors.isDark ? AppColors.danger.withValues(alpha: 0.15) : const Color(0xFFFEE2E2)),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                  color: _testSuccess ? const Color(0xFF86EFAC) : const Color(0xFFFCA5A5),
+                                  color: _testSuccess
+                                      ? (colors.isDark ? AppColors.success.withValues(alpha: 0.3) : const Color(0xFF86EFAC))
+                                      : (colors.isDark ? AppColors.danger.withValues(alpha: 0.3) : const Color(0xFFFCA5A5)),
                                 ),
                               ),
                               child: Row(
@@ -889,7 +901,9 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                                     child: Text(
                                       _testResult!,
                                       style: TextStyle(
-                                        color: _testSuccess ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                                        color: _testSuccess
+                                            ? (colors.isDark ? AppColors.success : const Color(0xFF166534))
+                                            : (colors.isDark ? AppColors.danger : const Color(0xFF991B1B)),
                                         fontSize: 12,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -906,26 +920,26 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                   // Actions
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                    decoration: const BoxDecoration(
-                      color: AppColors.surfaceElevated,
-                      borderRadius: BorderRadius.vertical(bottom: Radius.circular(AppSpacing.cardRadius)),
-                      border: Border(top: BorderSide(color: AppColors.border)),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceElevated,
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(AppSpacing.cardRadius)),
+                      border: Border(top: BorderSide(color: colors.border)),
                     ),
                     child: Row(
                       children: [
                         OutlinedButton.icon(
                           onPressed: _testingConnection ? null : _testConnection,
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.textPrimary,
-                            side: const BorderSide(color: AppColors.borderStrong),
+                            foregroundColor: colors.textPrimary,
+                            side: BorderSide(color: colors.borderStrong),
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
                           ),
                           icon: _testingConnection
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 14,
                                   height: 14,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: colors.primary),
                                 )
                               : const Icon(Icons.network_check_outlined, size: 16),
                           label: Text(_testingConnection ? 'Testing...' : 'Test Connection'),
@@ -934,7 +948,7 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                         TextButton(
                           onPressed: () => Navigator.of(context).pop(),
                           style: TextButton.styleFrom(
-                            foregroundColor: AppColors.textSecondary,
+                            foregroundColor: colors.textSecondary,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
                           ),
                           child: const Text('Cancel'),
@@ -943,8 +957,8 @@ class _AiAgentSettingsDialogState extends State<AiAgentSettingsDialog> {
                         FilledButton(
                           onPressed: _save,
                           style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
+                            backgroundColor: colors.primary,
+                            foregroundColor: colors.textOnPrimary,
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
                             elevation: 0,

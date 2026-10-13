@@ -37,6 +37,7 @@ class _SetupCompleteScreenState extends State<SetupCompleteScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final hasMap = widget.createdMapName != null;
     return SetupScaffold(
       step: 5,
@@ -69,26 +70,26 @@ class _SetupCompleteScreenState extends State<SetupCompleteScreen> {
                       vertical: AppSpacing.sm,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceElevated,
+                      color: colors.surfaceElevated,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.3),
+                        color: colors.primary.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.map_rounded,
                           size: 16,
-                          color: AppColors.primary,
+                          color: colors.primary,
                         ),
                         const SizedBox(width: AppSpacing.xs),
                         Text(
                           'Active Map: ${widget.createdMapName}',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
+                                color: colors.textPrimary,
                               ),
                         ),
                       ],
@@ -108,11 +109,11 @@ class _SetupCompleteScreenState extends State<SetupCompleteScreen> {
               minBlastForce: 6,
               gravity: 0.25,
               emissionFrequency: 0.0, // one burst, not a continuous stream
-              colors: const [
-                AppColors.primary,
-                AppColors.accent,
-                AppColors.success,
-                AppColors.warning,
+              colors: [
+                colors.primary,
+                colors.accent,
+                colors.success,
+                colors.warning,
               ],
             ),
           ),
@@ -130,6 +131,7 @@ class _RobotBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -137,17 +139,17 @@ class _RobotBadge extends StatelessWidget {
           width: 160,
           height: 160,
           decoration: BoxDecoration(
-            color: AppColors.success.withValues(alpha: 0.10),
+            color: colors.success.withValues(alpha: 0.10),
             shape: BoxShape.circle,
           ),
         ),
         Container(
           width: 120,
           height: 120,
-          decoration: const BoxDecoration(
-              color: AppColors.primary, shape: BoxShape.circle),
-          child: const Icon(Icons.smart_toy_rounded,
-              size: 64, color: AppColors.textOnPrimary),
+          decoration: BoxDecoration(
+              color: colors.primary, shape: BoxShape.circle),
+          child: Icon(Icons.smart_toy_rounded,
+              size: 64, color: colors.textOnPrimary),
         ),
         Positioned(
           bottom: 4,
@@ -156,12 +158,12 @@ class _RobotBadge extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: AppColors.success,
+              color: colors.success,
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.surface, width: 3),
+              border: Border.all(color: colors.surface, width: 3),
             ),
-            child: const Icon(Icons.check_rounded,
-                size: 22, color: AppColors.textOnPrimary),
+            child: Icon(Icons.check_rounded,
+                size: 22, color: colors.textOnPrimary),
           ),
         ),
       ],

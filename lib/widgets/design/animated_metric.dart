@@ -28,15 +28,18 @@ class AnimatedMetricText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = value;
+    final effectiveStyle = (style ?? const TextStyle()).copyWith(
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
     if (v == null) {
-      return Text(placeholder, style: style);
+      return Text(placeholder, style: effectiveStyle);
     }
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: v, end: v),
-      duration: duration,
+      duration: AppMotion.resolveDuration(context, duration),
       curve: AppMotion.settle,
       builder: (context, animated, _) =>
-          Text(formatter(animated), style: style),
+          Text(formatter(animated), style: effectiveStyle),
     );
   }
 }
@@ -67,7 +70,7 @@ class AnimatedMetricBar extends StatelessWidget {
     final clamped = value.clamp(0.0, 1.0);
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: clamped, end: clamped),
-      duration: duration,
+      duration: AppMotion.resolveDuration(context, duration),
       curve: AppMotion.settle,
       builder: (context, animated, _) => ClipRRect(
         borderRadius: BorderRadius.circular(minHeight),

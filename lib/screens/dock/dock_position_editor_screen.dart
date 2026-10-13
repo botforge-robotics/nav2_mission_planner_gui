@@ -225,6 +225,7 @@ class _DockPositionEditorScreenState extends State<DockPositionEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final ros2 = context.watch<ConnectionProvider>().ros2;
 
     return Scaffold(
@@ -290,9 +291,9 @@ class _DockPositionEditorScreenState extends State<DockPositionEditorScreen> {
                         elevation: 4,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: const BorderSide(color: AppColors.border),
+                          side: BorderSide(color: colors.border),
                         ),
-                        color: AppColors.surface.withValues(alpha: 0.95),
+                        color: colors.surface.withValues(alpha: 0.95),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.md,
@@ -352,33 +353,34 @@ class _DockPositionEditorScreenState extends State<DockPositionEditorScreen> {
                                   if (_dockPoint != null)
                                     Text(
                                       '⚡ Dock: (${_dockPoint!.x.toStringAsFixed(3)}, ${_dockPoint!.y.toStringAsFixed(3)}) θ: ${(_dockAngle * 180 / pi).toStringAsFixed(1)}°',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w600,
-                                          color: AppColors.stateDocking),
+                                          color: colors.stateDocking),
                                     ),
                                   if (_standoffPoint != null)
                                     Text(
                                       '🎯 Standoff: (${_standoffPoint!.x.toStringAsFixed(3)}, ${_standoffPoint!.y.toStringAsFixed(3)}) θ: ${(_standoffAngle * 180 / pi).toStringAsFixed(1)}°',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w600,
-                                          color: AppColors.primary),
+                                          color: colors.primary),
                                     ),
                                   if (_dockPoint != null && _standoffPoint != null)
                                     Container(
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 8, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: AppColors.surfaceSunken,
+                                        color: colors.surfaceSunken,
                                         borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: AppColors.border),
+                                        border: Border.all(color: colors.border),
                                       ),
                                       child: Text(
                                         '📏 Separation: ${(_distance * 100).toStringAsFixed(1)} cm (${_distance.toStringAsFixed(3)} m)',
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             fontSize: 11,
-                                            fontWeight: FontWeight.bold),
+                                            fontWeight: FontWeight.bold,
+                                            color: colors.textPrimary),
                                       ),
                                     ),
                                 ],
@@ -410,9 +412,9 @@ class _DockPositionEditorScreenState extends State<DockPositionEditorScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                          color: AppColors.surface.withValues(alpha: 0.95),
+                          color: colors.surface.withValues(alpha: 0.95),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.border),
+                          border: Border.all(color: colors.border),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.08),
@@ -431,10 +433,10 @@ class _DockPositionEditorScreenState extends State<DockPositionEditorScreen> {
                                       : (_activePointIndex == 0
                                           ? 'Editing Dock Station (⚡)'
                                           : 'Editing Standoff Point (🎯)'),
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary),
+                                  color: colors.textPrimary),
                             ),
                             if (_dockPoint != null && _standoffPoint != null) ...[
                               const SizedBox(width: 8),

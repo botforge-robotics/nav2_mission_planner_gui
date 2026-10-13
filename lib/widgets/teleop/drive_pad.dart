@@ -263,10 +263,15 @@ class _JoystickState extends State<_Joystick>
         children: [
           AnimatedBuilder(
             animation: _press,
-            builder: (context, _) => CustomPaint(
-              size: const Size(_Joystick._size, _Joystick._size),
-              painter: _JoystickPainter(
-                  stick: widget.stick, knobScale: 1 + _press.value * 0.12),
+            builder: (context, _) => RepaintBoundary(
+              child: CustomPaint(
+                size: const Size(_Joystick._size, _Joystick._size),
+                painter: _JoystickPainter(
+                  stick: widget.stick,
+                  knobScale: 1 + _press.value * 0.12,
+                  colors: AppColors.of(context),
+                ),
+              ),
             ),
           ),
           Positioned(
@@ -308,44 +313,47 @@ class _JoystickState extends State<_Joystick>
 }
 
 class _JoystickPainter extends CustomPainter {
-  _JoystickPainter({required this.stick, required this.knobScale});
+  _JoystickPainter({
+    required this.stick,
+    required this.knobScale,
+    required this.colors,
+  });
 
   final Offset stick;
   final double knobScale;
+  final AppColorsTheme colors;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
 
-    canvas.drawCircle(center, radius, Paint()..color = AppColors.surfaceSunken);
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..color = AppColors.border
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
+    final bgPaint = Paint()..color = colors.surfaceSunken;
+    final borderPaint = Paint()
+      ..color = colors.border
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final knobPaint = Paint()..color = colors.primary;
+    final knobBorderPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    canvas.drawCircle(center, radius, bgPaint);
+    canvas.drawCircle(center, radius, borderPaint);
 
     final knobCenter =
         center + Offset(stick.dx * radius * 0.7, stick.dy * radius * 0.7);
     final knobRadius = 26 * knobScale;
-    canvas.drawCircle(
-        knobCenter, knobRadius, Paint()..color = AppColors.primary);
-    canvas.drawCircle(
-      knobCenter,
-      knobRadius,
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.9)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
+    canvas.drawCircle(knobCenter, knobRadius, knobPaint);
+    canvas.drawCircle(knobCenter, knobRadius, knobBorderPaint);
   }
 
   @override
   bool shouldRepaint(covariant _JoystickPainter oldDelegate) =>
-      oldDelegate.stick != stick || oldDelegate.knobScale != knobScale;
+      oldDelegate.stick != stick ||
+      oldDelegate.knobScale != knobScale ||
+      oldDelegate.colors != colors;
 }
 
 /// A plain round press-and-hold icon button, used by the two rotate
@@ -375,6 +383,7 @@ class _RoundButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Listener(
       onPointerDown: (_) => onDragActiveChanged?.call(true),
       onPointerUp: (_) => onDragActiveChanged?.call(false),
@@ -389,11 +398,11 @@ class _RoundButton extends StatelessWidget {
           height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: active ? AppColors.primary : AppColors.surface,
-            border: active ? null : Border.all(color: AppColors.border),
+            color: active ? colors.primary : colors.surface,
+            border: active ? null : Border.all(color: colors.border),
           ),
           child: Icon(icon,
-              color: active ? AppColors.textOnPrimary : AppColors.textPrimary,
+              color: active ? AppColors.textOnPrimary : colors.textPrimary,
               size: size * 0.5),
         ),
       ),

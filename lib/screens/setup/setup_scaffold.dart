@@ -52,6 +52,7 @@ class SetupScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final canPop = Navigator.of(context).canPop();
     final canGoBack = showBackButton ??
         (onBack != null || (step > 1 && canPop) || (step == 1 && canPop));
@@ -106,9 +107,9 @@ class SetupScaffold extends StatelessWidget {
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: AppColors.surfaceElevated,
+                                color: colors.surfaceElevated,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: AppColors.border),
+                                border: Border.all(color: colors.border),
                               ),
                               child: const Icon(Icons.arrow_back_rounded,
                                   size: 18),
@@ -127,14 +128,14 @@ class SetupScaffold extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceElevated,
+                        color: colors.surfaceElevated,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.border),
+                        border: Border.all(color: colors.border),
                       ),
                       child: Text(
                         'Step $step of $totalSteps',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: colors.textSecondary,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -202,12 +203,12 @@ class SetupScaffold extends StatelessWidget {
                                   const EdgeInsets.symmetric(vertical: 14),
                             ),
                             child: busy
-                                ? const SizedBox(
+                                ? SizedBox(
                                     width: 20,
                                     height: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2.2,
-                                      color: AppColors.textOnPrimary,
+                                      color: colors.textOnPrimary,
                                     ),
                                   )
                                 : Row(
@@ -248,6 +249,7 @@ class _StepDots extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(totalSteps, (i) {
@@ -260,7 +262,7 @@ class _StepDots extends StatelessWidget {
             width: i == step - 1 ? 24 : 8,
             height: 8,
             decoration: BoxDecoration(
-              color: active ? AppColors.primary : AppColors.border,
+              color: active ? colors.primary : colors.border,
               borderRadius: BorderRadius.circular(4),
             ),
           ),

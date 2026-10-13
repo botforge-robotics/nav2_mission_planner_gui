@@ -351,11 +351,12 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
 
     final isBusy = _loadingRobot || _checkingRemote || isUpdating;
 
+    final colors = AppColors.of(context);
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: colors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -370,12 +371,12 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
+                    color: colors.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.precision_manufacturing_rounded,
-                    color: AppColors.primary,
+                    color: colors.primary,
                     size: 24,
                   ),
                 ),
@@ -386,12 +387,12 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                     children: [
                       Row(
                         children: [
-                          const Text(
+                          Text(
                             'Robot Companion Stack',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
-                              color: AppColors.textPrimary,
+                              color: colors.textPrimary,
                             ),
                           ),
                           const SizedBox(width: AppSpacing.sm),
@@ -401,16 +402,16 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceSunken,
+                              color: colors.surfaceSunken,
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: AppColors.border),
+                              border: Border.all(color: colors.border),
                             ),
                             child: Text(
                               branch,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
+                                color: colors.textSecondary,
                               ),
                             ),
                           ),
@@ -419,8 +420,8 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                       const SizedBox(height: 2),
                       Text(
                         'Firmware, ROS 2 packages & companion launch services',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: colors.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -541,23 +542,23 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: AppColors.surfaceSunken,
+                color: colors.surfaceSunken,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: colors.border),
               ),
               child: Row(
                 children: [
                   Expanded(
-                    child: Column(
+                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'CURRENT COMMIT',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.5,
-                            color: AppColors.textTertiary,
+                            color: colors.textTertiary,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -566,16 +567,16 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.06),
+                                color: colors.border.withValues(alpha: 0.3),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 currentCommit,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontFamily: 'monospace',
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
+                                  color: colors.textPrimary,
                                 ),
                               ),
                             ),
@@ -585,11 +586,11 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                     ),
                   ),
                   if (updateAvailable) ...[
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
                       child: Icon(
                         Icons.arrow_forward_rounded,
-                        color: AppColors.textSecondary,
+                        color: colors.textSecondary,
                         size: 18,
                       ),
                     ),
@@ -597,7 +598,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'TARGET COMMIT',
                             style: TextStyle(
                               fontSize: 10,
@@ -685,7 +686,7 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                           const SizedBox(height: 2),
                           Text(
                             lastMsg ?? lastError ?? 'Unknown error during execution.',
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            style: TextStyle(fontSize: 12, color: colors.textSecondary),
                           ),
                         ],
                       ),
@@ -708,16 +709,16 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
               Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.06),
+                  color: colors.primary.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                  border: Border.all(color: colors.primary.withValues(alpha: 0.25)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.sync_rounded, color: AppColors.primary, size: 20),
+                        Icon(Icons.sync_rounded, color: colors.primary, size: 20),
                         const SizedBox(width: AppSpacing.sm),
                         Text(
                           'Step: ${phase.toUpperCase()}',
@@ -726,9 +727,9 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                         const Spacer(),
                         Text(
                           '${live?['progress'] ?? 0}%',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
+                            color: colors.primary,
                           ),
                         ),
                       ],
@@ -738,15 +739,15 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
                         value: ((live?['progress'] as num?)?.toDouble() ?? 0) / 100.0,
-                        backgroundColor: AppColors.surfaceSunken,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        backgroundColor: colors.surfaceSunken,
+                        valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
                         minHeight: 6,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       live?['message']?.toString() ?? 'Applying updates...',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(fontSize: 12, color: colors.textSecondary),
                     ),
                   ],
                 ),
@@ -793,20 +794,20 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
             // Changelog
             if (changelog.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.md),
-              const Text(
+              Text(
                 'Incoming Commits',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
-                  color: AppColors.textPrimary,
+                  color: colors.textPrimary,
                 ),
               ),
               const SizedBox(height: AppSpacing.xs),
               Container(
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceSunken,
+                  color: colors.surfaceSunken,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: colors.border),
                 ),
                 child: Column(
                   children: changelog.take(6).map((c) {
@@ -816,8 +817,8 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
 
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: const BoxDecoration(
-                        border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
+                      decoration: BoxDecoration(
+                        border: Border(bottom: BorderSide(color: colors.border, width: 0.5)),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -825,15 +826,16 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.06),
+                              color: colors.border.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               hash,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 fontFamily: 'monospace',
                                 fontWeight: FontWeight.bold,
+                                color: colors.textPrimary,
                               ),
                             ),
                           ),
@@ -861,11 +863,11 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                     icon: Icon(
                       _showLogsConsole ? Icons.terminal_rounded : Icons.terminal_outlined,
                       size: 16,
-                      color: AppColors.textSecondary,
+                      color: colors.textSecondary,
                     ),
                     label: Text(
                       _showLogsConsole ? 'Hide Update Console' : 'Show Update Console',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(fontSize: 12, color: colors.textSecondary),
                     ),
                     onPressed: () => setState(() => _showLogsConsole = !_showLogsConsole),
                   ),
@@ -955,11 +957,12 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
     final hasUpdate = release?.hasUpdate ?? false;
     final platformName = _guiService.activePlatformName;
 
+    final colors = AppColors.of(context);
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: colors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -982,18 +985,18 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'NavPro Mini GUI',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
-                          color: AppColors.textPrimary,
+                          color: colors.textPrimary,
                         ),
                       ),
                       Text(
                         'Platform: $platformName · Current: v$currentVer',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: colors.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -1060,10 +1063,10 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
             if (release != null && release.releaseNotes.isNotEmpty) ...[
               Text(
                 'Release Notes (${release.releaseName})',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
-                  color: AppColors.textPrimary,
+                  color: colors.textPrimary,
                 ),
               ),
               const SizedBox(height: AppSpacing.xs),
@@ -1071,9 +1074,9 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceSunken,
+                  color: colors.surfaceSunken,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: colors.border),
                 ),
                 child: Text(
                   release.releaseNotes,
@@ -1085,12 +1088,12 @@ class _SoftwareUpdateScreenState extends State<SoftwareUpdateScreen> {
               const SizedBox(height: AppSpacing.md),
             ],
 
-            const Text(
+            Text(
               'Installers & Downloads',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
-                color: AppColors.textPrimary,
+                color: colors.textPrimary,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),

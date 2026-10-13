@@ -154,19 +154,32 @@ class _DashboardContentState extends State<_DashboardContent> {
   }
 
   Widget _buildRobotScreenActiveBanner() {
+    final colors = AppColors.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final inter = _activeRobotInteraction;
     final p = inter?['params'] as Map<String, dynamic>? ?? {};
     final title = inter?['title']?.toString() ?? p['title']?.toString() ?? 'Web Browser';
     final subtype = (inter?['subtype'] ?? p['subtype'] ?? 'browser').toString().toLowerCase();
     final isBrowser = subtype == 'browser';
 
+    final accentColor = isBrowser ? const Color(0xFF0D9488) : colors.primary;
+    final bgColor = isBrowser
+        ? (isDark ? const Color(0xFF134E4A).withValues(alpha: 0.25) : const Color(0xFFF0FDFA))
+        : (isDark ? colors.primary.withValues(alpha: 0.12) : const Color(0xFFFFF3EE));
+    final borderColor = isBrowser
+        ? (isDark ? const Color(0xFF0D9488).withValues(alpha: 0.5) : const Color(0xFF99F6E4))
+        : (isDark ? colors.primary.withValues(alpha: 0.5) : const Color(0xFFFFD4C2));
+    final titleColor = isBrowser
+        ? (isDark ? const Color(0xFF5EEAD4) : const Color(0xFF0F766E))
+        : colors.textPrimary;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isBrowser ? const Color(0xFFF0FDFA) : const Color(0xFFFFF3EE),
+        color: bgColor,
         borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
         border: Border.all(
-          color: isBrowser ? const Color(0xFF99F6E4) : const Color(0xFFFFD4C2),
+          color: borderColor,
           width: 1.2,
         ),
       ),
@@ -175,12 +188,12 @@ class _DashboardContentState extends State<_DashboardContent> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: (isBrowser ? const Color(0xFF0D9488) : AppColors.primary).withValues(alpha: 0.12),
+              color: accentColor.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(
               isBrowser ? Icons.language_rounded : Icons.tablet_mac_rounded,
-              color: isBrowser ? const Color(0xFF0D9488) : AppColors.primary,
+              color: accentColor,
               size: 20,
             ),
           ),
@@ -194,7 +207,7 @@ class _DashboardContentState extends State<_DashboardContent> {
                     Text(
                       isBrowser ? 'Mission In Progress: Web Browser on Robot Screen' : 'Active on Robot Screen ($subtype)',
                       style: TextStyle(
-                        color: isBrowser ? const Color(0xFF0F766E) : AppColors.textPrimary,
+                        color: titleColor,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                       ),
@@ -203,13 +216,13 @@ class _DashboardContentState extends State<_DashboardContent> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: (isBrowser ? const Color(0xFF0D9488) : AppColors.primary).withValues(alpha: 0.1),
+                        color: accentColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         'ROBOT SCREEN',
                         style: TextStyle(
-                          color: isBrowser ? const Color(0xFF0D9488) : AppColors.primary,
+                          color: accentColor,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
@@ -222,7 +235,7 @@ class _DashboardContentState extends State<_DashboardContent> {
                   isBrowser
                       ? 'The robot is currently presenting "$title" on its physical touchscreen. Mission will automatically advance once closed on the robot.'
                       : 'Awaiting physical interaction on the robot screen terminal.',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 11.5),
                 ),
               ],
             ),
@@ -435,6 +448,7 @@ class _RobotCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final battery = telemetry.batteryPercentage;
     final status = deriveRobotStatus(telemetry: telemetry, sdkState: sdkState);
     final charging = telemetry.chargeStatus == ChargeStatus.charging ||
@@ -474,13 +488,15 @@ class _RobotCard extends StatelessWidget {
                               StatusPulseDot(
                                   color: statusColor, live: livePulse, size: 8),
                               const SizedBox(width: 6),
+                              Icon(status.icon, size: 14, color: statusColor),
+                              const SizedBox(width: 4),
                               AnimatedSwitcher(
                                 duration: AppMotion.fast,
                                 child: Text(
                                   'Online · $statusLabel',
                                   key: ValueKey('${status}_$isStopping'),
-                                  style: const TextStyle(
-                                      color: AppColors.textSecondary),
+                                  style: TextStyle(
+                                      color: colors.textSecondary),
                                 ),
                               ),
                             ],
@@ -491,8 +507,8 @@ class _RobotCard extends StatelessWidget {
                             child: Text(
                               subtitle,
                               key: ValueKey('subtitle-$status-$isStopping'),
-                              style: const TextStyle(
-                                  color: AppColors.textTertiary, fontSize: 13),
+                              style: TextStyle(
+                                  color: colors.textTertiary, fontSize: 13),
                             ),
                           ),
                         ],
@@ -517,7 +533,7 @@ class _RobotCard extends StatelessWidget {
                 Icon(
                   charging ? Icons.bolt_rounded : Icons.battery_full_rounded,
                   size: 16,
-                  color: charging ? AppColors.success : AppColors.textSecondary,
+                  color: charging ? AppColors.success : colors.textSecondary,
                 ),
                 const SizedBox(width: 4),
                 AnimatedMetricText(
@@ -530,8 +546,8 @@ class _RobotCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             AnimatedMetricBar(
               value: battery != null ? battery / 100 : 0,
-              backgroundColor: AppColors.border,
-              color: charging ? AppColors.success : AppColors.primary,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: charging ? AppColors.success : colors.primary,
             ),
           ],
         ),
@@ -628,9 +644,10 @@ class _StatRow extends StatelessWidget {
 
 void _showLocalizationActionSheet(BuildContext context,
     {required SdkApiService api}) {
+  final sheetColors = AppColors.of(context);
   showModalBottomSheet<void>(
     context: context,
-    backgroundColor: AppColors.surface,
+    backgroundColor: sheetColors.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -649,15 +666,15 @@ void _showLocalizationActionSheet(BuildContext context,
                   height: 4,
                   margin: const EdgeInsets.only(bottom: AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: AppColors.border,
+                    color: sheetColors.border,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
               Row(
                 children: [
-                  const Icon(Icons.my_location_rounded,
-                      color: AppColors.primary, size: 20),
+                  Icon(Icons.my_location_rounded,
+                      color: sheetColors.primary, size: 20),
                   const SizedBox(width: 8),
                   Text(
                     'Robot Localization',
@@ -669,9 +686,9 @@ void _showLocalizationActionSheet(BuildContext context,
                 ],
               ),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Seed or reset AMCL belief of the robot position:',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 12, color: sheetColors.textSecondary),
               ),
               const SizedBox(height: AppSpacing.md),
               ListTile(
@@ -680,17 +697,17 @@ void _showLocalizationActionSheet(BuildContext context,
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.12),
+                    color: sheetColors.accent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.ev_station_rounded,
-                      color: AppColors.accent, size: 22),
+                  child: Icon(Icons.ev_station_rounded,
+                      color: sheetColors.accent, size: 22),
                 ),
                 title: const Text('Robot at Dock',
                     style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text(
+                subtitle: Text(
                     'Seed AMCL pose from known docking station coordinates',
-                    style: TextStyle(fontSize: 12)),
+                    style: TextStyle(fontSize: 12, color: sheetColors.textSecondary)),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
                   final messenger = ScaffoldMessenger.of(context);
@@ -716,17 +733,17 @@ void _showLocalizationActionSheet(BuildContext context,
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
+                    color: sheetColors.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.pin_drop_rounded,
-                      color: AppColors.primary, size: 22),
+                  child: Icon(Icons.pin_drop_rounded,
+                      color: sheetColors.primary, size: 22),
                 ),
                 title: const Text('Set 2D Pose on Map',
                     style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text(
+                subtitle: Text(
                     'Tap & drag robot heading directly on the interactive map',
-                    style: TextStyle(fontSize: 12)),
+                    style: TextStyle(fontSize: 12, color: sheetColors.textSecondary)),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   Navigator.of(context).push(
@@ -744,17 +761,17 @@ void _showLocalizationActionSheet(BuildContext context,
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.12),
+                    color: sheetColors.accent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.sync_rounded,
-                      color: AppColors.accent, size: 22),
+                  child: Icon(Icons.sync_rounded,
+                      color: sheetColors.accent, size: 22),
                 ),
                 title: const Text('Auto-Relocalize (360° Spin)',
                     style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text(
+                subtitle: Text(
                     'Autonomous in-place rotation to disperse and converge particles',
-                    style: TextStyle(fontSize: 12)),
+                    style: TextStyle(fontSize: 12, color: sheetColors.textSecondary)),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
                   final messenger = ScaffoldMessenger.of(context);
@@ -787,17 +804,17 @@ void _showLocalizationActionSheet(BuildContext context,
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.12),
+                    color: sheetColors.warning.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.radar_rounded,
-                      color: AppColors.warning, size: 22),
+                  child: Icon(Icons.radar_rounded,
+                      color: sheetColors.warning, size: 22),
                 ),
                 title: const Text('Global Relocalization',
                     style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text(
+                subtitle: Text(
                     'Disperse particles across entire map; drive to converge',
-                    style: TextStyle(fontSize: 12)),
+                    style: TextStyle(fontSize: 12, color: sheetColors.textSecondary)),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
                   final messenger = ScaffoldMessenger.of(context);
@@ -842,6 +859,7 @@ class _Stat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final body = Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
@@ -851,15 +869,15 @@ class _Stat extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, size: 18, color: AppColors.primary),
+              Icon(icon, size: 18, color: colors.primary),
               if (trailing != null) trailing!,
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
           value,
           Text(label,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 12)),
+              style: TextStyle(
+                  color: colors.textSecondary, fontSize: 12)),
         ],
       ),
     );
@@ -886,6 +904,7 @@ class _StatGridDesktop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Column(
       children: [
         Row(
@@ -935,8 +954,8 @@ class _StatGridDesktop extends StatelessWidget {
               child: _Stat(
                 icon: Icons.my_location_rounded,
                 label: 'AMCL Localization',
-                trailing: const Icon(Icons.touch_app_rounded,
-                    size: 14, color: AppColors.textTertiary),
+                trailing: Icon(Icons.touch_app_rounded,
+                    size: 14, color: colors.textTertiary),
                 onTap: () {
                   final ip = context.read<ConnectionProvider>().robot?.ip;
                   if (ip != null) {
@@ -961,7 +980,7 @@ class _StatGridDesktop extends StatelessWidget {
                           color: !telemetry.localized
                               ? (sdkState.mode == 'navigation'
                                   ? AppColors.danger
-                                  : AppColors.textTertiary)
+                                  : colors.textTertiary)
                               : (telemetry.localizationHealth == 'degraded'
                                   ? AppColors.warning
                                   : AppColors.success),
@@ -969,8 +988,8 @@ class _StatGridDesktop extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const Icon(Icons.arrow_forward_ios_rounded,
-                        size: 11, color: AppColors.textTertiary),
+                    Icon(Icons.arrow_forward_ios_rounded,
+                        size: 11, color: colors.textTertiary),
                   ],
                 ),
               ),
@@ -1123,7 +1142,7 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                   child: Container(
                     height: widget.height,
                     width: double.infinity,
-                    color: AppColors.surfaceSunken,
+                    color: AppColors.of(context).surfaceSunken,
                     child: isStoppingMapping
                         ? Center(
                             child: Padding(
@@ -1148,12 +1167,12 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                                         ),
                                   ),
                                   const SizedBox(height: 4),
-                                  const Text(
+                                  Text(
                                     'Shutting down SLAM on robot. This takes a few seconds.',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                         fontSize: 12,
-                                        color: AppColors.textSecondary),
+                                        color: AppColors.of(context).textSecondary),
                                   ),
                                 ],
                               ),
@@ -1263,6 +1282,7 @@ class _NoActiveMapPrompt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -1275,21 +1295,21 @@ class _NoActiveMapPrompt extends StatelessWidget {
             Icon(
               Icons.map_outlined,
               size: 36,
-              color: AppColors.textSecondary.withValues(alpha: 0.5),
+              color: colors.textSecondary.withValues(alpha: 0.5),
             ),
             const SizedBox(height: AppSpacing.sm),
-            const Text(
+            Text(
               'No active map',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
+                color: colors.textSecondary,
               ),
             ),
             const SizedBox(height: AppSpacing.xs),
-            const Text(
+            Text(
               'Activate a saved map or create a new one to start navigating.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.md),
             Wrap(
@@ -1333,9 +1353,10 @@ class _LowBatteryBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Container(
       decoration: BoxDecoration(
-        gradient: AppColors.warningGradient,
+        gradient: colors.warningGradient,
         borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
         border: Border.all(color: AppColors.danger.withValues(alpha: 0.18)),
       ),
@@ -1352,7 +1373,7 @@ class _LowBatteryBanner extends StatelessWidget {
                   const Text('Low Battery',
                       style: TextStyle(fontWeight: FontWeight.w600)),
                   Text('${percentage.round()}% remaining — dock soon',
-                      style: const TextStyle(color: AppColors.textSecondary)),
+                      style: TextStyle(color: colors.textSecondary)),
                 ],
               ),
             ),
@@ -1406,6 +1427,7 @@ class _AlertsCardState extends State<_AlertsCard> {
     // first of the two to build starts it, both read the same history.
     AlertsController.instance.ensureStarted(widget.robotIp);
     final connected = AlertsController.instance.isConnected;
+    final colors = AppColors.of(context);
     final alerts = AlertsController.instance.events
         .where((e) => e.severity != SdkEventSeverity.info)
         .toList();
@@ -1425,13 +1447,13 @@ class _AlertsCardState extends State<_AlertsCard> {
                   const SizedBox(width: AppSpacing.sm),
                   StatusPulseDot(
                     color:
-                        connected ? AppColors.success : AppColors.textTertiary,
+                        connected ? AppColors.success : colors.textTertiary,
                     live: connected,
                     size: 6,
                   ),
                   const Spacer(),
-                  const Icon(Icons.chevron_right_rounded,
-                      size: 18, color: AppColors.textSecondary),
+                  Icon(Icons.chevron_right_rounded,
+                      size: 18, color: colors.textSecondary),
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -1439,14 +1461,14 @@ class _AlertsCardState extends State<_AlertsCard> {
                 duration: AppMotion.medium,
                 switchInCurve: AppMotion.enter,
                 child: alerts.isEmpty
-                    ? const Row(
-                        key: ValueKey('empty'),
+                    ? Row(
+                        key: const ValueKey('empty'),
                         children: [
-                          Icon(Icons.check_circle_outline_rounded,
+                          const Icon(Icons.check_circle_outline_rounded,
                               size: 20, color: AppColors.success),
-                          SizedBox(width: AppSpacing.sm),
+                          const SizedBox(width: AppSpacing.sm),
                           Text('No active alerts',
-                              style: TextStyle(color: AppColors.textSecondary)),
+                              style: TextStyle(color: colors.textSecondary)),
                         ],
                       )
                     : Row(

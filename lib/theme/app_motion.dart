@@ -62,6 +62,15 @@ class AppMotion {
       TargetPlatform.fuchsia: _SettledPageTransitionsBuilder(),
     },
   );
+
+  /// Returns [Duration.zero] if the system or user has requested reduced motion,
+  /// otherwise returns the requested [duration].
+  static Duration resolveDuration(BuildContext context, Duration duration) {
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      return Duration.zero;
+    }
+    return duration;
+  }
 }
 
 class _SettledPageTransitionsBuilder extends PageTransitionsBuilder {
@@ -75,6 +84,9 @@ class _SettledPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      return child;
+    }
     final curved = CurvedAnimation(
         parent: animation,
         curve: AppMotion.settle,

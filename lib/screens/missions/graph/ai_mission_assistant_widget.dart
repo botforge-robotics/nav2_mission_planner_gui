@@ -48,6 +48,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
 
   bool _isAiConfigured = false;
   AiAgentConfig? _aiConfig;
+  AppColorsTheme get colors => AppColors.of(context);
 
   final List<String> _quickPrompts = [
     'Go to pharmacy, ask if room 102 medicines are ready, if yes deliver to room 102 and collect feedback with voice, if no return to dock',
@@ -320,17 +321,17 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
         child: Container(
           height: 38,
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: colors.surface,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: _isAiConfigured
-                  ? AppColors.primary.withValues(alpha: 0.4)
+                  ? colors.primary.withValues(alpha: 0.4)
                   : const Color(0xFFF59E0B).withValues(alpha: 0.5),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.shadowTint.withValues(alpha: 0.12),
+                color: colors.shadowTint.withValues(alpha: 0.12),
                 blurRadius: 10,
                 offset: const Offset(0, 3),
               ),
@@ -408,17 +409,17 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
       elevation: 0,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(28),
           border: Border.all(
             color: _isAiConfigured
-                ? AppColors.primary.withValues(alpha: 0.35)
+                ? colors.primary.withValues(alpha: 0.35)
                 : const Color(0xFFF59E0B).withValues(alpha: 0.4),
             width: 1.2,
           ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.shadowTint.withValues(alpha: 0.12),
+              color: colors.shadowTint.withValues(alpha: 0.12),
               blurRadius: 16,
               spreadRadius: 0,
               offset: const Offset(0, 4),
@@ -508,13 +509,13 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: _isAiConfigured
-                        ? AppColors.primary.withValues(alpha: 0.1)
-                        : AppColors.surfaceSunken,
+                        ? colors.primary.withValues(alpha: 0.1)
+                        : colors.surfaceSunken,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     _isAiConfigured ? Icons.mic_none_rounded : Icons.mic_off_outlined,
-                    color: _isAiConfigured ? AppColors.primary : AppColors.textTertiary,
+                    color: _isAiConfigured ? colors.primary : colors.textTertiary,
                     size: 16,
                   ),
                 ),
@@ -523,9 +524,9 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
             InkWell(
               onTap: () => setState(() => _isExpanded = true),
               borderRadius: const BorderRadius.horizontal(right: Radius.circular(28)),
-              child: const Padding(
-                padding: EdgeInsets.fromLTRB(2, 10, 12, 10),
-                child: Icon(Icons.keyboard_arrow_up_rounded, color: AppColors.textSecondary, size: 20),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(2, 10, 12, 10),
+                child: Icon(Icons.keyboard_arrow_up_rounded, color: colors.textSecondary, size: 20),
               ),
             ),
           ],
@@ -550,12 +551,12 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
           maxHeight: maxHeight,
         ),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-          border: Border.all(color: AppColors.border, width: 1.2),
+          border: Border.all(color: colors.border, width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: AppColors.shadowTint.withValues(alpha: 0.14),
+              color: colors.shadowTint.withValues(alpha: 0.14),
               blurRadius: 24,
               spreadRadius: 0,
               offset: const Offset(0, 8),
@@ -574,10 +575,10 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
             // Top Bar
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: const BoxDecoration(
-                color: AppColors.surfaceElevated,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
-                border: Border(bottom: BorderSide(color: AppColors.border)),
+              decoration: BoxDecoration(
+                color: colors.surfaceElevated,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
+                border: Border(bottom: BorderSide(color: colors.border)),
               ),
               child: Row(
                 children: [
@@ -585,7 +586,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
+                      color: colors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 17),
@@ -783,14 +784,14 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                 : '📋 Questionnaire Form';
                         return ActionChip(
                           visualDensity: VisualDensity.compact,
-                          backgroundColor: AppColors.surfaceSunken,
-                          side: const BorderSide(color: AppColors.border),
+                          backgroundColor: colors.surfaceSunken,
+                          side: BorderSide(color: colors.border),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
                           label: Text(
                             label,
                             style: TextStyle(
-                              color: _isAiConfigured ? AppColors.textPrimary : AppColors.textTertiary,
+                              color: _isAiConfigured ? colors.textPrimary : colors.textTertiary,
                               fontSize: 11.5,
                               fontWeight: FontWeight.w500,
                             ),
@@ -821,23 +822,23 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
+                        color: colors.isDark ? colors.info.withValues(alpha: 0.15) : const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF93C5FD)),
+                        border: Border.all(color: colors.isDark ? colors.info.withValues(alpha: 0.3) : const Color(0xFF93C5FD)),
                       ),
                       child: Row(
                         children: [
-                          const SizedBox(
+                          SizedBox(
                             width: 14,
                             height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2563EB)),
+                            child: CircularProgressIndicator(strokeWidth: 2, color: colors.info),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               'Transcribing audio with ${_voiceEngineLabel ?? "Whisper AI"} model...',
-                              style: const TextStyle(
-                                color: Color(0xFF1D4ED8),
+                              style: TextStyle(
+                                color: colors.isDark ? colors.info : const Color(0xFF1D4ED8),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -895,14 +896,14 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                   // Prompt TextField Container
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSunken,
+                      color: colors.surfaceSunken,
                       borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
                       border: Border.all(
                         color: !_isAiConfigured
-                            ? AppColors.border
+                            ? colors.border
                             : (_isListening
-                                ? AppColors.primary
-                                : (_focusNode.hasFocus ? AppColors.primary : AppColors.border)),
+                                ? colors.primary
+                                : (_focusNode.hasFocus ? colors.primary : colors.border)),
                         width: 1.2,
                       ),
                     ),
@@ -915,7 +916,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                           maxLines: 3,
                           minLines: 2,
                           style: TextStyle(
-                            color: _isAiConfigured ? AppColors.textPrimary : AppColors.textTertiary,
+                            color: _isAiConfigured ? colors.textPrimary : colors.textTertiary,
                             fontSize: 13.5,
                             height: 1.4,
                           ),
@@ -923,7 +924,7 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                             hintText: _isAiConfigured
                                 ? 'Describe your robot workflow or speak via mic (e.g. Go to pharmacy, ask if room 102 medicines are ready, if yes deliver and collect feedback, if no dock)...'
                                 : 'AI is not configured. Add an API key or local model in Settings to enable text prompt, voice mic, and workflow generation.',
-                            hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12.5),
+                            hintStyle: TextStyle(color: colors.textTertiary, fontSize: 12.5),
                             contentPadding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
                             border: InputBorder.none,
                           ),
@@ -938,17 +939,17 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
                                 FilledButton.icon(
                                   onPressed: null,
                                   style: FilledButton.styleFrom(
-                                    backgroundColor: AppColors.surfaceElevated,
+                                    backgroundColor: colors.surfaceElevated,
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     elevation: 0,
                                   ),
-                                  icon: const SizedBox(
+                                  icon: SizedBox(
                                     width: 12,
                                     height: 12,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: colors.primary),
                                   ),
-                                  label: const Text('Transcribing...', style: TextStyle(fontSize: 11.5, color: AppColors.primary)),
+                                  label: Text('Transcribing...', style: TextStyle(fontSize: 11.5, color: colors.primary)),
                                 )
                               else
                                 Tooltip(

@@ -211,7 +211,6 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Mission "$name" deleted'),
-          backgroundColor: AppColors.surface,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -405,19 +404,20 @@ class _Body extends StatelessWidget {
           padding: EdgeInsets.all(AppSpacing.lg), child: SkeletonList());
     }
     if (missions!.isEmpty) {
+      final colors = AppColors.of(context);
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.route_outlined, size: 48, color: AppColors.textTertiary),
+            Icon(Icons.route_outlined, size: 48, color: colors.textTertiary),
             const SizedBox(height: AppSpacing.md),
-            const Text('No missions yet.',
+            Text('No missions yet.',
                 style: TextStyle(
-                    fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    fontWeight: FontWeight.w600, color: colors.textPrimary)),
             const SizedBox(height: AppSpacing.xs),
-            const Text('Create one from your saved locations.',
+            Text('Create one from your saved locations.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary)),
+                style: TextStyle(color: colors.textSecondary)),
             const SizedBox(height: AppSpacing.md),
             FilledButton.icon(
               onPressed: onCreateMission,
@@ -989,19 +989,21 @@ class _Body extends StatelessWidget {
                       if (currentMap != null) ...[
                         const SizedBox(width: AppSpacing.sm),
                         Chip(
-                          avatar: const Icon(Icons.map_outlined,
-                              size: 14, color: AppColors.primary),
+                          avatar: Icon(Icons.map_outlined,
+                              size: 14, color: AppColors.of(context).primary),
                           label: Text('Map: $currentMap'),
-                          backgroundColor: AppColors.surface,
+                          backgroundColor: Theme.of(context).cardColor,
+                          side: BorderSide(color: AppColors.of(context).border),
                         ),
                       ],
                     ],
                   ),
                   Chip(
-                    avatar: const Icon(Icons.tune_rounded,
-                        size: 14, color: AppColors.primary),
+                    avatar: Icon(Icons.tune_rounded,
+                        size: 14, color: AppColors.of(context).primary),
                     label: Text('Mission Runner: ${activeState ?? 'idle'}'),
-                    backgroundColor: AppColors.surface,
+                    backgroundColor: Theme.of(context).cardColor,
+                    side: BorderSide(color: AppColors.of(context).border),
                   ),
                 ],
               ),
@@ -1032,7 +1034,7 @@ class _Body extends StatelessWidget {
                     final loopCount =
                         (mission['loop_count'] as num?)?.toInt() ?? 1;
                     final color =
-                        status == null ? (isGraph ? const Color(0xFF00E5FF) : AppColors.primary) : _statusColor(status);
+                        status == null ? (isGraph ? const Color(0xFF00E5FF) : AppColors.of(context).primary) : _statusColor(status);
 
                     var subtitle = isGraph
                         ? '${nodes.length} node${nodes.length == 1 ? '' : 's'} · Visual Graph'
@@ -1054,7 +1056,7 @@ class _Body extends StatelessWidget {
                         borderRadius:
                             BorderRadius.circular(AppSpacing.cardRadius),
                         side: BorderSide(
-                          color: isActive ? color : AppColors.border,
+                          color: isActive ? color : AppColors.of(context).border,
                           width: isActive ? 2 : 1,
                         ),
                       ),

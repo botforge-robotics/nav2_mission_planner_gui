@@ -83,9 +83,9 @@ Future<void> _showChangeIpDialog(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Enter the new IP address of your robot on this network.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: TextStyle(color: AppColors.of(ctx).textSecondary, fontSize: 13),
             ),
             const SizedBox(height: AppSpacing.md),
             TextFormField(
@@ -136,16 +136,17 @@ class _ConnectingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final robotName = connection.robot?.name ?? 'Robot';
     final robotIp = connection.robot?.ip;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const RadiatingIcon(
+        RadiatingIcon(
           icon: Icons.smart_toy_rounded,
-          iconBackground: AppColors.primary,
-          iconColor: AppColors.textOnPrimary,
+          iconBackground: colors.primary,
+          iconColor: colors.textOnPrimary,
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(
@@ -161,22 +162,22 @@ class _ConnectingState extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
-                color: AppColors.surfaceSunken,
+                color: colors.surfaceSunken,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: colors.border),
               ),
               child: Text(
                 robotIp,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 12,
-                  color: AppColors.textSecondary,
+                  color: colors.textSecondary,
                 ),
               ),
             ),
           ),
-        const Text('Reaching the robot over the network',
-            style: TextStyle(color: AppColors.textSecondary)),
+        Text('Reaching the robot over the network',
+            style: TextStyle(color: colors.textSecondary)),
         const SizedBox(height: AppSpacing.xl),
         Wrap(
           spacing: AppSpacing.sm,
@@ -193,7 +194,7 @@ class _ConnectingState extends StatelessWidget {
               icon: const Icon(Icons.refresh_rounded, size: 16),
               label: const Text('Reset'),
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.textSecondary,
+                foregroundColor: colors.textSecondary,
               ),
             ),
           ],
@@ -210,6 +211,7 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -217,10 +219,10 @@ class _ErrorState extends StatelessWidget {
           width: 80,
           height: 80,
           decoration: BoxDecoration(
-              color: AppColors.danger.withValues(alpha: 0.1),
+              color: colors.danger.withValues(alpha: 0.1),
               shape: BoxShape.circle),
-          child: const Icon(Icons.wifi_tethering_error_rounded,
-              size: 36, color: AppColors.danger),
+          child: Icon(Icons.wifi_tethering_error_rounded,
+              size: 36, color: colors.danger),
         ),
         const SizedBox(height: AppSpacing.lg),
         Text('Connection Lost', style: Theme.of(context).textTheme.titleMedium),
@@ -230,7 +232,7 @@ class _ErrorState extends StatelessWidget {
           child: Text(
             connection.error!,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: colors.textSecondary),
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -254,7 +256,7 @@ class _ErrorState extends StatelessWidget {
           icon: const Icon(Icons.swap_horiz_rounded, size: 18),
           label: const Text('Reset & Set Up New Robot'),
           style: TextButton.styleFrom(
-            foregroundColor: AppColors.textSecondary,
+            foregroundColor: colors.textSecondary,
           ),
         ),
       ],

@@ -474,8 +474,8 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
                                             bottom: -1,
                                             child: Container(
                                               padding: const EdgeInsets.all(2),
-                                              decoration: const BoxDecoration(
-                                                  color: AppColors.surface,
+                                              decoration: BoxDecoration(
+                                                  color: Theme.of(context).cardColor,
                                                   shape: BoxShape.circle),
                                               child: StatusPulseDot(
                                                   color: status.color,
@@ -500,9 +500,11 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
                                               child: Text(
                                                   'Online · ${status.label}',
                                                   key: ValueKey(status),
-                                                  style: const TextStyle(
-                                                      color: AppColors
-                                                          .textSecondary)),
+                                                  style: TextStyle(
+                                                      color: AppColors.of(context)
+                                                          .textSecondary,
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w500)),
                                             ),
                                           ],
                                         ),
@@ -774,14 +776,16 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
   /// unknown (`value == null`), rather than a "—" that would look
   /// indistinguishable from "the robot genuinely has none".
   Widget _row(BuildContext context, String label, String? value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
           children: [
-            Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+            Text(label, style: TextStyle(color: AppColors.of(context).textSecondary, fontSize: 13)),
             const Spacer(),
             value == null
                 ? const SkeletonBox(width: 90, height: 13)
-                : Text(value, style: Theme.of(context).textTheme.bodyMedium),
+                : Text(value, style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  )),
           ],
         ),
       );
@@ -825,19 +829,28 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colors.border),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: AppColors.primary),
+            Icon(icon, size: 18, color: colors.primary),
             const SizedBox(height: AppSpacing.xs),
             value,
+            const SizedBox(height: 2),
             Text(label,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
+                style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500)),
           ],
         ),
       ),
@@ -852,6 +865,7 @@ class _AdvancedInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     if (health == null) {
       return const Padding(
         padding:
@@ -872,16 +886,50 @@ class _AdvancedInfo extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(
             AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
         child: Text((health!['error'] as Map)['message'].toString(),
-            style: const TextStyle(color: AppColors.textSecondary)),
+            style: TextStyle(color: colors.textSecondary)),
       );
     }
     final sources =
         (health!['sources'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final total = sources.length;
+    final okCount = sources.values.where((v) => (v as Map)['ok'] == true).length;
+    final allOk = total > 0 && okCount == total;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: (allOk ? AppColors.success : AppColors.warning).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: (allOk ? AppColors.success : AppColors.warning).withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  allOk ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                  size: 16,
+                  color: allOk ? AppColors.success : AppColors.warning,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  allOk ? 'All Subsystems Nominal ($okCount/$total)' : 'Subsystem Degradation ($okCount/$total OK)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: allOk ? AppColors.success : AppColors.warning,
+                  ),
+                ),
+              ],
+            ),
+          ),
           for (final (i, entry) in sources.entries.indexed)
             FadeSlideIn(
               delay: Duration(milliseconds: 40 * i),
@@ -900,13 +948,15 @@ class _AdvancedInfo extends StatelessWidget {
                           : AppColors.danger,
                     ),
                     const SizedBox(width: AppSpacing.sm),
-                    Expanded(child: Text(entry.key)),
+                    Expanded(child: Text(entry.key, style: const TextStyle(fontSize: 13))),
                     Text(
                       (entry.value as Map)['age_sec'] != null
                           ? '${((entry.value as Map)['age_sec'] as num).toStringAsFixed(1)}s ago'
                           : 'no data',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12),
+                      style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 11,
+                          fontFeatures: const [FontFeature.tabularFigures()]),
                     ),
                   ],
                 ),

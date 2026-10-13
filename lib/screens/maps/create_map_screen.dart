@@ -471,6 +471,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     final ros2 = context.watch<ConnectionProvider>().ros2;
     final telemetry = context.watch<RobotTelemetryProvider>();
 
@@ -552,7 +553,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                               borderRadius:
                                   BorderRadius.circular(AppSpacing.cardRadius),
                               child: Container(
-                                color: AppColors.surfaceSunken,
+                                color: colors.surfaceSunken,
                                 child: ros2 == null
                                     ? const Center(
                                         child: Text('Not connected.'))
@@ -658,7 +659,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                   ),
                   if (_busyMessage != null)
                     Container(
-                      color: AppColors.surface.withValues(alpha: 0.85),
+                      color: colors.surface.withValues(alpha: 0.85),
                       child: Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -671,8 +672,8 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                               child: Text(
                                 _busyMessage!,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                    color: AppColors.textSecondary),
+                                style: TextStyle(
+                                    color: colors.textSecondary),
                               ),
                             ),
                           ],
@@ -761,9 +762,13 @@ class _DockInstructionDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: colors.border),
+      ),
+      backgroundColor: colors.surface,
       surfaceTintColor: Colors.transparent,
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -781,11 +786,11 @@ class _DockInstructionDialog extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
+                      color: colors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.charging_station_rounded,
-                        color: AppColors.primary, size: 22),
+                    child: Icon(Icons.charging_station_rounded,
+                        color: colors.primary, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -796,12 +801,13 @@ class _DockInstructionDialog extends StatelessWidget {
                           'Place Robot at Dock',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
+                                color: colors.textPrimary,
                               ),
                         ),
                         Text(
                           'Position robot before creating map',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppColors.textSecondary,
+                                color: colors.textSecondary,
                               ),
                         ),
                       ],
@@ -820,9 +826,9 @@ class _DockInstructionDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(14),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: AppColors.surfaceElevated,
+                            color: colors.surfaceElevated,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppColors.border),
+                            border: Border.all(color: colors.border),
                           ),
                           child: Image.asset(
                             isDesktop
@@ -837,20 +843,20 @@ class _DockInstructionDialog extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(AppSpacing.sm),
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceElevated,
+                          color: colors.surfaceElevated,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border),
+                          border: Border.all(color: colors.border),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'CHECKLIST BEFORE STARTING:',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 0.8,
-                                color: AppColors.textSecondary,
+                                color: colors.textSecondary,
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -867,9 +873,9 @@ class _DockInstructionDialog extends StatelessWidget {
                         const SizedBox(height: AppSpacing.xs),
                         Text(
                           'Starting SLAM pauses navigation on "$previousMap". You can cancel later to restore it.',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11.5,
-                            color: AppColors.textTertiary,
+                            color: colors.textTertiary,
                             fontStyle: FontStyle.italic,
                           ),
                         ),
