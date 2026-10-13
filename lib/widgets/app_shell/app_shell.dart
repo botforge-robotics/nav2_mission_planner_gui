@@ -290,7 +290,6 @@ class _DesktopSidebar extends StatelessWidget {
                     return _SidebarItem(
                       icon: isSelected ? d.selectedIcon : d.icon,
                       label: d.label,
-                      index: i,
                       isSelected: isSelected,
                       isCollapsed: isCollapsed,
                       onTap: () => onDestinationSelected(i),
@@ -522,7 +521,6 @@ class _SidebarItem extends StatefulWidget {
   const _SidebarItem({
     required this.icon,
     required this.label,
-    required this.index,
     required this.isSelected,
     required this.isCollapsed,
     required this.onTap,
@@ -530,7 +528,6 @@ class _SidebarItem extends StatefulWidget {
 
   final IconData icon;
   final String label;
-  final int index;
   final bool isSelected;
   final bool isCollapsed;
   final VoidCallback onTap;
@@ -558,7 +555,7 @@ class _SidebarItemState extends State<_SidebarItem> {
 
     if (widget.isCollapsed) {
       return Tooltip(
-        message: '${widget.label} (Ctrl+${widget.index + 1})',
+        message: widget.label,
         waitDuration: const Duration(milliseconds: 250),
         preferBelow: false,
         child: MouseRegion(
@@ -691,7 +688,7 @@ class _SidebarItemState extends State<_SidebarItem> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (isSpeedActive) ...[
+              if (isSpeedActive)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                   decoration: BoxDecoration(
@@ -709,31 +706,6 @@ class _SidebarItemState extends State<_SidebarItem> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
-              ],
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(
-                  color: active
-                      ? colors.primary.withValues(alpha: 0.15)
-                      : colors.surfaceSunken,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: active
-                        ? colors.primary.withValues(alpha: 0.3)
-                        : colors.border.withValues(alpha: 0.7),
-                  ),
-                ),
-                child: Text(
-                  '${widget.index + 1}',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: active ? colors.primary : colors.textSecondary.withValues(alpha: 0.8),
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ),
             ],
           ),
         ),
