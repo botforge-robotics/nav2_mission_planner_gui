@@ -7,7 +7,7 @@ import '../theme/app_theme.dart';
 /// still genuinely be running (a long leg, a slow dock approach), so
 /// [retryOnFailure] never resends on it — only on a definite, Nav2-reported
 /// failure.
-enum ActionOutcome { succeeded, failed, timedOut }
+enum ActionOutcome { succeeded, failed, timedOut, canceled }
 
 /// Briefly polls a status endpoint after firing a dock/undock/navigate
 /// request and reports the *real* outcome — success or failure — via a
@@ -37,6 +37,7 @@ Future<ActionOutcome> watchAndReportOutcome({
   required bool Function(Map<String, dynamic> status) isDone,
   required bool Function(Map<String, dynamic> status) isOk,
   required String Function(Map<String, dynamic> status) describe,
+  String? actionLabel,
   Duration interval = const Duration(seconds: 1),
   Duration timeout = const Duration(seconds: 20),
   bool showResult = true,
@@ -51,6 +52,16 @@ Future<ActionOutcome> watchAndReportOutcome({
       continue; // Transient poll failure — keep trying within the window.
     }
     if (!isDone(status)) continue;
+    final state = (status['state'] ?? status['status'] ?? status['operation'] ?? '').toString().toLowerCase();
+    if (state == 'canceled' || state == 'cancelled') {
+      if (showResult && context.mounted) {
+        final label = actionLabel != null ? '$actionLabel canceled.' : 'Operation canceled.';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(label),
+        ));
+      }
+      return ActionOutcome.canceled;
+    }
     final ok = isOk(status);
     if (showResult && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -65,9 +76,8 @@ Future<ActionOutcome> watchAndReportOutcome({
 
 /// Automatically retries a dock/undock/goto [attempt] up to [maxAttempts]
 /// times total, but only on a definite [ActionOutcome.failed] — never on a
-/// timeout, since the operation may genuinely still be in progress and
-/// resending would double-fire it (a real risk: two overlapping dock goals
-/// fighting each other).
+/// timeout or cancellation, since the operation may genuinely still be in
+/// progress or was explicitly stopped by the user.
 ///
 /// Between attempts, shows a snackbar with a real "Cancel" action — tapping
 /// it stops any further retries, satisfying "retry unless the user cancels"
@@ -89,6 +99,7 @@ Future<void> retryOnFailure({
   for (var i = 1; i <= maxAttempts; i++) {
     if (cancelled) return;
     final outcome = await attempt(i);
+    if (outcome == ActionOutcome.canceled) return;
     if (outcome != ActionOutcome.failed) return;
     if (i == maxAttempts || cancelled) return;
     if (!context.mounted) return;

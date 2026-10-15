@@ -159,6 +159,7 @@ Future<void> showDockActionSheet({
       if (choice == 'goto') {
         return watchAndReportOutcome(
           context: context,
+          actionLabel: 'Navigation to dock',
           fetchStatus: api.navigationStatus,
           isDone: (s) =>
               const {'succeeded', 'failed', 'canceled'}.contains(s['state']),
@@ -171,10 +172,11 @@ Future<void> showDockActionSheet({
       }
       return watchAndReportOutcome(
         context: context,
+        actionLabel: choice == 'dock' ? 'Docking' : 'Undocking',
         fetchStatus: api.dockStatus,
         isDone: (s) =>
-            const {'docked', 'undocked', 'failed'}.contains(s['operation']),
-        isOk: (s) => s['operation'] != 'failed',
+            const {'docked', 'undocked', 'failed', 'canceled'}.contains(s['operation']),
+        isOk: (s) => s['operation'] != 'failed' && s['operation'] != 'canceled',
         describe: (s) => s['operation'] == 'failed'
             ? 'Dock operation failed'
                 '${s['message'] != null && (s['message'] as String).isNotEmpty ? ' — ${s['message']}' : '.'}'

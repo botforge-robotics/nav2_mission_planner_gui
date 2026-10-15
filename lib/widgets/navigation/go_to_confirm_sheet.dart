@@ -176,6 +176,7 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
         if (!caller.mounted) return ActionOutcome.failed;
         return watchAndReportOutcome(
           context: caller,
+          actionLabel: 'Navigation to "${widget.locationName}"',
           fetchStatus: widget.api.navigationStatus,
           isDone: (s) =>
               const {'succeeded', 'failed', 'canceled'}.contains(s['state']),

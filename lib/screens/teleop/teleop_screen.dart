@@ -370,10 +370,11 @@ class _TeleopScreenState extends State<TeleopScreen> {
           {required Duration timeout}) =>
       watchAndReportOutcome(
         context: context,
+        actionLabel: _docking ? 'Docking' : 'Undocking',
         fetchStatus: api.dockStatus,
         isDone: (s) =>
-            const {'docked', 'undocked', 'failed'}.contains(s['operation']),
-        isOk: (s) => s['operation'] != 'failed',
+            const {'docked', 'undocked', 'failed', 'canceled'}.contains(s['operation']),
+        isOk: (s) => s['operation'] != 'failed' && s['operation'] != 'canceled',
         describe: (s) => s['operation'] == 'failed'
             ? 'Dock operation failed'
                 '${s['message'] != null && (s['message'] as String).isNotEmpty ? ' — ${s['message']}' : '.'}'
