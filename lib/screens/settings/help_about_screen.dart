@@ -98,7 +98,7 @@ class _HelpAboutScreenState extends State<HelpAboutScreen> {
                                 border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
                               ),
                               child: Text(
-                                _info != null ? 'v${_info!.version}' : 'v2.1.4',
+                                _info != null ? 'v${_info!.version}' : 'v2.2.0',
                                 style: TextStyle(
                                   color: colors.primary,
                                   fontSize: 12,
