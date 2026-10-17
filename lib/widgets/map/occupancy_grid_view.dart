@@ -2649,7 +2649,7 @@ class _OccupancyGridPainter extends CustomPainter {
 
     _drawPin(canvas, center, AppColors.stateDocking, Icons.ev_station_rounded, sizeScale: sizeScale);
     if (showLabel) {
-      _drawPinLabel(canvas, center, '1. Dock Station (⚡)', sizeScale: sizeScale);
+      _drawPinLabel(canvas, center, 'Dock Station (⚡)', sizeScale: sizeScale);
     }
   }
 
@@ -2669,7 +2669,7 @@ class _OccupancyGridPainter extends CustomPainter {
 
     _drawPin(canvas, center, AppColors.primary, Icons.my_location_rounded, sizeScale: sizeScale);
     if (showLabel) {
-      _drawPinLabel(canvas, center, '2. Standoff Point (🎯)', sizeScale: sizeScale);
+      _drawPinLabel(canvas, center, 'Auto Standoff (0.7m 🎯)', sizeScale: sizeScale);
     }
   }
 

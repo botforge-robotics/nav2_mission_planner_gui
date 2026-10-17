@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../models/map_zone.dart';
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
+import '../../services/dock_pose_controller.dart';
 import '../../services/locations_controller.dart';
 import '../../services/map_layers_controller.dart';
 import '../../services/sdk_api_service.dart';
@@ -91,10 +92,20 @@ class _MapViewScreenState extends State<MapViewScreen> {
     MapLayersController.instance.addListener(_onSharedStateChanged);
     LocationsController.instance.addListener(_onSharedStateChanged);
     ZonesController.instance.addListener(_onSharedStateChanged);
+    DockPoseController.instance.addListener(_onDockPoseChanged);
   }
 
   void _onSharedStateChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _onDockPoseChanged() {
+    if (!mounted) return;
+    final data = DockPoseController.instance.value;
+    setState(() {
+      _dockPose = data.dock;
+      _standoffPose = data.standoff;
+    });
   }
 
   Future<void> _loadActiveMapAndZones(SdkApiService api) async {
@@ -119,32 +130,12 @@ class _MapViewScreenState extends State<MapViewScreen> {
     final ip = context.read<ConnectionProvider>().robot?.ip;
     final api = _apiFor(ip);
     if (api == null) return;
-    final dock = await fetchDockPose(api);
-    if (!mounted || dock == null) return;
-
-    // Resolve standoff from locations if available, else 0.70m forward along dock
-    ({double x, double y, double theta})? standoff;
-    final locs = LocationsController.instance.value ?? [];
-    for (final loc in locs) {
-      if (loc['name'] == 'Dock Standoff') {
-        final x = (loc['x'] as num?)?.toDouble();
-        final y = (loc['y'] as num?)?.toDouble();
-        final theta = (loc['theta'] as num?)?.toDouble() ?? 0.0;
-        if (x != null && y != null) {
-          standoff = (x: x, y: y, theta: theta);
-          break;
-        }
-      }
-    }
-    standoff ??= (
-      x: dock.x + 0.70 * cos(dock.theta),
-      y: dock.y + 0.70 * sin(dock.theta),
-      theta: dock.theta,
-    );
-
+    await DockPoseController.instance.refresh(api);
+    if (!mounted) return;
+    final data = DockPoseController.instance.value;
     setState(() {
-      _dockPose = dock;
-      _standoffPose = standoff;
+      _dockPose = data.dock;
+      _standoffPose = data.standoff;
     });
   }
 
@@ -153,6 +144,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
     MapLayersController.instance.removeListener(_onSharedStateChanged);
     LocationsController.instance.removeListener(_onSharedStateChanged);
     ZonesController.instance.removeListener(_onSharedStateChanged);
+    DockPoseController.instance.removeListener(_onDockPoseChanged);
     _transformController.dispose();
     super.dispose();
   }

@@ -159,11 +159,14 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
           IconButton(
             icon: const Icon(Icons.tune_rounded),
             tooltip: 'Edit Dock Position',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const DockPositionEditorScreen(),
-              ),
-            ),
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const DockPositionEditorScreen(),
+                ),
+              );
+              if (mounted) await _refresh();
+            },
           ),
         ],
       ),

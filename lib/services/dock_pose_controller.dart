@@ -48,24 +48,7 @@ class DockPoseController extends ValueNotifier<DockPoseData> {
         return;
       }
 
-      ({double x, double y, double theta})? standoff;
-      final locs = LocationsController.instance.value ??
-          await api.listWaypoints().catchError((_) => <Map<String, dynamic>>[]);
-
-      for (final loc in locs) {
-        final name = (loc['name'] as String? ?? '').toLowerCase();
-        if (name.contains('standoff') || name.contains('staging')) {
-          final x = (loc['x'] as num?)?.toDouble();
-          final y = (loc['y'] as num?)?.toDouble();
-          final theta = (loc['theta'] as num?)?.toDouble() ?? 0.0;
-          if (x != null && y != null) {
-            standoff = (x: x, y: y, theta: theta);
-            break;
-          }
-        }
-      }
-
-      standoff ??= (
+      final standoff = (
         x: dock.x + 0.70 * cos(dock.theta),
         y: dock.y + 0.70 * sin(dock.theta),
         theta: dock.theta,
