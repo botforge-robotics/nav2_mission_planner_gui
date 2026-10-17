@@ -10,8 +10,9 @@ import 'services/gamepad_service.dart';
 import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppThemeController.instance.init();
   GamepadService.instance.init();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   SystemChrome.setPreferredOrientations([

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_motion.dart';
 
@@ -7,20 +8,48 @@ class AppThemeController extends ChangeNotifier {
   AppThemeController._();
   static final AppThemeController instance = AppThemeController._();
 
+  static const String _prefKey = 'app_theme_mode';
+
   ThemeMode _mode = ThemeMode.light;
   ThemeMode get mode => _mode;
 
   bool get isDarkMode => _mode == ThemeMode.dark;
 
+  /// Restores the persisted theme preference before first paint.
+  Future<void> init() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_prefKey);
+      if (saved == 'dark') {
+        _mode = ThemeMode.dark;
+      } else if (saved == 'light') {
+        _mode = ThemeMode.light;
+      } else if (saved == 'system') {
+        _mode = ThemeMode.system;
+      }
+      notifyListeners();
+    } catch (_) {
+      // Fallback to light mode on storage errors
+    }
+  }
+
   void toggleTheme() {
     _mode = _mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
     notifyListeners();
+    _persist();
   }
 
   void setMode(ThemeMode mode) {
     if (_mode == mode) return;
     _mode = mode;
     notifyListeners();
+    _persist();
+  }
+
+  void _persist() {
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString(_prefKey, _mode.name);
+    }).catchError((_) {});
   }
 }
 
