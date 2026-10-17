@@ -19,7 +19,7 @@ Every repository in the NavPro ecosystem adheres to a standardized 4-tier branch
 
 | Repository & Role | 1. Public Stable Branch | 2. Dev Branch | 3. RMF Dev Branch | 4. RMF Stable Branch |
 | :--- | :--- | :--- | :--- | :--- |
-| **`nav2_mission_planner`**<br>*(Flutter Desktop/Mobile GUI)* | **`navpro-mini`** (`6d42c8e`)<br>*(Active on PC)* | **`dev`** (`6d42c8e`) | **`rmf-dev`** (`029833e`) | `-` *(will create later)* |
+| **`nav2_mission_planner`**<br>*(Flutter Desktop/Mobile GUI)* | **`navpro-mini`** (`38db32f`)<br>*(Active on PC)* | **`dev`** (`38db32f`) | **`rmf-dev`** (`029833e`) | `-` *(will create later)* |
 | **`Nav_Pro_Mini`**<br>*(ROS 2 Nav2, Autonomy, Docking)* | **`nav2`** (`01ac61e`)<br>*(Active on PC & Robot)* | **`dev`** (`01ac61e`) | **`rmf-dev`** (`9ec588a`) | `-` *(will create later)* |
 | **`navpro-fleet-server`**<br>*(Fleet Backend, Web, Zenoh)* | **`main`** (`109f84b`)<br>*(Active on PC)* | **`dev`** (`109f84b`) | **`rmf-dev`** (`a1be305`) | **`rmf-jazzy`** (`c72dc7a`) |
 | **`navpromini_robot_ui`**<br>*(On-Robot Touchscreen Display)* | **`main`** (`fc0e7fb`)<br>*(Active on PC & Robot)* | **`dev`** (`1c5fefe`) | `-` *(will create later)* | `-` *(will create later)* |
@@ -37,7 +37,7 @@ Every repository in the NavPro ecosystem adheres to a standardized 4-tier branch
 
 ### A. Local PC (`/home/chaitu/Projects/`)
 All local checkouts are on their **Public Stable** releases:
-- `nav2_mission_planner`: **`navpro-mini`** (`6d42c8e`)
+- `nav2_mission_planner`: **`navpro-mini`** (`38db32f`)
 - `Nav_Pro_Mini`: **`nav2`** (`01ac61e`)
 - `navpro-fleet-server`: **`main`** (`109f84b`)
 - `navpromini_robot_ui`: **`main`** (`fc0e7fb`)
