@@ -25,7 +25,6 @@ import 'software_update_screen.dart';
 import 'tools_api_screen.dart';
 import '../setup/setup_power_screen.dart';
 import '../media/robot_media_screen.dart';
-import 'ai_avatar_settings_screen.dart';
 
 /// Reference §13/§16 (Settings). Only entries backed by something real are
 /// full screens here: Alerts & Fault Log (already built — reused, not
@@ -130,13 +129,6 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                   subtitle: 'View live event history',
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const AlertsLogScreen())),
-                ),
-                _SettingsTile(
-                  icon: Icons.record_voice_over_rounded,
-                  title: 'AI Voice Assistant',
-                  subtitle: 'Configure onboard voice assistant, scenarios (Mall, Real Estate) & speech',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const AiAvatarSettingsScreen())),
                 ),
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
