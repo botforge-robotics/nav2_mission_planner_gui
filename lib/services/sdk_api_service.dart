@@ -662,4 +662,14 @@ class SdkApiService {
 
   Future<void> deleteRobotMedia(String filename) =>
       _send('DELETE', '/api/v1/media/${Uri.encodeComponent(filename)}');
+
+  // -- AI Avatar & Gemini Flash Live -----------------------------------------
+
+  Future<Map<String, dynamic>> fetchAiAvatarConfig() async {
+    return _send('GET', '/api/v1/ai/avatar/config');
+  }
+
+  Future<Map<String, dynamic>> updateAiAvatarConfig(Map<String, dynamic> config) async {
+    return _send('PUT', '/api/v1/ai/avatar/config', body: config);
+  }
 }

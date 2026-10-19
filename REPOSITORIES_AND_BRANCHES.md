@@ -19,10 +19,10 @@ Every repository in the NavPro ecosystem adheres to a standardized 4-tier branch
 
 | Repository & Role | 1. Public Stable Branch | 2. Dev Branch | 3. RMF Dev Branch | 4. RMF Stable Branch |
 | :--- | :--- | :--- | :--- | :--- |
-| **`nav2_mission_planner`**<br>*(Flutter Desktop/Mobile GUI)* | **`navpro-mini`** (`38db32f`)<br>*(Active on PC)* | **`dev`** (`38db32f`) | **`rmf-dev`** (`029833e`) | `-` *(will create later)* |
-| **`Nav_Pro_Mini`**<br>*(ROS 2 Nav2, Autonomy, Docking)* | **`nav2`** (`01ac61e`)<br>*(Active on PC & Robot)* | **`dev`** (`01ac61e`) | **`rmf-dev`** (`9ec588a`) | `-` *(will create later)* |
+| **`nav2_mission_planner`**<br>*(Flutter Desktop/Mobile GUI)* | **`navpro-mini`** (`9876b42`)<br>*(Active on PC)* | **`dev`** (`9876b42`) | **`rmf-dev`** (`029833e`) | `-` *(will create later)* |
+| **`Nav_Pro_Mini`**<br>*(ROS 2 Nav2, Autonomy, Docking)* | **`nav2`** (`87a9ae0`)<br>*(Active on PC & Robot)* | **`dev`** (`87a9ae0`) | **`rmf-dev`** (`9ec588a`) | `-` *(will create later)* |
 | **`navpro-fleet-server`**<br>*(Fleet Backend, Web, Zenoh)* | **`main`** (`109f84b`)<br>*(Active on PC)* | **`dev`** (`109f84b`) | **`rmf-dev`** (`a1be305`) | **`rmf-jazzy`** (`c72dc7a`) |
-| **`navpromini_robot_ui`**<br>*(On-Robot Touchscreen Display)* | **`main`** (`fc0e7fb`)<br>*(Active on PC & Robot)* | **`dev`** (`1c5fefe`) | `-` *(will create later)* | `-` *(will create later)* |
+| **`navpromini_robot_ui`**<br>*(On-Robot Touchscreen Display)* | **`main`** (`eee7429`)<br>*(Active on PC & Robot)* | **`dev`** (`eee7429`) | `-` *(will create later)* | `-` *(will create later)* |
 | **`navpromini_sdk`**<br>*(Python REST API & Telemetry)* | **`main`** (`1a7df5b`)<br>*(Active on PC & Robot)* | **`dev`** (`1a7df5b`) | `-` *(will create later)* | `-` *(will create later)* |
 | **`navpromini_wearos`**<br>*(Smartwatch Wear OS App)* | **`master`** (`80f2262`) | `-` *(will create later)* | `-` *(will create later)* | `-` *(will create later)* |
 | **`navpromini_sdk_badge`**<br>*(ESP32-S3 AMOLED Touch Badge)* | **`main`** (`e2cde8c`) | `-` *(will create later)* | `-` *(will create later)* | `-` *(will create later)* |
