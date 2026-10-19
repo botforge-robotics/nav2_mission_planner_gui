@@ -2321,6 +2321,38 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                   Row(
                     children: [
                       Expanded(
+                        child: TextFormField(
+                          initialValue: fields[i].key,
+                          style: TextStyle(color: colors.textPrimary, fontSize: 11, fontFamily: 'monospace'),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            labelText: 'Variable Storage Key (use in {key})',
+                            hintText: 'e.g. room_target',
+                            prefixText: '{ ',
+                            suffixText: ' }',
+                            prefixStyle: TextStyle(color: colors.primary, fontWeight: FontWeight.bold, fontSize: 11),
+                            suffixStyle: TextStyle(color: colors.primary, fontWeight: FontWeight.bold, fontSize: 11),
+                            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 11),
+                            filled: true,
+                            fillColor: colors.surfaceSunken,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.border)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.border)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.primary, width: 1.5)),
+                          ),
+                          onChanged: (v) {
+                            fields[i].key = v.trim();
+                            widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
+                            widget.onChanged();
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
                         child: DropdownButtonFormField<String>(
                           key: ValueKey('${widget.node.id}_field_${i}_${fields[i].type}'),
                           isExpanded: true,
@@ -2376,6 +2408,148 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                       Text('Required', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
                     ],
                   ),
+                  if (fields[i].type == 'location') ...[
+                    SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: colors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.place_rounded, size: 14, color: colors.primary),
+                                  SizedBox(width: 4),
+                                  Text('Allowed Locations:', style: TextStyle(color: colors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              PopupMenuButton<String>(
+                                tooltip: 'Filter to specific map location',
+                                itemBuilder: (ctx) {
+                                  final allWps = (LocationsController.instance.value ?? const [])
+                                      .map((l) => l['name']?.toString() ?? '')
+                                      .where((s) => s.isNotEmpty && !fields[i].options.contains(s))
+                                      .toList();
+                                  if (allWps.isEmpty) {
+                                    return [
+                                      const PopupMenuItem(
+                                        enabled: false,
+                                        child: Text('All map locations already added', style: TextStyle(fontSize: 11)),
+                                      )
+                                    ];
+                                  }
+                                  return allWps.map((wp) => PopupMenuItem(value: wp, child: Text(wp, style: TextStyle(fontSize: 11)))).toList();
+                                },
+                                onSelected: widget.readOnly
+                                    ? null
+                                    : (wp) {
+                                        setState(() {
+                                          fields[i].options.add(wp);
+                                          widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
+                                        });
+                                        widget.onChanged();
+                                      },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.add, size: 14, color: colors.primary),
+                                      Text('Add Filter', style: TextStyle(color: colors.primary, fontSize: 11, fontWeight: FontWeight.w600)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          if (fields[i].options.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Text(
+                                '🌐 All saved map locations will be displayed in the dropdown.',
+                                style: TextStyle(color: colors.textTertiary, fontSize: 11, fontStyle: FontStyle.italic),
+                              ),
+                            )
+                          else
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: fields[i].options.map((opt) {
+                                return Chip(
+                                  avatar: Icon(Icons.place_rounded, size: 12, color: colors.primary),
+                                  label: Text(opt, style: TextStyle(fontSize: 11)),
+                                  padding: EdgeInsets.zero,
+                                  backgroundColor: colors.surfaceSunken,
+                                  deleteIcon: Icon(Icons.close, size: 14),
+                                  onDeleted: widget.readOnly
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            fields[i].options.remove(opt);
+                                            if (fields[i].defaultValue == opt) fields[i].defaultValue = null;
+                                            widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
+                                          });
+                                          widget.onChanged();
+                                        },
+                                );
+                              }).toList(),
+                            ),
+                          SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            key: ValueKey('${widget.node.id}_field_${i}_loc_def_${fields[i].defaultValue}'),
+                            isExpanded: true,
+                            initialValue: (fields[i].defaultValue != null && fields[i].defaultValue.toString().isNotEmpty)
+                                ? fields[i].defaultValue.toString()
+                                : null,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              labelText: 'Pre-selected Default Location (Optional)',
+                              labelStyle: TextStyle(fontSize: 11),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                            style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                            items: [
+                              const DropdownMenuItem<String>(value: null, child: Text('None (User must choose)')),
+                              ...((fields[i].options.isNotEmpty
+                                      ? fields[i].options
+                                      : (LocationsController.instance.value ?? const [])
+                                          .map((l) => l['name']?.toString() ?? '')
+                                          .where((s) => s.isNotEmpty)
+                                          .toList())
+                                  .map((loc) => DropdownMenuItem(
+                                        value: loc,
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.place_rounded, size: 12, color: colors.primary),
+                                            SizedBox(width: 4),
+                                            Expanded(child: Text(loc, overflow: TextOverflow.ellipsis)),
+                                          ],
+                                        ),
+                                      ))),
+                            ],
+                            onChanged: widget.readOnly
+                                ? null
+                                : (val) {
+                                    setState(() {
+                                      fields[i].defaultValue = val;
+                                      widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
+                                    });
+                                    widget.onChanged();
+                                  },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   if (fields[i].type == 'select') ...[
                     SizedBox(height: 8),
                     Container(
@@ -2464,6 +2638,51 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           ),
                         ],
                       ),
+                    ),
+                  ],
+                  if (fields[i].type == 'text' || fields[i].type == 'number') ...[
+                    SizedBox(height: 6),
+                    TextFormField(
+                      initialValue: fields[i].defaultValue?.toString() ?? '',
+                      style: TextStyle(color: colors.textPrimary, fontSize: 11),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        labelText: 'Default Value (Optional)',
+                        hintText: fields[i].type == 'number' ? 'e.g. 10' : 'e.g. Standard',
+                        labelStyle: TextStyle(color: colors.textSecondary, fontSize: 11),
+                        filled: true,
+                        fillColor: colors.surfaceSunken,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.border)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.border)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: colors.primary, width: 1.5)),
+                      ),
+                      onChanged: (v) {
+                        fields[i].defaultValue = v.trim().isEmpty ? null : (fields[i].type == 'number' ? num.tryParse(v.trim()) ?? v.trim() : v.trim());
+                        widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
+                        widget.onChanged();
+                      },
+                    ),
+                  ],
+                  if (fields[i].type == 'checkbox' || fields[i].type == 'switch') ...[
+                    SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: fields[i].defaultValue == true,
+                          activeColor: colors.primary,
+                          onChanged: widget.readOnly
+                              ? null
+                              : (v) {
+                                  setState(() {
+                                    fields[i].defaultValue = v ?? false;
+                                    widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
+                                  });
+                                  widget.onChanged();
+                                },
+                        ),
+                        Text('Default to Checked / On', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
+                      ],
                     ),
                   ],
                 ],
@@ -2883,9 +3102,53 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                           ),
                           SizedBox(height: 4),
                           if (f.type == 'switch')
-                            Switch(value: false, activeThumbColor: colors.primary, onChanged: (_) {})
+                            Switch(value: f.defaultValue == true, activeThumbColor: colors.primary, onChanged: (_) {})
                           else if (f.type == 'checkbox')
-                            Checkbox(value: false, activeColor: colors.primary, onChanged: (_) {})
+                            Checkbox(value: f.defaultValue == true, activeColor: colors.primary, onChanged: (_) {})
+                          else if (f.type == 'location')
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: colors.surfaceSunken,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: colors.border),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.place_rounded, size: 14, color: colors.primary),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      (f.defaultValue != null && f.defaultValue.toString().isNotEmpty)
+                                          ? f.defaultValue.toString()
+                                          : (f.options.isNotEmpty ? 'Select from ${f.options.length} locations...' : '📍 Select map location...'),
+                                      style: TextStyle(
+                                        color: (f.defaultValue != null && f.defaultValue.toString().isNotEmpty) ? colors.textPrimary : colors.textTertiary,
+                                        fontSize: 12,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Icon(Icons.arrow_drop_down, size: 18, color: colors.textTertiary),
+                                ],
+                              ),
+                            )
+                          else if (f.type == 'signature')
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: colors.surfaceSunken,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: colors.border),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.draw_rounded, size: 14, color: colors.primary),
+                                  const SizedBox(width: 6),
+                                  Text('✍️ Sign here...', style: TextStyle(color: colors.textTertiary, fontSize: 12)),
+                                ],
+                              ),
+                            )
                           else
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -2895,8 +3158,13 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                                 border: Border.all(color: colors.border),
                               ),
                               child: Text(
-                                f.type == 'select' ? 'Select from options...' : 'Enter ${f.label.toLowerCase()}...',
-                                style: TextStyle(color: colors.textTertiary, fontSize: 12),
+                                f.type == 'select'
+                                    ? ((f.defaultValue != null && f.defaultValue.toString().isNotEmpty) ? f.defaultValue.toString() : 'Select from options...')
+                                    : ((f.defaultValue != null && f.defaultValue.toString().isNotEmpty) ? f.defaultValue.toString() : 'Enter ${f.label.toLowerCase()}...'),
+                                style: TextStyle(
+                                  color: (f.defaultValue != null && f.defaultValue.toString().isNotEmpty) ? colors.textPrimary : colors.textTertiary,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                         ],

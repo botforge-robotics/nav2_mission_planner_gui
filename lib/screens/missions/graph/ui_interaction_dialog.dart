@@ -117,11 +117,24 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
     _fields = rawFields.map((f) => FormFieldDef.fromJson(f as Map<String, dynamic>)).toList();
     for (final f in _fields) {
       if (f.type == 'checkbox' || f.type == 'switch') {
-        _formData[f.key] = false;
+        _formData[f.key] = f.defaultValue == true;
+      } else if (f.defaultValue != null && f.defaultValue.toString().isNotEmpty) {
+        _formData[f.key] = f.defaultValue;
+      } else if (f.type == 'select' && f.options.isNotEmpty) {
+        _formData[f.key] = f.options.first;
+      } else if (f.type == 'location') {
+        final locs = f.options.isNotEmpty
+            ? f.options
+            : (LocationsController.instance.value ?? const [])
+                .map((l) => l['name']?.toString() ?? '')
+                .where((s) => s.isNotEmpty)
+                .toList();
+        _formData[f.key] = locs.isNotEmpty ? locs.first : '';
       } else {
         _formData[f.key] = '';
       }
     }
+    LocationsController.instance.refresh(widget.api);
 
     _remainingSec = _timeoutSec;
     if (_timeoutSec > 0) {
@@ -319,7 +332,7 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                     ],
 
                     // Subtype specific body
-                    if (_subtype == 'form' || _fields.isNotEmpty)
+                    if (_subtype == 'form' || _subtype == 'dynamic_form' || _fields.isNotEmpty)
                       _buildFormBody()
                     else if (_subtype == 'choices' || _subtype == 'choice' || _subtype == 'ui_choice')
                       _buildChoicesBody()
@@ -335,7 +348,7 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
             ),
 
             // Bottom Actions (for form, modal, or media_display)
-            if (_subtype == 'form' || _subtype == 'modal' || _subtype == 'media_display')
+            if (_subtype == 'form' || _subtype == 'dynamic_form' || _fields.isNotEmpty || _subtype == 'modal' || _subtype == 'media_display')
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 decoration: BoxDecoration(
@@ -367,7 +380,7 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
-                          : Text(_subtype == 'form' ? 'Submit Form' : 'Acknowledge'),
+                          : Text((_subtype == 'form' || _subtype == 'dynamic_form' || _fields.isNotEmpty) ? 'Submit Form' : 'Acknowledge'),
                     ),
                   ],
                 ),
@@ -462,20 +475,81 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                 },
                 onSaved: (v) => _formData[field.key] = v?.trim(),
               )
-            else if (field.type == 'select' || field.type == 'location')
-              Builder(builder: (context) {
-                final locOptions = field.options.isNotEmpty
-                    ? field.options
-                    : (LocationsController.instance.value ?? const [])
-                        .map((l) => l['name']?.toString() ?? '')
-                        .where((s) => s.isNotEmpty)
-                        .toList();
-                return DropdownButtonFormField<String>(
-                  key: ValueKey('field_${field.key}_${_formData[field.key]}'),
-                  isExpanded: true,
-                  initialValue: locOptions.contains(_formData[field.key])
+            else if (field.type == 'location')
+              ValueListenableBuilder<List<Map<String, dynamic>>?>(
+                valueListenable: LocationsController.instance,
+                builder: (context, wps, _) {
+                  final locOptions = field.options.isNotEmpty
+                      ? field.options
+                      : (wps ?? const [])
+                          .map((l) => l['name']?.toString() ?? '')
+                          .where((s) => s.isNotEmpty)
+                          .toList();
+                  final currentVal = locOptions.contains(_formData[field.key])
                       ? _formData[field.key]
-                      : (locOptions.isNotEmpty ? locOptions.first : null),
+                      : (locOptions.isNotEmpty ? locOptions.first : null);
+                  if (_formData[field.key] == null || _formData[field.key].toString().isEmpty) {
+                    _formData[field.key] = currentVal;
+                  }
+                  return DropdownButtonFormField<String>(
+                    key: ValueKey('field_${field.key}_$currentVal'),
+                    isExpanded: true,
+                    initialValue: currentVal,
+                    dropdownColor: colors.surfaceElevated,
+                    style: TextStyle(color: colors.textPrimary, fontSize: 13),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: colors.surfaceSunken,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                        borderSide: BorderSide(color: colors.primary, width: 1.5),
+                      ),
+                    ),
+                    items: [
+                      if (locOptions.isEmpty)
+                        const DropdownMenuItem(
+                          value: null,
+                          child: Text('No saved map locations found', style: TextStyle(fontStyle: FontStyle.italic)),
+                        ),
+                      for (final opt in locOptions)
+                        DropdownMenuItem(
+                          value: opt,
+                          child: Row(
+                            children: [
+                              Icon(Icons.place_rounded, size: 14, color: colors.primary),
+                              const SizedBox(width: 6),
+                              Expanded(child: Text(opt, overflow: TextOverflow.ellipsis)),
+                            ],
+                          ),
+                        ),
+                    ],
+                    onChanged: (v) => _formData[field.key] = v,
+                    onSaved: (v) => _formData[field.key] = v ?? _formData[field.key],
+                  );
+                },
+              )
+            else if (field.type == 'select')
+              Builder(builder: (context) {
+                final options = field.options;
+                final currentVal = options.contains(_formData[field.key])
+                    ? _formData[field.key]
+                    : (options.isNotEmpty ? options.first : null);
+                if (_formData[field.key] == null || _formData[field.key].toString().isEmpty) {
+                  _formData[field.key] = currentVal;
+                }
+                return DropdownButtonFormField<String>(
+                  key: ValueKey('field_${field.key}_$currentVal'),
+                  isExpanded: true,
+                  initialValue: currentVal,
                   dropdownColor: colors.surfaceElevated,
                   style: TextStyle(color: colors.textPrimary, fontSize: 13),
                   decoration: InputDecoration(
@@ -496,25 +570,58 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                     ),
                   ),
                   items: [
-                    for (final opt in locOptions)
+                    for (final opt in options)
                       DropdownMenuItem(
                         value: opt,
-                        child: Row(
-                          children: [
-                            if (field.type == 'location') ...[
-                              Icon(Icons.place_rounded, size: 14, color: colors.primary),
-                              const SizedBox(width: 6),
-                            ],
-                            Expanded(child: Text(opt, overflow: TextOverflow.ellipsis)),
-                          ],
-                        ),
+                        child: Text(opt, overflow: TextOverflow.ellipsis),
                       ),
                   ],
                   onChanged: (v) => _formData[field.key] = v,
-                  onSaved: (v) => _formData[field.key] = v,
+                  onSaved: (v) => _formData[field.key] = v ?? _formData[field.key],
                 );
               })
-            else if (field.type == 'checkbox' || field.type == 'switch')
+            else if (field.type == 'signature')
+              TextFormField(
+                initialValue: _formData[field.key]?.toString() ?? '',
+                style: TextStyle(color: colors.textPrimary, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'Type signature / full name...',
+                  hintStyle: TextStyle(color: colors.textTertiary),
+                  prefixIcon: Icon(Icons.draw_rounded, size: 16, color: colors.primary),
+                  filled: true,
+                  fillColor: colors.surfaceSunken,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                    borderSide: BorderSide(color: colors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                    borderSide: BorderSide(color: colors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+                    borderSide: BorderSide(color: colors.primary, width: 1.5),
+                  ),
+                ),
+                validator: (v) {
+                  if (field.required && (v == null || v.trim().isEmpty)) {
+                    return 'Signature is required';
+                  }
+                  return null;
+                },
+                onSaved: (v) => _formData[field.key] = v?.trim(),
+              )
+            else if (field.type == 'switch')
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                activeThumbColor: colors.primary,
+                title: Text(field.label,
+                    style: TextStyle(color: colors.textPrimary, fontSize: 13)),
+                value: _formData[field.key] == true,
+                onChanged: (v) => setState(() => _formData[field.key] = v),
+              )
+            else if (field.type == 'checkbox')
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 activeColor: colors.primary,
