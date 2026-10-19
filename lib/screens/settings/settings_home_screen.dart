@@ -133,8 +133,8 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                 ),
                 _SettingsTile(
                   icon: Icons.record_voice_over_rounded,
-                  title: 'Virtual Assistant & Gemini Live',
-                  subtitle: 'Configure on-robot AI avatar, scenarios (Mall, Real Estate), voice & tools',
+                  title: 'AI Voice Assistant',
+                  subtitle: 'Configure onboard voice assistant, scenarios (Mall, Real Estate) & speech',
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const AiAvatarSettingsScreen())),
                 ),

@@ -216,7 +216,7 @@ class _AiAvatarSettingsScreenState extends State<AiAvatarSettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Virtual Assistant & Gemini Live'),
+        title: const Text('AI Voice Assistant'),
         actions: [
           TextButton.icon(
             onPressed: _saving ? null : _saveToRobot,
@@ -227,7 +227,7 @@ class _AiAvatarSettingsScreenState extends State<AiAvatarSettingsScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.cloud_upload_rounded),
-            label: const Text('Deploy to Robot'),
+            label: const Text('Apply to Assistant'),
           ),
           const SizedBox(width: 8),
         ],
@@ -265,14 +265,14 @@ class _AiAvatarSettingsScreenState extends State<AiAvatarSettingsScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Onboard Gemini 2.0 Flash Live Assistant',
+                                        'Onboard AI Voice Assistant',
                                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                               fontWeight: FontWeight.bold,
                                             ),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        'Screen-gated activation • Low-latency voice • Real-time interruption • Autonomous tour escort',
+                                        'Interactive voice conversation • Natural dialogue • Seamless guided assistance',
                                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                               color: colors.textSecondary,
                                             ),
@@ -287,7 +287,7 @@ class _AiAvatarSettingsScreenState extends State<AiAvatarSettingsScreen> {
                         const SizedBox(height: AppSpacing.lg),
 
                         // Section 1: API Key & Model
-                        Text('1. Google Gemini Cloud Credentials',
+                        Text('1. Voice Intelligence Engine',
                             style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
                         const SizedBox(height: AppSpacing.sm),
                         Card(
@@ -352,7 +352,7 @@ class _AiAvatarSettingsScreenState extends State<AiAvatarSettingsScreen> {
                                       child: DropdownButtonFormField<String>(
                                         initialValue: _selectedModel,
                                         decoration: const InputDecoration(
-                                          labelText: 'Gemini Live Model',
+                                          labelText: 'Voice Intelligence Model',
                                           prefixIcon: Icon(Icons.bolt_rounded),
                                         ),
                                         items: _models
@@ -505,7 +505,7 @@ class _AiAvatarSettingsScreenState extends State<AiAvatarSettingsScreen> {
                                 )
                               : const Icon(Icons.rocket_launch_rounded),
                           label: Text(
-                            _saving ? 'Deploying Configuration...' : 'Save & Deploy to NavPro Robot',
+                            _saving ? 'Applying Configuration...' : 'Save & Apply to AI Assistant',
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                           ),
                         ),
