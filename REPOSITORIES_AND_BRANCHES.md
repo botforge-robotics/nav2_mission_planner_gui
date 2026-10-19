@@ -18,10 +18,10 @@ Every repository in the NavPro ecosystem adheres to a standardized 4-tier branch
 - **Tier 4: RMF Stable Branch**: Validated, production-grade Open-RMF deployment branch (*`-` indicates to be created when RMF multi-robot field testing is ready*).
 
 | Repository & Role | 1. Public Stable Branch | 2. Dev Branch | 3. RMF Dev Branch | 4. RMF Stable Branch |
-| **`nav2_mission_planner`**<br>*(Flutter Desktop/Mobile GUI)* | **`navpro-mini`** (`f84cf7f`)<br>*(Active on PC)* | **`dev`** (`f84cf7f`) | **`rmf-dev`** (`029833e`) | `-` *(will create later)* |
-| **`Nav_Pro_Mini`**<br>*(ROS 2 Nav2, Autonomy, Docking)* | **`nav2`** (`33133df`)<br>*(Active on PC & Robot)* | **`dev`** (`33133df`) | **`rmf-dev`** (`9ec588a`) | `-` *(will create later)* |
+| **`nav2_mission_planner`**<br>*(Flutter Desktop/Mobile GUI)* | **`navpro-mini`** (`0e956c4`)<br>*(Active on PC)* | **`dev`** (`0e956c4`) | **`rmf-dev`** (`029833e`) | `-` *(will create later)* |
+| **`Nav_Pro_Mini`**<br>*(ROS 2 Nav2, Autonomy, Docking)* | **`nav2`** (`7ff9e82`)<br>*(Active on PC & Robot)* | **`dev`** (`7ff9e82`) | **`rmf-dev`** (`9ec588a`) | `-` *(will create later)* |
 | **`navpro-fleet-server`**<br>*(Fleet Backend, Web, Zenoh)* | **`main`** (`109f84b`)<br>*(Active on PC)* | **`dev`** (`109f84b`) | **`rmf-dev`** (`a1be305`) | **`rmf-jazzy`** (`c72dc7a`) |
-| **`navpromini_robot_ui`**<br>*(On-Robot Touchscreen Display)* | **`main`** (`84d6c33`)<br>*(Active on PC & Robot)* | **`dev`** (`84d6c33`) | `-` *(will create later)* | `-` *(will create later)* |
+| **`navpromini_robot_ui`**<br>*(On-Robot Touchscreen Display)* | **`main`** (`756330b`)<br>*(Active on PC & Robot)* | **`dev`** (`756330b`) | `-` *(will create later)* | `-` *(will create later)* |
 | **`navpromini_sdk`**<br>*(Python REST API & Telemetry)* | **`main`** (`1a7df5b`)<br>*(Active on PC & Robot)* | **`dev`** (`1a7df5b`) | `-` *(will create later)* | `-` *(will create later)* |
 | **`navpromini_wearos`**<br>*(Smartwatch Wear OS App)* | **`master`** (`80f2262`) | `-` *(will create later)* | `-` *(will create later)* | `-` *(will create later)* |
 | **`navpromini_sdk_badge`**<br>*(ESP32-S3 AMOLED Touch Badge)* | **`main`** (`e2cde8c`) | `-` *(will create later)* | `-` *(will create later)* | `-` *(will create later)* |
@@ -36,16 +36,16 @@ Every repository in the NavPro ecosystem adheres to a standardized 4-tier branch
 
 ### A. Local PC (`/home/chaitu/Projects/`)
 All local checkouts are on their **Public Stable** releases:
-- `nav2_mission_planner`: **`navpro-mini`** (`38db32f`)
-- `Nav_Pro_Mini`: **`nav2`** (`01ac61e`)
+- `nav2_mission_planner`: **`navpro-mini`** (`0e956c4`)
+- `Nav_Pro_Mini`: **`nav2`** (`7ff9e82`)
 - `navpro-fleet-server`: **`main`** (`109f84b`)
-- `navpromini_robot_ui`: **`main`** (`fc0e7fb`)
+- `navpromini_robot_ui`: **`main`** (`756330b`)
 - `navpromini_sdk`: **`main`** (`1a7df5b`)
 
 ### B. Robot AMR (`navpromini@192.168.0.128`)
 The physical AMR is running matching **Public Stable** releases:
-- `/home/navpromini/NavProMini_ws/src` (`Nav_Pro_Mini`): **`nav2`** (`e93988f`)
-- `/home/navpromini/navpromini_robot_ui`: **`main`** (`fc0e7fb`)
+- `/home/navpromini/NavProMini_ws/src` (`Nav_Pro_Mini`): **`nav2`** (`7ff9e82`)
+- `/home/navpromini/navpromini_robot_ui`: **`main`** (`756330b`)
 - `/home/navpromini/navpromini_sdk`: **`main`** (`1a7df5b`)
 
 ---
