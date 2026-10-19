@@ -18,8 +18,8 @@ Every repository in the NavPro ecosystem adheres to a standardized 4-tier branch
 - **Tier 4: RMF Stable Branch**: Validated, production-grade Open-RMF deployment branch (*`-` indicates to be created when RMF multi-robot field testing is ready*).
 
 | Repository & Role | 1. Public Stable Branch | 2. Dev Branch | 3. RMF Dev Branch | 4. RMF Stable Branch |
-| **`nav2_mission_planner`**<br>*(Flutter Desktop/Mobile GUI)* | **`navpro-mini`** (`2c84d68`)<br>*(Active on PC)* | **`dev`** (`2c84d68`) | **`rmf-dev`** (`029833e`) | `-` *(will create later)* |
-| **`Nav_Pro_Mini`**<br>*(ROS 2 Nav2, Autonomy, Docking)* | **`nav2`** (`781d606`)<br>*(Active on PC & Robot)* | **`dev`** (`781d606`) | **`rmf-dev`** (`9ec588a`) | `-` *(will create later)* |
+| **`nav2_mission_planner`**<br>*(Flutter Desktop/Mobile GUI)* | **`navpro-mini`** (`99b7df0`)<br>*(Active on PC)* | **`dev`** (`99b7df0`) | **`rmf-dev`** (`029833e`) | `-` *(will create later)* |
+| **`Nav_Pro_Mini`**<br>*(ROS 2 Nav2, Autonomy, Docking)* | **`nav2`** (`9a095de`)<br>*(Active on PC & Robot)* | **`dev`** (`9a095de`) | **`rmf-dev`** (`9ec588a`) | `-` *(will create later)* |
 | **`navpro-fleet-server`**<br>*(Fleet Backend, Web, Zenoh)* | **`main`** (`109f84b`)<br>*(Active on PC)* | **`dev`** (`109f84b`) | **`rmf-dev`** (`a1be305`) | **`rmf-jazzy`** (`c72dc7a`) |
 | **`navpromini_robot_ui`**<br>*(On-Robot Touchscreen Display)* | **`main`** (`d8944c6`)<br>*(Active on PC & Robot)* | **`dev`** (`d8944c6`) | `-` *(will create later)* | `-` *(will create later)* |
 | **`navpromini_sdk`**<br>*(Python REST API & Telemetry)* | **`main`** (`1a7df5b`)<br>*(Active on PC & Robot)* | **`dev`** (`1a7df5b`) | `-` *(will create later)* | `-` *(will create later)* |
@@ -36,15 +36,15 @@ Every repository in the NavPro ecosystem adheres to a standardized 4-tier branch
 
 ### A. Local PC (`/home/chaitu/Projects/`)
 All local checkouts are on their **Public Stable** releases:
-- `nav2_mission_planner`: **`navpro-mini`** (`2c84d68`)
-- `Nav_Pro_Mini`: **`nav2`** (`781d606`)
+- `nav2_mission_planner`: **`navpro-mini`** (`99b7df0`)
+- `Nav_Pro_Mini`: **`nav2`** (`9a095de`)
 - `navpro-fleet-server`: **`main`** (`109f84b`)
 - `navpromini_robot_ui`: **`main`** (`d8944c6`)
 - `navpromini_sdk`: **`main`** (`1a7df5b`)
 
 ### B. Robot AMR (`navpromini@192.168.0.128`)
 The physical AMR is running matching **Public Stable** releases:
-- `/home/navpromini/NavProMini_ws/src` (`Nav_Pro_Mini`): **`nav2`** (`781d606`)
+- `/home/navpromini/NavProMini_ws/src` (`Nav_Pro_Mini`): **`nav2`** (`9a095de`)
 - `/home/navpromini/navpromini_robot_ui`: **`main`** (`d8944c6`)
 - `/home/navpromini/navpromini_sdk`: **`main`** (`1a7df5b`)
 
