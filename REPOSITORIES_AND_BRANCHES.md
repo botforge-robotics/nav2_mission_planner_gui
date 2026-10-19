@@ -21,7 +21,7 @@ Every repository in the NavPro ecosystem adheres to a standardized 4-tier branch
 | **`nav2_mission_planner`**<br>*(Flutter Desktop/Mobile GUI)* | **`navpro-mini`** (`5305d43`)<br>*(Active on PC)* | **`dev`** (`5305d43`) | **`rmf-dev`** (`029833e`) | `-` *(will create later)* |
 | **`Nav_Pro_Mini`**<br>*(ROS 2 Nav2, Autonomy, Docking)* | **`nav2`** (`e6dca84`)<br>*(Active on PC & Robot)* | **`dev`** (`e6dca84`) | **`rmf-dev`** (`9ec588a`) | `-` *(will create later)* |
 | **`navpro-fleet-server`**<br>*(Fleet Backend, Web, Zenoh)* | **`main`** (`109f84b`)<br>*(Active on PC)* | **`dev`** (`109f84b`) | **`rmf-dev`** (`a1be305`) | **`rmf-jazzy`** (`c72dc7a`) |
-| **`navpromini_robot_ui`**<br>*(On-Robot Touchscreen Display)* | **`main`** (`51f21f5`)<br>*(Active on PC & Robot)* | **`dev`** (`51f21f5`) | `-` *(will create later)* | `-` *(will create later)* |
+| **`navpromini_robot_ui`**<br>*(On-Robot Touchscreen Display)* | **`main`** (`e50dc89`)<br>*(Active on PC & Robot)* | **`dev`** (`e50dc89`) | `-` *(will create later)* | `-` *(will create later)* |
 | **`navpromini_sdk`**<br>*(Python REST API & Telemetry)* | **`main`** (`1a7df5b`)<br>*(Active on PC & Robot)* | **`dev`** (`1a7df5b`) | `-` *(will create later)* | `-` *(will create later)* |
 | **`navpromini_wearos`**<br>*(Smartwatch Wear OS App)* | **`master`** (`80f2262`) | `-` *(will create later)* | `-` *(will create later)* | `-` *(will create later)* |
 | **`navpromini_sdk_badge`**<br>*(ESP32-S3 AMOLED Touch Badge)* | **`main`** (`e2cde8c`) | `-` *(will create later)* | `-` *(will create later)* | `-` *(will create later)* |
@@ -39,13 +39,13 @@ All local checkouts are on their **Public Stable** releases:
 - `nav2_mission_planner`: **`navpro-mini`** (`5305d43`)
 - `Nav_Pro_Mini`: **`nav2`** (`e6dca84`)
 - `navpro-fleet-server`: **`main`** (`109f84b`)
-- `navpromini_robot_ui`: **`main`** (`51f21f5`)
+- `navpromini_robot_ui`: **`main`** (`e50dc89`)
 - `navpromini_sdk`: **`main`** (`1a7df5b`)
 
 ### B. Robot AMR (`navpromini@192.168.0.128`)
 The physical AMR is running matching **Public Stable** releases:
 - `/home/navpromini/NavProMini_ws/src` (`Nav_Pro_Mini`): **`nav2`** (`e6dca84`)
-- `/home/navpromini/navpromini_robot_ui`: **`main`** (`51f21f5`)
+- `/home/navpromini/navpromini_robot_ui`: **`main`** (`e50dc89`)
 - `/home/navpromini/navpromini_sdk`: **`main`** (`1a7df5b`)
 
 ---
