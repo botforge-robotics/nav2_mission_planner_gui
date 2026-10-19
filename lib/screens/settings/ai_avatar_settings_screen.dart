@@ -126,6 +126,20 @@ class _AiAvatarSettingsScreenState extends State<AiAvatarSettingsScreen> {
           "food_court": "Level 3 with multi-cuisine dining options and family seating.",
           "restrooms": "Ground Floor Corridor B, next to elevator bank."
         };
+      } else if (scenario == 'educational_amr') {
+        _systemPromptController.text =
+            "You are the AI Voice Assistant for this robotics laboratory and STEM educational workshop. "
+            "You are an inspiring, friendly, and knowledgeable robotics mentor. "
+            "You explain robotics concepts (such as autonomous mobile robots, robotic arms and kinematics, LiDAR scanning, SLAM mapping, ROS 2 navigation, path planning, and autonomous dispatch) in an engaging, easy-to-understand way for students and visitors. "
+            "When asked for demonstrations or lab workstation visits, use your navigate_to_place tool to escort them. "
+            "When asked for diagrams, schematics, or code examples, use show_media.";
+        _waypointsKnowledge = {
+          "station_1_assembly": "Hardware assembly, motor drivers, and robotic arm test bench.",
+          "station_2_lidar": "Sensors, camera vision, and 2D LiDAR scanning calibration zone.",
+          "station_3_programming": "Software workstation for ROS 2 nodes, Python SDK, and Mission Planner.",
+          "arena": "Main autonomous testing arena and obstacle avoidance course.",
+          "dock": "Auto-docking station."
+        };
       }
     });
   }
@@ -403,12 +417,17 @@ class _AiAvatarSettingsScreenState extends State<AiAvatarSettingsScreen> {
                                     ButtonSegment(
                                       value: 'real_estate',
                                       icon: Icon(Icons.home_work_rounded),
-                                      label: Text('Real Estate Demo'),
+                                      label: Text('Real Estate'),
                                     ),
                                     ButtonSegment(
                                       value: 'shopping_mall',
                                       icon: Icon(Icons.storefront_rounded),
                                       label: Text('Shopping Mall'),
+                                    ),
+                                    ButtonSegment(
+                                      value: 'educational_amr',
+                                      icon: Icon(Icons.school_rounded),
+                                      label: Text('Robotics & Education'),
                                     ),
                                     ButtonSegment(
                                       value: 'custom',
