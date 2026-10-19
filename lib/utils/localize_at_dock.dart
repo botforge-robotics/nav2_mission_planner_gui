@@ -10,11 +10,13 @@ Future<({double x, double y, double theta})?> fetchDockPose(
     SdkApiService api) async {
   try {
     final resp = await api.dockPose();
-    final data = resp['data'] as Map<String, dynamic>?;
-    if (data == null) return null;
+    final data = (resp['data'] as Map<String, dynamic>?) ?? resp;
+    final x = (data['x'] as num?)?.toDouble();
+    final y = (data['y'] as num?)?.toDouble();
+    if (x == null || y == null) return null;
     return (
-      x: (data['x'] as num).toDouble(),
-      y: (data['y'] as num).toDouble(),
+      x: x,
+      y: y,
       theta: (data['theta'] as num?)?.toDouble() ?? 0,
     );
   } on SdkApiException {

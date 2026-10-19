@@ -76,7 +76,8 @@ class _DockPositionEditorScreenState extends State<DockPositionEditorScreen> {
     final api = _api;
     if (api != null) {
       try {
-        final dockData = await api.dockPose();
+        final resp = await api.dockPose();
+        final dockData = (resp['data'] as Map<String, dynamic>?) ?? resp;
         final x = (dockData['x'] as num?)?.toDouble();
         final y = (dockData['y'] as num?)?.toDouble();
         final theta = (dockData['theta'] as num?)?.toDouble() ?? 0.0;
@@ -287,6 +288,7 @@ class _DockPositionEditorScreenState extends State<DockPositionEditorScreen> {
                         ros2: ros2,
                         interactive: true,
                         showDock: false, // hidden in favor of our active editor markers
+                        locations: const [], // hide saved waypoint pins so old dock pins don't clutter the editor
                         showLaserScan: true,
                         dockEditorMode: true,
                         dockEditorDockPoint: _dockPose == null

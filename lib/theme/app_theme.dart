@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -19,7 +21,22 @@ class AppThemeController extends ChangeNotifier {
   Future<void> init() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getString(_prefKey);
+      var saved = prefs.getString(_prefKey);
+      if (saved == null && Platform.isLinux) {
+        // Fallback for different application bundle IDs on Linux
+        for (final appId in ['com.botforge.navpromini', 'com.example.nav2_mission_planner']) {
+          final file = File('${Platform.environment['HOME']}/.local/share/$appId/shared_preferences.json');
+          if (file.existsSync()) {
+            try {
+              final jsonMap = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+              if (jsonMap.containsKey('flutter.$_prefKey')) {
+                saved = jsonMap['flutter.$_prefKey'] as String?;
+                if (saved != null) break;
+              }
+            } catch (_) {}
+          }
+        }
+      }
       if (saved == 'dark') {
         _mode = ThemeMode.dark;
       } else if (saved == 'light') {
@@ -46,10 +63,24 @@ class AppThemeController extends ChangeNotifier {
     _persist();
   }
 
-  void _persist() {
-    SharedPreferences.getInstance().then((prefs) {
-      prefs.setString(_prefKey, _mode.name);
-    }).catchError((_) {});
+  Future<void> _persist() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefKey, _mode.name);
+      if (Platform.isLinux) {
+        // Also sync to fallback app ID file if present
+        for (final appId in ['com.botforge.navpromini', 'com.example.nav2_mission_planner']) {
+          final file = File('${Platform.environment['HOME']}/.local/share/$appId/shared_preferences.json');
+          if (file.existsSync()) {
+            try {
+              final jsonMap = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+              jsonMap['flutter.$_prefKey'] = _mode.name;
+              file.writeAsStringSync(jsonEncode(jsonMap));
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (_) {}
   }
 }
 

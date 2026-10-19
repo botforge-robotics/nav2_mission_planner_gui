@@ -2077,11 +2077,16 @@ class _OccupancyGridPainter extends CustomPainter {
 
     for (final loc in locations) {
       if (loc['x'] is! num || loc['y'] is! num) continue;
+      final type = loc['type'] as String?;
+      final name = loc['name'] as String?;
+      if ((dockPose != null || dockEditorMode) &&
+          (type == 'dock' || name == 'Charging Dock' || name == 'Dock Standoff')) {
+        continue;
+      }
       final center = _worldToPixel(
           grid, (loc['x'] as num).toDouble(), (loc['y'] as num).toDouble());
       _drawPin(canvas, center, AppColors.primary, Icons.place_rounded,
           sizeScale: markerScale);
-      final name = loc['name'] as String?;
       if (name != null && name.isNotEmpty) {
         _drawPinLabel(canvas, center, name, sizeScale: markerScale);
       }
