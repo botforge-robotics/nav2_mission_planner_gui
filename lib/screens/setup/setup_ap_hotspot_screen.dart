@@ -248,7 +248,7 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
       case _ApStep.joining:
         return _buildBusyStep(
           _joiningSsid != null
-              ? 'Connecting to $_joiningSsid…\n(Auto-connecting with default password)'
+              ? 'Connecting to $_joiningSsid…'
               : 'Joining the robot\'s hotspot…',
           step: 2,
         );
