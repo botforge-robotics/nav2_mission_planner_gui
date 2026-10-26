@@ -8,6 +8,7 @@ import 'package:ros2_api/ros2_api.dart';
 
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
+import '../../providers/setup_flow_controller.dart';
 import '../../services/map_layers_controller.dart';
 import '../../services/mode_transition_tracker.dart';
 import '../../services/sdk_api_service.dart';
@@ -109,8 +110,18 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
     });
   }
 
+  String? _getRobotIp() {
+    final connIp = context.read<ConnectionProvider>().robot?.ip;
+    if (connIp != null && connIp.isNotEmpty) return connIp;
+    try {
+      final setupIp = context.read<SetupFlowController>().selectedRobot?.ip;
+      if (setupIp != null && setupIp.isNotEmpty) return setupIp;
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _confirmStart() async {
-    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final ip = _getRobotIp();
     final api = _apiFor(ip);
     if (api == null) return;
 
@@ -160,9 +171,15 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   }
 
   Future<void> _startMapping() async {
-    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final ip = _getRobotIp();
     final api = _apiFor(ip);
-    if (api == null) return;
+    if (api == null) {
+      setState(() {
+        _busyMessage = null;
+        _error = 'Robot IP address not found. Please ensure robot is connected.';
+      });
+      return;
+    }
     setState(() {
       _busyMessage = 'Starting mapping…';
       _error = null;
@@ -187,6 +204,12 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
         _error = e.isUnreachable
             ? "Creating a map needs navpro-sdk.service — it isn't reachable right now."
             : e.message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busyMessage = null;
+        _error = 'Failed to start mapping: $e';
       });
     }
   }
@@ -537,13 +560,34 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                                 style: const TextStyle(
                                     color: AppColors.textSecondary)),
                             const SizedBox(height: AppSpacing.md),
-                            TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Close')),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton(
+                                    onPressed: () => Navigator.of(context).pop(),
+                                    child: const Text('Back')),
+                                const SizedBox(width: AppSpacing.md),
+                                ElevatedButton(
+                                    onPressed: _startMapping,
+                                    child: const Text('Retry')),
+                              ],
+                            ),
                           ],
                         ),
                       )
-                    : const CircularProgressIndicator(),
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(),
+                          const SizedBox(height: AppSpacing.lg),
+                          Text(
+                            _busyMessage ?? 'Initializing SLAM mapping…',
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 14),
+                          ),
+                        ],
+                      ),
               ),
             _Phase.mapping => Stack(
                 children: [
