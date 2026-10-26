@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../providers/connection_provider.dart';
+import '../../providers/setup_flow_controller.dart';
+import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../maps/create_map_screen.dart';
 import 'setup_complete_screen.dart';
@@ -12,8 +16,41 @@ import 'setup_scaffold.dart';
 ///    then advances to [SetupCompleteScreen].
 /// 2. "Skip Mapping" -> skips map creation and goes directly to
 ///    [SetupCompleteScreen] (with option to map later).
-class SetupDockMapScreen extends StatelessWidget {
+class SetupDockMapScreen extends StatefulWidget {
   const SetupDockMapScreen({super.key});
+
+  @override
+  State<SetupDockMapScreen> createState() => _SetupDockMapScreenState();
+}
+
+class _SetupDockMapScreenState extends State<SetupDockMapScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncSetupStep();
+    });
+  }
+
+  void _syncSetupStep() {
+    try {
+      final ip = context.read<ConnectionProvider>().robot?.ip ??
+          context.read<SetupFlowController>().selectedRobot?.ip;
+      if (ip != null && ip.isNotEmpty) {
+        SdkApiService(ip).updateSetupStatus(step: 2).catchError((_) => <String, dynamic>{});
+      }
+    } catch (_) {}
+  }
+
+  void _dismissRobotSetup() {
+    try {
+      final ip = context.read<ConnectionProvider>().robot?.ip ??
+          context.read<SetupFlowController>().selectedRobot?.ip;
+      if (ip != null && ip.isNotEmpty) {
+        SdkApiService(ip).dismissSetup().catchError((_) => <String, dynamic>{});
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +74,7 @@ class SetupDockMapScreen extends StatelessWidget {
       },
       secondaryLabel: 'Skip Mapping (Go to Home)',
       onSecondary: () {
+        _dismissRobotSetup();
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => const SetupCompleteScreen(),

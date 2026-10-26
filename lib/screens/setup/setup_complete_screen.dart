@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/connection_provider.dart';
+import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_shell/app_shell.dart';
 import 'setup_scaffold.dart';
@@ -48,6 +49,12 @@ class _SetupCompleteScreenState extends State<SetupCompleteScreen> {
           : 'Your robot is ready to roll. You can create a map anytime from the Maps tab.',
       primaryLabel: 'Go to Dashboard',
       onPrimary: () {
+        try {
+          final ip = context.read<ConnectionProvider>().robot?.ip;
+          if (ip != null && ip.isNotEmpty) {
+            SdkApiService(ip).dismissSetup().catchError((_) => <String, dynamic>{});
+          }
+        } catch (_) {}
         context.read<ConnectionProvider>().reconnect();
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AppShell()),

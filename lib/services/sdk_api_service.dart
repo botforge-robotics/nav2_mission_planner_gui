@@ -167,6 +167,28 @@ class SdkApiService {
         timeout: const Duration(seconds: 10),
       );
 
+  // -- Setup / Onboarding ----------------------------------------------------
+
+  /// Fetches setup wizard / onboarding status from the robot.
+  Future<Map<String, dynamic>> getSetupStatus() =>
+      _send('GET', '/api/v1/system/setup');
+
+  /// Updates setup status (step or completion) on the robot.
+  Future<Map<String, dynamic>> updateSetupStatus({
+    bool? dismissed,
+    bool? completed,
+    int? step,
+  }) =>
+      _send('POST', '/api/v1/system/setup', body: {
+        if (dismissed != null) 'dismissed': dismissed,
+        if (completed != null) 'completed': completed,
+        if (step != null) 'step': step,
+      });
+
+  /// Dismisses setup wizard on the robot so it returns to the Dashboard.
+  Future<Map<String, dynamic>> dismissSetup() =>
+      _send('POST', '/api/v1/system/setup/dismiss');
+
   // -- state -----------------------------------------------------------------
 
   /// Full BMS telemetry — `data` carries percentage/voltage/current/

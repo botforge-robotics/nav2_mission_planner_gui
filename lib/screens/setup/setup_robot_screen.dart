@@ -5,6 +5,7 @@ import '../../providers/connection_provider.dart';
 import '../../providers/setup_flow_controller.dart';
 import '../../services/robot_connection_store.dart';
 import '../../services/rosbridge_probe.dart';
+import '../../services/sdk_api_service.dart';
 import '../../theme/app_theme.dart';
 import 'setup_dock_map_screen.dart';
 import 'setup_scaffold.dart';
@@ -55,6 +56,9 @@ class _SetupRobotScreenState extends State<SetupRobotScreen> {
     if (ok) {
       await RobotConnectionStore()
           .save(SavedRobot(name: robot.name, ip: robot.ip));
+      try {
+        SdkApiService(robot.ip).updateSetupStatus(step: 2).catchError((_) => <String, dynamic>{});
+      } catch (_) {}
       if (mounted) {
         context.read<ConnectionProvider>().reconnect();
       }
