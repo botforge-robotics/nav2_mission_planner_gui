@@ -326,12 +326,18 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       ModeTransitionTracker.instance.clear();
       if (!mounted) return;
       context.read<RobotTelemetryProvider>().exitMappingMode();
+      if (widget.fromSetup && ip != null) {
+        api.dismissSetup().catchError((_) => <String, dynamic>{});
+      }
       AppShell.selectTab(0);
       Navigator.of(context).popUntil((route) => route.isFirst);
     } on TimeoutException {
       ModeTransitionTracker.instance.clear();
       if (!mounted) return;
       context.read<RobotTelemetryProvider>().exitMappingMode();
+      if (widget.fromSetup && ip != null) {
+        api.dismissSetup().catchError((_) => <String, dynamic>{});
+      }
       AppShell.selectTab(0);
       Navigator.of(context).popUntil((route) => route.isFirst);
     } on SdkApiException catch (e) {
