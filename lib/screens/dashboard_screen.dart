@@ -777,21 +777,37 @@ void _showLocalizationActionSheet(BuildContext context,
                   final messenger = ScaffoldMessenger.of(context);
                   messenger.showSnackBar(
                     const SnackBar(
-                      content: Text(
-                          'Starting autonomous 360° relocalization spin…'),
-                      duration: Duration(seconds: 4),
+                      content: Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text('Searching position: Performing autonomous relocalization scan…'),
+                          ),
+                        ],
+                      ),
+                      duration: Duration(seconds: 50),
                     ),
                   );
                   try {
-                    final res = await api.recoverRelocalization();
+                    final res = await api.recoverRelocalization(maxTries: 3, timeoutSec: 50.0);
+                    messenger.hideCurrentSnackBar();
                     final converged = res['converged'] == true;
+                    final elapsed = res['elapsed_sec'] ?? '';
+                    final tries = res['tries'] ?? 1;
                     messenger.showSnackBar(SnackBar(
                       content: Text(converged
-                          ? 'Relocalized successfully! AMCL particles converged.'
-                          : '360° spin finished. Check robot pose on map.'),
-                      backgroundColor: converged ? AppColors.success : null,
+                          ? 'Relocalized successfully in ${elapsed}s ($tries scan cycle${tries == 1 ? "" : "s"})! AMCL converged.'
+                          : 'Relocalization timed out after $tries scans. Check robot surroundings.'),
+                      backgroundColor: converged ? AppColors.success : AppColors.warning,
+                      duration: const Duration(seconds: 6),
                     ));
                   } catch (e) {
+                    messenger.hideCurrentSnackBar();
                     messenger.showSnackBar(SnackBar(
                         content: Text('Auto-relocalization failed: $e')));
                   }
@@ -810,24 +826,48 @@ void _showLocalizationActionSheet(BuildContext context,
                   child: Icon(Icons.radar_rounded,
                       color: sheetColors.warning, size: 22),
                 ),
-                title: const Text('Global Relocalization',
+                title: const Text('Global Search & Auto-Scan',
                     style: TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: Text(
-                    'Disperse particles across entire map; drive to converge',
+                    'Disperse particles across entire map and rotate automatically to identify position',
                     style: TextStyle(fontSize: 12, color: sheetColors.textSecondary)),
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
                   final messenger = ScaffoldMessenger.of(context);
                   messenger.showSnackBar(
                     const SnackBar(
-                      content: Text(
-                          'Global relocalization initiated. Jog robot to let particles converge.'),
-                      duration: Duration(seconds: 4),
+                      content: Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                                'Searching position: Dispersing AMCL & performing autonomous scan…'),
+                          ),
+                        ],
+                      ),
+                      duration: Duration(seconds: 50),
                     ),
                   );
                   try {
-                    await api.reinitializeGlobalLocalization();
+                    final res = await api.reinitializeGlobalLocalization(spin: true, maxTries: 3, timeoutSec: 50.0);
+                    messenger.hideCurrentSnackBar();
+                    final converged = res['converged'] == true;
+                    final elapsed = res['elapsed_sec'] ?? '';
+                    final tries = res['tries'] ?? 1;
+                    messenger.showSnackBar(SnackBar(
+                      content: Text(converged
+                          ? 'Position identified! Relocalized in ${elapsed}s ($tries scan cycle${tries == 1 ? "" : "s"}). AMCL converged.'
+                          : 'Relocalization timed out after $tries scans. Check robot surroundings.'),
+                      backgroundColor: converged ? AppColors.success : AppColors.warning,
+                      duration: const Duration(seconds: 6),
+                    ));
                   } catch (e) {
+                    messenger.hideCurrentSnackBar();
                     messenger.showSnackBar(SnackBar(
                         content: Text('Relocalization request error: $e')));
                   }

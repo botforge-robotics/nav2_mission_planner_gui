@@ -61,21 +61,37 @@ class _NotLocalizedBannerState extends State<NotLocalizedBanner> {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Starting autonomous 360° spin to relocalize…'),
-          duration: Duration(seconds: 3),
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text('Searching position: Performing autonomous relocalization scan…'),
+              ),
+            ],
+          ),
+          duration: Duration(seconds: 50),
         ),
       );
-      final res = await widget.api.recoverRelocalization();
+      final res = await widget.api.recoverRelocalization(maxTries: 3, timeoutSec: 50.0);
       if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       final converged = res['converged'] == true;
+      final elapsed = res['elapsed_sec'] ?? '';
+      final tries = res['tries'] ?? 1;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             converged
-                ? 'Relocalized successfully! AMCL particles converged.'
-                : '360° spin finished. Check robot pose on map.',
+                ? 'Relocalized successfully in ${elapsed}s ($tries scan cycle${tries == 1 ? "" : "s"})! AMCL converged.'
+                : 'Relocalization timed out after $tries scans. Check robot surroundings.',
           ),
-          backgroundColor: converged ? AppColors.success : null,
+          backgroundColor: converged ? AppColors.success : AppColors.warning,
+          duration: const Duration(seconds: 6),
         ),
       );
       if (converged) {
@@ -83,6 +99,7 @@ class _NotLocalizedBannerState extends State<NotLocalizedBanner> {
       }
     } catch (e) {
       if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Auto relocalization failed: $e')),
       );
@@ -94,18 +111,47 @@ class _NotLocalizedBannerState extends State<NotLocalizedBanner> {
   Future<void> _globalRelocalize() async {
     setState(() => _busy = true);
     try {
-      await widget.api.reinitializeGlobalLocalization();
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-              'Global particles dispersed. Rotate or drive robot to let particles converge.'),
-          duration: Duration(seconds: 4),
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text('Searching position: Dispersing AMCL & performing autonomous scan…'),
+              ),
+            ],
+          ),
+          duration: Duration(seconds: 50),
         ),
       );
-      dockLocalizeDismissed.value = true;
+      final res = await widget.api.reinitializeGlobalLocalization(spin: true, maxTries: 3, timeoutSec: 50.0);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      final converged = res['converged'] == true;
+      final elapsed = res['elapsed_sec'] ?? '';
+      final tries = res['tries'] ?? 1;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            converged
+                ? 'Relocalized successfully in ${elapsed}s ($tries scan cycle${tries == 1 ? "" : "s"})! AMCL converged.'
+                : 'Relocalization timed out after $tries scans. Check robot surroundings.',
+          ),
+          backgroundColor: converged ? AppColors.success : AppColors.warning,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+      if (converged) {
+        dockLocalizeDismissed.value = true;
+      }
     } catch (e) {
       if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Global relocalization failed: $e')),
       );

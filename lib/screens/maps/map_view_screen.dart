@@ -899,18 +899,10 @@ class _MapViewScreenState extends State<MapViewScreen> {
             ),
             ListTile(
               leading:
-                  const Icon(Icons.sync_rounded, color: AppColors.accent),
-              title: const Text('Auto-Relocalize (360° Spin)'),
+                  const Icon(Icons.radar_rounded, color: AppColors.accent),
+              title: const Text('Global Search & Auto-Scan'),
               subtitle: const Text(
-                  'Autonomous in-place rotation to disperse and converge particles'),
-              onTap: () => Navigator.of(sheetContext).pop('auto_spin'),
-            ),
-            ListTile(
-              leading:
-                  const Icon(Icons.blur_on_rounded, color: AppColors.warning),
-              title: const Text('Global Relocalize (Disperse Only)'),
-              subtitle: const Text(
-                  'Disperse particles across map to recover from slip or strike'),
+                  'Autonomous multi-cycle scan to disperse and converge AMCL particles'),
               onTap: () => Navigator.of(sheetContext).pop('global'),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -921,9 +913,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
     if (!mounted || choice == null) return;
     if (choice == 'dock') {
       await _localizeAtDock();
-    } else if (choice == 'auto_spin') {
-      await _autoRelocalize360();
-    } else if (choice == 'global') {
+    } else if (choice == 'auto_spin' || choice == 'global') {
       await _globalRelocalize();
     } else {
       setState(() {
@@ -962,58 +952,62 @@ class _MapViewScreenState extends State<MapViewScreen> {
     }
   }
 
-  Future<void> _autoRelocalize360() async {
+  Future<void> _globalRelocalize() async {
     final ip = context.read<ConnectionProvider>().robot?.ip;
     final api = _apiFor(ip);
     if (api == null) return;
     setState(() => _localizing = true);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Starting autonomous 360° relocalization spin…'),
-        duration: Duration(seconds: 4),
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Searching position: Dispersing AMCL & performing autonomous scan…',
+              ),
+            ),
+          ],
+        ),
+        duration: Duration(seconds: 50),
       ),
     );
     try {
-      final res = await api.recoverRelocalization();
+      final res = await api.reinitializeGlobalLocalization(
+        spin: true,
+        maxTries: 3,
+        timeoutSec: 50.0,
+      );
       if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       final converged = res['converged'] == true;
+      final elapsed = res['elapsed_sec'] ?? '';
+      final tries = res['tries'] ?? 1;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(converged
-              ? 'Relocalized successfully! AMCL particles converged.'
-              : '360° spin finished. Check robot pose on map.'),
-          backgroundColor: converged ? AppColors.success : null,
+              ? 'Position identified! Relocalized in ${elapsed}s ($tries scan cycle${tries == 1 ? "" : "s"}). AMCL converged.'
+              : 'Relocalization timed out after $tries scans. Please tap "Select on Map" or jog robot to an open area.'),
+          backgroundColor: converged ? AppColors.success : AppColors.warning,
+          duration: const Duration(seconds: 6),
         ),
       );
     } on SdkApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Auto relocalization failed: ${e.message}')),
-      );
-    } finally {
-      if (mounted) setState(() => _localizing = false);
-    }
-  }
-
-  Future<void> _globalRelocalize() async {
-    final ip = context.read<ConnectionProvider>().robot?.ip;
-    final api = _apiFor(ip);
-    if (api == null) return;
-    setState(() => _localizing = true);
-    try {
-      await api.reinitializeGlobalLocalization();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'AMCL global relocalization triggered. Drive or rotate the robot in place to let particles converge.'),
-          duration: Duration(seconds: 4),
-        ),
-      );
-    } on SdkApiException catch (e) {
-      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Global relocalization failed: ${e.message}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Global relocalization failed: $e')),
       );
     } finally {
       if (mounted) setState(() => _localizing = false);
@@ -2095,8 +2089,13 @@ class _DesktopStudioSidebar extends StatelessWidget {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: localizing ? null : onGlobalRelocalize,
-                        icon: const Icon(Icons.blur_on_rounded, size: 14),
-                        label: const Text('Global Search'),
+                        icon: localizing
+                            ? const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(strokeWidth: 1.5))
+                            : const Icon(Icons.radar_rounded, size: 14),
+                        label: Text(localizing ? 'Scanning…' : 'Global Search'),
                       ),
                     ),
                   ],

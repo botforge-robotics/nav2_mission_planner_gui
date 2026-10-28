@@ -265,25 +265,42 @@ class SdkApiService {
       _send('POST', '/api/v1/navigation/localize',
           body: {'x': x, 'y': y, 'theta': theta});
 
-  /// Triggers AMCL /reinitialize_global_localization to disperse particle cloud
-  /// across map free space for global relocalization recovery.
-  Future<void> reinitializeGlobalLocalization() =>
-      _send('POST', '/api/v1/navigation/relocalize/global');
+  /// Triggers autonomous AMCL global relocalization: disperses particle cloud
+  /// across map free space and smoothly rotates the robot in place (multi-try auto-scan)
+  /// until particles converge below threshold.
+  Future<Map<String, dynamic>> reinitializeGlobalLocalization({
+    bool spin = true,
+    int maxTries = 3,
+    double timeoutSec = 50.0,
+  }) =>
+      _send(
+        'POST',
+        '/api/v1/navigation/relocalize/global',
+        body: {
+          'spin': spin,
+          'max_tries': maxTries,
+          'timeout_sec': timeoutSec,
+        },
+        timeout: Duration(seconds: (timeoutSec + 15).toInt()),
+      );
 
-  /// Autonomous 360° relocalization recovery: disperses AMCL particles and
-  /// smoothly rotates the robot in place until particles converge below threshold.
+  /// Autonomous relocalization recovery: disperses AMCL particles and
+  /// smoothly rotates the robot in place across multiple scan tries until
+  /// particles converge below threshold.
   Future<Map<String, dynamic>> recoverRelocalization({
-    double angularVel = 0.35,
-    double timeoutSec = 22.0,
+    double angularVel = 0.38,
+    int maxTries = 3,
+    double timeoutSec = 50.0,
   }) =>
       _send(
         'POST',
         '/api/v1/navigation/relocalize/recover',
         body: {
           'angular_vel': angularVel,
+          'max_tries': maxTries,
           'timeout_sec': timeoutSec,
         },
-        timeout: Duration(seconds: (timeoutSec + 10).toInt()),
+        timeout: Duration(seconds: (timeoutSec + 15).toInt()),
       );
 
   // -- docking ---------------------------------------------------------------
