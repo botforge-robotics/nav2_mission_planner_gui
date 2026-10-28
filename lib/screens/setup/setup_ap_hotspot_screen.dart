@@ -208,18 +208,37 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
   /// rejoined that network too; this only starts finding results once it
   /// has (handled by the user manually reconnecting, prompted below).
   Future<void> _findRobotOnSiteNetwork(String robotName) async {
-    final discovery = context.read<SetupFlowController>().discovery;
-    for (var attempt = 0; attempt < 20; attempt++) {
-      await Future.delayed(const Duration(seconds: 2));
-      final subnet = await discovery.currentSubnetPrefix();
-      if (subnet == null) continue;
-      await for (final robot in discovery.scan(subnetPrefix: subnet)) {
-        if (robot.name == robotName && mounted) {
-          context.read<SetupFlowController>().selectRobot(robot);
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const SetupRobotScreen()),
-          );
-          return;
+    final controller = context.read<SetupFlowController>();
+    final discovery = controller.discovery;
+
+    // Fast-path: check known IP if available
+    final knownIp = controller.selectedRobot?.ip;
+    if (knownIp != null && knownIp.isNotEmpty && knownIp != '10.42.0.1') {
+      final direct = await discovery.probe(knownIp, timeout: const Duration(seconds: 2));
+      if (direct != null && mounted) {
+        controller.selectRobot(direct);
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const SetupRobotScreen()),
+        );
+        return;
+      }
+    }
+
+    for (var attempt = 0; attempt < 30; attempt++) {
+      await Future.delayed(const Duration(milliseconds: 1000));
+      final subnets = await discovery.allSubnetPrefixes();
+      for (final subnet in subnets) {
+        if (subnet == '10.42.0') continue;
+        await for (final robot in discovery.scan(subnetPrefix: subnet)) {
+          if ((robot.name == robotName ||
+              robot.name.toLowerCase() == robotName.toLowerCase() ||
+              robot.serial.isNotEmpty) && mounted) {
+            controller.selectRobot(robot);
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const SetupRobotScreen()),
+            );
+            return;
+          }
         }
       }
     }

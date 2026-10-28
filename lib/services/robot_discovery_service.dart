@@ -32,14 +32,10 @@ class DiscoveredRobot {
 /// enough; no raw-socket platform channel needed.
 class RobotDiscoveryService {
   static const int sdkPort = 8090;
-  // Generous relative to a healthy LAN's real round-trip: with `concurrency`
-  // requests genuinely in flight at once on a phone's single radio, queueing
-  // delay stacks on top of the network's own latency, and a probe timing out
-  // under that load reads identically to "nothing there" — a false negative
-  // for a robot that's actually up. Observed 400ms as too tight for that on
-  // real hardware.
-  static const Duration probeTimeout = Duration(milliseconds: 1200);
-  static const int concurrency = 16;
+  // Bounded LAN round-trip: 650ms timeout and 32 concurrency allows a full
+  // 254-host subnet scan to complete in ~5 seconds instead of 20 seconds.
+  static const Duration probeTimeout = Duration(milliseconds: 650);
+  static const int concurrency = 32;
 
   final _network = NetworkInfo();
 
@@ -153,11 +149,11 @@ class RobotDiscoveryService {
   /// re-confirm a specific robot (e.g. right after AP-mode provisioning,
   /// before assuming it's back on the site network), and by the "enter IP
   /// manually" fallback when subnet auto-detection doesn't work at all.
-  Future<DiscoveredRobot?> probe(String ip) async {
+  Future<DiscoveredRobot?> probe(String ip, {Duration? timeout}) async {
     try {
       final resp = await http
           .get(Uri.parse('http://$ip:$sdkPort/api/v1/system/info'))
-          .timeout(probeTimeout);
+          .timeout(timeout ?? probeTimeout);
       if (resp.statusCode != 200) return null;
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       if (data['model'] != 'NavProMini') return null;

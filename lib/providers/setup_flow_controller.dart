@@ -153,10 +153,22 @@ class SetupFlowController extends ChangeNotifier {
 
     // Start background LAN discovery immediately
     Future<void> runLanDiscovery() async {
-      for (var attempt = 0; attempt < 30; attempt++) {
+      for (var attempt = 0; attempt < 45; attempt++) {
         if (foundOnLan) return;
-        await Future.delayed(const Duration(milliseconds: 1500));
+        await Future.delayed(const Duration(milliseconds: 1000));
         try {
+          // If a robot IP was already selected or previously known, probe directly first
+          final knownIp = selectedRobot?.ip;
+          if (knownIp != null && knownIp.isNotEmpty && knownIp != '10.42.0.1') {
+            final direct = await discovery.probe(knownIp, timeout: const Duration(seconds: 2));
+            if (direct != null) {
+              discoveredRobot = direct;
+              foundOnLan = true;
+              selectRobot(direct);
+              return;
+            }
+          }
+
           final prefixes = await discovery.allSubnetPrefixes();
           for (final prefix in prefixes) {
             if (prefix == '10.42.0') continue; // Skip AP subnet
@@ -192,9 +204,9 @@ class SetupFlowController extends ChangeNotifier {
 
     // If portal stream ended (AP dropped because robot connected to site Wi-Fi),
     // poll LAN until the robot is found on the site network or timeout.
-    final deadline = DateTime.now().add(const Duration(seconds: 40));
+    final deadline = DateTime.now().add(const Duration(seconds: 80));
     while (!foundOnLan && DateTime.now().isBefore(deadline)) {
-      await Future.delayed(const Duration(milliseconds: 1200));
+      await Future.delayed(const Duration(milliseconds: 1000));
       if (foundOnLan) break;
       yield ProvisioningStatus(
         phase: 'joining_wifi',
@@ -223,6 +235,20 @@ class SetupFlowController extends ChangeNotifier {
       yield successStatus;
       return;
     }
+
+    // If still not found after deadline, yield terminal error so UI does not spin forever
+    final timeoutStatus = ProvisioningStatus(
+      phase: 'error',
+      message: 'Could not auto-locate "$robotName" on "$wifiSsid". Please verify your device is connected to "$wifiSsid" or enter the robot\'s IP directly.',
+      wifiSsid: wifiSsid,
+      robotName: robotName,
+      wifiOk: true,
+      busy: false,
+      done: true,
+    );
+    provisioningStatus = timeoutStatus;
+    notifyListeners();
+    yield timeoutStatus;
   }
 
   /// Retrieves available site Wi-Fi networks by combining the robot's portal
