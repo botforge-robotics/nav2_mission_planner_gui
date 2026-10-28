@@ -13,6 +13,7 @@ import '../../../services/locations_controller.dart';
 import '../../../services/ros_raw_call.dart';
 import '../../../services/sdk_api_service.dart';
 import '../../../theme/app_theme.dart';
+import '../../maps/pick_map_position_screen.dart';
 import 'mission_graph_models.dart';
 
 /// Contextual Properties Inspector & Dynamic Form Builder for the selected node.
@@ -988,11 +989,47 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     final theta = (widget.node.params['theta'] as num?)?.toDouble() ?? 0.0;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        OutlinedButton.icon(
+          icon: Icon(Icons.pin_drop_rounded, size: 16, color: colors.primary),
+          label: Text('Pick on Map (Fine-tune Arrows & Presets)',
+              style: TextStyle(color: colors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            side: BorderSide(color: colors.primary.withValues(alpha: 0.5)),
+            backgroundColor: colors.primary.withValues(alpha: 0.06),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius)),
+          ),
+          onPressed: widget.readOnly
+              ? null
+              : () async {
+                  final picked = await Navigator.of(context).push<({double x, double y, double theta})>(
+                    MaterialPageRoute(
+                      builder: (_) => PickMapPositionScreen(
+                        initialPose: (x != 0.0 || y != 0.0 || theta != 0.0)
+                            ? (x: x, y: y, theta: theta)
+                            : null,
+                        title: 'Pick Target Pose on Map',
+                      ),
+                    ),
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      widget.node.params['x'] = picked.x;
+                      widget.node.params['y'] = picked.y;
+                      widget.node.params['theta'] = picked.theta;
+                    });
+                    widget.onChanged();
+                  }
+                },
+        ),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
               child: TextFormField(
+                key: ValueKey('${widget.node.id}_x_$x'),
                 initialValue: x.toString(),
                 keyboardType: TextInputType.number,
                 style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
@@ -1015,6 +1052,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             SizedBox(width: 8),
             Expanded(
               child: TextFormField(
+                key: ValueKey('${widget.node.id}_y_$y'),
                 initialValue: y.toString(),
                 keyboardType: TextInputType.number,
                 style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
@@ -1038,6 +1076,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
         ),
         const SizedBox(height: 12),
         TextFormField(
+          key: ValueKey('${widget.node.id}_theta_$theta'),
           initialValue: theta.toString(),
           keyboardType: TextInputType.number,
           style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),

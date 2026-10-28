@@ -17,6 +17,7 @@ import '../../models/road_network.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../../utils/localize_at_dock.dart';
+import '../../widgets/map/micro_adjustment_hud.dart';
 import '../../widgets/map/not_localized_banner.dart';
 import '../../widgets/map/occupancy_grid_view.dart';
 import '../../widgets/navigation/dock_action_sheet.dart';
@@ -1286,6 +1287,46 @@ class _MapViewScreenState extends State<MapViewScreen> {
     }
   }
 
+  void _onNudgeDraftPose(double dx, double dy) {
+    if (_draftPose == null) return;
+    setState(() {
+      _draftPose = (
+        x: _draftPose!.x + dx,
+        y: _draftPose!.y + dy,
+        theta: _draftPose!.theta,
+      );
+    });
+  }
+
+  void _onRotateDraftPose(double dTheta) {
+    if (_draftPose == null) return;
+    var newTheta = _draftPose!.theta + dTheta;
+    while (newTheta > pi) {
+      newTheta -= 2 * pi;
+    }
+    while (newTheta < -pi) {
+      newTheta += 2 * pi;
+    }
+    setState(() {
+      _draftPose = (
+        x: _draftPose!.x,
+        y: _draftPose!.y,
+        theta: newTheta,
+      );
+    });
+  }
+
+  void _setDraftPoseOrientationPreset(double theta) {
+    if (_draftPose == null) return;
+    setState(() {
+      _draftPose = (
+        x: _draftPose!.x,
+        y: _draftPose!.y,
+        theta: theta,
+      );
+    });
+  }
+
   Future<void> _confirmDraftPose() => _pickPurpose == _PickPurpose.addLocation
       ? _confirmAddLocation()
       : _confirmLocalize();
@@ -1627,6 +1668,19 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                 onSetEdgeSpeedLimit: _setEdgeSpeedLimit,
                               ),
                             ),
+                          if (_posePicking && _draftPose != null)
+                            Positioned(
+                              bottom: 140,
+                              right: AppSpacing.md,
+                              child: MicroAdjustmentHud(
+                                title: _pickPurpose == _PickPurpose.addLocation
+                                    ? 'Fine-tune Location (📍)'
+                                    : 'Fine-tune Pose (🎯)',
+                                showRotation: true,
+                                onNudge: _onNudgeDraftPose,
+                                onRotate: _onRotateDraftPose,
+                              ),
+                            ),
                           if (_posePicking)
                             Positioned(
                               left: 0,
@@ -1634,6 +1688,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                               bottom: 0,
                               child: _PosePickingBar(
                                 hasDraft: _draftPose != null,
+                                draftPose: _draftPose,
                                 busy: _pickPurpose == _PickPurpose.addLocation
                                     ? _savingLocation
                                     : _localizing,
@@ -1644,6 +1699,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                   _draftPose = null;
                                 }),
                                 onConfirm: _confirmDraftPose,
+                                onSetOrientationPreset: _setDraftPoseOrientationPreset,
+                                onRotate: _onRotateDraftPose,
                               ),
                             ),
                         ],
@@ -1959,6 +2016,19 @@ class _MapViewScreenState extends State<MapViewScreen> {
                           onSetEdgeSpeedLimit: _setEdgeSpeedLimit,
                         ),
                       ),
+                    if (_posePicking && _draftPose != null)
+                      Positioned(
+                        bottom: 140,
+                        right: AppSpacing.md,
+                        child: MicroAdjustmentHud(
+                          title: _pickPurpose == _PickPurpose.addLocation
+                              ? 'Fine-tune Location (📍)'
+                              : 'Fine-tune Pose (🎯)',
+                          showRotation: true,
+                          onNudge: _onNudgeDraftPose,
+                          onRotate: _onRotateDraftPose,
+                        ),
+                      ),
                     if (_posePicking)
                       Positioned(
                         left: 0,
@@ -1966,6 +2036,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                         bottom: 0,
                         child: _PosePickingBar(
                           hasDraft: _draftPose != null,
+                          draftPose: _draftPose,
                           busy: _pickPurpose == _PickPurpose.addLocation
                               ? _savingLocation
                               : _localizing,
@@ -1975,6 +2046,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
                             _draftPose = null;
                           }),
                           onConfirm: _confirmDraftPose,
+                          onSetOrientationPreset: _setDraftPoseOrientationPreset,
+                          onRotate: _onRotateDraftPose,
                         ),
                       ),
                   ],
@@ -2152,13 +2225,17 @@ class _ControlButton extends StatelessWidget {
 class _PosePickingBar extends StatelessWidget {
   const _PosePickingBar({
     required this.hasDraft,
+    this.draftPose,
     required this.busy,
     required this.forLocation,
     required this.onCancel,
     required this.onConfirm,
+    this.onSetOrientationPreset,
+    this.onRotate,
   });
 
   final bool hasDraft;
+  final ({double x, double y, double theta})? draftPose;
   final bool busy;
 
   /// True while picking a pose for "Add Location" (name-and-save on
@@ -2167,12 +2244,14 @@ class _PosePickingBar extends StatelessWidget {
   final bool forLocation;
   final VoidCallback onCancel;
   final VoidCallback onConfirm;
+  final ValueChanged<double>? onSetOrientationPreset;
+  final ValueChanged<double>? onRotate;
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(top: BorderSide(color: colors.border)),
@@ -2182,16 +2261,105 @@ class _PosePickingBar extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              hasDraft
-                  ? 'Drag the handle to set the heading, then confirm.'
-                  : forLocation
+            if (hasDraft && draftPose != null) ...[
+              Wrap(
+                spacing: 10,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                alignment: WrapAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceSunken,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: Text(
+                      'X: ${draftPose!.x.toStringAsFixed(3)} m  |  Y: ${draftPose!.y.toStringAsFixed(3)} m',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      'Heading: ${(draftPose!.theta * 180 / pi).toStringAsFixed(1)}°',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: colors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              if (onSetOrientationPreset != null)
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    Text(
+                      'Heading Presets:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    ActionChip(
+                      visualDensity: VisualDensity.compact,
+                      label: const Text('0° East (+X)', style: TextStyle(fontSize: 11)),
+                      onPressed: () => onSetOrientationPreset!(0.0),
+                    ),
+                    ActionChip(
+                      visualDensity: VisualDensity.compact,
+                      label: const Text('90° North (+Y)', style: TextStyle(fontSize: 11)),
+                      onPressed: () => onSetOrientationPreset!(pi / 2),
+                    ),
+                    ActionChip(
+                      visualDensity: VisualDensity.compact,
+                      label: const Text('180° West (-X)', style: TextStyle(fontSize: 11)),
+                      onPressed: () => onSetOrientationPreset!(pi),
+                    ),
+                    ActionChip(
+                      visualDensity: VisualDensity.compact,
+                      label: const Text('-90° South (-Y)', style: TextStyle(fontSize: 11)),
+                      onPressed: () => onSetOrientationPreset!(-pi / 2),
+                    ),
+                    if (onRotate != null)
+                      ActionChip(
+                        visualDensity: VisualDensity.compact,
+                        avatar: const Icon(Icons.flip_camera_android_rounded, size: 14),
+                        label: const Text('Flip 180°', style: TextStyle(fontSize: 11)),
+                        onPressed: () => onRotate!(pi),
+                      ),
+                  ],
+                ),
+              const SizedBox(height: 4),
+            ] else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  forLocation
                       ? "Tap the map to set the location's position."
                       : "Tap the map to set the robot's position.",
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: AppSpacing.sm),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                ),
+              ),
+            const SizedBox(height: AppSpacing.xs),
             Row(
               children: [
                 Expanded(
