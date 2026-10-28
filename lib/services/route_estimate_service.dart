@@ -67,7 +67,12 @@ class RouteEstimateService {
         etaSeconds: distance / _assumedSpeedMps,
       );
     } catch (e) {
-      debugPrint('ComputePathToPose attempt failed: $e');
+      final msg = e.toString();
+      if (msg.contains('208') || msg.contains('aborted') || msg.contains('NO_VALID_PATH')) {
+        debugPrint('Route estimate: Nav2 reported no valid path (code 208) — using straight-line distance fallback');
+      } else {
+        debugPrint('ComputePathToPose note: $e');
+      }
       return null;
     } finally {
       client.dispose();

@@ -350,8 +350,16 @@ class _MapViewScreenState extends State<MapViewScreen> {
       });
       return;
     }
-    if (_roadNetworkEditorMode && _addingRoadNodeMode) {
-      _onAddRoadNodeAt(world.dx, world.dy);
+    if (_roadNetworkEditorMode) {
+      if (_addingRoadNodeMode) {
+        _onAddRoadNodeAt(world.dx, world.dy);
+        return;
+      }
+      setState(() {
+        _selectedRoadNodeId = null;
+        _selectedRoadEdgeId = null;
+        _linkingStartNodeId = null;
+      });
       return;
     }
   }
@@ -946,10 +954,15 @@ class _MapViewScreenState extends State<MapViewScreen> {
   }
 
   void _onRoadNodeTap(RoadNode node) {
-    if (_linkingStartNodeId != null && _linkingStartNodeId != node.id) {
+    if (_linkingStartNodeId != null) {
+      if (_linkingStartNodeId == node.id) {
+        // Tapped the same start node: deselect linking
+        setState(() => _linkingStartNodeId = null);
+        return;
+      }
       final start = _linkingStartNodeId!;
-      setState(() => _linkingStartNodeId = null);
-      _showConnectNodesDialog(start, node.id);
+      // Instantly connect nodes without modal dialog, enabling continuous chain connecting!
+      _connectRoadNodes(start, node.id);
       return;
     }
     setState(() {
@@ -1004,14 +1017,11 @@ class _MapViewScreenState extends State<MapViewScreen> {
     RoadNetworkController.instance.value = updated;
     setState(() {
       _selectedRoadNodeId = nextId;
-      _addingRoadNodeMode = false;
+      // IMPORTANT: Keep _addingRoadNodeMode = true for continuous junction placement!
       _savingRoadNetwork = true;
     });
     try {
       await RoadNetworkController.instance.saveRoadNetwork(api, updated, map: _activeMapName);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Placed Road Node $nextId at (${x.toStringAsFixed(2)}, ${y.toStringAsFixed(2)})')));
-      }
     } catch (e) {
       debugPrint('Failed to save new road node: $e');
     } finally {
@@ -1019,62 +1029,22 @@ class _MapViewScreenState extends State<MapViewScreen> {
     }
   }
 
-  Future<void> _showConnectNodesDialog(int startId, int endId) async {
+  Future<void> _connectRoadNodes(int startId, int endId, {bool bidirectional = true, double? speedLimit}) async {
     final ip = context.read<ConnectionProvider>().robot?.ip;
     final api = _apiFor(ip);
-    if (api == null) return;
     final current = RoadNetworkController.instance.value ?? RoadNetwork(mapName: _activeMapName ?? 'default');
 
-    bool bidirectional = true;
-    double speedLimit = 0.45;
-    bool enableSpeed = false;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (context, setDlgState) => AlertDialog(
-          title: Text('Connect Road: Node $startId ↔ Node $endId'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SwitchListTile(
-                title: const Text('Bidirectional (Two-Way)'),
-                subtitle: const Text('Robot can travel in both directions'),
-                value: bidirectional,
-                onChanged: (val) => setDlgState(() => bidirectional = val),
-              ),
-              SwitchListTile(
-                title: const Text('Speed Limit'),
-                subtitle: Text(enableSpeed ? '${speedLimit.toStringAsFixed(2)} m/s' : 'No speed restriction'),
-                value: enableSpeed,
-                onChanged: (val) => setDlgState(() => enableSpeed = val),
-              ),
-              if (enableSpeed)
-                Slider(
-                  value: speedLimit,
-                  min: 0.1,
-                  max: 1.0,
-                  divisions: 18,
-                  label: '${speedLimit.toStringAsFixed(2)} m/s',
-                  onChanged: (v) => setDlgState(() => speedLimit = v),
-                ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(true),
-              child: const Text('Add Road Edge'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (confirmed != true) return;
+    final existing = current.edges.where((e) =>
+        (e.startId == startId && e.endId == endId) ||
+        (e.bidirectional && e.startId == endId && e.endId == startId)).firstOrNull;
+    if (existing != null) {
+      setState(() {
+        _linkingStartNodeId = endId; // Keep chain connection active
+        _selectedRoadEdgeId = existing.id;
+        _selectedRoadNodeId = null;
+      });
+      return;
+    }
 
     final nextEdgeId = current.nextAvailableEdgeId;
     final newEdge = RoadEdge(
@@ -1082,14 +1052,60 @@ class _MapViewScreenState extends State<MapViewScreen> {
       startId: startId,
       endId: endId,
       bidirectional: bidirectional,
-      speedLimit: enableSpeed ? speedLimit : null,
+      speedLimit: speedLimit,
     );
     final updated = current.copyWith(edges: [...current.edges, newEdge]);
     RoadNetworkController.instance.value = updated;
     setState(() {
       _selectedRoadEdgeId = nextEdgeId;
+      _selectedRoadNodeId = null;
+      _linkingStartNodeId = endId; // CHAIN CONNECT: Next tap connects from endId!
       _savingRoadNetwork = true;
     });
+    if (api != null) {
+      try {
+        await RoadNetworkController.instance.saveRoadNetwork(api, updated, map: _activeMapName);
+      } catch (e) {
+        debugPrint('Failed to save road edge: $e');
+      } finally {
+        if (mounted) setState(() => _savingRoadNetwork = false);
+      }
+    }
+  }
+
+  Future<void> _toggleEdgeDirection(int edgeId) async {
+    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final api = _apiFor(ip);
+    final current = RoadNetworkController.instance.value;
+    if (current == null || api == null) return;
+    final edges = List<RoadEdge>.from(current.edges);
+    final idx = edges.indexWhere((e) => e.id == edgeId);
+    if (idx == -1) return;
+    final curr = edges[idx];
+    edges[idx] = curr.copyWith(bidirectional: !curr.bidirectional);
+    final updated = current.copyWith(edges: edges);
+    RoadNetworkController.instance.value = updated;
+    setState(() => _savingRoadNetwork = true);
+    try {
+      await RoadNetworkController.instance.saveRoadNetwork(api, updated, map: _activeMapName);
+    } finally {
+      if (mounted) setState(() => _savingRoadNetwork = false);
+    }
+  }
+
+  Future<void> _setEdgeSpeedLimit(int edgeId, double? speedLimit) async {
+    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final api = _apiFor(ip);
+    final current = RoadNetworkController.instance.value;
+    if (current == null || api == null) return;
+    final edges = List<RoadEdge>.from(current.edges);
+    final idx = edges.indexWhere((e) => e.id == edgeId);
+    if (idx == -1) return;
+    final curr = edges[idx];
+    edges[idx] = curr.copyWith(speedLimit: speedLimit);
+    final updated = current.copyWith(edges: edges);
+    RoadNetworkController.instance.value = updated;
+    setState(() => _savingRoadNetwork = true);
     try {
       await RoadNetworkController.instance.saveRoadNetwork(api, updated, map: _activeMapName);
     } finally {
@@ -1406,14 +1422,12 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                     onDraftPose: (x, y, theta) => setState(
                                         () => _draftPose =
                                             (x: x, y: y, theta: theta)),
-                                    onLocationTap:
-                                        visibleLayers.contains(MapLayer.locations)
-                                            ? _onLocationTapped
-                                            : null,
-                                    onDockTap:
-                                        visibleLayers.contains(MapLayer.dock)
-                                            ? _onDockTapped
-                                            : null,
+                                    onLocationTap: (visibleLayers.contains(MapLayer.locations) && !_roadNetworkEditorMode)
+                                        ? _onLocationTapped
+                                        : null,
+                                    onDockTap: (visibleLayers.contains(MapLayer.dock) && !_roadNetworkEditorMode)
+                                        ? _onDockTapped
+                                        : null,
                                     showLocalizationBadge: false,
                                     dockPoseOverride: _dockPose,
                                     standoffPoseOverride: _standoffPose,
@@ -1580,14 +1594,19 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                     _linkingStartNodeId = null;
                                   });
                                 },
-                                onStartConnect: _selectedRoadNodeId != null
-                                    ? () {
-                                        setState(() {
-                                          _linkingStartNodeId = _selectedRoadNodeId;
-                                          _addingRoadNodeMode = false;
-                                        });
-                                      }
-                                    : null,
+                                onStartConnect: () {
+                                  final rn = RoadNetworkController.instance.value;
+                                  if (rn == null || rn.nodes.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Please add junctions first before connecting roadways')),
+                                    );
+                                    return;
+                                  }
+                                  setState(() {
+                                    _linkingStartNodeId = _selectedRoadNodeId ?? rn.nodes.first.id;
+                                    _addingRoadNodeMode = false;
+                                  });
+                                },
                                 onCancelConnect: () {
                                   setState(() => _linkingStartNodeId = null);
                                 },
@@ -1604,6 +1623,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                   });
                                 },
                                 onDone: _exitRoadNetworkEditor,
+                                onToggleEdgeDirection: _toggleEdgeDirection,
+                                onSetEdgeSpeedLimit: _setEdgeSpeedLimit,
                               ),
                             ),
                           if (_posePicking)
@@ -1716,11 +1737,10 @@ class _MapViewScreenState extends State<MapViewScreen> {
                               draftPoseOverride: _draftPose,
                               onDraftPose: (x, y, theta) => setState(
                                   () => _draftPose = (x: x, y: y, theta: theta)),
-                              onLocationTap:
-                                  visibleLayers.contains(MapLayer.locations)
-                                      ? _onLocationTapped
-                                      : null,
-                              onDockTap: visibleLayers.contains(MapLayer.dock)
+                              onLocationTap: (visibleLayers.contains(MapLayer.locations) && !_roadNetworkEditorMode)
+                                  ? _onLocationTapped
+                                  : null,
+                              onDockTap: (visibleLayers.contains(MapLayer.dock) && !_roadNetworkEditorMode)
                                   ? _onDockTapped
                                   : null,
                               showLocalizationBadge: false,
@@ -1906,14 +1926,19 @@ class _MapViewScreenState extends State<MapViewScreen> {
                               _linkingStartNodeId = null;
                             });
                           },
-                          onStartConnect: _selectedRoadNodeId != null
-                              ? () {
-                                  setState(() {
-                                    _linkingStartNodeId = _selectedRoadNodeId;
-                                    _addingRoadNodeMode = false;
-                                  });
-                                }
-                              : null,
+                          onStartConnect: () {
+                            final rn = RoadNetworkController.instance.value;
+                            if (rn == null || rn.nodes.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please add junctions first before connecting roadways')),
+                              );
+                              return;
+                            }
+                            setState(() {
+                              _linkingStartNodeId = _selectedRoadNodeId ?? rn.nodes.first.id;
+                              _addingRoadNodeMode = false;
+                            });
+                          },
                           onCancelConnect: () {
                             setState(() => _linkingStartNodeId = null);
                           },
@@ -1930,6 +1955,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
                             });
                           },
                           onDone: _exitRoadNetworkEditor,
+                          onToggleEdgeDirection: _toggleEdgeDirection,
+                          onSetEdgeSpeedLimit: _setEdgeSpeedLimit,
                         ),
                       ),
                     if (_posePicking)
@@ -3789,6 +3816,8 @@ class _RoadNetworkEditorHud extends StatelessWidget {
     required this.onClearAll,
     required this.onDeselect,
     required this.onDone,
+    this.onToggleEdgeDirection,
+    this.onSetEdgeSpeedLimit,
   });
 
   final int? selectedNodeId;
@@ -3804,6 +3833,8 @@ class _RoadNetworkEditorHud extends StatelessWidget {
   final VoidCallback onClearAll;
   final VoidCallback onDeselect;
   final VoidCallback onDone;
+  final void Function(int edgeId)? onToggleEdgeDirection;
+  final void Function(int edgeId, double? speedLimit)? onSetEdgeSpeedLimit;
 
   @override
   Widget build(BuildContext context) {
@@ -3832,7 +3863,9 @@ class _RoadNetworkEditorHud extends StatelessWidget {
         border: Border.all(
           color: addingNodeMode
               ? trafficAmber
-              : (selectedNode != null || selectedEdge != null ? trafficCyan : slateBorder),
+              : (linkingStartNodeId != null
+                  ? trafficCyan
+                  : (selectedNode != null || selectedEdge != null ? trafficCyan : slateBorder)),
           width: 1.5,
         ),
         boxShadow: [
@@ -3843,8 +3876,14 @@ class _RoadNetworkEditorHud extends StatelessWidget {
           ),
           if (addingNodeMode)
             BoxShadow(
-              color: trafficAmber.withValues(alpha: 0.25),
-              blurRadius: 12,
+              color: trafficAmber.withValues(alpha: 0.35),
+              blurRadius: 14,
+              spreadRadius: 1,
+            ),
+          if (linkingStartNodeId != null)
+            BoxShadow(
+              color: trafficCyan.withValues(alpha: 0.35),
+              blurRadius: 14,
               spreadRadius: 1,
             ),
         ],
@@ -3944,7 +3983,7 @@ class _RoadNetworkEditorHud extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: trafficAmber.withValues(alpha: 0.2),
+                            color: trafficAmber.withValues(alpha: 0.22),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: trafficAmber, width: 1.2),
                           ),
@@ -3954,7 +3993,7 @@ class _RoadNetworkEditorHud extends StatelessWidget {
                               Icon(Icons.ads_click_rounded, size: 14, color: trafficAmber),
                               SizedBox(width: 6),
                               Text(
-                                'CLICK MAP TO PLACE JUNCTION',
+                                'CONTINUOUS ADD: CLICK MAP TO PLACE JUNCTIONS',
                                 style: TextStyle(
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.bold,
@@ -3968,7 +4007,7 @@ class _RoadNetworkEditorHud extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: trafficCyan.withValues(alpha: 0.2),
+                            color: trafficCyan.withValues(alpha: 0.22),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: trafficCyan, width: 1.2),
                           ),
@@ -3978,7 +4017,7 @@ class _RoadNetworkEditorHud extends StatelessWidget {
                               const Icon(Icons.compare_arrows_rounded, size: 14, color: trafficCyan),
                               const SizedBox(width: 6),
                               Text(
-                                'CLICK TARGET JUNCTION TO CONNECT NODE $linkingStartNodeId',
+                                'CHAIN LINKING: TAP NEXT JUNCTION TO CONNECT FROM NODE $linkingStartNodeId',
                                 style: const TextStyle(
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.bold,
@@ -4050,7 +4089,7 @@ class _RoadNetworkEditorHud extends StatelessWidget {
                       ] else ...[
                         const Expanded(
                           child: Text(
-                            'Click "Add Junction" then tap map, or select junctions to connect roadways.',
+                            'Click "+ Add Junctions" then click map repeatedly, or "Connect Roadways" to chain link.',
                             style: TextStyle(
                                 fontSize: 11.5, color: Color(0xFF94A3B8)),
                             overflow: TextOverflow.ellipsis,
@@ -4083,48 +4122,119 @@ class _RoadNetworkEditorHud extends StatelessWidget {
                   // Controls Row
                   Row(
                     children: [
-                      // Add / Cancel Placing Button
+                      // Continuous Add / Done Adding Button
                       FilledButton.icon(
                         onPressed: onToggleAddNodeMode,
                         icon: Icon(
                           addingNodeMode
-                              ? Icons.cancel_outlined
+                              ? Icons.check_rounded
                               : Icons.add_location_alt_rounded,
                           size: 15,
                         ),
-                        label: Text(addingNodeMode ? 'Cancel Placing' : '+ Add Junction'),
+                        label: Text(addingNodeMode ? '✓ Done Adding' : '+ Add Junctions'),
                         style: FilledButton.styleFrom(
                           visualDensity: VisualDensity.compact,
                           backgroundColor: addingNodeMode
-                              ? trafficRed
+                              ? trafficGreen
                               : trafficAmber,
-                          foregroundColor: addingNodeMode
-                              ? Colors.white
-                              : const Color(0xFF0F172A),
+                          foregroundColor: Colors.white,
                         ),
                       ),
                       const SizedBox(width: AppSpacing.xs),
-                      // Connect to Node Button
+                      // Connect Roadway / Stop Linking Button
                       if (linkingStartNodeId != null) ...[
                         OutlinedButton.icon(
                           onPressed: onCancelConnect,
                           icon: const Icon(Icons.close_rounded, size: 15, color: trafficRed),
-                          label: const Text('Cancel Link', style: TextStyle(color: trafficRed)),
+                          label: const Text('✕ Stop Linking', style: TextStyle(color: trafficRed, fontWeight: FontWeight.bold)),
                           style: OutlinedButton.styleFrom(
                             visualDensity: VisualDensity.compact,
-                            side: const BorderSide(color: trafficRed),
+                            side: const BorderSide(color: trafficRed, width: 1.5),
                           ),
                         ),
-                      ] else if (selectedNode != null) ...[
+                      ] else ...[
                         FilledButton.tonalIcon(
                           onPressed: onStartConnect,
-                          icon: const Icon(Icons.add_road_rounded, size: 15),
-                          label: const Text('Connect Roadway…'),
+                          icon: const Icon(Icons.alt_route_rounded, size: 15),
+                          label: Text(selectedNode != null ? '⇌ Connect from #${selectedNode.id}' : '⇌ Connect Roadways'),
                           style: FilledButton.styleFrom(
                             visualDensity: VisualDensity.compact,
                             backgroundColor: const Color(0xFF0284C7),
                             foregroundColor: Colors.white,
                           ),
+                        ),
+                      ],
+                      // Edge quick controls
+                      if (selectedEdge != null) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        FilledButton.tonalIcon(
+                          onPressed: onToggleEdgeDirection != null
+                              ? () => onToggleEdgeDirection!(selectedEdge.id)
+                              : null,
+                          icon: Icon(
+                            selectedEdge.bidirectional ? Icons.swap_horiz_rounded : Icons.arrow_forward_rounded,
+                            size: 14,
+                            color: selectedEdge.bidirectional ? trafficCyan : trafficYellow,
+                          ),
+                          label: Text(
+                            selectedEdge.bidirectional ? 'Two-Way ⇄' : 'One-Way →',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: selectedEdge.bidirectional ? trafficCyan : trafficYellow,
+                            ),
+                          ),
+                          style: FilledButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            backgroundColor: const Color(0xFF1E293B),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        PopupMenuButton<double?>(
+                          tooltip: 'Speed Limit',
+                          initialValue: selectedEdge.speedLimit,
+                          onSelected: (val) => onSetEdgeSpeedLimit?.call(selectedEdge.id, val),
+                          color: const Color(0xFF1E293B),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E293B),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFF475569)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.speed_rounded, size: 13, color: trafficAmber),
+                                const SizedBox(width: 4),
+                                Text(
+                                  selectedEdge.speedLimit != null
+                                      ? '${selectedEdge.speedLimit!.toStringAsFixed(2)} m/s'
+                                      : 'No Limit',
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFF1F5F9)),
+                                ),
+                                const Icon(Icons.arrow_drop_down, size: 14, color: Color(0xFF94A3B8)),
+                              ],
+                            ),
+                          ),
+                          itemBuilder: (ctx) => [
+                            const PopupMenuItem(
+                              value: null,
+                              child: Text('No Limit', style: TextStyle(color: Colors.white)),
+                            ),
+                            const PopupMenuItem(
+                              value: 0.30,
+                              child: Text('0.30 m/s (Cautious)', style: TextStyle(color: Colors.white)),
+                            ),
+                            const PopupMenuItem(
+                              value: 0.45,
+                              child: Text('0.45 m/s (Standard)', style: TextStyle(color: Colors.white)),
+                            ),
+                            const PopupMenuItem(
+                              value: 0.60,
+                              child: Text('0.60 m/s (Express)', style: TextStyle(color: Colors.white)),
+                            ),
+                          ],
                         ),
                       ],
                       const Spacer(),
@@ -4145,7 +4255,7 @@ class _RoadNetworkEditorHud extends StatelessWidget {
                         const SizedBox(width: 4),
                       ],
                       // Deselect
-                      if (selectedNode != null || selectedEdge != null)
+                      if (selectedNode != null || selectedEdge != null || linkingStartNodeId != null)
                         TextButton(
                           onPressed: onDeselect,
                           style: TextButton.styleFrom(

@@ -1124,22 +1124,36 @@ class _GoToLocationCardState extends State<_GoToLocationCard> {
             if (_selected != null && !names.contains(_selected)) {
               _selected = null;
             }
+            final colors = AppColors.of(context);
             return Row(
               children: [
-                Icon(Icons.place_rounded, color: AppColors.of(context).primary),
+                Icon(Icons.place_rounded, color: colors.primary),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     initialValue: _selected,
                     isExpanded: true,
-                    hint: Text(list.isEmpty
-                        ? 'No saved locations yet'
-                        : 'Where should the robot go?'),
+                    dropdownColor: colors.surface,
+                    iconEnabledColor: colors.primary,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: colors.textPrimary,
+                    ),
+                    hint: Text(
+                      list.isEmpty
+                          ? 'No saved locations yet'
+                          : 'Where should the robot go?',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
                     decoration: const InputDecoration(
                         border: InputBorder.none, isDense: true),
                     items: [
                       for (final name in names)
-                        DropdownMenuItem(value: name, child: Text(name)),
+                        DropdownMenuItem(
+                          value: name,
+                          child: Text(name, style: TextStyle(color: colors.textPrimary)),
+                        ),
                     ],
                     onChanged: list.isEmpty
                         ? null

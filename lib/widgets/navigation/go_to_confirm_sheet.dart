@@ -214,13 +214,13 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
     return '~${minutes.toStringAsFixed(minutes < 10 ? 1 : 0)} min';
   }
 
-  Widget _distanceLine() {
+  Widget _distanceLine(AppColorsTheme colors) {
     final straightLine = _straightLineMeters;
     if (straightLine == null) {
-      return const Text(
+      return Text(
         "Position not localized yet — sending will still work, "
         "there's just no distance estimate to show.",
-        style: TextStyle(color: AppColors.textSecondary),
+        style: TextStyle(color: colors.textSecondary),
       );
     }
     final estimate = _estimate;
@@ -229,15 +229,15 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text('≈ ${straightLine.toStringAsFixed(1)} m straight-line',
-              style: const TextStyle(color: AppColors.textSecondary)),
+              style: TextStyle(color: colors.textSecondary)),
           const SizedBox(width: AppSpacing.sm),
           const SizedBox(
               height: 12,
               width: 12,
               child: CircularProgressIndicator(strokeWidth: 1.5)),
           const SizedBox(width: AppSpacing.xs),
-          const Text('calculating route…',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          Text('calculating route…',
+              style: TextStyle(color: colors.textSecondary, fontSize: 12)),
         ],
       );
     }
@@ -245,13 +245,13 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
       return Text(
         '${estimate.distanceMeters.toStringAsFixed(1)} m route · '
         '${_formatEta(estimate.etaSeconds)}',
-        style: const TextStyle(fontWeight: FontWeight.w600),
+        style: TextStyle(fontWeight: FontWeight.w600, color: colors.textPrimary),
       );
     }
     return Text(
       "≈ ${straightLine.toStringAsFixed(1)} m straight-line "
       "(couldn't compute a route)",
-      style: const TextStyle(color: AppColors.textSecondary),
+      style: TextStyle(color: colors.textSecondary),
     );
   }
 
@@ -296,6 +296,7 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
@@ -307,8 +308,10 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
             children: [
               Expanded(
                 child: Text('Go to "${widget.locationName}"?',
-                    style:
-                        const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: colors.textPrimary)),
               ),
               if (widget.locationName.isNotEmpty)
                 IconButton(
@@ -320,14 +323,14 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          _distanceLine(),
+          _distanceLine(colors),
           const SizedBox(height: AppSpacing.sm),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSunken,
+              color: colors.surfaceSunken,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: colors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,24 +338,66 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Routing Mode',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text('Routing Mode',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: colors.textPrimary)),
                     SegmentedButton<String>(
-                      segments: const [
+                      segments: [
                         ButtonSegment(
                           value: 'free_space',
-                          label: Text('Free Space', style: TextStyle(fontSize: 11)),
-                          icon: Icon(Icons.explore_outlined, size: 14),
+                          label: Text(
+                            'Free Space',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: _routingMode == 'free_space'
+                                  ? colors.textPrimary
+                                  : colors.textSecondary,
+                            ),
+                          ),
+                          icon: Icon(
+                            Icons.explore_outlined,
+                            size: 14,
+                            color: _routingMode == 'free_space'
+                                ? colors.primary
+                                : colors.textSecondary,
+                          ),
                         ),
                         ButtonSegment(
                           value: 'road_network',
-                          label: Text('Road Network', style: TextStyle(fontSize: 11)),
-                          icon: Icon(Icons.alt_route_rounded, size: 14),
+                          label: Text(
+                            'Road Network',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: _routingMode == 'road_network'
+                                  ? colors.textPrimary
+                                  : colors.textSecondary,
+                            ),
+                          ),
+                          icon: Icon(
+                            Icons.alt_route_rounded,
+                            size: 14,
+                            color: _routingMode == 'road_network'
+                                ? colors.primary
+                                : colors.textSecondary,
+                          ),
                         ),
                       ],
                       selected: {_routingMode},
                       onSelectionChanged: (set) => setState(() => _routingMode = set.first),
-                      style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                      style: ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.selected)) {
+                            return colors.primary.withValues(alpha: 0.18);
+                          }
+                          return colors.surface;
+                        }),
+                        side: WidgetStateProperty.all(BorderSide(color: colors.border)),
+                      ),
                     ),
                   ],
                 ),
@@ -361,25 +406,33 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Blockage Policy:',
-                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                      Text('Blockage Policy:',
+                          style: TextStyle(fontSize: 11, color: colors.textSecondary)),
                       DropdownButton<String>(
                         value: _reroutePolicy,
                         isDense: true,
+                        dropdownColor: colors.surface,
+                        iconEnabledColor: colors.primary,
                         underline: const SizedBox(),
-                        style: const TextStyle(fontSize: 11, color: AppColors.textPrimary),
-                        items: const [
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: colors.textPrimary),
+                        items: [
                           DropdownMenuItem(
                             value: 'wait_then_reroute',
-                            child: Text('Wait 5s & Detour'),
+                            child: Text('Wait 5s & Detour',
+                                style: TextStyle(color: colors.textPrimary)),
                           ),
                           DropdownMenuItem(
                             value: 'immediate',
-                            child: Text('Immediate Detour'),
+                            child: Text('Immediate Detour',
+                                style: TextStyle(color: colors.textPrimary)),
                           ),
                           DropdownMenuItem(
                             value: 'halt_only',
-                            child: Text('Halt & Wait Only'),
+                            child: Text('Halt & Wait Only',
+                                style: TextStyle(color: colors.textPrimary)),
                           ),
                         ],
                         onChanged: (val) {
@@ -394,7 +447,7 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
                         : _reroutePolicy == 'immediate'
                             ? 'Immediately detours onto alternate road when obstacle is detected.'
                             : 'Stops and waits for road to clear without taking detours.',
-                    style: const TextStyle(fontSize: 10, color: AppColors.textTertiary),
+                    style: TextStyle(fontSize: 10, color: colors.textTertiary),
                   ),
                 ],
               ],

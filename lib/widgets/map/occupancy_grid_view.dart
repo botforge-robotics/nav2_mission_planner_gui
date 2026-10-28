@@ -1684,30 +1684,34 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       }
     }
 
-    Map<String, dynamic>? nearestLocation;
-    double? locDist;
-    if (widget.onLocationTap != null) {
-      for (final loc in widget.locations) {
-        if (loc['x'] is! num || loc['y'] is! num) continue;
-        final dx = (loc['x'] as num).toDouble() - tapWorld.dx;
-        final dy = (loc['y'] as num).toDouble() - tapWorld.dy;
-        final dist = sqrt(dx * dx + dy * dy);
-        if (dist < toleranceMeters && (locDist == null || dist < locDist)) {
-          locDist = dist;
-          nearestLocation = loc;
+    // In road network editor mode, do NOT trigger location navigation or dock popups.
+    // Road network actions (placing nodes, selecting, connecting) take strict priority.
+    if (!widget.roadNetworkEditorMode && !widget.isPlacingRoadNode) {
+      Map<String, dynamic>? nearestLocation;
+      double? locDist;
+      if (widget.onLocationTap != null) {
+        for (final loc in widget.locations) {
+          if (loc['x'] is! num || loc['y'] is! num) continue;
+          final dx = (loc['x'] as num).toDouble() - tapWorld.dx;
+          final dy = (loc['y'] as num).toDouble() - tapWorld.dy;
+          final dist = sqrt(dx * dx + dy * dy);
+          if (dist < toleranceMeters && (locDist == null || dist < locDist)) {
+            locDist = dist;
+            nearestLocation = loc;
+          }
         }
       }
-    }
 
-    if (dockDist != null &&
-        dockDist < toleranceMeters &&
-        (locDist == null || dockDist <= locDist)) {
-      widget.onDockTap!();
-      return;
-    }
-    if (nearestLocation != null) {
-      widget.onLocationTap!(nearestLocation);
-      return;
+      if (dockDist != null &&
+          dockDist < toleranceMeters &&
+          (locDist == null || dockDist <= locDist)) {
+        widget.onDockTap!();
+        return;
+      }
+      if (nearestLocation != null) {
+        widget.onLocationTap!(nearestLocation);
+        return;
+      }
     }
     widget.onMapClickWorld?.call(tapWorld);
   }
