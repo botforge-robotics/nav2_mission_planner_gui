@@ -18,6 +18,7 @@ import '../theme/app_theme.dart';
 import '../theme/breakpoints.dart';
 import '../utils/localize_at_dock.dart';
 import '../services/zones_controller.dart';
+import '../services/road_network_controller.dart';
 import '../widgets/design/animated_metric.dart';
 
 import '../widgets/design/fade_in.dart';
@@ -1083,10 +1084,13 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
   void initState() {
     super.initState();
     DockPoseController.instance.addListener(_onDockPoseChanged);
+    RoadNetworkController.instance.addListener(_onDockPoseChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadDockPose();
       DockPoseController.instance.refresh(SdkApiService(widget.robotIp));
       ZonesController.instance
+          .refresh(SdkApiService(widget.robotIp), map: widget.mapName);
+      RoadNetworkController.instance
           .refresh(SdkApiService(widget.robotIp), map: widget.mapName);
     });
   }
@@ -1098,6 +1102,7 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
   @override
   void dispose() {
     DockPoseController.instance.removeListener(_onDockPoseChanged);
+    RoadNetworkController.instance.removeListener(_onDockPoseChanged);
     super.dispose();
   }
 
@@ -1249,6 +1254,11 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                                         ? ZonesController.instance.value
                                         : const [],
                                     showZones: visibleLayers.contains(MapLayer.zones),
+                                    roadNetwork: visibleLayers.contains(MapLayer.roadNetwork)
+                                        ? RoadNetworkController.instance.value
+                                        : null,
+                                    showRoadNetwork:
+                                        visibleLayers.contains(MapLayer.roadNetwork),
                                     showLocalizationBadge: false,
 
                                     onMapLoaded: (_) {

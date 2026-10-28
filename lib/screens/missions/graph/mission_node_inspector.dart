@@ -977,6 +977,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
+        _buildRoutingModeSelector(),
       ],
     );
   }
@@ -1055,7 +1056,107 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             widget.onChanged();
           },
         ),
+        _buildRoutingModeSelector(),
       ],
+    );
+  }
+
+  Widget _buildRoutingModeSelector() {
+    final mode = widget.node.params['routing_mode'] as String? ?? 'free_space';
+    final policy = widget.node.params['reroute_policy'] as String? ?? 'wait_then_reroute';
+
+    return Container(
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surfaceSunken,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Routing Mode',
+                  style: TextStyle(color: colors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'free_space',
+                    label: Text('Free Space', style: TextStyle(fontSize: 11)),
+                  ),
+                  ButtonSegment(
+                    value: 'road_network',
+                    label: Text('Road Network', style: TextStyle(fontSize: 11)),
+                  ),
+                ],
+                selected: {mode},
+                onSelectionChanged: widget.readOnly
+                    ? null
+                    : (set) {
+                        setState(() {
+                          widget.node.params['routing_mode'] = set.first;
+                        });
+                        widget.onChanged();
+                      },
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              ),
+            ],
+          ),
+          if (mode == 'road_network') ...[
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Blockage Policy:',
+                    style: TextStyle(color: colors.textSecondary, fontSize: 11)),
+                DropdownButton<String>(
+                  value: policy,
+                  isDense: true,
+                  underline: const SizedBox(),
+                  dropdownColor: colors.surfaceSunken,
+                  style: TextStyle(color: colors.textPrimary, fontSize: 11),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'wait_then_reroute',
+                      child: Text('Wait 5s & Detour'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'immediate',
+                      child: Text('Immediate Detour'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'halt_only',
+                      child: Text('Halt & Wait Only'),
+                    ),
+                  ],
+                  onChanged: widget.readOnly
+                      ? null
+                      : (val) {
+                          if (val != null) {
+                            setState(() {
+                              widget.node.params['reroute_policy'] = val;
+                            });
+                            widget.onChanged();
+                          }
+                        },
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              policy == 'wait_then_reroute'
+                  ? 'Pauses 5s for passing people; if blocked, reroutes via graph.'
+                  : policy == 'immediate'
+                      ? 'Immediately detours onto alternate road when obstacle is detected.'
+                      : 'Stops and waits for road to clear without taking detours.',
+              style: TextStyle(fontSize: 10, color: colors.textTertiary),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

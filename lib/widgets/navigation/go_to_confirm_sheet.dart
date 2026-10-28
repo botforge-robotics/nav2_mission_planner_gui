@@ -79,6 +79,8 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
   RouteEstimate? _estimate;
   bool _sending = false;
   String? _sendError;
+  String _routingMode = 'free_space';
+  String _reroutePolicy = 'wait_then_reroute';
 
   double? get _straightLineMeters {
     final x = widget.currentX, y = widget.currentY;
@@ -116,7 +118,12 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
       _sendError = null;
     });
     try {
-      await widget.api.goToWaypoint(widget.locationName, replace: true);
+      await widget.api.goToWaypoint(
+        widget.locationName,
+        replace: true,
+        routingMode: _routingMode,
+        reroutePolicy: _reroutePolicy,
+      );
     } on SdkApiException catch (e) {
       // If the robot accepted the goal and started moving despite an HTTP timeout or transient error, proceed.
       bool activated = false;
@@ -162,7 +169,12 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
       attempt: (attemptNumber) async {
         if (attemptNumber > 1) {
           try {
-            await widget.api.goToWaypoint(widget.locationName, replace: true);
+            await widget.api.goToWaypoint(
+              widget.locationName,
+              replace: true,
+              routingMode: _routingMode,
+              reroutePolicy: _reroutePolicy,
+            );
           } on SdkApiException catch (e) {
             if (!caller.mounted) return ActionOutcome.failed;
             ScaffoldMessenger.of(caller).showSnackBar(SnackBar(
@@ -309,6 +321,85 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
           ),
           const SizedBox(height: AppSpacing.sm),
           _distanceLine(),
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceSunken,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Routing Mode',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 'free_space',
+                          label: Text('Free Space', style: TextStyle(fontSize: 11)),
+                          icon: Icon(Icons.explore_outlined, size: 14),
+                        ),
+                        ButtonSegment(
+                          value: 'road_network',
+                          label: Text('Road Network', style: TextStyle(fontSize: 11)),
+                          icon: Icon(Icons.alt_route_rounded, size: 14),
+                        ),
+                      ],
+                      selected: {_routingMode},
+                      onSelectionChanged: (set) => setState(() => _routingMode = set.first),
+                      style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                    ),
+                  ],
+                ),
+                if (_routingMode == 'road_network') ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Blockage Policy:',
+                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                      DropdownButton<String>(
+                        value: _reroutePolicy,
+                        isDense: true,
+                        underline: const SizedBox(),
+                        style: const TextStyle(fontSize: 11, color: AppColors.textPrimary),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'wait_then_reroute',
+                            child: Text('Wait 5s & Detour'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'immediate',
+                            child: Text('Immediate Detour'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'halt_only',
+                            child: Text('Halt & Wait Only'),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) setState(() => _reroutePolicy = val);
+                        },
+                      ),
+                    ],
+                  ),
+                  Text(
+                    _reroutePolicy == 'wait_then_reroute'
+                        ? 'Pauses up to 5s for passing people; if blocked, reroutes via graph.'
+                        : _reroutePolicy == 'immediate'
+                            ? 'Immediately detours onto alternate road when obstacle is detected.'
+                            : 'Stops and waits for road to clear without taking detours.',
+                    style: const TextStyle(fontSize: 10, color: AppColors.textTertiary),
+                  ),
+                ],
+              ],
+            ),
+          ),
           if (_sendError != null) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(_sendError!,

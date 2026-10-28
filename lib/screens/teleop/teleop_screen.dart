@@ -13,6 +13,7 @@ import '../../services/locations_controller.dart';
 import '../../services/map_layers_controller.dart';
 import '../../services/sdk_api_service.dart';
 import '../../services/zones_controller.dart';
+import '../../services/road_network_controller.dart';
 import '../../services/gamepad_service.dart';
 import '../settings/gamepad_settings_screen.dart';
 import '../../theme/app_theme.dart';
@@ -916,6 +917,11 @@ class _LiveMapSection extends StatelessWidget {
                             ? ZonesController.instance.value
                             : const [],
                         showZones: visibleLayers.contains(MapLayer.zones),
+                        roadNetwork: visibleLayers.contains(MapLayer.roadNetwork)
+                            ? RoadNetworkController.instance.value
+                            : null,
+                        showRoadNetwork:
+                            visibleLayers.contains(MapLayer.roadNetwork),
                         dockPoseOverride: dockPoseOverride,
                         standoffPoseOverride: standoffPoseOverride,
                         onLocationTap: onLocationTap,

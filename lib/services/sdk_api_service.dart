@@ -232,17 +232,44 @@ class SdkApiService {
 
   // -- navigation ------------------------------------------------------------
 
-  Future<void> goToWaypoint(String name, {bool replace = false}) =>
+  Future<void> goToWaypoint(
+    String name, {
+    bool replace = false,
+    String routingMode = 'free_space',
+    String reroutePolicy = 'wait_then_reroute',
+    double waitTimeoutSec = 5.0,
+  }) =>
       _send('POST', '/api/v1/navigation/goto',
-          body: {'waypoint': name, if (replace) 'replace': true},
+          body: {
+            'waypoint': name,
+            if (replace) 'replace': true,
+            if (routingMode != 'free_space') 'routing_mode': routingMode,
+            if (routingMode != 'free_space') 'reroute_policy': reroutePolicy,
+            if (routingMode != 'free_space') 'wait_timeout_sec': waitTimeoutSec,
+          },
           timeout: const Duration(seconds: 35));
 
-  Future<void> goToPose(double x, double y,
-          {double theta = 0.0, bool replace = false}) =>
+  Future<void> goToPose(
+    double x,
+    double y, {
+    double theta = 0.0,
+    bool replace = false,
+    String routingMode = 'free_space',
+    String reroutePolicy = 'wait_then_reroute',
+    double waitTimeoutSec = 5.0,
+  }) =>
       _send(
         'POST',
         '/api/v1/navigation/goto',
-        body: {'x': x, 'y': y, 'theta': theta, if (replace) 'replace': true},
+        body: {
+          'x': x,
+          'y': y,
+          'theta': theta,
+          if (replace) 'replace': true,
+          if (routingMode != 'free_space') 'routing_mode': routingMode,
+          if (routingMode != 'free_space') 'reroute_policy': reroutePolicy,
+          if (routingMode != 'free_space') 'wait_timeout_sec': waitTimeoutSec,
+        },
         timeout: const Duration(seconds: 35),
       );
 
@@ -475,6 +502,36 @@ class SdkApiService {
         : '/api/v1/zones/${Uri.encodeComponent(zoneId)}';
     return await _send('DELETE', path);
   }
+
+  // -- road network -------------------------------------------------------------
+
+  Future<Map<String, dynamic>> getRoadNetwork({String? mapName}) async {
+    final path = mapName != null && mapName.isNotEmpty
+        ? '/api/v1/maps/${Uri.encodeComponent(mapName)}/road_network'
+        : '/api/v1/road_network';
+    return await _send('GET', path);
+  }
+
+  Future<Map<String, dynamic>> saveRoadNetwork(Map<String, dynamic> geoJson,
+      {String? mapName}) async {
+    final path = mapName != null && mapName.isNotEmpty
+        ? '/api/v1/maps/${Uri.encodeComponent(mapName)}/road_network'
+        : '/api/v1/road_network';
+    return await _send('POST', path, body: {
+      if (mapName != null && mapName.isNotEmpty) 'map': mapName,
+      'geojson': geoJson,
+    });
+  }
+
+  Future<Map<String, dynamic>> deleteRoadNetwork({String? mapName}) async {
+    final path = mapName != null && mapName.isNotEmpty
+        ? '/api/v1/maps/${Uri.encodeComponent(mapName)}/road_network'
+        : '/api/v1/road_network';
+    return await _send('DELETE', path);
+  }
+
+  Future<Map<String, dynamic>> triggerRoadReroute() =>
+      _send('POST', '/api/v1/road_network/reroute');
 
   // -- missions ----------------------------------------------------------------
 

@@ -11,7 +11,9 @@ import '../../services/dock_pose_controller.dart';
 import '../../services/locations_controller.dart';
 import '../../services/map_layers_controller.dart';
 import '../../services/sdk_api_service.dart';
+import '../../services/road_network_controller.dart';
 import '../../services/zones_controller.dart';
+import '../../models/road_network.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../../utils/localize_at_dock.dart';
@@ -62,6 +64,13 @@ class _MapViewScreenState extends State<MapViewScreen> {
   bool _savingZone = false;
   String? _activeMapName;
 
+  bool _roadNetworkEditorMode = false;
+  int? _selectedRoadNodeId;
+  int? _selectedRoadEdgeId;
+  int? _linkingStartNodeId;
+  bool _addingRoadNodeMode = false;
+  bool _savingRoadNetwork = false;
+
   bool _drawingLaneMode = false;
   List<Offset> _laneDraftPoints = [];
   double _laneDraftWidth = 1.2;
@@ -92,6 +101,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
     MapLayersController.instance.addListener(_onSharedStateChanged);
     LocationsController.instance.addListener(_onSharedStateChanged);
     ZonesController.instance.addListener(_onSharedStateChanged);
+    RoadNetworkController.instance.addListener(_onSharedStateChanged);
     DockPoseController.instance.addListener(_onDockPoseChanged);
   }
 
@@ -113,8 +123,10 @@ class _MapViewScreenState extends State<MapViewScreen> {
       final mapName = await api.getCurrentMap();
       if (mounted) setState(() => _activeMapName = mapName);
       await ZonesController.instance.refresh(api, map: mapName);
+      await RoadNetworkController.instance.refresh(api, map: mapName);
     } catch (_) {
       await ZonesController.instance.refresh(api);
+      await RoadNetworkController.instance.refresh(api);
     }
   }
 
@@ -144,6 +156,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
     MapLayersController.instance.removeListener(_onSharedStateChanged);
     LocationsController.instance.removeListener(_onSharedStateChanged);
     ZonesController.instance.removeListener(_onSharedStateChanged);
+    RoadNetworkController.instance.removeListener(_onSharedStateChanged);
     DockPoseController.instance.removeListener(_onDockPoseChanged);
     _transformController.dispose();
     super.dispose();
@@ -330,11 +343,17 @@ class _MapViewScreenState extends State<MapViewScreen> {
     }
   }
 
-  void _onLaneCanvasClick(Offset world) {
-    if (!_drawingLaneMode) return;
-    setState(() {
-      _laneDraftPoints = [..._laneDraftPoints, world];
-    });
+  void _onMapCanvasClick(Offset world) {
+    if (_drawingLaneMode) {
+      setState(() {
+        _laneDraftPoints = [..._laneDraftPoints, world];
+      });
+      return;
+    }
+    if (_roadNetworkEditorMode && _addingRoadNodeMode) {
+      _onAddRoadNodeAt(world.dx, world.dy);
+      return;
+    }
   }
 
   void _undoLanePoint() {
@@ -713,6 +732,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
                         'Pins for every saved location'),
                     tile(MapLayer.zones, Icons.polyline_rounded, 'Map Zones',
                         'Restricted areas, speed limits & corridors'),
+                    tile(MapLayer.roadNetwork, Icons.alt_route_rounded, 'Road Network',
+                        'Nav2 topological roadway graph & speed limits'),
                     tile(MapLayer.path, Icons.route_rounded, 'Planned Path',
                         "The navigation stack's current route"),
                     tile(
@@ -922,6 +943,241 @@ class _MapViewScreenState extends State<MapViewScreen> {
         _draftPose = null;
       });
     }
+  }
+
+  void _onRoadNodeTap(RoadNode node) {
+    if (_linkingStartNodeId != null && _linkingStartNodeId != node.id) {
+      final start = _linkingStartNodeId!;
+      setState(() => _linkingStartNodeId = null);
+      _showConnectNodesDialog(start, node.id);
+      return;
+    }
+    setState(() {
+      _selectedRoadNodeId = node.id;
+      _selectedRoadEdgeId = null;
+      _roadNetworkEditorMode = true;
+    });
+  }
+
+  void _onRoadEdgeTap(RoadEdge edge) {
+    setState(() {
+      _selectedRoadEdgeId = edge.id;
+      _selectedRoadNodeId = null;
+      _roadNetworkEditorMode = true;
+    });
+  }
+
+  void _onRoadNodeMoved(int nodeId, double x, double y) {
+    final rn = RoadNetworkController.instance.value;
+    if (rn == null) return;
+    final nodes = List<RoadNode>.from(rn.nodes);
+    final idx = nodes.indexWhere((n) => n.id == nodeId);
+    if (idx == -1) return;
+    nodes[idx] = nodes[idx].copyWith(x: x, y: y);
+    RoadNetworkController.instance.value = rn.copyWith(nodes: nodes);
+    setState(() {});
+  }
+
+  Future<void> _onRoadNodeMoveEnd() async {
+    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final api = _apiFor(ip);
+    final rn = RoadNetworkController.instance.value;
+    if (api == null || rn == null) return;
+    setState(() => _savingRoadNetwork = true);
+    try {
+      await RoadNetworkController.instance.saveRoadNetwork(api, rn, map: _activeMapName);
+    } catch (e) {
+      debugPrint('Failed to save road node: $e');
+    } finally {
+      if (mounted) setState(() => _savingRoadNetwork = false);
+    }
+  }
+
+  Future<void> _onAddRoadNodeAt(double x, double y) async {
+    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final api = _apiFor(ip);
+    if (api == null) return;
+    final current = RoadNetworkController.instance.value ?? RoadNetwork(mapName: _activeMapName ?? 'default');
+    final nextId = current.nextAvailableNodeId;
+    final newNode = RoadNode(id: nextId, name: 'Node $nextId', x: x, y: y);
+    final updated = current.copyWith(nodes: [...current.nodes, newNode]);
+    RoadNetworkController.instance.value = updated;
+    setState(() {
+      _selectedRoadNodeId = nextId;
+      _addingRoadNodeMode = false;
+      _savingRoadNetwork = true;
+    });
+    try {
+      await RoadNetworkController.instance.saveRoadNetwork(api, updated, map: _activeMapName);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Placed Road Node $nextId at (${x.toStringAsFixed(2)}, ${y.toStringAsFixed(2)})')));
+      }
+    } catch (e) {
+      debugPrint('Failed to save new road node: $e');
+    } finally {
+      if (mounted) setState(() => _savingRoadNetwork = false);
+    }
+  }
+
+  Future<void> _showConnectNodesDialog(int startId, int endId) async {
+    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final api = _apiFor(ip);
+    if (api == null) return;
+    final current = RoadNetworkController.instance.value ?? RoadNetwork(mapName: _activeMapName ?? 'default');
+
+    bool bidirectional = true;
+    double speedLimit = 0.45;
+    bool enableSpeed = false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          title: Text('Connect Road: Node $startId ↔ Node $endId'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(
+                title: const Text('Bidirectional (Two-Way)'),
+                subtitle: const Text('Robot can travel in both directions'),
+                value: bidirectional,
+                onChanged: (val) => setDlgState(() => bidirectional = val),
+              ),
+              SwitchListTile(
+                title: const Text('Speed Limit'),
+                subtitle: Text(enableSpeed ? '${speedLimit.toStringAsFixed(2)} m/s' : 'No speed restriction'),
+                value: enableSpeed,
+                onChanged: (val) => setDlgState(() => enableSpeed = val),
+              ),
+              if (enableSpeed)
+                Slider(
+                  value: speedLimit,
+                  min: 0.1,
+                  max: 1.0,
+                  divisions: 18,
+                  label: '${speedLimit.toStringAsFixed(2)} m/s',
+                  onChanged: (v) => setDlgState(() => speedLimit = v),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(true),
+              child: const Text('Add Road Edge'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final nextEdgeId = current.nextAvailableEdgeId;
+    final newEdge = RoadEdge(
+      id: nextEdgeId,
+      startId: startId,
+      endId: endId,
+      bidirectional: bidirectional,
+      speedLimit: enableSpeed ? speedLimit : null,
+    );
+    final updated = current.copyWith(edges: [...current.edges, newEdge]);
+    RoadNetworkController.instance.value = updated;
+    setState(() {
+      _selectedRoadEdgeId = nextEdgeId;
+      _savingRoadNetwork = true;
+    });
+    try {
+      await RoadNetworkController.instance.saveRoadNetwork(api, updated, map: _activeMapName);
+    } finally {
+      if (mounted) setState(() => _savingRoadNetwork = false);
+    }
+  }
+
+  Future<void> _deleteSelectedRoadElement() async {
+    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final api = _apiFor(ip);
+    final current = RoadNetworkController.instance.value;
+    if (api == null || current == null) return;
+
+    setState(() => _savingRoadNetwork = true);
+    try {
+      if (_selectedRoadNodeId != null) {
+        final nodeId = _selectedRoadNodeId!;
+        final newNodes = current.nodes.where((n) => n.id != nodeId).toList();
+        final newEdges = current.edges.where((e) => e.startId != nodeId && e.endId != nodeId).toList();
+        final updated = current.copyWith(nodes: newNodes, edges: newEdges);
+        RoadNetworkController.instance.value = updated;
+        setState(() => _selectedRoadNodeId = null);
+        await RoadNetworkController.instance.saveRoadNetwork(api, updated, map: _activeMapName);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted Node $nodeId')));
+        }
+      } else if (_selectedRoadEdgeId != null) {
+        final edgeId = _selectedRoadEdgeId!;
+        final newEdges = current.edges.where((e) => e.id != edgeId).toList();
+        final updated = current.copyWith(edges: newEdges);
+        RoadNetworkController.instance.value = updated;
+        setState(() => _selectedRoadEdgeId = null);
+        await RoadNetworkController.instance.saveRoadNetwork(api, updated, map: _activeMapName);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted Road Edge #$edgeId')));
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _savingRoadNetwork = false);
+    }
+  }
+
+  Future<void> _clearRoadNetwork() async {
+    final ip = context.read<ConnectionProvider>().robot?.ip;
+    final api = _apiFor(ip);
+    if (api == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Clear Road Network'),
+        content: Text('Are you sure you want to delete all road nodes and edges for map "${_activeMapName ?? 'current'}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogCtx).pop(false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Clear All'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _savingRoadNetwork = true);
+    try {
+      await RoadNetworkController.instance.deleteRoadNetwork(api, map: _activeMapName);
+      if (mounted) {
+        setState(() {
+          _selectedRoadNodeId = null;
+          _selectedRoadEdgeId = null;
+          _linkingStartNodeId = null;
+          _addingRoadNodeMode = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Road Network cleared')));
+      }
+    } finally {
+      if (mounted) setState(() => _savingRoadNetwork = false);
+    }
+  }
+
+  void _exitRoadNetworkEditor() {
+    setState(() {
+      _roadNetworkEditorMode = false;
+      _selectedRoadNodeId = null;
+      _selectedRoadEdgeId = null;
+      _linkingStartNodeId = null;
+      _addingRoadNodeMode = false;
+    });
   }
 
   /// "Add Location": the same click-drag pose picker Localize's own
@@ -1189,8 +1445,20 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                     mouseHoverWorld: _mouseHoverWorld,
                                     onMapHoverWorld: (w) =>
                                         setState(() => _mouseHoverWorld = w),
-                                    onMapClickWorld: _onLaneCanvasClick,
+                                    onMapClickWorld: _onMapCanvasClick,
                                     onFinishLane: _finishDrawingLane,
+                                    roadNetwork: visibleLayers.contains(MapLayer.roadNetwork)
+                                        ? RoadNetworkController.instance.value
+                                        : null,
+                                    showRoadNetwork:
+                                        visibleLayers.contains(MapLayer.roadNetwork),
+                                    roadNetworkEditorMode: _roadNetworkEditorMode,
+                                    selectedRoadNodeId: _selectedRoadNodeId,
+                                    selectedRoadEdgeId: _selectedRoadEdgeId,
+                                    onRoadNodeTap: _onRoadNodeTap,
+                                    onRoadEdgeTap: _onRoadEdgeTap,
+                                    onRoadNodeMoved: _onRoadNodeMoved,
+                                    onRoadNodeMoveEnd: _onRoadNodeMoveEnd,
                                     onMapLoaded: _onMapLoaded,
                                   ),
                                 );
@@ -1292,6 +1560,50 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                 },
                                 onDone: _exitZoneEditor,
                               ),
+                            )
+                          else if (_roadNetworkEditorMode && !_posePicking)
+                            Positioned(
+                              left: AppSpacing.md,
+                              right: AppSpacing.md,
+                              bottom: AppSpacing.md,
+                              child: _RoadNetworkEditorHud(
+                                selectedNodeId: _selectedRoadNodeId,
+                                selectedEdgeId: _selectedRoadEdgeId,
+                                linkingStartNodeId: _linkingStartNodeId,
+                                addingNodeMode: _addingRoadNodeMode,
+                                saving: _savingRoadNetwork,
+                                mapName: _activeMapName,
+                                onToggleAddNodeMode: () {
+                                  setState(() {
+                                    _addingRoadNodeMode = !_addingRoadNodeMode;
+                                    _linkingStartNodeId = null;
+                                  });
+                                },
+                                onStartConnect: _selectedRoadNodeId != null
+                                    ? () {
+                                        setState(() {
+                                          _linkingStartNodeId = _selectedRoadNodeId;
+                                          _addingRoadNodeMode = false;
+                                        });
+                                      }
+                                    : null,
+                                onCancelConnect: () {
+                                  setState(() => _linkingStartNodeId = null);
+                                },
+                                onDeleteSelected: (_selectedRoadNodeId != null || _selectedRoadEdgeId != null)
+                                    ? _deleteSelectedRoadElement
+                                    : null,
+                                onClearAll: _clearRoadNetwork,
+                                onDeselect: () {
+                                  setState(() {
+                                    _selectedRoadNodeId = null;
+                                    _selectedRoadEdgeId = null;
+                                    _linkingStartNodeId = null;
+                                    _addingRoadNodeMode = false;
+                                  });
+                                },
+                                onDone: _exitRoadNetworkEditor,
+                              ),
                             ),
                           if (_posePicking)
                             Positioned(
@@ -1331,12 +1643,26 @@ class _MapViewScreenState extends State<MapViewScreen> {
                       onDockTap: _onDockTapped,
                       localizing: _localizing,
                       zoneEditorMode: _zoneEditorMode,
+                      roadNetworkEditorMode: _roadNetworkEditorMode,
                       selectedZoneId: _selectedZoneId,
                       onToggleZoneEditor: () {
                         if (_zoneEditorMode) {
                           _exitZoneEditor();
                         } else {
-                          setState(() => _zoneEditorMode = true);
+                          setState(() {
+                            _zoneEditorMode = true;
+                            _roadNetworkEditorMode = false;
+                          });
+                        }
+                      },
+                      onToggleRoadNetworkEditor: () {
+                        if (_roadNetworkEditorMode) {
+                          _exitRoadNetworkEditor();
+                        } else {
+                          setState(() {
+                            _roadNetworkEditorMode = true;
+                            _zoneEditorMode = false;
+                          });
                         }
                       },
                       onAddZone: _showAddZoneDialog,
@@ -1344,6 +1670,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                         _selectedZoneId = z.id;
                         _activeZoneVertexIndex = null;
                         _zoneEditorMode = true;
+                        _roadNetworkEditorMode = false;
                       }),
                       onZoneDelete: _deleteZone,
                     ),
@@ -1424,8 +1751,20 @@ class _MapViewScreenState extends State<MapViewScreen> {
                               mouseHoverWorld: _mouseHoverWorld,
                               onMapHoverWorld: (w) =>
                                   setState(() => _mouseHoverWorld = w),
-                              onMapClickWorld: _onLaneCanvasClick,
+                              onMapClickWorld: _onMapCanvasClick,
                               onFinishLane: _finishDrawingLane,
+                              roadNetwork: visibleLayers.contains(MapLayer.roadNetwork)
+                                  ? RoadNetworkController.instance.value
+                                  : null,
+                              showRoadNetwork:
+                                  visibleLayers.contains(MapLayer.roadNetwork),
+                              roadNetworkEditorMode: _roadNetworkEditorMode,
+                              selectedRoadNodeId: _selectedRoadNodeId,
+                              selectedRoadEdgeId: _selectedRoadEdgeId,
+                              onRoadNodeTap: _onRoadNodeTap,
+                              onRoadEdgeTap: _onRoadEdgeTap,
+                              onRoadNodeMoved: _onRoadNodeMoved,
+                              onRoadNodeMoveEnd: _onRoadNodeMoveEnd,
                               onMapLoaded: _onMapLoaded,
                             ),
                           );
@@ -1458,12 +1797,26 @@ class _MapViewScreenState extends State<MapViewScreen> {
                           layersActive:
                               MapLayersController.instance.value.isNotEmpty,
                           zoneEditorActive: _zoneEditorMode,
+                          roadNetworkEditorActive: _roadNetworkEditorMode,
                           onLayers: _openLayersPanel,
                           onToggleZoneEditor: () {
                             if (_zoneEditorMode) {
                               _exitZoneEditor();
                             } else {
-                              setState(() => _zoneEditorMode = true);
+                              setState(() {
+                                _zoneEditorMode = true;
+                                _roadNetworkEditorMode = false;
+                              });
+                            }
+                          },
+                          onToggleRoadNetworkEditor: () {
+                            if (_roadNetworkEditorMode) {
+                              _exitRoadNetworkEditor();
+                            } else {
+                              setState(() {
+                                _roadNetworkEditorMode = true;
+                                _zoneEditorMode = false;
+                              });
                             }
                           },
                           onZoomIn: () => _zoomBy(1.25),
@@ -1532,6 +1885,50 @@ class _MapViewScreenState extends State<MapViewScreen> {
                           },
                           onDone: _exitZoneEditor,
                         ),
+                      )
+                    else if (_roadNetworkEditorMode && !_posePicking)
+                      Positioned(
+                        left: AppSpacing.sm,
+                        right: AppSpacing.sm,
+                        bottom: AppSpacing.sm,
+                        child: _RoadNetworkEditorHud(
+                          selectedNodeId: _selectedRoadNodeId,
+                          selectedEdgeId: _selectedRoadEdgeId,
+                          linkingStartNodeId: _linkingStartNodeId,
+                          addingNodeMode: _addingRoadNodeMode,
+                          saving: _savingRoadNetwork,
+                          mapName: _activeMapName,
+                          onToggleAddNodeMode: () {
+                            setState(() {
+                              _addingRoadNodeMode = !_addingRoadNodeMode;
+                              _linkingStartNodeId = null;
+                            });
+                          },
+                          onStartConnect: _selectedRoadNodeId != null
+                              ? () {
+                                  setState(() {
+                                    _linkingStartNodeId = _selectedRoadNodeId;
+                                    _addingRoadNodeMode = false;
+                                  });
+                                }
+                              : null,
+                          onCancelConnect: () {
+                            setState(() => _linkingStartNodeId = null);
+                          },
+                          onDeleteSelected: (_selectedRoadNodeId != null || _selectedRoadEdgeId != null)
+                              ? _deleteSelectedRoadElement
+                              : null,
+                          onClearAll: _clearRoadNetwork,
+                          onDeselect: () {
+                            setState(() {
+                              _selectedRoadNodeId = null;
+                              _selectedRoadEdgeId = null;
+                              _linkingStartNodeId = null;
+                              _addingRoadNodeMode = false;
+                            });
+                          },
+                          onDone: _exitRoadNetworkEditor,
+                        ),
                       ),
                     if (_posePicking)
                       Positioned(
@@ -1561,8 +1958,10 @@ class _ControlCluster extends StatelessWidget {
   const _ControlCluster({
     required this.layersActive,
     required this.zoneEditorActive,
+    required this.roadNetworkEditorActive,
     required this.onLayers,
     required this.onToggleZoneEditor,
+    required this.onToggleRoadNetworkEditor,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onFitMap,
@@ -1575,8 +1974,10 @@ class _ControlCluster extends StatelessWidget {
 
   final bool layersActive;
   final bool zoneEditorActive;
+  final bool roadNetworkEditorActive;
   final VoidCallback onLayers;
   final VoidCallback onToggleZoneEditor;
+  final VoidCallback onToggleRoadNetworkEditor;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onFitMap;
@@ -1605,6 +2006,13 @@ class _ControlCluster extends StatelessWidget {
             tooltip: 'Map Zones Editor',
             onTap: onToggleZoneEditor,
             color: zoneEditorActive ? AppColors.accent : null,
+          ),
+          const Divider(height: 1),
+          _ControlButton(
+            icon: Icons.alt_route_rounded,
+            tooltip: 'Road Network Editor',
+            onTap: onToggleRoadNetworkEditor,
+            color: roadNetworkEditorActive ? AppColors.stateExecuting : null,
           ),
         ]),
         const SizedBox(height: AppSpacing.sm),
@@ -1864,8 +2272,10 @@ class _DesktopStudioSidebar extends StatelessWidget {
     required this.onDockTap,
     required this.localizing,
     required this.zoneEditorMode,
+    required this.roadNetworkEditorMode,
     this.selectedZoneId,
     required this.onToggleZoneEditor,
+    required this.onToggleRoadNetworkEditor,
     required this.onAddZone,
     required this.onZoneTap,
     this.onZoneDelete,
@@ -1880,8 +2290,10 @@ class _DesktopStudioSidebar extends StatelessWidget {
   final VoidCallback onDockTap;
   final bool localizing;
   final bool zoneEditorMode;
+  final bool roadNetworkEditorMode;
   final String? selectedZoneId;
   final VoidCallback onToggleZoneEditor;
+  final VoidCallback onToggleRoadNetworkEditor;
   final VoidCallback onAddZone;
   final void Function(MapZone zone) onZoneTap;
   final void Function(String id)? onZoneDelete;
@@ -1939,6 +2351,7 @@ class _DesktopStudioSidebar extends StatelessWidget {
                   layerTile(MapLayer.dock, Icons.ev_station_rounded, 'Docking Station'),
                   layerTile(MapLayer.locations, Icons.place_rounded, 'Saved Locations'),
                   layerTile(MapLayer.zones, Icons.polyline_rounded, 'Map Zones'),
+                  layerTile(MapLayer.roadNetwork, Icons.alt_route_rounded, 'Road Network'),
                   layerTile(MapLayer.path, Icons.route_rounded, 'Planned Path'),
                   layerTile(MapLayer.globalCostmap, Icons.grid_on_rounded, 'Global Costmap'),
                   layerTile(MapLayer.localCostmap, Icons.grid_4x4_rounded, 'Local Costmap'),
@@ -2037,6 +2450,61 @@ class _DesktopStudioSidebar extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+
+          // Group 2.5: Road Network (Topological Roadway Graph)
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: colors.surfaceSunken,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: roadNetworkEditorMode
+                    ? colors.primary.withValues(alpha: 0.5)
+                    : colors.border,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.alt_route_rounded,
+                        size: 14, color: colors.primary),
+                    const SizedBox(width: 6),
+                    const Text('Road Network',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    if (roadNetworkEditorMode)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: colors.primary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text('EDITING',
+                            style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: colors.primary)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                FilledButton.tonalIcon(
+                  onPressed: onToggleRoadNetworkEditor,
+                  icon: Icon(
+                      roadNetworkEditorMode
+                          ? Icons.check_circle_outline_rounded
+                          : Icons.edit_road_rounded,
+                      size: 14),
+                  label: Text(roadNetworkEditorMode ? 'Done' : 'Edit Road Network'),
                 ),
               ],
             ),
@@ -3300,6 +3768,287 @@ class _SaveLocationDialogState extends State<_SaveLocationDialog> {
           child: const Text('Save'),
         ),
       ],
+    );
+  }
+}
+
+class _RoadNetworkEditorHud extends StatelessWidget {
+  const _RoadNetworkEditorHud({
+    required this.selectedNodeId,
+    required this.selectedEdgeId,
+    required this.linkingStartNodeId,
+    required this.addingNodeMode,
+    required this.saving,
+    this.mapName,
+    required this.onToggleAddNodeMode,
+    this.onStartConnect,
+    required this.onCancelConnect,
+    this.onDeleteSelected,
+    required this.onClearAll,
+    required this.onDeselect,
+    required this.onDone,
+  });
+
+  final int? selectedNodeId;
+  final int? selectedEdgeId;
+  final int? linkingStartNodeId;
+  final bool addingNodeMode;
+  final bool saving;
+  final String? mapName;
+  final VoidCallback onToggleAddNodeMode;
+  final VoidCallback? onStartConnect;
+  final VoidCallback onCancelConnect;
+  final VoidCallback? onDeleteSelected;
+  final VoidCallback onClearAll;
+  final VoidCallback onDeselect;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    final rn = RoadNetworkController.instance.value;
+
+    final selectedNode = selectedNodeId != null
+        ? rn?.nodes.where((n) => n.id == selectedNodeId).firstOrNull
+        : null;
+    final selectedEdge = selectedEdgeId != null
+        ? rn?.edges.where((e) => e.id == selectedEdgeId).firstOrNull
+        : null;
+
+    return Card(
+      elevation: 6,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.alt_route_rounded,
+                          size: 14, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Road Network${mapName != null ? " · $mapName" : ""}',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceSunken,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Text(
+                    '${rn?.nodes.length ?? 0} Nodes · ${rn?.edges.length ?? 0} Roads',
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                if (selectedNode != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.stateExecuting.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                          color: AppColors.stateExecuting.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      'Node #${selectedNode.id} (${selectedNode.x.toStringAsFixed(2)}, ${selectedNode.y.toStringAsFixed(2)})',
+                      style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.stateExecuting),
+                    ),
+                  ),
+                ] else if (selectedEdge != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                          color: AppColors.accent.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      'Road #${selectedEdge.id}: Node ${selectedEdge.startId} ${selectedEdge.bidirectional ? "↔" : "→"} Node ${selectedEdge.endId}${selectedEdge.speedLimit != null ? " · ${selectedEdge.speedLimit!.toStringAsFixed(2)} m/s" : ""}',
+                      style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.accent),
+                    ),
+                  ),
+                ] else if (linkingStartNodeId != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Tap target node to link with Node $linkingStartNodeId',
+                      style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.warning),
+                    ),
+                  ),
+                ] else if (addingNodeMode) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'Tap anywhere on the map to place a road node',
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.success),
+                    ),
+                  ),
+                ] else ...[
+                  const Expanded(
+                    child: Text(
+                      'Tap nodes or edges to select, or click "Add Node" to build graph.',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                FilledButton.icon(
+                  onPressed: saving ? null : onDone,
+                  icon: saving
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.textOnPrimary),
+                        )
+                      : const Icon(Icons.check_rounded, size: 16),
+                  label: Text(saving ? 'Saving…' : 'Done'),
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: AppColors.success,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Row(
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: onToggleAddNodeMode,
+                  icon: Icon(
+                    addingNodeMode
+                        ? Icons.cancel_outlined
+                        : Icons.add_location_outlined,
+                    size: 15,
+                  ),
+                  label: Text(addingNodeMode ? 'Cancel Placing' : 'Add Node'),
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: addingNodeMode
+                        ? AppColors.danger.withValues(alpha: 0.15)
+                        : null,
+                    foregroundColor: addingNodeMode ? AppColors.danger : null,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                if (linkingStartNodeId != null) ...[
+                  FilledButton.tonalIcon(
+                    onPressed: onCancelConnect,
+                    icon: const Icon(Icons.close_rounded, size: 15),
+                    label: const Text('Cancel Linking'),
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: AppColors.danger.withValues(alpha: 0.15),
+                      foregroundColor: AppColors.danger,
+                    ),
+                  ),
+                ] else if (selectedNode != null) ...[
+                  FilledButton.tonalIcon(
+                    onPressed: onStartConnect,
+                    icon: const Icon(Icons.timeline_rounded, size: 15),
+                    label: const Text('Connect to Node…'),
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                if (onDeleteSelected != null) ...[
+                  TextButton.icon(
+                    onPressed: onDeleteSelected,
+                    icon: const Icon(Icons.delete_outline_rounded,
+                        size: 15, color: AppColors.danger),
+                    label: Text(
+                      selectedNode != null ? 'Delete Node' : 'Delete Road',
+                      style: const TextStyle(
+                          color: AppColors.danger, fontSize: 12),
+                    ),
+                    style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                if (selectedNode != null || selectedEdge != null)
+                  TextButton(
+                    onPressed: onDeselect,
+                    style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact),
+                    child: const Text('Deselect',
+                        style: TextStyle(fontSize: 12)),
+                  ),
+                TextButton.icon(
+                  onPressed: onClearAll,
+                  icon: const Icon(Icons.delete_forever_rounded,
+                      size: 15, color: AppColors.textTertiary),
+                  label: const Text('Clear All',
+                      style: TextStyle(
+                          color: AppColors.textTertiary, fontSize: 12)),
+                  style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

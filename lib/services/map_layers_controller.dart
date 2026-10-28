@@ -4,7 +4,7 @@ import 'map_layers_store.dart';
 
 /// Which optional map overlays can be shown — dock, saved locations, the
 /// planner's current path, both costmaps, real-time laser scan, and zones.
-enum MapLayer { dock, locations, path, globalCostmap, localCostmap, laserScan, zones }
+enum MapLayer { dock, locations, path, globalCostmap, localCostmap, laserScan, zones, roadNetwork }
 
 /// The single, app-wide "which overlays are visible" selection — shared by
 /// every live map view (Map View, Teleop, Create Map, Dashboard's
@@ -31,6 +31,7 @@ class MapLayersController extends ValueNotifier<Set<MapLayer>> {
           MapLayer.path,
           MapLayer.laserScan,
           MapLayer.zones,
+          MapLayer.roadNetwork,
         }) {
     _load();
   }
@@ -52,10 +53,12 @@ class MapLayersController extends ValueNotifier<Set<MapLayer>> {
         .map((name) => MapLayer.values.asNameMap()[name])
         .whereType<MapLayer>()
         .toSet();
-    // Ensure MapLayer.zones is visible by default even if user previously saved
-    // layer preferences before zones was introduced
+    // Ensure MapLayer.zones and roadNetwork are visible by default
     if (!saved.contains('zones')) {
       loaded.add(MapLayer.zones);
+    }
+    if (!saved.contains('roadNetwork')) {
+      loaded.add(MapLayer.roadNetwork);
     }
     value = loaded;
   }

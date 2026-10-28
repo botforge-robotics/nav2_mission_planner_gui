@@ -15,6 +15,7 @@ import 'package:sensor_msgs/msg.dart' as sensor_msgs;
 import 'package:tf2_msgs/msg.dart' as tf2_msgs;
 
 import '../../models/map_zone.dart';
+import '../../models/road_network.dart';
 import '../../theme/app_theme.dart';
 import '../design/fade_in.dart';
 
@@ -212,6 +213,15 @@ class OccupancyGridView extends StatefulWidget {
     this.onMapHoverWorld,
     this.onMapClickWorld,
     this.onFinishLane,
+    this.roadNetwork,
+    this.showRoadNetwork = true,
+    this.roadNetworkEditorMode = false,
+    this.selectedRoadNodeId,
+    this.selectedRoadEdgeId,
+    this.onRoadNodeTap,
+    this.onRoadEdgeTap,
+    this.onRoadNodeMoved,
+    this.onRoadNodeMoveEnd,
   });
 
 
@@ -343,6 +353,15 @@ class OccupancyGridView extends StatefulWidget {
   final ValueChanged<Offset?>? onMapHoverWorld;
   final ValueChanged<Offset>? onMapClickWorld;
   final VoidCallback? onFinishLane;
+  final RoadNetwork? roadNetwork;
+  final bool showRoadNetwork;
+  final bool roadNetworkEditorMode;
+  final int? selectedRoadNodeId;
+  final int? selectedRoadEdgeId;
+  final void Function(RoadNode node)? onRoadNodeTap;
+  final void Function(RoadEdge edge)? onRoadEdgeTap;
+  final void Function(int nodeId, double x, double y)? onRoadNodeMoved;
+  final VoidCallback? onRoadNodeMoveEnd;
 
   @override
 
@@ -362,6 +381,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   Subscriber<nav_msgs.Odometry>? _odomSub;
   geometry_msgs.PoseWithCovarianceStamped? _odomPose;
   int? _draggingVertexIndex;
+  int? _draggingRoadNodeId;
 
 
   /// The live `map` -> `odom` transform, tracked only while the local
@@ -1597,6 +1617,58 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
         }
       }
     }
+
+    final rn = widget.roadNetwork;
+    if (rn != null && (widget.roadNetworkEditorMode || widget.onRoadNodeTap != null || widget.onRoadEdgeTap != null)) {
+      final viewScale = _controller.value.getMaxScaleOnAxis();
+      final effectiveScale = viewScale > 0 ? viewScale : 1.0;
+
+      // 1. Check if tap hit a node (tolerance ~26px screen)
+      RoadNode? tappedNode;
+      double minNodeDist = double.infinity;
+      for (final node in rn.nodes) {
+        final nodePx = _worldToPixel(grid, node.x, node.y);
+        final dist = (nodePx - contentPoint).distance * effectiveScale;
+        if (dist <= 26.0 && dist < minNodeDist) {
+          minNodeDist = dist;
+          tappedNode = node;
+        }
+      }
+      if (tappedNode != null) {
+        widget.onRoadNodeTap?.call(tappedNode);
+        return;
+      }
+
+      // 2. Check if tap hit an edge (tolerance ~22px screen)
+      final nMap = rn.nodeMap;
+      RoadEdge? tappedEdge;
+      double minEdgeDist = double.infinity;
+      for (final edge in rn.edges) {
+        final start = nMap[edge.startId];
+        final end = nMap[edge.endId];
+        if (start == null || end == null) continue;
+        final p1 = _worldToPixel(grid, start.x, start.y);
+        final p2 = _worldToPixel(grid, end.x, end.y);
+        final seg = p2 - p1;
+        final lenSq = seg.dx * seg.dx + seg.dy * seg.dy;
+        if (lenSq > 0) {
+          final t = ((contentPoint.dx - p1.dx) * seg.dx + (contentPoint.dy - p1.dy) * seg.dy) / lenSq;
+          if (t >= 0.05 && t <= 0.95) {
+            final proj = p1 + seg * t;
+            final edgeDist = (proj - contentPoint).distance * effectiveScale;
+            if (edgeDist <= 22.0 && edgeDist < minEdgeDist) {
+              minEdgeDist = edgeDist;
+              tappedEdge = edge;
+            }
+          }
+        }
+      }
+      if (tappedEdge != null) {
+        widget.onRoadEdgeTap?.call(tappedEdge);
+        return;
+      }
+    }
+
     const toleranceMeters = 0.6;
 
 
@@ -1723,6 +1795,11 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
             laneDraftPoints: widget.laneDraftPoints,
             laneDraftWidth: widget.laneDraftWidth,
             mouseHoverWorld: widget.mouseHoverWorld,
+            roadNetwork: (widget.showRoadNetwork && showOverlays) ? widget.roadNetwork : null,
+            showRoadNetwork: widget.showRoadNetwork && showOverlays,
+            roadNetworkEditorMode: widget.roadNetworkEditorMode,
+            selectedRoadNodeId: widget.selectedRoadNodeId ?? _draggingRoadNodeId,
+            selectedRoadEdgeId: widget.selectedRoadEdgeId,
           ),
         ),
       );
@@ -1918,6 +1995,46 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
             if (_draggingVertexIndex != null) {
               setState(() => _draggingVertexIndex = null);
               widget.onZoneVertexMoveEnd?.call();
+            }
+          },
+          child: viewer,
+        );
+      }
+
+      if (widget.roadNetworkEditorMode && widget.selectedRoadNodeId != null) {
+        activeChild = Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (event) {
+            final contentPoint = _globalToContent(event.position);
+            if (contentPoint == null || _grid == null || widget.roadNetwork == null) return;
+            final rn = widget.roadNetwork!;
+            final selectedNode = rn.nodeMap[widget.selectedRoadNodeId];
+            if (selectedNode == null) return;
+            final viewScale = _controller.value.getMaxScaleOnAxis();
+            final effectiveScale = viewScale > 0 ? viewScale : 1.0;
+            final ptPx = _worldToPixel(_grid!, selectedNode.x, selectedNode.y);
+            final dist = (ptPx - contentPoint).distance * effectiveScale;
+            if (dist <= 28.0) {
+              setState(() => _draggingRoadNodeId = selectedNode.id);
+            }
+          },
+          onPointerMove: (event) {
+            if (_draggingRoadNodeId == null || _grid == null) return;
+            final contentPoint = _globalToContent(event.position);
+            if (contentPoint == null) return;
+            final world = _pixelToWorld(_grid!, contentPoint);
+            widget.onRoadNodeMoved?.call(_draggingRoadNodeId!, world.dx, world.dy);
+          },
+          onPointerUp: (event) {
+            if (_draggingRoadNodeId != null) {
+              setState(() => _draggingRoadNodeId = null);
+              widget.onRoadNodeMoveEnd?.call();
+            }
+          },
+          onPointerCancel: (event) {
+            if (_draggingRoadNodeId != null) {
+              setState(() => _draggingRoadNodeId = null);
+              widget.onRoadNodeMoveEnd?.call();
             }
           },
           child: viewer,
@@ -2128,6 +2245,11 @@ class _OccupancyGridPainter extends CustomPainter {
     this.laneDraftWidth = 1.2,
     this.mouseHoverWorld,
     this.isDark = false,
+    this.roadNetwork,
+    this.showRoadNetwork = true,
+    this.roadNetworkEditorMode = false,
+    this.selectedRoadNodeId,
+    this.selectedRoadEdgeId,
   });
 
   final ui.Image image;
@@ -2158,6 +2280,11 @@ class _OccupancyGridPainter extends CustomPainter {
   final List<Offset> laneDraftPoints;
   final double laneDraftWidth;
   final Offset? mouseHoverWorld;
+  final RoadNetwork? roadNetwork;
+  final bool showRoadNetwork;
+  final bool roadNetworkEditorMode;
+  final int? selectedRoadNodeId;
+  final int? selectedRoadEdgeId;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2176,6 +2303,7 @@ class _OccupancyGridPainter extends CustomPainter {
     if (showWaypointRoute) _drawWaypointRoute(canvas);
     if (zones.isNotEmpty) _drawZones(canvas);
     if (drawingLaneMode) _drawLaneDraft(canvas);
+    if (showRoadNetwork && roadNetwork != null) _drawRoadNetwork(canvas);
 
 
     for (final loc in locations) {
@@ -2528,6 +2656,157 @@ class _OccupancyGridPainter extends CustomPainter {
         }
       }
     }
+  }
+
+  void _drawRoadNetwork(Canvas canvas) {
+    final rn = roadNetwork;
+    if (rn == null || rn.nodes.isEmpty) return;
+    final nMap = rn.nodeMap;
+
+    // 1. Draw Edges
+    for (final edge in rn.edges) {
+      final start = nMap[edge.startId];
+      final end = nMap[edge.endId];
+      if (start == null || end == null) continue;
+
+      final p1 = _worldToPixel(grid, start.x, start.y);
+      final p2 = _worldToPixel(grid, end.x, end.y);
+      final isEdgeSelected = edge.id == selectedRoadEdgeId;
+
+      final edgePaint = Paint()
+        ..color = isEdgeSelected
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFF10B981)
+        ..strokeWidth = (isEdgeSelected ? 3.5 : 2.2) * markerScale
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawLine(p1, p2, edgePaint);
+
+      // Arrow along edge
+      final diff = p2 - p1;
+      final dist = diff.distance;
+      if (dist > 18.0 * markerScale) {
+        final dir = diff / dist;
+        final mid = p1 + diff * 0.5;
+        _drawEdgeArrow(canvas, mid, dir, edgePaint.color, markerScale);
+        if (edge.bidirectional && dist > 36.0 * markerScale) {
+          final revMid = p1 + diff * 0.32;
+          _drawEdgeArrow(canvas, revMid, -dir, edgePaint.color, markerScale);
+        }
+      }
+
+      // Speed limit badge if defined
+      if (edge.speedLimit != null) {
+        final mid = p1 + diff * 0.5;
+        final normal = Offset(-diff.dy, diff.dx) / (dist > 0 ? dist : 1.0);
+        final tagPos = mid + normal * (8.0 * markerScale);
+        _drawSmallBadge(canvas, tagPos, '${edge.speedLimit!.toStringAsFixed(1)}m/s', markerScale);
+      }
+    }
+
+    // 2. Draw Nodes
+    for (final node in rn.nodes) {
+      final pos = _worldToPixel(grid, node.x, node.y);
+      final isNodeSelected = node.id == selectedRoadNodeId;
+      final radius = (isNodeSelected ? 9.5 : 7.5) * markerScale;
+
+      // Glow / outer halo if selected
+      if (isNodeSelected) {
+        canvas.drawCircle(
+          pos,
+          radius + 4.0 * markerScale,
+          Paint()..color = const Color(0xFFF59E0B).withValues(alpha: 0.4),
+        );
+      }
+
+      // Outer border circle
+      final outerPaint = Paint()
+        ..color = isNodeSelected ? const Color(0xFFF59E0B) : const Color(0xFF10B981)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(pos, radius + 1.8 * markerScale, outerPaint);
+
+      // Dark fill
+      final innerPaint = Paint()
+        ..color = isDark ? const Color(0xFF0F172A) : Colors.white
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(pos, radius, innerPaint);
+
+      // Node ID
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '${node.id}',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+            fontSize: (radius * 1.05).clamp(6.0, 14.0),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, pos - Offset(tp.width / 2, tp.height / 2));
+
+      // Node label
+      if (node.name.isNotEmpty && node.name != 'Node ${node.id}') {
+        final labelTp = TextPainter(
+          text: TextSpan(
+            text: node.name,
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black87,
+              fontSize: (9.5 * markerScale).clamp(8.0, 13.0),
+              fontWeight: isNodeSelected ? FontWeight.w700 : FontWeight.w500,
+              backgroundColor: isDark
+                  ? Colors.black.withValues(alpha: 0.65)
+                  : Colors.white.withValues(alpha: 0.8),
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        labelTp.paint(canvas, Offset(pos.dx - labelTp.width / 2, pos.dy + radius + 3.0 * markerScale));
+      }
+    }
+  }
+
+  void _drawEdgeArrow(Canvas canvas, Offset pos, Offset dir, Color color, double scale) {
+    final arrowLength = 7.0 * scale;
+    final arrowWidth = 3.8 * scale;
+    final normal = Offset(-dir.dy, dir.dx);
+
+    final tip = pos + dir * (arrowLength * 0.5);
+    final base1 = pos - dir * (arrowLength * 0.5) + normal * arrowWidth;
+    final base2 = pos - dir * (arrowLength * 0.5) - normal * arrowWidth;
+
+    final path = Path()
+      ..moveTo(tip.dx, tip.dy)
+      ..lineTo(base1.dx, base1.dy)
+      ..lineTo(base2.dx, base2.dy)
+      ..close();
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(path, paint);
+  }
+
+  void _drawSmallBadge(Canvas canvas, Offset pos, String text, double scale) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: (8.0 * scale).clamp(6.0, 11.0),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: pos, width: tp.width + 6.0 * scale, height: tp.height + 4.0 * scale),
+      Radius.circular(3.0 * scale),
+    );
+    final bgPaint = Paint()..color = const Color(0xFF1E293B).withValues(alpha: 0.85);
+    canvas.drawRRect(rrect, bgPaint);
+    tp.paint(canvas, pos - Offset(tp.width / 2, tp.height / 2));
   }
 
   void _drawLaneDraft(Canvas canvas) {
@@ -3354,7 +3633,12 @@ class _OccupancyGridPainter extends CustomPainter {
       oldDelegate.drawingLaneMode != drawingLaneMode ||
       oldDelegate.laneDraftPoints != laneDraftPoints ||
       oldDelegate.laneDraftWidth != laneDraftWidth ||
-      oldDelegate.mouseHoverWorld != mouseHoverWorld;
+      oldDelegate.mouseHoverWorld != mouseHoverWorld ||
+      oldDelegate.roadNetwork != roadNetwork ||
+      oldDelegate.showRoadNetwork != showRoadNetwork ||
+      oldDelegate.roadNetworkEditorMode != roadNetworkEditorMode ||
+      oldDelegate.selectedRoadNodeId != selectedRoadNodeId ||
+      oldDelegate.selectedRoadEdgeId != selectedRoadEdgeId;
 }
 
 /// A lightweight render proxy that captures the painted map's [RenderBox]
