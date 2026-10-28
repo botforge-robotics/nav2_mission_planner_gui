@@ -634,6 +634,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   /// taps applied to *where the handle itself ends up drawn*: get it from
   /// Flutter's own transform pipeline, don't re-derive it.
   final _handleLink = LayerLink();
+  final _roadNodeLink = LayerLink();
 
   TransformationController? _ownedController;
   TransformationController get _controller =>
@@ -1948,15 +1949,37 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       // legible on-screen size instead of growing with the map.
       final viewScale = _controller.value.getMaxScaleOnAxis();
       final markerScale = 1 / (viewScale <= 0 ? 1.0 : viewScale);
+
+      final selectedRoadNode = (widget.roadNetworkEditorMode && widget.selectedRoadNodeId != null)
+          ? widget.roadNetwork?.nodeMap[widget.selectedRoadNodeId]
+          : null;
+      final roadNodeContentPos = (selectedRoadNode != null && _grid != null)
+          ? _worldToPixel(_grid!, selectedRoadNode.x, selectedRoadNode.y)
+          : null;
+
       final viewer = InteractiveViewer(
         transformationController: _controller,
-        panEnabled: _draggingVertexIndex == null,
-        scaleEnabled: _draggingVertexIndex == null,
+        panEnabled: _draggingVertexIndex == null && _draggingRoadNodeId == null,
+        scaleEnabled: _draggingVertexIndex == null && _draggingRoadNodeId == null,
         minScale: 0.02,
         maxScale: 10,
         boundaryMargin: const EdgeInsets.all(double.infinity),
         constrained: false,
-        child: revealedFor(markerScale, trackRenderBox: true),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            revealedFor(markerScale, trackRenderBox: true),
+            if (roadNodeContentPos != null)
+              Positioned(
+                left: roadNodeContentPos.dx,
+                top: roadNodeContentPos.dy,
+                child: CompositedTransformTarget(
+                  link: _roadNodeLink,
+                  child: const SizedBox.shrink(),
+                ),
+              ),
+          ],
+        ),
       );
 
       Widget activeChild = viewer;
@@ -2007,47 +2030,53 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
               widget.onZoneVertexMoveEnd?.call();
             }
           },
-          child: viewer,
+          child: activeChild,
         );
       }
 
-      if (widget.roadNetworkEditorMode && widget.selectedRoadNodeId != null) {
-        activeChild = Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerDown: (event) {
-            final contentPoint = _globalToContent(event.position);
-            if (contentPoint == null || _grid == null || widget.roadNetwork == null) return;
-            final rn = widget.roadNetwork!;
-            final selectedNode = rn.nodeMap[widget.selectedRoadNodeId];
-            if (selectedNode == null) return;
-            final viewScale = _controller.value.getMaxScaleOnAxis();
-            final effectiveScale = viewScale > 0 ? viewScale : 1.0;
-            final ptPx = _worldToPixel(_grid!, selectedNode.x, selectedNode.y);
-            final dist = (ptPx - contentPoint).distance * effectiveScale;
-            if (dist <= 28.0) {
-              setState(() => _draggingRoadNodeId = selectedNode.id);
-            }
-          },
-          onPointerMove: (event) {
-            if (_draggingRoadNodeId == null || _grid == null) return;
-            final contentPoint = _globalToContent(event.position);
-            if (contentPoint == null) return;
-            final world = _pixelToWorld(_grid!, contentPoint);
-            widget.onRoadNodeMoved?.call(_draggingRoadNodeId!, world.dx, world.dy);
-          },
-          onPointerUp: (event) {
-            if (_draggingRoadNodeId != null) {
-              setState(() => _draggingRoadNodeId = null);
-              widget.onRoadNodeMoveEnd?.call();
-            }
-          },
-          onPointerCancel: (event) {
-            if (_draggingRoadNodeId != null) {
-              setState(() => _draggingRoadNodeId = null);
-              widget.onRoadNodeMoveEnd?.call();
-            }
-          },
-          child: viewer,
+      if (roadNodeContentPos != null && selectedRoadNode != null) {
+        activeChild = Stack(
+          children: [
+            activeChild,
+            CompositedTransformFollower(
+              link: _roadNodeLink,
+              targetAnchor: Alignment.center,
+              followerAnchor: Alignment.center,
+              showWhenUnlinked: false,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => widget.onRoadNodeTap?.call(selectedRoadNode),
+                onPanStart: (details) {
+                  setState(() => _draggingRoadNodeId = selectedRoadNode.id);
+                },
+                onPanUpdate: (details) {
+                  if (_grid == null) return;
+                  final contentPoint = _globalToContent(details.globalPosition);
+                  if (contentPoint == null) return;
+                  final world = _pixelToWorld(_grid!, contentPoint);
+                  widget.onRoadNodeMoved?.call(selectedRoadNode.id, world.dx, world.dy);
+                },
+                onPanEnd: (_) {
+                  setState(() => _draggingRoadNodeId = null);
+                  widget.onRoadNodeMoveEnd?.call();
+                },
+                onPanCancel: () {
+                  setState(() => _draggingRoadNodeId = null);
+                  widget.onRoadNodeMoveEnd?.call();
+                },
+                child: MouseRegion(
+                  cursor: _draggingRoadNodeId != null
+                      ? SystemMouseCursors.grabbing
+                      : SystemMouseCursors.grab,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    color: Colors.transparent,
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       }
 

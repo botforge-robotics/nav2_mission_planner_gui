@@ -1114,6 +1114,65 @@ class _MapViewScreenState extends State<MapViewScreen> {
     }
   }
 
+  Future<void> _renameSelectedRoadNode() async {
+    final nodeId = _selectedRoadNodeId;
+    if (nodeId == null) return;
+    final current = RoadNetworkController.instance.value;
+    final node = current?.nodes.where((n) => n.id == nodeId).firstOrNull;
+    if (node == null) return;
+
+    final ctrl = TextEditingController(text: node.name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.edit_note_rounded, color: AppColors.primary),
+            const SizedBox(width: 8),
+            Text('Rename Junction #${node.id}'),
+          ],
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Junction / Station Name',
+            hintText: 'e.g. Main Lobby, Station A, Dock Approach',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogCtx, ctrl.text.trim()),
+            child: const Text('Save Name'),
+          ),
+        ],
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != node.name) {
+      final updatedNodes = current!.nodes.map((n) => n.id == node.id ? n.copyWith(name: newName) : n).toList();
+      final updated = current.copyWith(nodes: updatedNodes);
+      RoadNetworkController.instance.value = updated;
+      if (!mounted) return;
+      final ip = context.read<ConnectionProvider>().robot?.ip;
+      final api = _apiFor(ip);
+      if (api != null) {
+        setState(() => _savingRoadNetwork = true);
+        try {
+          await RoadNetworkController.instance.saveRoadNetwork(api, updated, map: _activeMapName);
+        } catch (e) {
+          debugPrint('Failed to save renamed road node: $e');
+        } finally {
+          if (mounted) setState(() => _savingRoadNetwork = false);
+        }
+      }
+    }
+  }
+
   Future<void> _deleteSelectedRoadElement() async {
     final ip = context.read<ConnectionProvider>().robot?.ip;
     final api = _apiFor(ip);
@@ -1666,6 +1725,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                                 onDone: _exitRoadNetworkEditor,
                                 onToggleEdgeDirection: _toggleEdgeDirection,
                                 onSetEdgeSpeedLimit: _setEdgeSpeedLimit,
+                                onRenameSelectedNode: _renameSelectedRoadNode,
                               ),
                             ),
                           if (_posePicking && _draftPose != null)
@@ -2014,6 +2074,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                           onDone: _exitRoadNetworkEditor,
                           onToggleEdgeDirection: _toggleEdgeDirection,
                           onSetEdgeSpeedLimit: _setEdgeSpeedLimit,
+                          onRenameSelectedNode: _renameSelectedRoadNode,
                         ),
                       ),
                     if (_posePicking && _draftPose != null)
@@ -3986,6 +4047,7 @@ class _RoadNetworkEditorHud extends StatelessWidget {
     required this.onDone,
     this.onToggleEdgeDirection,
     this.onSetEdgeSpeedLimit,
+    this.onRenameSelectedNode,
   });
 
   final int? selectedNodeId;
@@ -4003,6 +4065,7 @@ class _RoadNetworkEditorHud extends StatelessWidget {
   final VoidCallback onDone;
   final void Function(int edgeId)? onToggleEdgeDirection;
   final void Function(int edgeId, double? speedLimit)? onSetEdgeSpeedLimit;
+  final VoidCallback? onRenameSelectedNode;
 
   @override
   Widget build(BuildContext context) {
@@ -4204,12 +4267,39 @@ class _RoadNetworkEditorHud extends StatelessWidget {
                             border: Border.all(
                                 color: const Color(0xFF38BDF8).withValues(alpha: 0.5)),
                           ),
-                          child: Text(
-                            'Junction #${selectedNode.id} (${selectedNode.x.toStringAsFixed(2)}, ${selectedNode.y.toStringAsFixed(2)})',
-                            style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF38BDF8)),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${selectedNode.name} (#${selectedNode.id}) (${selectedNode.x.toStringAsFixed(2)}, ${selectedNode.y.toStringAsFixed(2)})',
+                                style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF38BDF8)),
+                              ),
+                              if (onRenameSelectedNode != null) ...[
+                                const SizedBox(width: 8),
+                                InkWell(
+                                  onTap: onRenameSelectedNode,
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0284C7),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.edit_note_rounded, size: 14, color: Colors.white),
+                                        SizedBox(width: 3),
+                                        Text('Rename', style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ] else if (selectedEdge != null) ...[

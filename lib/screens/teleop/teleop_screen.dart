@@ -12,6 +12,8 @@ import '../../services/dock_pose_controller.dart';
 import '../../services/locations_controller.dart';
 import '../../services/map_layers_controller.dart';
 import '../../services/sdk_api_service.dart';
+import '../../models/road_network.dart';
+import '../../services/route_estimate_service.dart';
 import '../../services/zones_controller.dart';
 import '../../services/road_network_controller.dart';
 import '../../services/gamepad_service.dart';
@@ -25,7 +27,6 @@ import '../../widgets/design/hud_chip.dart';
 import '../../widgets/map/not_localized_banner.dart';
 import '../../widgets/map/occupancy_grid_view.dart';
 import '../../widgets/navigation/dock_action_sheet.dart';
-import '../../widgets/navigation/go_to_confirm_sheet.dart';
 import '../../widgets/teleop/drive_pad.dart';
 import '../maps/map_view_screen.dart';
 
@@ -76,6 +77,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
 
   bool _requestedLocations = false;
   ({double x, double y, double theta})? _dockPose;
+  int? _selectedRoadNodeId;
 
   @override
   void initState() {
@@ -169,6 +171,10 @@ class _TeleopScreenState extends State<TeleopScreen> {
       await api.cancelNavigation();
       await _stop();
       if (!mounted) return;
+      final ros2 = context.read<ConnectionProvider>().ros2;
+      if (ros2 != null) {
+        RouteEstimateService.clearPlan(ros2);
+      }
       context.read<RobotTelemetryProvider>().clearPath();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Navigation goal canceled')),
@@ -387,20 +393,81 @@ class _TeleopScreenState extends State<TeleopScreen> {
 
   Future<void> _goTo(Map<String, dynamic> location) async {
     final api = _api;
-    final ros2 = context.read<ConnectionProvider>().ros2;
-    if (api == null || ros2 == null) return;
-    if (location['x'] is! num || location['y'] is! num) return;
-    final telemetry = context.read<RobotTelemetryProvider>();
-    await showGoToConfirmSheet(
-      context: context,
-      ros2: ros2,
-      api: api,
-      locationName: location['name'] as String? ?? '',
-      targetX: (location['x'] as num).toDouble(),
-      targetY: (location['y'] as num).toDouble(),
-      currentX: telemetry.poseX,
-      currentY: telemetry.poseY,
-    );
+    if (api == null) return;
+    final name = location['name'] as String? ?? '';
+    final x = (location['x'] as num?)?.toDouble();
+    final y = (location['y'] as num?)?.toDouble();
+    final theta = (location['theta'] as num?)?.toDouble() ?? 0.0;
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(name.isNotEmpty
+              ? 'Navigating to $name...'
+              : 'Navigating to (${x?.toStringAsFixed(2)}, ${y?.toStringAsFixed(2)})...'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      if (name.isNotEmpty) {
+        await api.goToWaypoint(name, replace: true);
+      } else if (x != null && y != null) {
+        await api.goToPose(x, y, theta: theta, replace: true);
+      }
+      _pollNavigationStatus();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Navigation failed: $e')),
+      );
+    }
+  }
+
+  Future<void> _dispatchRoadRoute({
+    int? nodeId,
+    String? waypointName,
+    String reroutePolicy = 'wait_then_reroute',
+    double waitTimeoutSec = 5.0,
+  }) async {
+    final api = _api;
+    if (api == null) return;
+    try {
+      if (nodeId != null) {
+        final rn = RoadNetworkController.instance.value;
+        final node = rn?.nodes.where((n) => n.id == nodeId).firstOrNull;
+        final displayName = node != null ? '${node.name} (#${node.id})' : 'Node #$nodeId';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Dispatching road route to $displayName...'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        await api.goToRouteNode(
+          nodeId,
+          replace: true,
+          reroutePolicy: reroutePolicy,
+          waitTimeoutSec: waitTimeoutSec,
+        );
+      } else if (waypointName != null && waypointName.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Routing to $waypointName via road network...'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        await api.goToWaypoint(
+          waypointName,
+          replace: true,
+          routingMode: 'road_network',
+          reroutePolicy: reroutePolicy,
+          waitTimeoutSec: waitTimeoutSec,
+        );
+      }
+      _pollNavigationStatus();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to dispatch road route: $e')),
+      );
+    }
   }
 
   void _onDockTapped() {
@@ -415,8 +482,10 @@ class _TeleopScreenState extends State<TeleopScreen> {
     try {
       final mapName = await api.getCurrentMap();
       await ZonesController.instance.refresh(api, map: mapName);
+      await RoadNetworkController.instance.refresh(api, map: mapName);
     } catch (_) {
       await ZonesController.instance.refresh(api);
+      await RoadNetworkController.instance.refresh(api);
     }
     try {
       await LocationsController.instance.refresh(api);
@@ -577,6 +646,9 @@ class _TeleopScreenState extends State<TeleopScreen> {
                           standoffPoseOverride: DockPoseController.instance.value.standoff,
                           onLocationTap: _goTo,
                           onDockTap: _onDockTapped,
+                          onRoadNodeTap: (node) {
+                            setState(() => _selectedRoadNodeId = node.id);
+                          },
                           navStatus: _navStatus,
                           distanceTraveled: _distanceTraveled,
                           onCancelNavigation: _cancelActiveNavigation,
@@ -663,7 +735,11 @@ class _TeleopScreenState extends State<TeleopScreen> {
                                 ),
                               ),
                               const SizedBox(height: AppSpacing.lg),
-                              _GoToLocationCard(onGoTo: _goTo),
+                              _NavigationDispatcherCard(
+                                onDirectGo: _goTo,
+                                onDispatchRoute: _dispatchRoadRoute,
+                                selectedRoadNodeId: _selectedRoadNodeId,
+                              ),
                             ],
                           ),
                           if (_dockBusy)
@@ -729,6 +805,9 @@ class _TeleopScreenState extends State<TeleopScreen> {
                       standoffPoseOverride: DockPoseController.instance.value.standoff,
                       onLocationTap: _goTo,
                       onDockTap: _onDockTapped,
+                      onRoadNodeTap: (node) {
+                        setState(() => _selectedRoadNodeId = node.id);
+                      },
                       navStatus: _navStatus,
                       distanceTraveled: _distanceTraveled,
                       onCancelNavigation: _cancelActiveNavigation,
@@ -820,7 +899,11 @@ class _TeleopScreenState extends State<TeleopScreen> {
                               const SizedBox(height: AppSpacing.lg),
                               FadeSlideIn(
                                 delay: const Duration(milliseconds: 60),
-                                child: _GoToLocationCard(onGoTo: _goTo),
+                                child: _NavigationDispatcherCard(
+                                  onDirectGo: _goTo,
+                                  onDispatchRoute: _dispatchRoadRoute,
+                                  selectedRoadNodeId: _selectedRoadNodeId,
+                                ),
                               ),
                             ],
                           ),
@@ -855,6 +938,7 @@ class _LiveMapSection extends StatelessWidget {
     this.standoffPoseOverride,
     required this.onLocationTap,
     required this.onDockTap,
+    this.onRoadNodeTap,
     this.isDesktop = false,
     this.navStatus,
     this.distanceTraveled = 0.0,
@@ -878,6 +962,7 @@ class _LiveMapSection extends StatelessWidget {
   /// "where to go" list section that used to sit below the controls.
   final void Function(Map<String, dynamic>) onLocationTap;
   final VoidCallback onDockTap;
+  final void Function(RoadNode node)? onRoadNodeTap;
 
   @override
   Widget build(BuildContext context) {
@@ -895,7 +980,10 @@ class _LiveMapSection extends StatelessWidget {
                     valueListenable: MapLayersController.instance,
                     builder: (context, visibleLayers, _) =>
                         ListenableBuilder(
-                      listenable: ZonesController.instance,
+                      listenable: Listenable.merge([
+                        ZonesController.instance,
+                        RoadNetworkController.instance,
+                      ]),
                       builder: (context, _) => OccupancyGridView(
                         ros2: ros2!,
                         interactive: true,
@@ -926,6 +1014,7 @@ class _LiveMapSection extends StatelessWidget {
                         standoffPoseOverride: standoffPoseOverride,
                         onLocationTap: onLocationTap,
                         onDockTap: onDockTap,
+                        onRoadNodeTap: onRoadNodeTap,
                         // The banner below takes over "not localized"
                         // messaging here.
                         showLocalizationBadge: false,
@@ -1094,83 +1183,502 @@ class _DockUndockHalf extends StatelessWidget {
   }
 }
 
-/// A compact "go to a saved location" control — a dropdown of names plus a
-/// Go button, replacing the fuller list card that used to sit here (tapping
-/// a pin directly on the live map above is now the other way to do this;
-/// this is the quicker one when the location you want isn't currently
-/// visible in the map's own viewport).
-class _GoToLocationCard extends StatefulWidget {
-  const _GoToLocationCard({required this.onGoTo});
+/// Dual navigation dispatchers:
+/// 1. Direct Saved Location Dispatcher: direct compute and go without confirmation modals.
+/// 2. Road Network Dispatcher: topological route navigation along named road
+///    network nodes and edges with Nav2 RouteServer blockage & reroute policy.
+class _NavigationDispatcherCard extends StatefulWidget {
+  const _NavigationDispatcherCard({
+    required this.onDirectGo,
+    required this.onDispatchRoute,
+    this.selectedRoadNodeId,
+  });
 
-  final void Function(Map<String, dynamic>) onGoTo;
+  final void Function(Map<String, dynamic> location) onDirectGo;
+  final Future<void> Function({
+    int? nodeId,
+    String? waypointName,
+    String reroutePolicy,
+    double waitTimeoutSec,
+  }) onDispatchRoute;
+  final int? selectedRoadNodeId;
 
   @override
-  State<_GoToLocationCard> createState() => _GoToLocationCardState();
+  State<_NavigationDispatcherCard> createState() =>
+      _NavigationDispatcherCardState();
 }
 
-class _GoToLocationCardState extends State<_GoToLocationCard> {
-  String? _selected;
+class _NavigationDispatcherCardState extends State<_NavigationDispatcherCard> {
+  int _dispatcherMode = 0; // 0 = Saved Location (Direct), 1 = Road Network Route
+  String? _selectedLocation;
+  String? _selectedRoadTarget; // e.g. "node:1" or "loc:Kitchen"
+  String _reroutePolicy = 'wait_then_reroute';
+  double _waitTimeoutSec = 5.0;
+  bool _dispatching = false;
+
+  @override
+  void didUpdateWidget(covariant _NavigationDispatcherCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedRoadNodeId != null &&
+        widget.selectedRoadNodeId != oldWidget.selectedRoadNodeId) {
+      _dispatcherMode = 1;
+      _selectedRoadTarget = 'node:${widget.selectedRoadNodeId}';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: colors.border.withValues(alpha: 0.7)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: ValueListenableBuilder<List<Map<String, dynamic>>?>(
-          valueListenable: LocationsController.instance,
-          builder: (context, locations, _) {
-            final list = locations ?? const <Map<String, dynamic>>[];
-            final names = [for (final l in list) l['name'] as String? ?? ''];
-            if (_selected != null && !names.contains(_selected)) {
-              _selected = null;
-            }
-            final colors = AppColors.of(context);
-            return Row(
-              children: [
-                Icon(Icons.place_rounded, color: colors.primary),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _selected,
-                    isExpanded: true,
-                    dropdownColor: colors.surface,
-                    iconEnabledColor: colors.primary,
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Mode Switcher Header
+            SegmentedButton<int>(
+              segments: [
+                ButtonSegment<int>(
+                  value: 0,
+                  icon: const Icon(Icons.place_rounded, size: 16),
+                  label: Text(
+                    'Direct Go',
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: colors.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _dispatcherMode == 0
+                          ? colors.textPrimary
+                          : colors.textSecondary,
                     ),
-                    hint: Text(
-                      list.isEmpty
-                          ? 'No saved locations yet'
-                          : 'Where should the robot go?',
-                      style: TextStyle(color: colors.textSecondary),
-                    ),
-                    decoration: const InputDecoration(
-                        border: InputBorder.none, isDense: true),
-                    items: [
-                      for (final name in names)
-                        DropdownMenuItem(
-                          value: name,
-                          child: Text(name, style: TextStyle(color: colors.textPrimary)),
-                        ),
-                    ],
-                    onChanged: list.isEmpty
-                        ? null
-                        : (v) => setState(() => _selected = v),
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                FilledButton(
-                  onPressed: _selected == null
-                      ? null
-                      : () => widget.onGoTo(
-                          list.firstWhere((l) => l['name'] == _selected)),
-                  child: const Text('Go'),
+                ButtonSegment<int>(
+                  value: 1,
+                  icon: const Icon(Icons.alt_route_rounded, size: 16),
+                  label: Text(
+                    'Road Route',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _dispatcherMode == 1
+                          ? colors.textPrimary
+                          : colors.textSecondary,
+                    ),
+                  ),
                 ),
               ],
-            );
-          },
+              selected: {_dispatcherMode},
+              onSelectionChanged: (set) =>
+                  setState(() => _dispatcherMode = set.first),
+              style: ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                side: WidgetStateProperty.all(BorderSide(color: colors.border)),
+                backgroundColor: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return colors.primary.withValues(alpha: 0.16);
+                  }
+                  return colors.surface;
+                }),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Content for Mode 0: Saved Location (Direct Compute & Go)
+            if (_dispatcherMode == 0) ...[
+              ValueListenableBuilder<List<Map<String, dynamic>>?>(
+                valueListenable: LocationsController.instance,
+                builder: (context, locations, _) {
+                  final list = locations ?? const <Map<String, dynamic>>[];
+                  final names = [
+                    for (final l in list) l['name'] as String? ?? ''
+                  ];
+                  if (_selectedLocation != null &&
+                      !names.contains(_selectedLocation)) {
+                    _selectedLocation = null;
+                  }
+                  return Row(
+                    children: [
+                      Icon(Icons.place_rounded, color: colors.primary, size: 20),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _selectedLocation,
+                          isExpanded: true,
+                          dropdownColor: colors.surface,
+                          iconEnabledColor: colors.primary,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w500,
+                            color: colors.textPrimary,
+                          ),
+                          hint: Text(
+                            list.isEmpty
+                                ? 'No saved locations yet'
+                                : 'Select destination...',
+                            style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                          ),
+                          decoration: InputDecoration(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 8),
+                            isDense: true,
+                            filled: true,
+                            fillColor: colors.surfaceSunken,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: colors.border),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: colors.border),
+                            ),
+                          ),
+                          items: [
+                            for (final name in names)
+                              DropdownMenuItem(
+                                value: name,
+                                child: Text(name,
+                                    style: TextStyle(color: colors.textPrimary)),
+                              ),
+                          ],
+                          onChanged: list.isEmpty
+                              ? null
+                              : (v) => setState(() => _selectedLocation = v),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onPressed: _selectedLocation == null
+                            ? null
+                            : () {
+                                final loc = list.firstWhere(
+                                    (l) => l['name'] == _selectedLocation);
+                                widget.onDirectGo(loc);
+                              },
+                        icon: const Icon(Icons.near_me_rounded, size: 16),
+                        label: const Text('Go'),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Direct compute & move without confirmation modals.',
+                style: TextStyle(fontSize: 11, color: colors.textSecondary),
+              ),
+            ]
+            // Content for Mode 1: Road Network Route Dispatcher (With Options)
+            else ...[
+              ValueListenableBuilder<RoadNetwork?>(
+                valueListenable: RoadNetworkController.instance,
+                builder: (context, roadNetwork, _) {
+                  return ValueListenableBuilder<List<Map<String, dynamic>>?>(
+                    valueListenable: LocationsController.instance,
+                    builder: (context, locations, _) {
+                      final nodes = roadNetwork?.nodes ?? const <RoadNode>[];
+                      final locs = locations ?? const <Map<String, dynamic>>[];
+
+                      final validKeys = <String>{
+                        for (final n in nodes) 'node:${n.id}',
+                        for (final l in locs)
+                          if ((l['name'] as String?)?.isNotEmpty == true)
+                            'loc:${l['name']}',
+                      };
+                      if (_selectedRoadTarget != null &&
+                          !validKeys.contains(_selectedRoadTarget)) {
+                        _selectedRoadTarget = null;
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedRoadTarget,
+                            isExpanded: true,
+                            dropdownColor: colors.surface,
+                            iconEnabledColor: colors.primary,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w500,
+                              color: colors.textPrimary,
+                            ),
+                            hint: Text(
+                              nodes.isEmpty && locs.isEmpty
+                                  ? 'No route nodes on this map'
+                                  : 'Select junction node or location...',
+                              style: TextStyle(
+                                  color: colors.textSecondary, fontSize: 13),
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Target Node / Destination',
+                              labelStyle: TextStyle(
+                                  fontSize: 12, color: colors.textSecondary),
+                              prefixIcon: Icon(Icons.alt_route_rounded,
+                                  color: colors.primary, size: 20),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 8),
+                              isDense: true,
+                              filled: true,
+                              fillColor: colors.surfaceSunken,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: colors.border),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: colors.border),
+                              ),
+                            ),
+                            items: [
+                              if (nodes.isNotEmpty) ...[
+                                for (final node in nodes)
+                                  DropdownMenuItem(
+                                    value: 'node:${node.id}',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.adjust_rounded,
+                                            size: 15, color: colors.primary),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            '${node.name} (#${node.id})',
+                                            style: TextStyle(
+                                                color: colors.textPrimary,
+                                                fontSize: 13),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                              if (locs.isNotEmpty) ...[
+                                for (final l in locs)
+                                  if ((l['name'] as String?)?.isNotEmpty == true)
+                                    DropdownMenuItem(
+                                      value: 'loc:${l['name']}',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.place_outlined,
+                                              size: 15,
+                                              color: colors.accent),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              '${l['name']} (via nearest node)',
+                                              style: TextStyle(
+                                                  color: colors.textPrimary,
+                                                  fontSize: 13),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                              ],
+                            ],
+                            onChanged: validKeys.isEmpty
+                                ? null
+                                : (v) =>
+                                    setState(() => _selectedRoadTarget = v),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+
+                          // Route Options: Blockage Policy & Timeout
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _reroutePolicy,
+                                  isExpanded: true,
+                                  dropdownColor: colors.surface,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: colors.textPrimary,
+                                  ),
+                                  decoration: InputDecoration(
+                                    labelText: 'Obstacle Policy',
+                                    labelStyle: TextStyle(
+                                        fontSize: 11,
+                                        color: colors.textSecondary),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 6),
+                                    isDense: true,
+                                    filled: true,
+                                    fillColor: colors.surfaceSunken,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide:
+                                          BorderSide(color: colors.border),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide:
+                                          BorderSide(color: colors.border),
+                                    ),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: 'wait_then_reroute',
+                                      child: Text('Wait 5s & Detour',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'immediate',
+                                      child: Text('Immediate Detour',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'halt_only',
+                                      child: Text('Wait Only (Strict)',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                  ],
+                                  onChanged: (v) {
+                                    if (v != null) {
+                                      setState(() => _reroutePolicy = v);
+                                    }
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              Expanded(
+                                flex: 2,
+                                child: DropdownButtonFormField<double>(
+                                  initialValue: _waitTimeoutSec,
+                                  isExpanded: true,
+                                  dropdownColor: colors.surface,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: colors.textPrimary,
+                                  ),
+                                  decoration: InputDecoration(
+                                    labelText: 'Timeout',
+                                    labelStyle: TextStyle(
+                                        fontSize: 11,
+                                        color: colors.textSecondary),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 6),
+                                    isDense: true,
+                                    filled: true,
+                                    fillColor: colors.surfaceSunken,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide:
+                                          BorderSide(color: colors.border),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide:
+                                          BorderSide(color: colors.border),
+                                    ),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: 3.0,
+                                      child: Text('3s',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 5.0,
+                                      child: Text('5s',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 10.0,
+                                      child: Text('10s',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                  ],
+                                  onChanged: (v) {
+                                    if (v != null) {
+                                      setState(() => _waitTimeoutSec = v);
+                                    }
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: _selectedRoadTarget == null || _dispatching
+                                ? null
+                                : () async {
+                                    setState(() => _dispatching = true);
+                                    try {
+                                      final target = _selectedRoadTarget!;
+                                      if (target.startsWith('node:')) {
+                                        final id = int.tryParse(
+                                            target.substring(5));
+                                        if (id != null) {
+                                          await widget.onDispatchRoute(
+                                            nodeId: id,
+                                            reroutePolicy: _reroutePolicy,
+                                            waitTimeoutSec: _waitTimeoutSec,
+                                          );
+                                        }
+                                      } else if (target.startsWith('loc:')) {
+                                        final wp = target.substring(4);
+                                        await widget.onDispatchRoute(
+                                          waypointName: wp,
+                                          reroutePolicy: _reroutePolicy,
+                                          waitTimeoutSec: _waitTimeoutSec,
+                                        );
+                                      }
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => _dispatching = false);
+                                      }
+                                    }
+                                  },
+                            icon: _dispatching
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.route_rounded, size: 18),
+                            label: Text(_dispatching
+                                ? 'Dispatching...'
+                                : 'Dispatch Route'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Topological routing via Nav2 RouteServer with reroute options.',
+                style: TextStyle(fontSize: 11, color: colors.textSecondary),
+              ),
+            ],
+          ],
         ),
       ),
     );

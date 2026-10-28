@@ -29,8 +29,8 @@ Future<void> showGoToConfirmSheet({
   required double targetY,
   double? currentX,
   double? currentY,
-}) {
-  return showModalBottomSheet<void>(
+}) async {
+  final confirmed = await showModalBottomSheet<bool>(
     context: context,
     showDragHandle: true,
     builder: (sheetContext) => _GoToConfirmSheet(
@@ -44,6 +44,14 @@ Future<void> showGoToConfirmSheet({
       currentY: currentY,
     ),
   );
+  if (confirmed != true) {
+    RouteEstimateService.clearPlan(ros2);
+    if (context.mounted) {
+      try {
+        context.read<RobotTelemetryProvider>().clearPath();
+      } catch (_) {}
+    }
+  }
 }
 
 class _GoToConfirmSheet extends StatefulWidget {
@@ -78,9 +86,21 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
   bool _computing = true;
   RouteEstimate? _estimate;
   bool _sending = false;
+  bool _confirmed = false;
   String? _sendError;
   String _routingMode = 'free_space';
   String _reroutePolicy = 'wait_then_reroute';
+
+  @override
+  void dispose() {
+    if (!_confirmed) {
+      RouteEstimateService.clearPlan(widget.ros2);
+      try {
+        widget.callerContext.read<RobotTelemetryProvider>().clearPath();
+      } catch (_) {}
+    }
+    super.dispose();
+  }
 
   double? get _straightLineMeters {
     final x = widget.currentX, y = widget.currentY;
@@ -152,7 +172,8 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
       }
     }
     if (!mounted) return;
-    Navigator.of(context).pop();
+    _confirmed = true;
+    Navigator.of(context).pop(true);
     final caller = widget.callerContext;
     if (!caller.mounted) return;
     ScaffoldMessenger.of(caller).showSnackBar(
@@ -463,8 +484,15 @@ class _GoToConfirmSheetState extends State<_GoToConfirmSheet> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed:
-                      _sending ? null : () => Navigator.of(context).pop(),
+                  onPressed: _sending
+                      ? null
+                      : () {
+                          RouteEstimateService.clearPlan(widget.ros2);
+                          try {
+                            widget.callerContext.read<RobotTelemetryProvider>().clearPath();
+                          } catch (_) {}
+                          Navigator.of(context).pop(false);
+                        },
                   child: const Text('Cancel'),
                 ),
               ),

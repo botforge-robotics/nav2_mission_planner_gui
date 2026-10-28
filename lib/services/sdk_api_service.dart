@@ -273,6 +273,25 @@ class SdkApiService {
         timeout: const Duration(seconds: 35),
       );
 
+  Future<void> goToRouteNode(
+    int nodeId, {
+    bool replace = false,
+    String reroutePolicy = 'wait_then_reroute',
+    double waitTimeoutSec = 5.0,
+  }) =>
+      _send(
+        'POST',
+        '/api/v1/navigation/route',
+        body: {
+          'goal_id': nodeId,
+          'routing_mode': 'road_network',
+          if (replace) 'replace': true,
+          'reroute_policy': reroutePolicy,
+          'wait_timeout_sec': waitTimeoutSec,
+        },
+        timeout: const Duration(seconds: 35),
+      );
+
   Future<Map<String, dynamic>> navigationStatus() =>
       _send('GET', '/api/v1/navigation/status');
 

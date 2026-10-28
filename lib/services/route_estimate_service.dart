@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:nav2_msgs/action.dart';
+import 'package:nav_msgs/msg.dart' as nav_msgs;
 import 'package:ros2_api/ros2_api.dart';
 import 'package:std_msgs/msg.dart' as std_msgs;
 
@@ -129,6 +130,29 @@ class RouteEstimateService {
     } catch (e) {
       debugPrint('Route estimate calculation error: $e');
       return null;
+    }
+  }
+
+  /// Publishes an empty Path message to `/plan` over rosbridge to immediately
+  /// clear any preview or leftover trajectory from the map view.
+  static void clearPlan(Ros2 ros2) {
+    try {
+      final pub = Publisher<nav_msgs.Path>(
+        name: '/plan',
+        type: nav_msgs.Path().fullType,
+        ros2: ros2,
+      );
+      pub.publish(nav_msgs.Path(
+        header: std_msgs.Header(frame_id: 'map'),
+        poses: [],
+      ));
+      Future.delayed(const Duration(milliseconds: 100), () {
+        try {
+          pub.shutdown();
+        } catch (_) {}
+      });
+    } catch (e) {
+      debugPrint('RouteEstimateService.clearPlan note: $e');
     }
   }
 }
