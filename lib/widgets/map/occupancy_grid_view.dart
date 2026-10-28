@@ -606,6 +606,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   }
 
   Future<void> _fetchMapViaHttp() async {
+    if (widget.isMapping) return; // In live mapping, ROS2 /map topic is the source of truth; avoid stale HTTP map cache
     if (_grid != null && !_isPlaceholderGrid) return;
     try {
       final ros2Url = widget.ros2.url?.toString();
@@ -944,6 +945,18 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
     if (widget.initialPose != null &&
         (_pose == null || widget.initialPose != oldWidget.initialPose)) {
       _pose = widget.initialPose;
+    }
+    if (widget.isMapping != oldWidget.isMapping && widget.isMapping) {
+      // Switching into live mapping mode: wipe any previous grid, image, or dock
+      setState(() {
+        _grid = null;
+        _image = null;
+        _dockPose = null;
+        _path = null;
+        _scan = null;
+        _isPlaceholderGrid = false;
+      });
+      _initMappingPlaceholderGrid();
     }
     if (widget.initialPath != oldWidget.initialPath) {
       if (!widget.showPath) {
