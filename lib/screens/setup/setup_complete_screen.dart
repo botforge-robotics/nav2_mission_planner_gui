@@ -48,13 +48,15 @@ class _SetupCompleteScreenState extends State<SetupCompleteScreen> {
           ? 'Map "${widget.createdMapName}" is saved & active. Your robot is ready to navigate!'
           : 'Your robot is ready to roll. You can create a map anytime from the Maps tab.',
       primaryLabel: 'Go to Dashboard',
-      onPrimary: () {
+      onPrimary: () async {
         try {
-          final ip = context.read<ConnectionProvider>().robot?.ip;
+          final ip = context.read<ConnectionProvider>().robot?.ip ??
+              context.read<SetupFlowController>().selectedRobot?.ip;
           if (ip != null && ip.isNotEmpty) {
-            SdkApiService(ip).dismissSetup().catchError((_) => <String, dynamic>{});
+            await SdkApiService(ip).dismissSetup().catchError((_) => <String, dynamic>{});
           }
         } catch (_) {}
+        if (!context.mounted) return;
         context.read<ConnectionProvider>().reconnect();
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AppShell()),
