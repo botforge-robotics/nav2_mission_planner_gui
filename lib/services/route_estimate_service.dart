@@ -36,16 +36,7 @@ class RouteEstimateService {
   // rather than an arbitrary guess.
   static const _assumedSpeedMps = 0.3;
 
-  /// Returns null if the planner can't produce a route (goal unreachable,
-  /// robot not localized, action timeout, etc.) — callers should fall back
-  /// to a straight-line distance rather than showing an error, since this
-  /// is enrichment on top of "send the goal", not a precondition for it.
-  Future<RouteEstimate?> estimate({
-    required double fromX,
-    required double fromY,
-    required double toX,
-    required double toY,
-  }) async {
+  Future<RouteEstimate?> _estimateWithGoal(ComputePathToPoseGoal goal) async {
     final client = ActionClient<
         ComputePathToPose,
         ComputePathToPoseGoal,
@@ -60,6 +51,57 @@ class RouteEstimateService {
       actionMessage: ComputePathToPose(),
     );
     try {
+      final result = await client
+          .sendGoal(goal)
+          .timeout(const Duration(seconds: 4));
+      final poses = result.path.poses;
+      if (poses.length < 2) return null;
+      var distance = 0.0;
+      for (var i = 1; i < poses.length; i++) {
+        final a = poses[i - 1].pose.position;
+        final b = poses[i].pose.position;
+        distance += sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
+      }
+      return RouteEstimate(
+        distanceMeters: distance,
+        etaSeconds: distance / _assumedSpeedMps,
+      );
+    } catch (e) {
+      debugPrint('ComputePathToPose attempt failed: $e');
+      return null;
+    } finally {
+      client.dispose();
+    }
+  }
+
+  /// Returns null if the planner can't produce a route (goal unreachable,
+  /// robot not localized, action timeout, etc.) — callers should fall back
+  /// to a straight-line distance rather than showing an error, since this
+  /// is enrichment on top of "send the goal", not a precondition for it.
+  Future<RouteEstimate?> estimate({
+    required double fromX,
+    required double fromY,
+    required double toX,
+    required double toY,
+  }) async {
+    try {
+      // 1. Primary path: Use live robot pose (use_start: false) which uses Nav2's
+      // actual TF tree and current localized footprint directly.
+      final goalLive = ComputePathToPoseGoal(
+        goal: geometry_msgs.PoseStamped(
+          header: std_msgs.Header(frame_id: 'map'),
+          pose: geometry_msgs.Pose(
+            position: geometry_msgs.Point(x: toX, y: toY),
+            orientation: geometry_msgs.Quaternion(w: 1.0),
+          ),
+        ),
+        planner_id: '',
+        use_start: false,
+      );
+      final liveEst = await _estimateWithGoal(goalLive);
+      if (liveEst != null) return liveEst;
+
+      // 2. Fallback path: Explicit start pose (e.g. if planning between remote waypoints).
       final goalWithStart = ComputePathToPoseGoal(
         start: geometry_msgs.PoseStamped(
           header: std_msgs.Header(frame_id: 'map'),
@@ -78,48 +120,10 @@ class RouteEstimateService {
         planner_id: '',
         use_start: true,
       );
-
-      ComputePathToPoseResult? result;
-      try {
-        result = await client
-            .sendGoal(goalWithStart)
-            .timeout(const Duration(seconds: 4));
-      } catch (e) {
-        debugPrint(
-            'Route estimate with explicit start failed ($e), retrying from live pose');
-        final goalLive = ComputePathToPoseGoal(
-          goal: geometry_msgs.PoseStamped(
-            header: std_msgs.Header(frame_id: 'map'),
-            pose: geometry_msgs.Pose(
-              position: geometry_msgs.Point(x: toX, y: toY),
-              orientation: geometry_msgs.Quaternion(w: 1.0),
-            ),
-          ),
-          planner_id: '',
-          use_start: false,
-        );
-        result = await client
-            .sendGoal(goalLive)
-            .timeout(const Duration(seconds: 4));
-      }
-
-      final poses = result.path.poses;
-      if (poses.length < 2) return null;
-      var distance = 0.0;
-      for (var i = 1; i < poses.length; i++) {
-        final a = poses[i - 1].pose.position;
-        final b = poses[i].pose.position;
-        distance += sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
-      }
-      return RouteEstimate(
-        distanceMeters: distance,
-        etaSeconds: distance / _assumedSpeedMps,
-      );
+      return await _estimateWithGoal(goalWithStart);
     } catch (e) {
       debugPrint('Route estimate calculation error: $e');
       return null;
-    } finally {
-      client.dispose();
     }
   }
 }

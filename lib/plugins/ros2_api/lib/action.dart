@@ -33,6 +33,14 @@ class ActionClient<
 
   /// Send a goal to the action server
   Future<R> sendGoal(G goal, {void Function(F)? onFeedback}) async {
+    // Clean up any in-flight subscriptions before launching a new goal
+    await _feedbackSubscription?.cancel();
+    await _resultSubscription?.cancel();
+    _feedbackSubscription = null;
+    _resultSubscription = null;
+    await _feedbackController?.close();
+    _feedbackController = null;
+
     _goalId = ros2.requestActionCaller(actionName);
     _isCancelled = false;
 
@@ -56,13 +64,16 @@ class ActionClient<
     }
 
     // Setup result handling
-    _resultCompleter = Completer<R>();
+    final completer = Completer<R>();
+    _resultCompleter = completer;
     _resultSubscription = ros2.stream
         .where((message) =>
             message['op'] == 'action_result' &&
             message['action'] == actionName &&
             message['id'] == _goalId)
         .listen((message) {
+      if (completer.isCompleted) return;
+
       // Check if action succeeded based on status code
       // Status codes: 4 = SUCCEEDED, 5 = ABORTED, 6 = CANCELED
       final status = message['status'];
@@ -79,16 +90,19 @@ class ActionClient<
         final detail = values is Map && (values['error_msg']?.toString().isNotEmpty ?? false)
             ? values['error_msg']
             : values;
-        _resultCompleter?.completeError('Goal $statusLabel: $detail');
+        completer.completeError('Goal $statusLabel: $detail');
       } else {
         try {
           final result = actionMessage.result
               .fromJson(message['values'] as Map<String, dynamic>);
-          _resultCompleter?.complete(result);
+          completer.complete(result);
         } catch (e) {
-          _resultCompleter?.completeError('Failed to parse result: $e');
+          completer.completeError('Failed to parse result: $e');
         }
       }
+      _resultSubscription?.cancel();
+      _resultSubscription = null;
+
       // Only dispose if the goal was cancelled and we received status 5 (ABORTED)
       if (_isCancelled && message['status'] == 5) {
         dispose();
@@ -105,17 +119,19 @@ class ActionClient<
       'args': goal.toJson(),
     });
 
-    return _resultCompleter!.future;
+    return completer.future;
   }
 
   /// Cancel the current goal
   void cancelGoal() {
     _isCancelled = true;
-    ros2.send({
-      'op': 'cancel_action_goal',
-      'id': _goalId,
-      'action': actionName,
-    });
+    if (_goalId != null) {
+      ros2.send({
+        'op': 'cancel_action_goal',
+        'id': _goalId,
+        'action': actionName,
+      });
+    }
   }
 
   void dispose() {
@@ -125,6 +141,9 @@ class ActionClient<
     _feedbackSubscription = null;
     _resultSubscription = null;
     _feedbackController = null;
+    if (_resultCompleter != null && !_resultCompleter!.isCompleted) {
+      _resultCompleter!.completeError('ActionClient disposed');
+    }
     _resultCompleter = null;
   }
 }
@@ -339,6 +358,7 @@ class DynamicActionClient {
         .where((m) => m['action'] == actionName)
         .where((m) => m['id'] == _currentGoalId)
         .listen((message) {
+      if (completer.isCompleted) return;
       final status = message['status'];
       if (status == 4) {
         // SUCCEEDED
