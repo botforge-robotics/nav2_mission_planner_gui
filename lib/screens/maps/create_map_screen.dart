@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
+import 'package:std_msgs/msg.dart' as std_msgs;
 
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
@@ -199,6 +200,21 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       });
     } on SdkApiException catch (e) {
       if (!mounted) return;
+      // If the robot actually succeeded in starting mapping (e.g. ROS call delayed or already active),
+      // verify the robot mode before showing a failure.
+      try {
+        final currentMode = await api.modeStatus();
+        if (currentMode['mode'] == 'mapping' && mounted) {
+          context.read<RobotTelemetryProvider>().resetForMapping();
+          setState(() {
+            _phase = _Phase.mapping;
+            _busyMessage = null;
+            _error = null;
+          });
+          return;
+        }
+      } catch (_) {}
+
       setState(() {
         _busyMessage = null;
         _error = e.isUnreachable
@@ -212,6 +228,46 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
         _error = 'Failed to start mapping: $e';
       });
     }
+  }
+
+  Subscriber<std_msgs.StringMessage>? _modeSub;
+  Ros2? _modeRos2;
+
+  void _setupModeSubscription() {
+    final ros2 = context.read<ConnectionProvider>().ros2;
+    if (ros2 == null) {
+      _modeSub?.unsubscribe();
+      _modeSub = null;
+      _modeRos2 = null;
+      return;
+    }
+    if (_modeRos2 != ros2 || _modeSub == null) {
+      _modeSub?.unsubscribe();
+      _modeRos2 = ros2;
+      _modeSub = Subscriber<std_msgs.StringMessage>(
+        name: '/robot_mode',
+        type: std_msgs.StringMessage().fullType,
+        prototype: std_msgs.StringMessage(),
+        qos: const {'durability': 'transient_local'},
+        ros2: ros2,
+        callback: (msg) {
+          if (msg.data == 'mapping' && _phase == _Phase.confirming && mounted) {
+            context.read<RobotTelemetryProvider>().resetForMapping();
+            setState(() {
+              _phase = _Phase.mapping;
+              _busyMessage = null;
+              _error = null;
+            });
+          }
+        },
+      );
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _setupModeSubscription();
   }
 
   Publisher<geometry_msgs.Twist>? _cmdVelPub;
@@ -240,6 +296,8 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   @override
   void dispose() {
     CreateMapScreen.isOpen = false;
+    _modeSub?.unsubscribe();
+    _modeSub = null;
     _cmdVelPub?.shutdown();
     super.dispose();
   }
