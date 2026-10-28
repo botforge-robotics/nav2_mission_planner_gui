@@ -497,6 +497,95 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
   bool _buildingGlobalCostmap = false;
   bool _buildingLocalCostmap = false;
 
+  static final Uint8List _globalCostmapLut = _createCostmapLut(isGlobal: true);
+  static final Uint8List _localCostmapLut = _createCostmapLut(isGlobal: false);
+
+  static Uint8List _createCostmapLut({required bool isGlobal}) {
+    final lut = Uint8List(256 * 4);
+    for (int v = 0; v < 256; v++) {
+      final offset = v * 4;
+      // In Nav2:
+      // 0: free space -> fully transparent
+      // 1..3: near-zero inflation noise -> transparent to keep dark floors deep and clean
+      // 4..98: inflation gradient
+      // 99..100: inscribed and lethal obstacles
+      // 254: lethal obstacle
+      // 255: unknown -> transparent
+      if (v <= 3 || v == 255) {
+        lut[offset] = 0;
+        lut[offset + 1] = 0;
+        lut[offset + 2] = 0;
+        lut[offset + 3] = 0;
+        continue;
+      }
+
+      int r, g, b, a;
+      if (isGlobal) {
+        // Global Costmap (Planner & Static potential field)
+        // High-contrast scientific palette: Electric Cyan -> Tech Violet -> Neon Fuchsia (lethal)
+        if (v >= 99) {
+          // Lethal obstacle / inscribed radius: vibrant neon fuchsia/rose
+          r = 255;
+          g = 0;
+          b = 90;
+          a = 210;
+        } else {
+          // Inflation decay gradient (4 to 98)
+          final t = ((v - 4) / (98 - 4)).clamp(0.0, 1.0);
+          if (t < 0.5) {
+            // Cyan (#06B6D4: 6, 182, 212) -> Violet (#8B5CF6: 139, 92, 246)
+            final segmentT = t * 2.0;
+            r = (6 + (139 - 6) * segmentT).round();
+            g = (182 + (92 - 182) * segmentT).round();
+            b = (212 + (246 - 212) * segmentT).round();
+          } else {
+            // Violet (#8B5CF6) -> Magenta (#D946EF: 217, 70, 239)
+            final segmentT = (t - 0.5) * 2.0;
+            r = (139 + (217 - 139) * segmentT).round();
+            g = (92 + (70 - 92) * segmentT).round();
+            b = (246 + (239 - 246) * segmentT).round();
+          }
+          // Smooth progressive alpha: subtle glow at edge (30), solidifying near obstacles (160)
+          a = (30 + 130 * pow(t, 1.2)).round().clamp(0, 255);
+        }
+      } else {
+        // Local Costmap (Dynamic Obstacles from LiDAR sensor)
+        // High-visibility safety palette: Amber Gold -> Safety Orange -> Radiant Laser Red (lethal)
+        if (v >= 99) {
+          // Dynamic Lethal Obstacle: High-intensity laser red
+          r = 255;
+          g = 30;
+          b = 40;
+          a = 225;
+        } else {
+          // Dynamic obstacle inflation (4 to 98)
+          final t = ((v - 4) / (98 - 4)).clamp(0.0, 1.0);
+          if (t < 0.5) {
+            // Amber (#FBBF24: 251, 191, 36) -> Safety Orange (#F97316: 249, 115, 22)
+            final segmentT = t * 2.0;
+            r = (251 + (249 - 251) * segmentT).round();
+            g = (191 + (115 - 191) * segmentT).round();
+            b = (36 + (22 - 36) * segmentT).round();
+          } else {
+            // Safety Orange (#F97316) -> Vermillion (#EA580C: 234, 88, 12)
+            final segmentT = (t - 0.5) * 2.0;
+            r = (249 + (234 - 249) * segmentT).round();
+            g = (115 + (88 - 115) * segmentT).round();
+            b = (22 + (12 - 22) * segmentT).round();
+          }
+          // Dynamic obstacle alpha: punchy presence without washing out background
+          a = (35 + 140 * pow(t, 1.2)).round().clamp(0, 255);
+        }
+      }
+
+      lut[offset] = r;
+      lut[offset + 1] = g;
+      lut[offset + 2] = b;
+      lut[offset + 3] = a;
+    }
+    return lut;
+  }
+
   Offset? _draftPixel;
   double _draftYaw = 0;
 
@@ -1179,22 +1268,23 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       final height = grid.info.height;
       if (width <= 0 || height <= 0) return;
 
-      final color = isGlobal ? AppColors.costmapGlobal : AppColors.costmapLocal;
-      final colorR = (color.r * 255).round().clamp(0, 255);
-      final colorG = (color.g * 255).round().clamp(0, 255);
-      final colorB = (color.b * 255).round().clamp(0, 255);
+      final lut = isGlobal ? _globalCostmapLut : _localCostmapLut;
       final pixels = Uint8List(width * height * 4);
       for (var row = 0; row < height; row++) {
         final destRow = height - 1 - row;
+        final rowOffset = row * width;
+        final destRowOffset = destRow * width;
         for (var col = 0; col < width; col++) {
-          final value = grid.data[row * width + col];
-          final i = (destRow * width + col) * 4;
-          if (value < 0) continue; // leave fully transparent (alpha already 0)
-          final t = (value / 100).clamp(0.0, 1.0);
-          pixels[i] = colorR;
-          pixels[i + 1] = colorG;
-          pixels[i + 2] = colorB;
-          pixels[i + 3] = (t * 160).round().clamp(0, 255);
+          final rawVal = grid.data[rowOffset + col];
+          if (rawVal <= 0) continue; // transparent
+          final lutIdx = (rawVal & 0xFF) * 4;
+          final alpha = lut[lutIdx + 3];
+          if (alpha == 0) continue;
+          final i = (destRowOffset + col) * 4;
+          pixels[i] = lut[lutIdx];
+          pixels[i + 1] = lut[lutIdx + 1];
+          pixels[i + 2] = lut[lutIdx + 2];
+          pixels[i + 3] = alpha;
         }
       }
 

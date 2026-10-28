@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:provider/provider.dart';
 import 'package:ros2_api/ros2_api.dart';
@@ -93,6 +94,10 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   bool _hasMovedAwayFromDock = false;
   double? _mappingStartRx;
   double? _mappingStartRy;
+
+  final FocusNode _keyboardFocusNode = FocusNode();
+  bool _cockpitCollapsed = false;
+  double _selectedSpeed = 0.20;
 
   SdkApiService? _api;
 
@@ -299,7 +304,91 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
     _modeSub?.unsubscribe();
     _modeSub = null;
     _cmdVelPub?.shutdown();
+    _keyboardFocusNode.dispose();
     super.dispose();
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      final key = event.logicalKey;
+      if (key == LogicalKeyboardKey.keyW || key == LogicalKeyboardKey.arrowUp) {
+        _onVelocity(_selectedSpeed, 0.0);
+        return KeyEventResult.handled;
+      } else if (key == LogicalKeyboardKey.keyS || key == LogicalKeyboardKey.arrowDown) {
+        _onVelocity(-_selectedSpeed, 0.0);
+        return KeyEventResult.handled;
+      } else if (key == LogicalKeyboardKey.keyA || key == LogicalKeyboardKey.arrowLeft) {
+        _onVelocity(0.0, 0.40);
+        return KeyEventResult.handled;
+      } else if (key == LogicalKeyboardKey.keyD || key == LogicalKeyboardKey.arrowRight) {
+        _onVelocity(0.0, -0.40);
+        return KeyEventResult.handled;
+      } else if (key == LogicalKeyboardKey.space) {
+        _stopMotion();
+        return KeyEventResult.handled;
+      }
+    } else if (event is KeyUpEvent) {
+      final key = event.logicalKey;
+      if (key == LogicalKeyboardKey.keyW ||
+          key == LogicalKeyboardKey.arrowUp ||
+          key == LogicalKeyboardKey.keyS ||
+          key == LogicalKeyboardKey.arrowDown ||
+          key == LogicalKeyboardKey.keyA ||
+          key == LogicalKeyboardKey.arrowLeft ||
+          key == LogicalKeyboardKey.keyD ||
+          key == LogicalKeyboardKey.arrowRight) {
+        _stopMotion();
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _openLayersPanel() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: AppColors.of(context).surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppSpacing.cardRadius)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: ValueListenableBuilder<Set<MapLayer>>(
+          valueListenable: MapLayersController.instance,
+          builder: (context, visible, _) {
+            Widget tile(MapLayer layer, IconData icon, String title, String subtitle) {
+              return CheckboxListTile(
+                secondary: Icon(icon, color: AppColors.of(context).textSecondary),
+                title: Text(title),
+                subtitle: Text(subtitle),
+                value: visible.contains(layer),
+                onChanged: (checked) =>
+                    MapLayersController.instance.setVisible(layer, checked ?? false),
+              );
+            }
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Map Layers', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  ),
+                ),
+                tile(MapLayer.laserScan, Icons.radar_rounded, 'Laser Scan', 'Live 2D LiDAR points from /scan_filtered'),
+                tile(MapLayer.globalCostmap, Icons.grid_on_rounded, 'Global Costmap', 'Inflation obstacles and planner cost field'),
+                tile(MapLayer.localCostmap, Icons.grid_4x4_rounded, 'Local Costmap', 'Dynamic obstacles detected in real time'),
+                tile(MapLayer.dock, Icons.ev_station_rounded, 'Charging Dock', 'Start and dock pose marker'),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+            );
+          },
+        ),
+      ),
+    );
   }
 
   bool _velocitySending = false;
@@ -594,14 +683,22 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       }
     }
 
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop ||
+        (MediaQuery.of(context).orientation == Orientation.landscape &&
+            MediaQuery.sizeOf(context).width >= 900);
+
     return PopScope(
       canPop: _phase != _Phase.mapping,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Create Map'),
-          automaticallyImplyLeading: false,
-        ),
+        appBar: (isDesktop && _phase == _Phase.mapping)
+            ? null
+            : AppBar(
+                title: const Text('Create Map'),
+                automaticallyImplyLeading: false,
+              ),
         body: SafeArea(
+          top: !(isDesktop && _phase == _Phase.mapping),
+          bottom: !(isDesktop && _phase == _Phase.mapping),
           child: switch (_phase) {
             _Phase.confirming => Center(
                 child: _error != null
@@ -647,150 +744,491 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
                         ],
                       ),
               ),
-            _Phase.mapping => Stack(
+            _Phase.mapping => isDesktop
+                ? _buildDesktopMappingView(context, ros2, telemetry, colors)
+                : _buildMobileMappingView(context, ros2, telemetry, colors),
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopMappingView(
+    BuildContext context,
+    Ros2? ros2,
+    RobotTelemetryProvider telemetry,
+    AppColorsTheme colors,
+  ) {
+    final rx = telemetry.poseX;
+    final ry = telemetry.poseY;
+    final rTheta = telemetry.poseTheta ?? 0.0;
+    final speed = telemetry.linearSpeedMps;
+
+    return Focus(
+      focusNode: _keyboardFocusNode,
+      autofocus: true,
+      onKeyEvent: _handleKeyEvent,
+      child: Stack(
+        children: [
+          // 1. Edge-to-Edge Full Screen Interactive Map Canvas
+          Positioned.fill(
+            child: Container(
+              color: colors.surfaceSunken,
+              child: ros2 == null
+                  ? const Center(child: Text('Not connected.'))
+                  : ValueListenableBuilder<Set<MapLayer>>(
+                      valueListenable: MapLayersController.instance,
+                      builder: (context, visibleLayers, _) => OccupancyGridView(
+                        ros2: ros2,
+                        interactive: true,
+                        showRobot: true,
+                        showLocalizationBadge: false,
+                        isMapping: true,
+                        initialPose: null,
+                        showDock: true,
+                        showPath: visibleLayers.contains(MapLayer.path),
+                        showGlobalCostmap: visibleLayers.contains(MapLayer.globalCostmap),
+                        showLocalCostmap: visibleLayers.contains(MapLayer.localCostmap),
+                        showLaserScan: true,
+                        laserScanTopic: '/scan_filtered',
+                        dockPoseOverride: _dockPose,
+                        standoffPoseOverride: _standoffPose,
+                      ),
+                    ),
+            ),
+          ),
+
+          // 2. Top Floating Cockpit HUD Header
+          Positioned(
+            top: AppSpacing.md,
+            left: AppSpacing.lg,
+            right: AppSpacing.lg,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: colors.surface.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+                border: Border.all(color: colors.border.withValues(alpha: 0.7)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
                 children: [
-                  CenteredFormColumn(
-                    maxWidth: 720,
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                  // Live SLAM Status Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border:
+                          Border.all(color: AppColors.success.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.success,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        const Text(
+                          'SLAM MAPPING',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.success,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+
+                  // Telemetry Pose HUD Chip
+                  HudChip(
+                    text: rx != null && ry != null
+                        ? 'X: ${rx.toStringAsFixed(2)}m   Y: ${ry.toStringAsFixed(2)}m   θ: ${(rTheta * 180 / pi).toStringAsFixed(1)}°'
+                        : 'X: 0.00m   Y: 0.00m   θ: 0.0°',
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+
+                  // Speed HUD Chip
+                  HudChip(
+                    text: speed != null
+                        ? '${speed.abs().toStringAsFixed(2)} m/s'
+                        : '0.00 m/s',
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+
+                  // Map Layers Button
+                  IconButton(
+                    icon: const Icon(Icons.layers_outlined),
+                    tooltip: 'Map Layers',
+                    onPressed: _openLayersPanel,
+                  ),
+
+                  const Spacer(),
+
+                  // Action Buttons
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _cancel,
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    label: const Text('Cancel Mapping'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _finish,
+                    icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+                    label: const Text('Finish & Save Map'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 3. Floating Bottom-Right Cockpit Drive Card
+          Positioned(
+            bottom: AppSpacing.lg,
+            right: AppSpacing.lg,
+            child: _buildDriveCockpitCard(colors),
+          ),
+
+          // 4. Floating Bottom-Left Guidance Hint
+          Positioned(
+            bottom: AppSpacing.lg,
+            left: AppSpacing.lg,
+            child: const HudChip(
+              text: 'Drive robot slowly around walls and obstacles to expand the map',
+            ),
+          ),
+
+          // 5. Busy Overlay
+          if (_busyMessage != null) _buildBusyOverlay(colors),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDriveCockpitCard(AppColorsTheme colors) {
+    if (_cockpitCollapsed) {
+      return InkWell(
+        onTap: () => setState(() => _cockpitCollapsed = false),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: colors.surface.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: colors.border.withValues(alpha: 0.8)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.sports_esports_rounded, size: 18, color: colors.primary),
+              const SizedBox(width: AppSpacing.xs),
+              const Text('Drive Controls',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+              const SizedBox(width: AppSpacing.xs),
+              Icon(Icons.expand_less_rounded,
+                  size: 18, color: colors.textSecondary),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: 320,
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        border: Border.all(color: colors.border.withValues(alpha: 0.8)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.sports_esports_rounded,
+                      size: 18, color: colors.primary),
+                  const SizedBox(width: AppSpacing.xs),
+                  const Text(
+                    'Drive Cockpit',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.expand_more_rounded, size: 20),
+                tooltip: 'Minimize Controls',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => setState(() => _cockpitCollapsed = true),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          DrivePad(
+            onVelocity: _onVelocity,
+            onStop: _stopMotion,
+            maxLinear: _selectedSpeed,
+            maxAngular: 0.45,
+            rotateAngular: 0.35,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
+            decoration: BoxDecoration(
+              color: colors.surfaceSunken.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.keyboard_rounded,
+                    size: 14, color: colors.textSecondary),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  'WASD / Arrows to drive • Space to stop',
+                  style: TextStyle(fontSize: 10, color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Speed: ',
+                  style: TextStyle(fontSize: 11, color: colors.textSecondary)),
+              const SizedBox(width: 4),
+              _speedChip('Slow', 0.12, colors),
+              const SizedBox(width: 4),
+              _speedChip('Norm', 0.20, colors),
+              const SizedBox(width: 4),
+              _speedChip('Brisk', 0.25, colors),
+            ],
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.danger, fontSize: 12)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _speedChip(String label, double speed, AppColorsTheme colors) {
+    final isSelected = (_selectedSpeed - speed).abs() < 0.01;
+    return InkWell(
+      onTap: () => setState(() => _selectedSpeed = speed),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colors.primary.withValues(alpha: 0.2)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? colors.primary
+                : colors.border.withValues(alpha: 0.5),
+          ),
+        ),
+        child: Text(
+          '$label ${speed.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
+            color: isSelected ? colors.primary : colors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileMappingView(
+    BuildContext context,
+    Ros2? ros2,
+    RobotTelemetryProvider telemetry,
+    AppColorsTheme colors,
+  ) {
+    return Stack(
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Container(
+                color: colors.surfaceSunken,
+                child: ros2 == null
+                    ? const Center(child: Text('Not connected.'))
+                    : Stack(
                         children: [
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius:
-                                  BorderRadius.circular(AppSpacing.cardRadius),
-                              child: Container(
-                                color: colors.surfaceSunken,
-                                child: ros2 == null
-                                    ? const Center(
-                                        child: Text('Not connected.'))
-                                    : Stack(
-                                        children: [
-                                          Positioned.fill(
-                                            // The layer selection is shared
-                                            // app-wide (see
-                                            // MapLayersController) — this
-                                            // map shows whatever's toggled
-                                            // on from any screen.
-                                            child: ValueListenableBuilder<
-                                                Set<MapLayer>>(
-                                              valueListenable:
-                                                  MapLayersController.instance,
-                                              builder:
-                                                  (context, visibleLayers, _) =>
-                                                      OccupancyGridView(
-                                                ros2: ros2,
-                                                interactive: true,
-                                                showRobot: true,
-                                                showLocalizationBadge: false,
-                                                isMapping: true,
-                                                initialPose: null,
-                                                showDock: true,
-                                                showPath: visibleLayers
-                                                    .contains(MapLayer.path),
-                                                showGlobalCostmap:
-                                                    visibleLayers.contains(
-                                                        MapLayer.globalCostmap),
-                                                showLocalCostmap:
-                                                    visibleLayers.contains(
-                                                        MapLayer.localCostmap),
-                                                showLaserScan: true,
-                                                laserScanTopic: '/scan_filtered',
-                                                dockPoseOverride: _dockPose,
-                                                standoffPoseOverride: _standoffPose,
-                                              ),
-                                            ),
-                                          ),
-                                          Positioned(
-                                            left: AppSpacing.sm,
-                                            top: AppSpacing.sm,
-                                            child: HudChip(
-                                              text: telemetry.poseX != null &&
-                                                      telemetry.poseY != null
-                                                  ? 'x: ${telemetry.poseX!.toStringAsFixed(2)}  '
-                                                      'y: ${telemetry.poseY!.toStringAsFixed(2)}  '
-                                                      'θ: ${(telemetry.poseTheta ?? 0).toStringAsFixed(2)} rad'
-                                                  : 'x: 0.00  y: 0.00  θ: 0.00 rad',
-                                            ),
-                                          ),
-                                          Positioned(
-                                            left: AppSpacing.sm,
-                                            bottom: AppSpacing.sm,
-                                            child: HudChip(
-                                              text: telemetry.linearSpeedMps !=
-                                                      null
-                                                  ? '${telemetry.linearSpeedMps!.abs().toStringAsFixed(2)} m/s'
-                                                  : '— m/s',
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                          Positioned.fill(
+                            child: ValueListenableBuilder<Set<MapLayer>>(
+                              valueListenable: MapLayersController.instance,
+                              builder: (context, visibleLayers, _) =>
+                                  OccupancyGridView(
+                                ros2: ros2,
+                                interactive: true,
+                                showRobot: true,
+                                showLocalizationBadge: false,
+                                isMapping: true,
+                                initialPose: null,
+                                showDock: true,
+                                showPath: visibleLayers.contains(MapLayer.path),
+                                showGlobalCostmap: visibleLayers
+                                    .contains(MapLayer.globalCostmap),
+                                showLocalCostmap: visibleLayers
+                                    .contains(MapLayer.localCostmap),
+                                showLaserScan: true,
+                                laserScanTopic: '/scan_filtered',
+                                dockPoseOverride: _dockPose,
+                                standoffPoseOverride: _standoffPose,
                               ),
                             ),
                           ),
-                          const SizedBox(height: AppSpacing.md),
-                          DrivePad(
-                            onVelocity: _onVelocity,
-                            onStop: _stopMotion,
-                            maxLinear: 0.20,
-                            maxAngular: 0.45,
-                            rotateAngular: 0.35,
+                          Positioned(
+                            left: AppSpacing.sm,
+                            top: AppSpacing.sm,
+                            child: HudChip(
+                              text: telemetry.poseX != null &&
+                                      telemetry.poseY != null
+                                  ? 'x: ${telemetry.poseX!.toStringAsFixed(2)}  '
+                                      'y: ${telemetry.poseY!.toStringAsFixed(2)}  '
+                                      'θ: ${(telemetry.poseTheta ?? 0).toStringAsFixed(2)} rad'
+                                  : 'x: 0.00  y: 0.00  θ: 0.00 rad',
+                            ),
                           ),
-                          if (_error != null) ...[
-                            const SizedBox(height: AppSpacing.sm),
-                            Text(_error!,
-                                style:
-                                    const TextStyle(color: AppColors.danger)),
-                          ],
-                          const SizedBox(height: AppSpacing.md),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _busy ? null : _cancel,
-                                  child: const Text('Cancel Mapping'),
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: _busy ? null : _finish,
-                                  child: const Text('Finish & Save'),
-                                ),
-                              ),
-                            ],
+                          Positioned(
+                            left: AppSpacing.sm,
+                            bottom: AppSpacing.sm,
+                            child: HudChip(
+                              text: telemetry.linearSpeedMps != null
+                                  ? '${telemetry.linearSpeedMps!.abs().toStringAsFixed(2)} m/s'
+                                  : '— m/s',
+                            ),
+                          ),
+                          Positioned(
+                            right: AppSpacing.sm,
+                            top: AppSpacing.sm,
+                            child: IconButton.filledTonal(
+                              icon: const Icon(Icons.layers_outlined, size: 20),
+                              tooltip: 'Layers',
+                              onPressed: _openLayersPanel,
+                            ),
                           ),
                         ],
                       ),
-                    ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              child: Column(
+                children: [
+                  DrivePad(
+                    onVelocity: _onVelocity,
+                    onStop: _stopMotion,
+                    maxLinear: _selectedSpeed,
+                    maxAngular: 0.45,
+                    rotateAngular: 0.35,
                   ),
-                  if (_busyMessage != null)
-                    Container(
-                      color: colors.surface.withValues(alpha: 0.85),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const CircularProgressIndicator(),
-                            const SizedBox(height: AppSpacing.md),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.lg),
-                              child: Text(
-                                _busyMessage!,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    color: colors.textSecondary),
-                              ),
-                            ),
-                          ],
+                  if (_error != null) ...[
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(_error!,
+                        style: const TextStyle(color: AppColors.danger)),
+                  ],
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _busy ? null : _cancel,
+                          child: const Text('Cancel Mapping'),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _busy ? null : _finish,
+                          child: const Text('Finish & Save'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-          },
+            ),
+          ],
+        ),
+        if (_busyMessage != null) _buildBusyOverlay(colors),
+      ],
+    );
+  }
+
+  Widget _buildBusyOverlay(AppColorsTheme colors) {
+    return Container(
+      color: colors.surface.withValues(alpha: 0.85),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: AppSpacing.md),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: Text(
+                _busyMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: colors.textSecondary),
+              ),
+            ),
+          ],
         ),
       ),
     );
