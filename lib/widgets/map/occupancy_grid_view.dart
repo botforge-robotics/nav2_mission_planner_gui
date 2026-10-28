@@ -216,6 +216,7 @@ class OccupancyGridView extends StatefulWidget {
     this.roadNetwork,
     this.showRoadNetwork = true,
     this.roadNetworkEditorMode = false,
+    this.isPlacingRoadNode = false,
     this.selectedRoadNodeId,
     this.selectedRoadEdgeId,
     this.onRoadNodeTap,
@@ -356,6 +357,7 @@ class OccupancyGridView extends StatefulWidget {
   final RoadNetwork? roadNetwork;
   final bool showRoadNetwork;
   final bool roadNetworkEditorMode;
+  final bool isPlacingRoadNode;
   final int? selectedRoadNodeId;
   final int? selectedRoadEdgeId;
   final void Function(RoadNode node)? onRoadNodeTap;
@@ -1703,7 +1705,11 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       widget.onDockTap!();
       return;
     }
-    if (nearestLocation != null) widget.onLocationTap!(nearestLocation);
+    if (nearestLocation != null) {
+      widget.onLocationTap!(nearestLocation);
+      return;
+    }
+    widget.onMapClickWorld?.call(tapWorld);
   }
 
   @override
@@ -2079,10 +2085,21 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
           widget.onDockTap != null ||
           widget.dockEditorMode ||
           widget.zoneEditorMode ||
-          widget.onZoneTap != null) {
+          widget.onZoneTap != null ||
+          widget.roadNetworkEditorMode ||
+          widget.onRoadNodeTap != null ||
+          widget.onRoadEdgeTap != null ||
+          widget.onMapClickWorld != null) {
         activeWidget = GestureDetector(
           onTapUp: (details) => _handleMapTap(details.globalPosition),
           child: activeChild,
+        );
+      }
+
+      if (widget.roadNetworkEditorMode && widget.isPlacingRoadNode) {
+        activeWidget = MouseRegion(
+          cursor: SystemMouseCursors.precise,
+          child: activeWidget,
         );
       }
 
