@@ -459,7 +459,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       ..info.origin.position.z = 0.0
       ..info.origin.orientation.w = 1.0;
 
-    final isDark = mounted ? (Theme.of(context).brightness == Brightness.dark) : false;
+    final isDark = AppThemeController.instance.isDarkMode;
     final pixels = Uint8List(width * height * 4);
     final unkR = isDark ? 20 : 200;
     final unkG = isDark ? 26 : 200;
@@ -1041,7 +1041,7 @@ class _OccupancyGridViewState extends State<OccupancyGridView> {
       final height = grid.info.height;
       if (width <= 0 || height <= 0) return;
 
-      final isDark = mounted ? (Theme.of(context).brightness == Brightness.dark) : false;
+      final isDark = AppThemeController.instance.isDarkMode;
       final pixels = Uint8List(width * height * 4);
       final unkR = isDark ? 20 : 200;
       final unkG = isDark ? 26 : 200;
