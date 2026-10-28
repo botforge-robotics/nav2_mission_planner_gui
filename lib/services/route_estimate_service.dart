@@ -1,8 +1,10 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:geometry_msgs/msg.dart' as geometry_msgs;
 import 'package:nav2_msgs/action.dart';
 import 'package:ros2_api/ros2_api.dart';
+import 'package:std_msgs/msg.dart' as std_msgs;
 
 /// A planned route's real distance (walked along the path Nav2's planner
 /// actually produces, not a straight line through walls) plus a rough time
@@ -58,23 +60,49 @@ class RouteEstimateService {
       actionMessage: ComputePathToPose(),
     );
     try {
-      final goal = ComputePathToPoseGoal(
+      final goalWithStart = ComputePathToPoseGoal(
         start: geometry_msgs.PoseStamped(
+          header: std_msgs.Header(frame_id: 'map'),
           pose: geometry_msgs.Pose(
             position: geometry_msgs.Point(x: fromX, y: fromY),
             orientation: geometry_msgs.Quaternion(w: 1.0),
           ),
         ),
         goal: geometry_msgs.PoseStamped(
+          header: std_msgs.Header(frame_id: 'map'),
           pose: geometry_msgs.Pose(
             position: geometry_msgs.Point(x: toX, y: toY),
             orientation: geometry_msgs.Quaternion(w: 1.0),
           ),
         ),
+        planner_id: '',
         use_start: true,
       );
-      final result =
-          await client.sendGoal(goal).timeout(const Duration(seconds: 4));
+
+      ComputePathToPoseResult? result;
+      try {
+        result = await client
+            .sendGoal(goalWithStart)
+            .timeout(const Duration(seconds: 4));
+      } catch (e) {
+        debugPrint(
+            'Route estimate with explicit start failed ($e), retrying from live pose');
+        final goalLive = ComputePathToPoseGoal(
+          goal: geometry_msgs.PoseStamped(
+            header: std_msgs.Header(frame_id: 'map'),
+            pose: geometry_msgs.Pose(
+              position: geometry_msgs.Point(x: toX, y: toY),
+              orientation: geometry_msgs.Quaternion(w: 1.0),
+            ),
+          ),
+          planner_id: '',
+          use_start: false,
+        );
+        result = await client
+            .sendGoal(goalLive)
+            .timeout(const Duration(seconds: 4));
+      }
+
       final poses = result.path.poses;
       if (poses.length < 2) return null;
       var distance = 0.0;
@@ -87,7 +115,8 @@ class RouteEstimateService {
         distanceMeters: distance,
         etaSeconds: distance / _assumedSpeedMps,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Route estimate calculation error: $e');
       return null;
     } finally {
       client.dispose();
