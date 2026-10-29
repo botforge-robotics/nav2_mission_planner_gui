@@ -173,5 +173,34 @@ void main() {
       expect(directGoData['theta'], 0.0);
       expect(directGoData['node_id'], 3);
     });
+
+    test('supports detour alternative loop and edge speed limit metadata', () {
+      final network = RoadNetwork(
+        mapName: 'warehouse',
+        nodes: [
+          RoadNode(id: 1, name: 'Node 1', x: 0.0, y: 0.0),
+          RoadNode(id: 2, name: 'Node 2', x: 2.0, y: 0.0),
+          RoadNode(id: 3, name: 'Node 3', x: 2.0, y: 2.0),
+          RoadNode(id: 4, name: 'Node 4', x: 4.0, y: 0.0),
+        ],
+        edges: [
+          RoadEdge(id: 1, startId: 1, endId: 2, speedLimit: 0.25),
+          RoadEdge(id: 2, startId: 2, endId: 4, speedLimit: 0.40),
+          RoadEdge(id: 3, startId: 2, endId: 3, speedLimit: 0.20),
+          RoadEdge(id: 4, startId: 3, endId: 4, speedLimit: 0.20),
+        ],
+      );
+
+      final geoJson = network.toGeoJson();
+      final features = geoJson['features'] as List;
+      final edgeFeatures = features.where((f) => f['geometry']['type'] == 'MultiLineString').toList();
+
+      expect(edgeFeatures.length, 8); // 4 bidirectional edges * 2
+      final directEdge = edgeFeatures.firstWhere((f) => f['properties']['startid'] == 2 && f['properties']['endid'] == 4);
+      expect(directEdge['properties']['metadata']['speed_limit'], 0.40);
+
+      final detourEdge1 = edgeFeatures.firstWhere((f) => f['properties']['startid'] == 2 && f['properties']['endid'] == 3);
+      expect(detourEdge1['properties']['metadata']['speed_limit'], 0.20);
+    });
   });
 }
