@@ -154,5 +154,24 @@ void main() {
       expect(parsed.nodes, isEmpty);
       expect(parsed.edges, isEmpty);
     });
+
+    test('formats road nodes cleanly for direct go navigation target maps', () {
+      final node = RoadNode(id: 3, name: 'Node 3', x: 9.03, y: 3.46);
+      final directGoData = {
+        'name': node.name,
+        'x': node.x,
+        'y': node.y,
+        'theta': 0.0,
+        'node_id': node.id,
+        'is_node': true,
+      };
+
+      expect(directGoData['is_node'], isTrue);
+      expect(directGoData['name'], 'Node 3');
+      expect(directGoData['x'], 9.03);
+      expect(directGoData['y'], 3.46);
+      expect(directGoData['theta'], 0.0);
+      expect(directGoData['node_id'], 3);
+    });
   });
 }

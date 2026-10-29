@@ -398,6 +398,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
     final x = (location['x'] as num?)?.toDouble();
     final y = (location['y'] as num?)?.toDouble();
     final theta = (location['theta'] as num?)?.toDouble() ?? 0.0;
+    final isNode = location['is_node'] == true;
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -407,7 +408,9 @@ class _TeleopScreenState extends State<TeleopScreen> {
           duration: const Duration(seconds: 2),
         ),
       );
-      if (name.isNotEmpty) {
+      if (isNode && x != null && y != null) {
+        await api.goToPose(x, y, theta: theta, replace: true);
+      } else if (name.isNotEmpty) {
         await api.goToWaypoint(name, replace: true);
       } else if (x != null && y != null) {
         await api.goToPose(x, y, theta: theta, replace: true);
@@ -1183,8 +1186,23 @@ class _DockUndockHalf extends StatelessWidget {
   }
 }
 
+/// Model representing an individual destination option in the Direct Go dropdown.
+class _DirectDestination {
+  const _DirectDestination({
+    required this.id,
+    required this.label,
+    required this.isNode,
+    required this.data,
+  });
+
+  final String id;
+  final String label;
+  final bool isNode;
+  final Map<String, dynamic> data;
+}
+
 /// Dual navigation dispatchers:
-/// 1. Direct Saved Location Dispatcher: direct compute and go without confirmation modals.
+/// 1. Direct Go Dispatcher: direct compute and go to saved locations or road nodes.
 /// 2. Road Network Dispatcher: topological route navigation along named road
 ///    network nodes and edges with Nav2 RouteServer blockage & reroute policy.
 class _NavigationDispatcherCard extends StatefulWidget {
@@ -1209,8 +1227,8 @@ class _NavigationDispatcherCard extends StatefulWidget {
 }
 
 class _NavigationDispatcherCardState extends State<_NavigationDispatcherCard> {
-  int _dispatcherMode = 0; // 0 = Saved Location (Direct), 1 = Road Network Route
-  String? _selectedLocation;
+  int _dispatcherMode = 0; // 0 = Direct Go (Locations & Nodes), 1 = Road Network Route
+  String? _selectedDirectId;
   int? _selectedRoadNodeId;
   String _reroutePolicy = 'wait_then_reroute';
   double _waitTimeoutSec = 5.0;
@@ -1221,8 +1239,11 @@ class _NavigationDispatcherCardState extends State<_NavigationDispatcherCard> {
     super.didUpdateWidget(oldWidget);
     if (widget.selectedRoadNodeId != null &&
         widget.selectedRoadNodeId != oldWidget.selectedRoadNodeId) {
-      _dispatcherMode = 1;
-      _selectedRoadNodeId = widget.selectedRoadNodeId;
+      if (_dispatcherMode == 0) {
+        _selectedDirectId = 'node:${widget.selectedRoadNodeId}';
+      } else {
+        _selectedRoadNodeId = widget.selectedRoadNodeId;
+      }
     }
   }
 
@@ -1359,93 +1380,176 @@ class _NavigationDispatcherCardState extends State<_NavigationDispatcherCard> {
             ),
             const SizedBox(height: AppSpacing.md),
 
-            // Content for Mode 0: Saved Location (Direct Compute & Go)
+            // Content for Mode 0: Direct Compute & Go (Saved Locations & Route Nodes)
             if (_dispatcherMode == 0) ...[
               ValueListenableBuilder<List<Map<String, dynamic>>?>(
                 valueListenable: LocationsController.instance,
                 builder: (context, locations, _) {
-                  final list = locations ?? const <Map<String, dynamic>>[];
-                  final names = [
-                    for (final l in list) l['name'] as String? ?? ''
-                  ];
-                  if (_selectedLocation != null &&
-                      !names.contains(_selectedLocation)) {
-                    _selectedLocation = null;
-                  }
-                  return Row(
-                    children: [
-                      Icon(Icons.place_rounded, color: colors.primary, size: 20),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _selectedLocation,
-                          isExpanded: true,
-                          dropdownColor: colors.surface,
-                          iconEnabledColor: colors.primary,
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                            color: colors.textPrimary,
+                  return ValueListenableBuilder<RoadNetwork?>(
+                    valueListenable: RoadNetworkController.instance,
+                    builder: (context, roadNetwork, _) {
+                      final locList = locations ?? const <Map<String, dynamic>>[];
+                      final nodesList = roadNetwork?.nodes ?? const <RoadNode>[];
+
+                      final List<_DirectDestination> destinations = [
+                        for (final l in locList)
+                          _DirectDestination(
+                            id: 'loc:${l['name']}',
+                            label: l['name'] as String? ?? 'Unnamed Location',
+                            isNode: false,
+                            data: l,
                           ),
-                          hint: Text(
-                            list.isEmpty
-                                ? 'No saved locations yet'
-                                : 'Select destination...',
-                            style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                        for (final n in nodesList)
+                          _DirectDestination(
+                            id: 'node:${n.id}',
+                            label: '${n.name} (#${n.id})',
+                            isNode: true,
+                            data: {
+                              'name': n.name,
+                              'x': n.x,
+                              'y': n.y,
+                              'theta': 0.0,
+                              'node_id': n.id,
+                              'is_node': true,
+                            },
                           ),
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 8),
-                            isDense: true,
-                            filled: true,
-                            fillColor: colors.surfaceSunken,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: colors.border),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: colors.border),
-                            ),
-                          ),
-                          items: [
-                            for (final name in names)
-                              DropdownMenuItem(
-                                value: name,
-                                child: Text(name,
-                                    style: TextStyle(color: colors.textPrimary)),
+                      ];
+
+                      if (_selectedDirectId != null &&
+                          !destinations.any((d) => d.id == _selectedDirectId)) {
+                        _selectedDirectId = null;
+                      }
+
+                      return Row(
+                        children: [
+                          Icon(Icons.place_rounded, color: colors.primary, size: 20),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _selectedDirectId,
+                              isExpanded: true,
+                              dropdownColor: colors.surface,
+                              iconEnabledColor: colors.primary,
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w500,
+                                color: colors.textPrimary,
                               ),
-                          ],
-                          onChanged: list.isEmpty
-                              ? null
-                              : (v) => setState(() => _selectedLocation = v),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                        ),
-                        onPressed: _selectedLocation == null
-                            ? null
-                            : () {
-                                final loc = list.firstWhere(
-                                    (l) => l['name'] == _selectedLocation);
-                                widget.onDirectGo(loc);
-                              },
-                        icon: const Icon(Icons.near_me_rounded, size: 16),
-                        label: const Text('Go'),
-                      ),
-                    ],
+                              hint: Text(
+                                destinations.isEmpty
+                                    ? 'No locations or nodes available'
+                                    : 'Select target (location or node)...',
+                                style: TextStyle(
+                                    color: colors.textSecondary, fontSize: 13),
+                              ),
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 8),
+                                isDense: true,
+                                filled: true,
+                                fillColor: colors.surfaceSunken,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: colors.border),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: colors.border),
+                                ),
+                              ),
+                              items: [
+                                for (final d in destinations)
+                                  DropdownMenuItem<String>(
+                                    value: d.id,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          d.isNode
+                                              ? Icons.adjust_rounded
+                                              : (d.label.toLowerCase().contains('dock')
+                                                  ? Icons.ev_station_rounded
+                                                  : Icons.place_rounded),
+                                          size: 15,
+                                          color: d.isNode
+                                              ? colors.accent
+                                              : colors.primary,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            d.label,
+                                            style: TextStyle(
+                                                color: colors.textPrimary,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: (d.isNode
+                                                    ? colors.accent
+                                                    : colors.primary)
+                                                .withValues(alpha: 0.12),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
+                                            border: Border.all(
+                                              color: (d.isNode
+                                                      ? colors.accent
+                                                      : colors.primary)
+                                                  .withValues(alpha: 0.3),
+                                              width: 0.8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            d.isNode ? 'Node' : 'Location',
+                                            style: TextStyle(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: d.isNode
+                                                  ? colors.accent
+                                                  : colors.primary,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                              onChanged: destinations.isEmpty
+                                  ? null
+                                  : (v) => setState(() => _selectedDirectId = v),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: _selectedDirectId == null
+                                ? null
+                                : () {
+                                    final dest = destinations.firstWhere(
+                                        (d) => d.id == _selectedDirectId);
+                                    widget.onDirectGo(dest.data);
+                                  },
+                            icon: const Icon(Icons.near_me_rounded, size: 16),
+                            label: const Text('Go'),
+                          ),
+                        ],
+                      );
+                    },
                   );
                 },
               ),
               const SizedBox(height: 6),
               Text(
-                'Direct compute & move without confirmation modals.',
+                'Direct compute & move to location or route node across free space.',
                 style: TextStyle(fontSize: 11, color: colors.textSecondary),
               ),
             ]
