@@ -19,6 +19,7 @@ import '../alerts/alerts_log_screen.dart';
 import '../dock/dock_charge_screen.dart';
 import '../robot_status/robot_status_screen.dart';
 import 'gamepad_settings_screen.dart';
+import 'ai_voice_settings_screen.dart';
 import '../../services/gamepad_service.dart';
 import 'help_about_screen.dart';
 import 'software_update_screen.dart';
@@ -122,6 +123,13 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                       ),
                     );
                   },
+                ),
+                _SettingsTile(
+                  icon: Icons.psychology_rounded,
+                  title: 'AI Voice Assistant & Models',
+                  subtitle: 'Configure Groq / Gemini API keys, models & tools on robot',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const AiVoiceSettingsScreen())),
                 ),
                 _SettingsTile(
                   icon: Icons.report_gmailerrorred_rounded,
