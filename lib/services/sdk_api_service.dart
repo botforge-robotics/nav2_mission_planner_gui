@@ -777,4 +777,48 @@ class SdkApiService {
 
   Future<void> deleteRobotMedia(String filename) =>
       _send('DELETE', '/api/v1/media/${Uri.encodeComponent(filename)}');
+
+  // -- Live Voice Assistant & Recognition -------------------------------------
+
+  Future<Map<String, dynamic>> triggerVoiceListen({
+    double durationSec = 4.0,
+    bool autoReply = true,
+  }) async {
+    return _send(
+      'POST',
+      '/api/v1/voice/listen',
+      body: {
+        'duration_sec': durationSec,
+        'auto_reply': autoReply,
+      },
+      timeout: const Duration(seconds: 15),
+    );
+  }
+
+  Future<Map<String, dynamic>> sendVoiceChat(
+    String message, {
+    bool speak = true,
+  }) async {
+    return _send(
+      'POST',
+      '/api/v1/voice/chat',
+      body: {
+        'message': message,
+        'speak': speak,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> getVoiceDialog() =>
+      _send('GET', '/api/v1/voice/dialog');
+
+  Future<Map<String, dynamic>> clearVoiceDialog() =>
+      _send('DELETE', '/api/v1/voice/dialog');
+
+  Future<Map<String, dynamic>> getVoiceStatus() =>
+      _send('GET', '/api/v1/voice/status');
+
+  Future<Map<String, dynamic>> toggleVoiceMute({bool? muted}) =>
+      _send('POST', '/api/v1/voice/mute',
+          body: muted != null ? {'muted': muted} : {});
 }

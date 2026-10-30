@@ -33,6 +33,7 @@ import 'maps/map_view_screen.dart';
 import 'maps/maps_list_screen.dart';
 import 'maps/create_map_screen.dart';
 import 'media/robot_media_screen.dart';
+import 'voice/voice_assistant_screen.dart';
 import 'missions/graph/ui_interaction_dialog.dart';
 
 /// Reference §4 (Dashboard & Home). Core telemetry (battery, speed,
@@ -280,6 +281,15 @@ class _DashboardContentState extends State<_DashboardContent> {
             onPressed: () {
               Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => const RobotMediaScreen(),
+              ));
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.mic_none_rounded),
+            tooltip: 'Live Voice Assistant',
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => VoiceAssistantScreen(robotIp: widget.robot.ip),
               ));
             },
           ),
