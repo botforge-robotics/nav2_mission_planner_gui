@@ -224,8 +224,8 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
                   color: _isMuted
-                      ? colors.danger.withOpacity(0.12)
-                      : colors.success.withOpacity(0.15),
+                      ? colors.danger.withValues(alpha: 0.12)
+                      : colors.success.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: _isMuted ? colors.danger : colors.success,
@@ -274,7 +274,7 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
                 border: Border.all(color: colors.border),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
@@ -305,9 +305,9 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: _isListening
-                              ? colors.success.withOpacity(0.15)
+                              ? colors.success.withValues(alpha: 0.15)
                               : (_isMuted
-                                  ? colors.danger.withOpacity(0.12)
+                                  ? colors.danger.withValues(alpha: 0.12)
                                   : colors.surfaceSunken),
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -545,7 +545,7 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
       padding: const EdgeInsets.only(right: 8),
       child: ActionChip(
         label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-        backgroundColor: isDanger ? colors.danger.withOpacity(0.1) : colors.surface,
+        backgroundColor: isDanger ? colors.danger.withValues(alpha: 0.1) : colors.surface,
         side: BorderSide(color: isDanger ? colors.danger : colors.border),
         onPressed: () => _sendText(command),
       ),
@@ -578,11 +578,11 @@ class _VoiceWaveformPainter extends CustomPainter {
     final width = size.width;
 
     double amp = 4.0;
-    Color strokeColor = primaryColor.withOpacity(0.6);
+    Color strokeColor = primaryColor.withValues(alpha: 0.6);
 
     if (isMuted) {
       amp = 1.0;
-      strokeColor = dangerColor.withOpacity(0.5);
+      strokeColor = dangerColor.withValues(alpha: 0.5);
     } else if (isListening) {
       amp = 18.0;
       strokeColor = successColor;
