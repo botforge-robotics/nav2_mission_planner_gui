@@ -194,6 +194,224 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
     } catch (_) {}
   }
 
+  Future<void> _showApiKeySetupDialog() async {
+    final colors = AppColorsTheme.of(context);
+    Map<String, dynamic> currentConfig = {};
+    try {
+      currentConfig = await _api.getVoiceConfig();
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    final groqMasked = currentConfig['groq_masked_key']?.toString() ?? '';
+    final geminiMasked = currentConfig['gemini_masked_key']?.toString() ?? '';
+    String pref = currentConfig['model_preference']?.toString() ?? 'groq';
+
+    final groqController = TextEditingController();
+    final geminiController = TextEditingController();
+    bool hideGroq = true;
+    bool hideGemini = true;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: colors.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: colors.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.vpn_key_rounded, color: colors.primary, size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'AI Assistant API Keys',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                'Securely stored on robot hardware (chmod 0600)',
+                                style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Model Preference Selector
+                    Text(
+                      'ACTIVE AI ENGINE',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('⚡ Groq (Whisper + LLaMA 3.3)'),
+                          selected: pref == 'groq',
+                          onSelected: (val) => setModalState(() => pref = 'groq'),
+                        ),
+                        ChoiceChip(
+                          label: const Text('🤖 Gemini (2.0 Flash)'),
+                          selected: pref == 'gemini',
+                          onSelected: (val) => setModalState(() => pref = 'gemini'),
+                        ),
+                        ChoiceChip(
+                          label: const Text('🔌 Offline Local Brain'),
+                          selected: pref == 'local',
+                          onSelected: (val) => setModalState(() => pref = 'local'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Groq Key Input
+                    Text(
+                      'Groq API Key (Free Daily Tier)',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textPrimary),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: groqController,
+                      obscureText: hideGroq,
+                      decoration: InputDecoration(
+                        hintText: groqMasked.isNotEmpty ? 'Active: $groqMasked' : 'Paste gsk_...',
+                        hintStyle: TextStyle(
+                          color: groqMasked.isNotEmpty ? colors.success : colors.textSecondary,
+                          fontSize: 13,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(hideGroq ? Icons.visibility_off : Icons.visibility, size: 18),
+                          onPressed: () => setModalState(() => hideGroq = !hideGroq),
+                        ),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Provides 2,000 Whisper audio transcriptions & 14,400 chat reqs/day free.',
+                      style: TextStyle(fontSize: 11, color: colors.textSecondary),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Gemini Key Input
+                    Text(
+                      'Google Gemini API Key (Free Tier)',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textPrimary),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: geminiController,
+                      obscureText: hideGemini,
+                      decoration: InputDecoration(
+                        hintText: geminiMasked.isNotEmpty ? 'Active: $geminiMasked' : 'Paste AIza...',
+                        hintStyle: TextStyle(
+                          color: geminiMasked.isNotEmpty ? colors.success : colors.textSecondary,
+                          fontSize: 13,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(hideGemini ? Icons.visibility_off : Icons.visibility, size: 18),
+                          onPressed: () => setModalState(() => hideGemini = !hideGemini),
+                        ),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Provides 1,500 free requests/day for Gemini 2.0 / 1.5 Flash.',
+                      style: TextStyle(fontSize: 11, color: colors.textSecondary),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Save Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.lock_outline_rounded, size: 18),
+                        label: const Text('Save Securely to Robot', style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final newGroq = groqController.text.trim();
+                          final newGemini = geminiController.text.trim();
+                          try {
+                            await _api.setVoiceConfig(
+                              groqApiKey: newGroq.isNotEmpty ? newGroq : null,
+                              geminiApiKey: newGemini.isNotEmpty ? newGemini : null,
+                              modelPreference: pref,
+                            );
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            messenger.showSnackBar(
+                              const SnackBar(content: Text('✓ AI assistant keys securely stored on robot!')),
+                            );
+                          } catch (err) {
+                            messenger.showSnackBar(
+                              SnackBar(content: Text('Failed to save config: $err')),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = AppColorsTheme.of(context);
@@ -253,6 +471,11 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
                 ),
               ),
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.vpn_key_rounded),
+            tooltip: 'Configure AI Models & API Keys',
+            onPressed: _showApiKeySetupDialog,
           ),
           IconButton(
             icon: const Icon(Icons.delete_sweep_outlined),

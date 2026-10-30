@@ -821,4 +821,19 @@ class SdkApiService {
   Future<Map<String, dynamic>> toggleVoiceMute({bool? muted}) =>
       _send('POST', '/api/v1/voice/mute',
           body: muted != null ? {'muted': muted} : {});
+
+  Future<Map<String, dynamic>> getVoiceConfig() =>
+      _send('GET', '/api/v1/voice/config');
+
+  Future<Map<String, dynamic>> setVoiceConfig({
+    String? groqApiKey,
+    String? geminiApiKey,
+    String? modelPreference,
+  }) {
+    final body = <String, dynamic>{};
+    if (groqApiKey != null) body['groq_api_key'] = groqApiKey;
+    if (geminiApiKey != null) body['gemini_api_key'] = geminiApiKey;
+    if (modelPreference != null) body['model_preference'] = modelPreference;
+    return _send('POST', '/api/v1/voice/config', body: body);
+  }
 }
