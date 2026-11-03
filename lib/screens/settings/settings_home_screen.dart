@@ -100,8 +100,8 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                 ),
                 _SettingsTile(
                   icon: Icons.speed_rounded,
-                  title: 'Motion & Speed Tuning',
-                  subtitle: 'Linear / angular speeds, anti-drift acceleration, docking dynamics',
+                  title: 'Speed Settings',
+                  subtitle: 'Autonomous cruising, turning, and docking speeds',
                   onTap: () => pushWithTelemetry(
                       context, const MotionSettingsScreen()),
                 ),

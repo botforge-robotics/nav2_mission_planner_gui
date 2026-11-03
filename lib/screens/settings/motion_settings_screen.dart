@@ -49,7 +49,7 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
     if (ok) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Motion parameters saved to robot database & active nodes.'),
+          content: Text('Speed settings saved successfully.'),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
@@ -70,17 +70,9 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Restore Default Motion Parameters?'),
+        title: const Text('Restore Default Speeds?'),
         content: const Text(
-          'This will reset all speeds and auto-computed dynamics '
-          'to their finalized baseline defaults in the robot database:\n\n'
-          '• Max Speed: 0.35 m/s\n'
-          '• Linear Accel: Auto (0.35 / 4 = 0.088 m/s²)\n'
-          '• Linear Decel: Auto (-0.35 / 2 = -0.175 m/s²)\n'
-          '• Angular Speed: 0.30 rad/s (~17°/s)\n'
-          '• Angular Accel: Auto (0.30 × 1.67 = 0.50 rad/s²)\n'
-          '• Undock Speed: 0.13 m/s (doubled)\n'
-          '• Dock Approach: 0.13 m/s (staged taper)',
+          'Reset all speed settings back to default values?',
         ),
         actions: [
           TextButton(
@@ -105,7 +97,7 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
     if (ok) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Calibrated defaults restored in robot database.'),
+          content: Text('Default speeds restored.'),
           backgroundColor: Colors.blueAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -124,15 +116,12 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Motion & Speed Tuning'),
+        title: const Text('Speed Settings'),
         actions: [
           IconButton(
-            tooltip: 'Re-fetch from Robot',
+            tooltip: 'Reload',
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () {
               HapticFeedback.lightImpact();
@@ -157,7 +146,7 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                   children: [
                     CircularProgressIndicator(),
                     SizedBox(height: 16),
-                    Text('Reading dynamic parameters from robot database...'),
+                    Text('Loading speed settings...'),
                   ],
                 ),
               );
@@ -172,9 +161,6 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                     vertical: AppSpacing.md,
                   ),
                   children: [
-                    _buildHeaderBanner(context, state, isDark),
-                    const SizedBox(height: AppSpacing.md),
-
                     if (state.error != null)
                       Container(
                         margin: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -198,10 +184,10 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                         ),
                       ),
 
-                    // Section 1: Linear Speed & Cruising
+                    // Section 1: Cruising Speed
                     _buildSectionCard(
                       context,
-                      title: 'Linear Speed & Cruising',
+                      title: 'Speed & Cruising',
                       icon: Icons.speed_rounded,
                       color: Colors.blueAccent,
                       children: [
@@ -209,25 +195,25 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                           context,
                           paramKey: 'max_linear_speed',
                           state: state,
+                          labelOverride: 'Maximum Speed',
+                          hint: 'Top autonomous cruising speed in open pathways',
                         ),
                         const Divider(height: 24),
                         _buildParamSlider(
                           context,
                           paramKey: 'min_linear_speed',
                           state: state,
+                          labelOverride: 'Minimum Approach Speed',
+                          hint: 'Creep speed when arriving at target locations',
                         ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
 
-                    // Section 2: Formula-Derived Acceleration & Deceleration (Auto-Configured)
-                    _buildAutoDynamicsCard(context, state),
-                    const SizedBox(height: AppSpacing.md),
-
-                    // Section 3: Angular Velocity & Heading Turns
+                    // Section 2: Turning Speed
                     _buildSectionCard(
                       context,
-                      title: 'Angular Dynamics & Turns',
+                      title: 'Turning Speed',
                       icon: Icons.rotate_right_rounded,
                       color: Colors.purpleAccent,
                       children: [
@@ -235,6 +221,8 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                           context,
                           paramKey: 'max_angular_speed',
                           state: state,
+                          labelOverride: 'Turn Speed',
+                          hint: 'Rotation speed during navigation turns',
                           unitTransform: (v) => '${v.toStringAsFixed(2)} rad/s (~${(v * 180 / pi).toStringAsFixed(1)}°/s)',
                         ),
                         const Divider(height: 24),
@@ -242,15 +230,17 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                           context,
                           paramKey: 'min_angular_speed',
                           state: state,
+                          labelOverride: 'Minimum Turn Speed',
+                          hint: 'Minimum rotation speed threshold',
                         ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
 
-                    // Section 4: Docking & Undocking Velocities
+                    // Section 3: Docking & Undocking
                     _buildSectionCard(
                       context,
-                      title: 'Docking & Undocking Dynamics',
+                      title: 'Docking & Undocking',
                       icon: Icons.ev_station_rounded,
                       color: Colors.tealAccent,
                       children: [
@@ -258,14 +248,16 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                           context,
                           paramKey: 'undock_speed',
                           state: state,
-                          hint: 'Doubled speed (0.13 m/s) swiftly drives clear of the charging slot.',
+                          labelOverride: 'Undock Speed',
+                          hint: 'Speed when leaving the charging station',
                         ),
                         const Divider(height: 24),
                         _buildParamSlider(
                           context,
                           paramKey: 'dock_speed',
                           state: state,
-                          hint: 'Doubled speed when far (>60cm), automatically tapering down to 0.022 m/s near contacts.',
+                          labelOverride: 'Dock Approach Speed',
+                          hint: 'Approach speed when docking (automatically slows down near contacts)',
                         ),
                       ],
                     ),
@@ -282,85 +274,6 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
         builder: (context, state, _) {
           return _buildBottomBar(context, state);
         },
-      ),
-    );
-  }
-
-  Widget _buildHeaderBanner(BuildContext context, MotionSettingsState state, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E232A) : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.blueAccent.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.storage_rounded, color: Colors.blueAccent, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Robot SQLite Database',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.greenAccent.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              color: Colors.greenAccent,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Text(
-                            'SYNCED',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Dynamic source of truth on ~/.navpromini_sdk.db. Safety clamped.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -406,190 +319,11 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
     );
   }
 
-  Widget _buildAutoDynamicsCard(BuildContext context, MotionSettingsState state) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    final maxLin = state.settings['max_linear_speed'] ?? 0.35;
-    final maxAng = state.settings['max_angular_speed'] ?? 0.30;
-
-    final accel = state.settings['linear_accel'] ?? (maxLin / 4.0);
-    final decel = state.settings['linear_decel'] ?? (-maxLin / 2.0);
-    final angAccel = state.settings['angular_accel'] ?? (maxAng * 1.67);
-
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: isDark ? Colors.white.withValues(alpha: 0.07) : Colors.black.withValues(alpha: 0.06),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.auto_awesome_rounded, size: 20, color: Colors.amberAccent),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'Auto-Configured Acceleration & Deceleration',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.amberAccent.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.functions_rounded, size: 12, color: Colors.amber),
-                      SizedBox(width: 4),
-                      Text(
-                        'FORMULA-SYNCED',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.amber,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Acceleration and deceleration are automatically derived from maximum speeds '
-              'to eliminate manual guesswork, prevent tile wheel slip, and enforce safe stopping distance.',
-              style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 14),
-            _buildFormulaRow(
-              context,
-              title: 'Linear Acceleration',
-              formula: 'a = v_max / 4',
-              valueText: '+${accel.toStringAsFixed(3)} m/s²',
-              description: 'Ramps smoothly from 0 to max speed in ~4.0s without wheel slip or odometry drift.',
-              accentColor: Colors.amber,
-            ),
-            const SizedBox(height: 10),
-            _buildFormulaRow(
-              context,
-              title: 'Linear Deceleration',
-              formula: 'd = -v_max / 2',
-              valueText: '${decel.toStringAsFixed(3)} m/s²',
-              description: 'Progressive braking deceleration stopping safely in ~2.0s without forward pitch or skid.',
-              accentColor: Colors.deepOrangeAccent,
-            ),
-            const SizedBox(height: 10),
-            _buildFormulaRow(
-              context,
-              title: 'Angular Acceleration',
-              formula: 'α = ω_max × 1.67',
-              valueText: '${angAccel.toStringAsFixed(2)} rad/s²',
-              description: 'Soft progressive rotational acceleration rate entering and exiting heading turns.',
-              accentColor: Colors.purpleAccent,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFormulaRow(
-    BuildContext context, {
-    required String title,
-    required String formula,
-    required String valueText,
-    required String description,
-    required Color accentColor,
-  }) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.05),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: accentColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        formula,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          fontWeight: FontWeight.bold,
-                          color: accentColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: accentColor.withValues(alpha: 0.3)),
-                ),
-                child: Text(
-                  valueText,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: accentColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            description,
-            style: TextStyle(
-              fontSize: 11,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildParamSlider(
     BuildContext context, {
     required String paramKey,
     required MotionSettingsState state,
+    String? labelOverride,
     String? hint,
     String Function(double)? unitTransform,
   }) {
@@ -598,8 +332,8 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
     final maxVal = (limits?['max'] as num?)?.toDouble() ?? 1.0;
     final step = (limits?['step'] as num?)?.toDouble() ?? 0.01;
     final unit = (limits?['unit'] as String?) ?? '';
-    final label = (limits?['label'] as String?) ?? paramKey;
-    final desc = (limits?['desc'] as String?) ?? hint;
+    final label = labelOverride ?? (limits?['label'] as String?) ?? paramKey;
+    final desc = hint ?? (limits?['desc'] as String?);
 
     final currentVal = state.settings[paramKey] ?? minVal;
     final defaultVal = state.defaults[paramKey];
@@ -702,7 +436,7 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Clamp: ${minVal.toStringAsFixed(2)} – ${maxVal.toStringAsFixed(2)} $unit',
+              'Range: ${minVal.toStringAsFixed(2)} – ${maxVal.toStringAsFixed(2)} $unit',
               style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.outline),
             ),
             if (defaultVal != null)
@@ -785,13 +519,13 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Icon(Icons.save_rounded, size: 18),
+                  : const Icon(Icons.check_circle_outline_rounded, size: 18),
               label: Text(
                 state.isSaving
-                    ? 'Saving to Robot...'
+                    ? 'Saving...'
                     : state.isDirty
-                        ? 'Save to Robot Database *'
-                        : 'Saved to Robot',
+                        ? 'Save Settings'
+                        : 'Settings Saved',
               ),
               onPressed: state.isSaving || !state.isDirty ? null : _handleSave,
             ),
