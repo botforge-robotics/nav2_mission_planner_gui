@@ -20,6 +20,7 @@ import '../dock/dock_charge_screen.dart';
 import '../robot_status/robot_status_screen.dart';
 import 'gamepad_settings_screen.dart';
 import 'ai_voice_settings_screen.dart';
+import 'motion_settings_screen.dart';
 import '../../services/gamepad_service.dart';
 import 'help_about_screen.dart';
 import 'software_update_screen.dart';
@@ -96,6 +97,13 @@ class _SettingsHomeScreenState extends State<SettingsHomeScreen> {
                   subtitle: 'Hardware status, power off, reboot, reset',
                   onTap: () => pushWithTelemetry(
                       context, const RobotStatusScreen()),
+                ),
+                _SettingsTile(
+                  icon: Icons.speed_rounded,
+                  title: 'Motion & Speed Tuning',
+                  subtitle: 'Linear / angular speeds, anti-drift acceleration, docking dynamics',
+                  onTap: () => pushWithTelemetry(
+                      context, const MotionSettingsScreen()),
                 ),
                 AnimatedBuilder(
                   animation: GamepadService.instance,

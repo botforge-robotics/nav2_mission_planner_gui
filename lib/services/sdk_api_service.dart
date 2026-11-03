@@ -479,6 +479,18 @@ class SdkApiService {
 
   Future<void> stopMotion() => _send('POST', '/api/v1/motion/stop');
 
+  /// Fetches dynamic motion & docking tuning parameters from the robot database.
+  Future<Map<String, dynamic>> getMotionSettings() =>
+      _send('GET', '/api/v1/motion/settings');
+
+  /// Persists motion & docking tuning parameters to the robot database within safety clamps.
+  Future<Map<String, dynamic>> saveMotionSettings(Map<String, dynamic> settings) =>
+      _send('PUT', '/api/v1/motion/settings', body: settings);
+
+  /// Restores motion & docking tuning parameters to their calibrated baseline defaults.
+  Future<Map<String, dynamic>> restoreMotionSettingsDefaults() =>
+      _send('POST', '/api/v1/motion/settings/restore_defaults');
+
   /// Fetches the currently loaded map name from the robot.
   Future<String?> getCurrentMap() async {
     try {
