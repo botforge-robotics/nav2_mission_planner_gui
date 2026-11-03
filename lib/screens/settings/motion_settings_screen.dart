@@ -114,6 +114,54 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
     }
   }
 
+  Future<void> _handleSetCurrentAsDefault() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Set Present as Default?'),
+        content: const Text(
+          'Save the current speed settings as the new default speeds?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Set as Default'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    HapticFeedback.mediumImpact();
+    final ok = await MotionSettingsController.instance.setCurrentAsDefault(_api);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    if (ok) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Present speeds saved as new default speeds.'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      final err = MotionSettingsController.instance.value.error ?? 'Failed to set default';
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(err),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -128,10 +176,38 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
               MotionSettingsController.instance.refresh(_api);
             },
           ),
-          IconButton(
-            tooltip: 'Restore Defaults',
-            icon: const Icon(Icons.restore_rounded),
-            onPressed: _handleRestoreDefaults,
+          PopupMenuButton<String>(
+            tooltip: 'More Options',
+            icon: const Icon(Icons.more_vert_rounded),
+            onSelected: (val) {
+              if (val == 'set_default') {
+                _handleSetCurrentAsDefault();
+              } else if (val == 'restore') {
+                _handleRestoreDefaults();
+              }
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'set_default',
+                child: Row(
+                  children: [
+                    Icon(Icons.bookmark_add_outlined, size: 20),
+                    SizedBox(width: 12),
+                    Text('Set Present as Default'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'restore',
+                child: Row(
+                  children: [
+                    Icon(Icons.restore_rounded, size: 20),
+                    SizedBox(width: 12),
+                    Text('Restore Defaults'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

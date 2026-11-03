@@ -154,4 +154,29 @@ class MotionSettingsController extends ValueNotifier<MotionSettingsState> {
       return false;
     }
   }
+
+  /// Sets present settings as the default speeds in the robot database.
+  Future<bool> setCurrentAsDefault(SdkApiService api) async {
+    value = value.copyWith(isSaving: true, clearError: true);
+    try {
+      final res = await api.setCurrentAsDefaultMotionSettings();
+      final rawDefaults = (res['defaults'] as Map?) ?? {};
+      final defaults = <String, double>{};
+      rawDefaults.forEach((k, v) {
+        if (v is num) defaults[k.toString()] = v.toDouble();
+      });
+
+      value = value.copyWith(
+        isSaving: false,
+        defaults: defaults,
+      );
+      return true;
+    } catch (e) {
+      value = value.copyWith(
+        isSaving: false,
+        error: 'Failed to set present settings as defaults: $e',
+      );
+      return false;
+    }
+  }
 }

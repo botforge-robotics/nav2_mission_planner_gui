@@ -491,6 +491,10 @@ class SdkApiService {
   Future<Map<String, dynamic>> restoreMotionSettingsDefaults() =>
       _send('POST', '/api/v1/motion/settings/restore_defaults');
 
+  /// Persists present motion settings as the new default speeds in the robot database.
+  Future<Map<String, dynamic>> setCurrentAsDefaultMotionSettings() =>
+      _send('POST', '/api/v1/motion/settings/set_as_default');
+
   /// Fetches the currently loaded map name from the robot.
   Future<String?> getCurrentMap() async {
     try {
