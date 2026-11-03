@@ -269,46 +269,42 @@ class _DockChargeScreenState extends State<DockChargeScreen> {
                                 ),
                               ),
                               const SizedBox(height: AppSpacing.md),
-                              AnimatedSwitcher(
-                                duration: AppMotion.resolveDuration(context, AppMotion.fast),
-                                child: Container(
-                                  key: ValueKey(_statusLabel(telemetry.dockStatus, charging)),
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: (charging ? AppColors.success : AppColors.of(context).textSecondary)
-                                        .withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: (charging ? AppColors.success : AppColors.of(context).border)
-                                          .withValues(alpha: 0.3),
-                                    ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: (charging ? AppColors.success : AppColors.of(context).textSecondary)
+                                      .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: (charging ? AppColors.success : AppColors.of(context).border)
+                                        .withValues(alpha: 0.3),
                                   ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        charging
-                                            ? Icons.bolt_rounded
-                                            : Icons.power_off_rounded,
-                                        size: 15,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      charging
+                                          ? Icons.bolt_rounded
+                                          : Icons.power_off_rounded,
+                                      size: 15,
+                                      color: charging
+                                          ? AppColors.success
+                                          : AppColors.of(context).textSecondary,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      _statusLabel(
+                                          telemetry.dockStatus, charging),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
                                         color: charging
                                             ? AppColors.success
-                                            : AppColors.of(context).textSecondary,
+                                            : Theme.of(context).colorScheme.onSurface,
                                       ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        _statusLabel(
-                                            telemetry.dockStatus, charging),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13,
-                                          color: charging
-                                              ? AppColors.success
-                                              : Theme.of(context).colorScheme.onSurface,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],

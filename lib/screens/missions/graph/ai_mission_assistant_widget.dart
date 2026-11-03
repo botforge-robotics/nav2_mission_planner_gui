@@ -82,6 +82,13 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
   }
 
   Future<void> _initSpeech() async {
+    // speech_to_text plugin only provides native platform implementations on
+    // Android, iOS, and macOS. On Linux and Windows desktop, skip initialize()
+    // to prevent MissingPluginException.
+    if (!Platform.isAndroid && !Platform.isIOS && !Platform.isMacOS) {
+      _speechAvailable = false;
+      return;
+    }
     try {
       _speechAvailable = await _speech.initialize(
         onError: (val) {
@@ -196,6 +203,19 @@ class _AiMissionAssistantWidgetState extends State<AiMissionAssistantWidget> {
   }
 
   Future<void> _toggleNativeSpeech() async {
+    if (!Platform.isAndroid && !Platform.isIOS && !Platform.isMacOS) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+                'Native device speech is not supported on desktop. Please select OpenAI or Groq Whisper in Settings.'),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(label: 'Settings', onPressed: _openSettings),
+          ),
+        );
+      }
+      return;
+    }
     if (_isListening) {
       await _speech.stop();
       if (mounted) setState(() => _isListening = false);

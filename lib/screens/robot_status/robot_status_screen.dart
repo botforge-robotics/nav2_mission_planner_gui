@@ -495,17 +495,13 @@ class _RobotStatusScreenState extends State<RobotStatusScreen> {
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .titleLarge),
-                                            AnimatedSwitcher(
-                                              duration: AppMotion.fast,
-                                              child: Text(
-                                                  'Online · ${status.label}',
-                                                  key: ValueKey(status),
-                                                  style: TextStyle(
-                                                      color: AppColors.of(context)
-                                                          .textSecondary,
-                                                      fontSize: 13,
-                                                      fontWeight: FontWeight.w500)),
-                                            ),
+                                            Text(
+                                                'Online · ${status.label}',
+                                                style: TextStyle(
+                                                    color: AppColors.of(context)
+                                                        .textSecondary,
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w500)),
                                           ],
                                         ),
                                       ),
@@ -813,6 +809,12 @@ class _AnimatedText extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
       duration: AppMotion.fast,
+      layoutBuilder: (currentChild, previousChildren) =>
+          AppMotion.safeLayoutBuilder(
+        currentChild,
+        previousChildren,
+        alignment: Alignment.centerLeft,
+      ),
       child: Text(text,
           key: ValueKey(text), style: style, overflow: TextOverflow.ellipsis),
     );

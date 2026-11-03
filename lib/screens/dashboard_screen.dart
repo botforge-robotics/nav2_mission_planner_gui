@@ -501,26 +501,18 @@ class _RobotCard extends StatelessWidget {
                               const SizedBox(width: 6),
                               Icon(status.icon, size: 14, color: statusColor),
                               const SizedBox(width: 4),
-                              AnimatedSwitcher(
-                                duration: AppMotion.fast,
-                                child: Text(
-                                  'Online · $statusLabel',
-                                  key: ValueKey('${status}_$isStopping'),
-                                  style: TextStyle(
-                                      color: colors.textSecondary),
-                                ),
+                              Text(
+                                'Online · $statusLabel',
+                                style: TextStyle(
+                                    color: colors.textSecondary),
                               ),
                             ],
                           ),
                           const SizedBox(height: 4),
-                          AnimatedSwitcher(
-                            duration: AppMotion.fast,
-                            child: Text(
-                              subtitle,
-                              key: ValueKey('subtitle-$status-$isStopping'),
-                              style: TextStyle(
-                                  color: colors.textTertiary, fontSize: 13),
-                            ),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                                color: colors.textTertiary, fontSize: 13),
                           ),
                         ],
                       ),
@@ -623,27 +615,22 @@ class _StatRow extends StatelessWidget {
           child: _Stat(
             icon: Icons.flag_rounded,
             label: 'Mission Progress',
-            value: AnimatedSwitcher(
-              duration: AppMotion.fast,
-              child: Tooltip(
-                message: sdkState.activeNodeLabel ??
-                    sdkState.missionMessage ??
-                    sdkState.missionName ??
-                    '',
-                child: Text(
-                  _formatMissionProgressText(sdkState),
-                  key: ValueKey(
-                      '${sdkState.missionStatus}_${sdkState.stepIndex}_${sdkState.loopIndex}'),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: sdkState.missionStatus == 'paused' &&
-                                sdkState.pauseReason == 'low_battery'
-                            ? AppColors.warning
-                            : (sdkState.missionStatus == 'failed'
-                                ? AppColors.danger
-                                : null),
-                      ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+            value: Tooltip(
+              message: sdkState.activeNodeLabel ??
+                  sdkState.missionMessage ??
+                  sdkState.missionName ??
+                  '',
+              child: Text(
+                _formatMissionProgressText(sdkState),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: sdkState.missionStatus == 'paused' &&
+                              sdkState.pauseReason == 'low_battery'
+                          ? AppColors.warning
+                          : (sdkState.missionStatus == 'failed'
+                              ? AppColors.danger
+                              : null),
+                    ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
@@ -1520,6 +1507,12 @@ class _AlertsCardState extends State<_AlertsCard> {
               AnimatedSwitcher(
                 duration: AppMotion.medium,
                 switchInCurve: AppMotion.enter,
+                layoutBuilder: (currentChild, previousChildren) =>
+                    AppMotion.safeLayoutBuilder(
+                  currentChild,
+                  previousChildren,
+                  alignment: Alignment.centerLeft,
+                ),
                 child: alerts.isEmpty
                     ? Row(
                         key: const ValueKey('empty'),

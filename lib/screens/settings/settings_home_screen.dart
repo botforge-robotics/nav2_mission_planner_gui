@@ -8,7 +8,6 @@ import '../../providers/robot_status.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../providers/setup_flow_controller.dart';
 import '../../services/sdk_state_service.dart';
-import '../../theme/app_motion.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../../utils/push_with_telemetry.dart';
@@ -334,15 +333,11 @@ class _RobotSummaryCard extends StatelessWidget {
                                 const SizedBox(width: 6),
                                 Icon(status.icon, size: 13, color: status.color),
                                 const SizedBox(width: 4),
-                                AnimatedSwitcher(
-                                  duration: AppMotion.fast,
-                                  child: Text(
-                                    'Online · ${status.label}',
-                                    key: ValueKey(status),
-                                    style: TextStyle(
-                                        color: colors.textSecondary,
-                                        fontSize: 13),
-                                  ),
+                                Text(
+                                  'Online · ${status.label}',
+                                  style: TextStyle(
+                                      color: colors.textSecondary,
+                                      fontSize: 13),
                                 ),
                               ],
                             ),

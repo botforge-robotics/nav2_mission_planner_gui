@@ -71,6 +71,31 @@ class AppMotion {
     }
     return duration;
   }
+
+  /// A safe layoutBuilder for [AnimatedSwitcher] that deduplicates keys between
+  /// outgoing and incoming children, preventing Flutter's "Duplicate keys found"
+  /// assertion when states toggle rapidly.
+  static Widget safeLayoutBuilder(
+    Widget? currentChild,
+    List<Widget> previousChildren, {
+    AlignmentGeometry alignment = Alignment.center,
+  }) {
+    final keys = <Key>{};
+    final children = <Widget>[];
+    if (currentChild != null) {
+      if (currentChild.key != null) keys.add(currentChild.key!);
+      children.add(currentChild);
+    }
+    for (final child in previousChildren) {
+      if (child.key == null || keys.add(child.key!)) {
+        children.insert(0, child);
+      }
+    }
+    return Stack(
+      alignment: alignment,
+      children: children,
+    );
+  }
 }
 
 class _SettledPageTransitionsBuilder extends PageTransitionsBuilder {

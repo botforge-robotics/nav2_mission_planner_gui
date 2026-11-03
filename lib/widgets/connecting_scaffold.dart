@@ -34,6 +34,11 @@ class ConnectingScaffold extends StatelessWidget {
             duration: AppMotion.slow,
             switchInCurve: AppMotion.enter,
             switchOutCurve: AppMotion.exit,
+            layoutBuilder: (currentChild, previousChildren) =>
+                AppMotion.safeLayoutBuilder(
+              currentChild,
+              previousChildren,
+            ),
             transitionBuilder: (child, animation) => FadeTransition(
               opacity: animation,
               child: ScaleTransition(

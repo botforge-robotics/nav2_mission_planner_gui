@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../../providers/connection_provider.dart';
 import '../../services/alerts_controller.dart';
 import '../../services/sdk_events_service.dart';
-import '../../theme/app_motion.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/breakpoints.dart';
 import '../../widgets/design/fade_in.dart';
@@ -141,17 +140,13 @@ class _AlertsLogScreenState extends State<AlertsLogScreen> {
                       size: 8,
                     ),
                     const SizedBox(width: 6),
-                    AnimatedSwitcher(
-                      duration: AppMotion.resolveDuration(context, AppMotion.fast),
-                      child: Text(
-                        connected ? 'LIVE WS' : 'RECONNECTING',
-                        key: ValueKey(connected),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.4,
-                          color: connected ? AppColors.success : AppColors.of(context).textSecondary,
-                        ),
+                    Text(
+                      connected ? 'LIVE WS' : 'RECONNECTING',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.4,
+                        color: connected ? AppColors.success : AppColors.of(context).textSecondary,
                       ),
                     ),
                   ],
