@@ -72,13 +72,13 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Restore Default Motion Parameters?'),
         content: const Text(
-          'This will reset all linear speeds, acceleration, angular dynamics, '
-          'and docking velocities to their finalized baseline defaults in the robot database:\n\n'
+          'This will reset all speeds and auto-computed dynamics '
+          'to their finalized baseline defaults in the robot database:\n\n'
           '• Max Speed: 0.35 m/s\n'
-          '• Linear Accel: 0.09 m/s² (halved anti-slip)\n'
-          '• Linear Decel: -0.18 m/s²\n'
+          '• Linear Accel: Auto (0.35 / 4 = 0.088 m/s²)\n'
+          '• Linear Decel: Auto (-0.35 / 2 = -0.175 m/s²)\n'
           '• Angular Speed: 0.30 rad/s (~17°/s)\n'
-          '• Angular Accel: 0.50 rad/s²\n'
+          '• Angular Accel: Auto (0.30 × 1.67 = 0.50 rad/s²)\n'
           '• Undock Speed: 0.13 m/s (doubled)\n'
           '• Dock Approach: 0.13 m/s (staged taper)',
         ),
@@ -220,28 +220,8 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
 
-                    // Section 2: Linear Acceleration & Deceleration (Anti-Drift)
-                    _buildSectionCard(
-                      context,
-                      title: 'Acceleration & Deceleration (Anti-Drift)',
-                      icon: Icons.timeline_rounded,
-                      color: Colors.amberAccent,
-                      children: [
-                        _buildParamSlider(
-                          context,
-                          paramKey: 'linear_accel',
-                          state: state,
-                          hint: 'Halved acceleration (0.09 m/s²) prevents wheel slip and odometry drift on smooth tile.',
-                        ),
-                        const Divider(height: 24),
-                        _buildParamSlider(
-                          context,
-                          paramKey: 'linear_decel',
-                          state: state,
-                          hint: 'Smooth progressive deceleration avoids nose-diving or sliding when stopping.',
-                        ),
-                      ],
-                    ),
+                    // Section 2: Formula-Derived Acceleration & Deceleration (Auto-Configured)
+                    _buildAutoDynamicsCard(context, state),
                     const SizedBox(height: AppSpacing.md),
 
                     // Section 3: Angular Velocity & Heading Turns
@@ -262,13 +242,6 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                           context,
                           paramKey: 'min_angular_speed',
                           state: state,
-                        ),
-                        const Divider(height: 24),
-                        _buildParamSlider(
-                          context,
-                          paramKey: 'angular_accel',
-                          state: state,
-                          hint: 'Soft ramp-up rate prevents sudden rotational jerks when aligning heading.',
                         ),
                       ],
                     ),
@@ -429,6 +402,186 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
             ...children,
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAutoDynamicsCard(BuildContext context, MotionSettingsState state) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final maxLin = state.settings['max_linear_speed'] ?? 0.35;
+    final maxAng = state.settings['max_angular_speed'] ?? 0.30;
+
+    final accel = state.settings['linear_accel'] ?? (maxLin / 4.0);
+    final decel = state.settings['linear_decel'] ?? (-maxLin / 2.0);
+    final angAccel = state.settings['angular_accel'] ?? (maxAng * 1.67);
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isDark ? Colors.white.withValues(alpha: 0.07) : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.auto_awesome_rounded, size: 20, color: Colors.amberAccent),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Auto-Configured Acceleration & Deceleration',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.amberAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.functions_rounded, size: 12, color: Colors.amber),
+                      SizedBox(width: 4),
+                      Text(
+                        'FORMULA-SYNCED',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Acceleration and deceleration are automatically derived from maximum speeds '
+              'to eliminate manual guesswork, prevent tile wheel slip, and enforce safe stopping distance.',
+              style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 14),
+            _buildFormulaRow(
+              context,
+              title: 'Linear Acceleration',
+              formula: 'a = v_max / 4',
+              valueText: '+${accel.toStringAsFixed(3)} m/s²',
+              description: 'Ramps smoothly from 0 to max speed in ~4.0s without wheel slip or odometry drift.',
+              accentColor: Colors.amber,
+            ),
+            const SizedBox(height: 10),
+            _buildFormulaRow(
+              context,
+              title: 'Linear Deceleration',
+              formula: 'd = -v_max / 2',
+              valueText: '${decel.toStringAsFixed(3)} m/s²',
+              description: 'Progressive braking deceleration stopping safely in ~2.0s without forward pitch or skid.',
+              accentColor: Colors.deepOrangeAccent,
+            ),
+            const SizedBox(height: 10),
+            _buildFormulaRow(
+              context,
+              title: 'Angular Acceleration',
+              formula: 'α = ω_max × 1.67',
+              valueText: '${angAccel.toStringAsFixed(2)} rad/s²',
+              description: 'Soft progressive rotational acceleration rate entering and exiting heading turns.',
+              accentColor: Colors.purpleAccent,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormulaRow(
+    BuildContext context, {
+    required String title,
+    required String formula,
+    required String valueText,
+    required String description,
+    required Color accentColor,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        formula,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.bold,
+                          color: accentColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  valueText,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: accentColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            style: TextStyle(
+              fontSize: 11,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }
