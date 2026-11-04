@@ -313,7 +313,38 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
 
-                    // Section 3: Docking & Undocking
+                    // Section 3: Acceleration & Deceleration
+                    _buildSectionCard(
+                      context,
+                      title: 'Acceleration & Deceleration',
+                      icon: Icons.bolt_rounded,
+                      color: Colors.amber,
+                      children: [
+                        _buildParamSlider(
+                          context,
+                          paramKey: 'linear_accel',
+                          state: state,
+                          labelOverride: 'Linear Accel & Decel',
+                          hint: 'Single slider controlling both linear acceleration and braking deceleration rate',
+                          unitTransform: (v) {
+                            final dec = (state.settings['linear_decel'] ?? -v * 1.33).abs();
+                            return '+${v.toStringAsFixed(2)} / -${dec.toStringAsFixed(2)} m/s²';
+                          },
+                        ),
+                        const Divider(height: 24),
+                        _buildParamSlider(
+                          context,
+                          paramKey: 'angular_accel',
+                          state: state,
+                          labelOverride: 'Turn Accel & Decel',
+                          hint: 'Single slider controlling rotational acceleration entering and exiting turns',
+                          unitTransform: (v) => '${v.toStringAsFixed(2)} rad/s² (~${(v * 180 / pi).toStringAsFixed(0)}°/s²)',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // Section 4: Docking & Undocking
                     _buildSectionCard(
                       context,
                       title: 'Docking & Undocking',

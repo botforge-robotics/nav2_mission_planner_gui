@@ -85,19 +85,14 @@ class MotionSettingsController extends ValueNotifier<MotionSettingsState> {
   }
 
   /// Updates a local parameter when the user adjusts a slider or taps +/-.
-  /// Automatically re-computes acceleration and deceleration using formulas:
-  ///   - linear_accel = max_linear_speed / 7.0 (anti-overshoot on route lines)
-  ///   - linear_decel = -max_linear_speed / 3.0 (smooth controlled stopping)
-  ///   - angular_accel = max_angular_speed * 1.67 (responsive rotational turns)
+  /// When adjusting linear_accel, linear_decel is coupled to it automatically (one combined slider).
   void updateParam(String key, double val) {
     final updated = Map<String, double>.from(value.settings);
     updated[key] = val;
 
-    if (key == 'max_linear_speed') {
-      updated['linear_accel'] = double.parse((val / 7.0).toStringAsFixed(3));
-      updated['linear_decel'] = double.parse((-val / 3.0).toStringAsFixed(3));
-    } else if (key == 'max_angular_speed') {
-      updated['angular_accel'] = double.parse((val * 1.67).toStringAsFixed(2));
+    if (key == 'linear_accel') {
+      // Couple linear deceleration to linear acceleration (1.33x for firm progressive braking)
+      updated['linear_decel'] = double.parse((-val * 1.33).toStringAsFixed(3));
     }
 
     value = value.copyWith(settings: updated, isDirty: true);
