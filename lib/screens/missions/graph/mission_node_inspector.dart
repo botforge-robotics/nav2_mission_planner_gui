@@ -166,107 +166,109 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
     final node = widget.node;
     final isUiInteraction = node.type == 'ui_interaction';
 
-    return Container(
-      width: 320,
+    return Material(
       color: colors.surface,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: colors.border)),
-            ),
-            child: Row(
-              children: [
-                Builder(
-                  builder: (context) {
-                    final (headerIcon, headerColor) = _getNodeHeaderMeta(node);
-                    return Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: headerColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: headerColor.withValues(alpha: 0.3), width: 1.0),
-                      ),
-                      child: Icon(headerIcon, size: 18, color: headerColor),
-                    );
-                  },
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _getNodeFriendlyTitle(node),
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+      child: SizedBox(
+        width: 320,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: colors.border)),
+              ),
+              child: Row(
+                children: [
+                  Builder(
+                    builder: (context) {
+                      final (headerIcon, headerColor) = _getNodeHeaderMeta(node);
+                      return Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: headerColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: headerColor.withValues(alpha: 0.3), width: 1.0),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Step Settings',
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!widget.readOnly)
-                  IconButton(
-                    icon: Icon(Icons.rotate_right_rounded, color: colors.primary, size: 20),
-                    tooltip: 'Rotate Connection Points (Press R to cycle 90°)',
-                    onPressed: () {
-                      node.rotationDegrees = (node.rotationDegrees + 90) % 360;
-                      widget.onChanged();
+                        child: Icon(headerIcon, size: 18, color: headerColor),
+                      );
                     },
                   ),
-                if (widget.onDelete != null && node.type != 'start' && !widget.readOnly)
-                  IconButton(
-                    icon: Icon(Icons.delete_outline, color: colors.danger, size: 20),
-                    tooltip: 'Delete this step',
-                    onPressed: widget.onDelete,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _getNodeFriendlyTitle(node),
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Step Settings',
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-              ],
+                  if (!widget.readOnly)
+                    IconButton(
+                      icon: Icon(Icons.rotate_right_rounded, color: colors.primary, size: 20),
+                      tooltip: 'Rotate Connection Points (Press R to cycle 90°)',
+                      onPressed: () {
+                        node.rotationDegrees = (node.rotationDegrees + 90) % 360;
+                        widget.onChanged();
+                      },
+                    ),
+                  if (widget.onDelete != null && node.type != 'start' && !widget.readOnly)
+                    IconButton(
+                      icon: Icon(Icons.delete_outline, color: colors.danger, size: 20),
+                      tooltip: 'Delete this step',
+                      onPressed: widget.onDelete,
+                    ),
+                ],
+              ),
             ),
-          ),
 
 
-          // Tabs (Properties vs Preview for UI interaction)
-          if (isUiInteraction)
-            TabBar(
-              controller: _tabController,
-              indicatorColor: colors.primary,
-              labelColor: colors.primary,
-              unselectedLabelColor: colors.textSecondary,
-              tabs: const [
-                Tab(text: 'Settings'),
-                Tab(text: 'Screen Preview'),
-              ],
+            // Tabs (Properties vs Preview for UI interaction)
+            if (isUiInteraction)
+              TabBar(
+                controller: _tabController,
+                indicatorColor: colors.primary,
+                labelColor: colors.primary,
+                unselectedLabelColor: colors.textSecondary,
+                tabs: const [
+                  Tab(text: 'Settings'),
+                  Tab(text: 'Screen Preview'),
+                ],
+              ),
+
+            // Body
+            Expanded(
+              child: isUiInteraction
+                  ? TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildPropertiesList(),
+                        _buildLiveFormPreview(),
+                      ],
+                    )
+                  : _buildPropertiesList(),
             ),
-
-          // Body
-          Expanded(
-            child: isUiInteraction
-                ? TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildPropertiesList(),
-                      _buildLiveFormPreview(),
-                    ],
-                  )
-                : _buildPropertiesList(),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -845,22 +847,91 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
       }
     }
 
-    final isCustomVariable = currentWp != null && currentWp.startsWith('{') && currentWp.endsWith('}');
-    final allKnownValues = {
-      for (final wp in waypoints) wp['name']?.toString() ?? '',
-      ...dynamicVariables,
-      if (currentWp != null && currentWp.isNotEmpty) currentWp,
-    }..remove('');
+    // Build unique items map to guarantee no duplicate keys/values exist
+    final menuItems = <String, DropdownMenuItem<String>>{};
+
+    // 1. Saved waypoints from map (deduplicate by name)
+    for (final wp in waypoints) {
+      final name = wp['name']?.toString() ?? '';
+      if (name.isNotEmpty && !menuItems.containsKey(name)) {
+        menuItems[name] = DropdownMenuItem<String>(
+          value: name,
+          child: Row(
+            children: [
+              Icon(Icons.place_rounded, size: 14, color: colors.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '$name (x: ${(wp['x'] as num?)?.toStringAsFixed(1) ?? '0.0'}, y: ${(wp['y'] as num?)?.toStringAsFixed(1) ?? '0.0'})',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
+    // 2. Dynamic form variables (deduplicate by var name)
+    for (final v in dynamicVariables) {
+      if (!menuItems.containsKey(v)) {
+        menuItems[v] = DropdownMenuItem<String>(
+          value: v,
+          child: Row(
+            children: [
+              const Icon(Icons.input_rounded, size: 14, color: Color(0xFF8B5CF6)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'User Selected: $v (From Form)',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8B5CF6)),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
+    // 3. Current waypoint if not already in the list (e.g. AI-generated, custom room, or variable)
+    if (currentWp != null && currentWp.isNotEmpty && !menuItems.containsKey(currentWp)) {
+      final isVar = currentWp.startsWith('{') && currentWp.endsWith('}');
+      menuItems[currentWp] = DropdownMenuItem<String>(
+        value: currentWp,
+        child: Row(
+          children: [
+            Icon(isVar ? Icons.code_rounded : Icons.place_outlined,
+                size: 14, color: isVar ? const Color(0xFF8B5CF6) : colors.primary),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                isVar ? 'Variable: $currentWp' : 'Target: $currentWp',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isVar ? const Color(0xFF8B5CF6) : colors.textPrimary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final effectiveInitialValue = (currentWp != null && menuItems.containsKey(currentWp))
+        ? currentWp
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Where should the robot drive?', style: TextStyle(color: colors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
-        SizedBox(height: 6),
+        const SizedBox(height: 6),
         DropdownButtonFormField<String>(
-          key: ValueKey('${widget.node.id}_wp_$currentWp'),
+          key: ValueKey('${widget.node.id}_wp_$effectiveInitialValue'),
           isExpanded: true,
-          initialValue: allKnownValues.contains(currentWp) ? currentWp : null,
+          initialValue: effectiveInitialValue,
           dropdownColor: colors.surfaceElevated,
           style: TextStyle(color: colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
@@ -872,62 +943,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           hint: Text('Choose a saved place or form variable', style: TextStyle(color: colors.textSecondary)),
-          items: [
-            if (waypoints.isNotEmpty) ...[
-              for (final wp in waypoints)
-                DropdownMenuItem(
-                  value: wp['name']?.toString() ?? '',
-                  child: Row(
-                    children: [
-                      Icon(Icons.place_rounded, size: 14, color: colors.primary),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          '${wp['name']} (x: ${(wp['x'] as num?)?.toStringAsFixed(1) ?? '0.0'}, y: ${(wp['y'] as num?)?.toStringAsFixed(1) ?? '0.0'})',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-            if (dynamicVariables.isNotEmpty) ...[
-              for (final v in dynamicVariables)
-                DropdownMenuItem(
-                  value: v,
-                  child: Row(
-                    children: [
-                      Icon(Icons.input_rounded, size: 14, color: Color(0xFF8B5CF6)),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          'User Selected: $v (From Form)',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8B5CF6)),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-            if (isCustomVariable && !dynamicVariables.contains(currentWp))
-              DropdownMenuItem(
-                value: currentWp,
-                child: Row(
-                  children: [
-                    Icon(Icons.code_rounded, size: 14, color: Color(0xFF8B5CF6)),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Variable: $currentWp',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8B5CF6)),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
+          items: menuItems.values.toList(),
           onChanged: widget.readOnly
               ? null
               : (val) {
@@ -1664,12 +1680,14 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
 
         // If trigger is automated (interval or schedule), show Active Toggle & Safety
         if (trigger != 'manual') ...[
-          Container(
-            decoration: BoxDecoration(
-              color: colors.surface,
+          Material(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
-              border: Border.all(color: colors.border),
+              side: BorderSide(color: colors.border),
             ),
+            clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
                 SwitchListTile(
@@ -2643,48 +2661,77 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                               }).toList(),
                             ),
                           SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            key: ValueKey('${widget.node.id}_field_${i}_loc_def_${fields[i].defaultValue}'),
-                            isExpanded: true,
-                            initialValue: (fields[i].defaultValue != null && fields[i].defaultValue.toString().isNotEmpty)
-                                ? fields[i].defaultValue.toString()
-                                : null,
-                            decoration: InputDecoration(
-                              isDense: true,
-                              labelText: 'Pre-selected Default Location (Optional)',
-                              labelStyle: TextStyle(fontSize: 11),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                            ),
-                            style: TextStyle(fontSize: 11, color: colors.textPrimary),
-                            items: [
-                              const DropdownMenuItem<String>(value: null, child: Text('None (User must choose)')),
-                              ...((fields[i].options.isNotEmpty
+                          Builder(
+                            builder: (context) {
+                              final menuItems = <String?, DropdownMenuItem<String?>>{};
+                              menuItems[null] = const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('None (User must choose)'),
+                              );
+
+                              final locs = (fields[i].options.isNotEmpty
                                       ? fields[i].options
                                       : (LocationsController.instance.value ?? const [])
                                           .map((l) => l['name']?.toString() ?? '')
                                           .where((s) => s.isNotEmpty)
-                                          .toList())
-                                  .map((loc) => DropdownMenuItem(
-                                        value: loc,
-                                        child: Row(
-                                          children: [
-                                            Icon(Icons.place_rounded, size: 12, color: colors.primary),
-                                            SizedBox(width: 4),
-                                            Expanded(child: Text(loc, overflow: TextOverflow.ellipsis)),
-                                          ],
-                                        ),
-                                      ))),
-                            ],
-                            onChanged: widget.readOnly
-                                ? null
-                                : (val) {
-                                    setState(() {
-                                      fields[i].defaultValue = val;
-                                      widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
-                                    });
-                                    widget.onChanged();
-                                  },
+                                          .toList());
+                              for (final loc in locs) {
+                                if (!menuItems.containsKey(loc)) {
+                                  menuItems[loc] = DropdownMenuItem<String?>(
+                                    value: loc,
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.place_rounded, size: 12, color: colors.primary),
+                                        const SizedBox(width: 4),
+                                        Expanded(child: Text(loc, overflow: TextOverflow.ellipsis)),
+                                      ],
+                                    ),
+                                  );
+                                }
+                              }
+
+                              final defVal = fields[i].defaultValue?.toString();
+                              if (defVal != null && defVal.isNotEmpty && !menuItems.containsKey(defVal)) {
+                                menuItems[defVal] = DropdownMenuItem<String?>(
+                                  value: defVal,
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.place_outlined, size: 12, color: colors.primary),
+                                      const SizedBox(width: 4),
+                                      Expanded(child: Text(defVal, overflow: TextOverflow.ellipsis)),
+                                    ],
+                                  ),
+                                );
+                              }
+
+                              final effectiveVal = (defVal != null && menuItems.containsKey(defVal))
+                                  ? defVal
+                                  : null;
+
+                              return DropdownButtonFormField<String?>(
+                                key: ValueKey('${widget.node.id}_field_${i}_loc_def_$effectiveVal'),
+                                isExpanded: true,
+                                initialValue: effectiveVal,
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  labelText: 'Pre-selected Default Location (Optional)',
+                                  labelStyle: const TextStyle(fontSize: 11),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                                ),
+                                style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                                items: menuItems.values.toList(),
+                                onChanged: widget.readOnly
+                                    ? null
+                                    : (val) {
+                                        setState(() {
+                                          fields[i].defaultValue = val;
+                                          widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
+                                        });
+                                        widget.onChanged();
+                                      },
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -2751,29 +2798,53 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
                             ],
                           ),
                           SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            key: ValueKey('${widget.node.id}_field_${i}_def_${fields[i].defaultValue}'),
-                            isExpanded: true,
-                            initialValue: fields[i].options.contains(fields[i].defaultValue) ? fields[i].defaultValue : null,
-                            decoration: InputDecoration(
-                              isDense: true,
-                              labelText: 'Pre-selected Default Choice (Optional)',
-                              labelStyle: TextStyle(fontSize: 11),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
-                            ),
-                            style: TextStyle(fontSize: 11, color: colors.textPrimary),
-                            items: [
-                              const DropdownMenuItem<String>(value: null, child: Text('None (User must choose)')),
-                              for (final opt in fields[i].options)
-                                DropdownMenuItem(value: opt, child: Text(opt)),
-                            ],
-                            onChanged: widget.readOnly ? null : (val) {
-                              setState(() {
-                                fields[i].defaultValue = val;
-                                widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
-                              });
-                              widget.onChanged();
+                          Builder(
+                            builder: (context) {
+                              final menuItems = <String?, DropdownMenuItem<String?>>{};
+                              menuItems[null] = const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('None (User must choose)'),
+                              );
+                              for (final opt in fields[i].options) {
+                                if (opt.isNotEmpty && !menuItems.containsKey(opt)) {
+                                  menuItems[opt] = DropdownMenuItem<String?>(
+                                    value: opt,
+                                    child: Text(opt),
+                                  );
+                                }
+                              }
+                              final defVal = fields[i].defaultValue?.toString();
+                              if (defVal != null && defVal.isNotEmpty && !menuItems.containsKey(defVal)) {
+                                menuItems[defVal] = DropdownMenuItem<String?>(
+                                  value: defVal,
+                                  child: Text(defVal),
+                                );
+                              }
+                              final effectiveVal = (defVal != null && menuItems.containsKey(defVal))
+                                  ? defVal
+                                  : null;
+
+                              return DropdownButtonFormField<String?>(
+                                key: ValueKey('${widget.node.id}_field_${i}_def_$effectiveVal'),
+                                isExpanded: true,
+                                initialValue: effectiveVal,
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  labelText: 'Pre-selected Default Choice (Optional)',
+                                  labelStyle: const TextStyle(fontSize: 11),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                                ),
+                                style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                                items: menuItems.values.toList(),
+                                onChanged: widget.readOnly ? null : (val) {
+                                  setState(() {
+                                    fields[i].defaultValue = val;
+                                    widget.node.params['fields'] = fields.map((f) => f.toJson()).toList();
+                                  });
+                                  widget.onChanged();
+                                },
+                              );
                             },
                           ),
                         ],
@@ -4365,8 +4436,14 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
   Widget _buildSwitchMissionInspector() {
     final targetId = widget.node.params['target_mission_id'] as String?;
     final transferContext = widget.node.params['transfer_context'] as bool? ?? true;
-    final missions = widget.availableMissions;
-    final targetExists = missions.any((m) => m['id'] == targetId);
+    final uniqueMissions = <String, Map<String, dynamic>>{};
+    for (final m in widget.availableMissions) {
+      final id = m['id']?.toString() ?? '';
+      if (id.isNotEmpty && !uniqueMissions.containsKey(id)) {
+        uniqueMissions[id] = m;
+      }
+    }
+    final targetExists = uniqueMissions.containsKey(targetId);
     final effectiveValue = targetExists ? targetId : (targetId != null && targetId.isNotEmpty ? '__deleted__' : null);
 
     return Column(
@@ -4410,7 +4487,7 @@ class _MissionNodeInspectorState extends State<MissionNodeInspector>
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.inputRadius), borderSide: BorderSide(color: colors.primary, width: 1.5)),
           ),
           items: [
-            for (final m in missions)
+            for (final m in uniqueMissions.values)
               DropdownMenuItem(
                 value: m['id'] as String,
                 child: Row(

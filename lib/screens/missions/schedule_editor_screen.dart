@@ -180,25 +180,35 @@ class _ScheduleEditorScreenState extends State<ScheduleEditorScreen> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<String>(
-                  initialValue: _missionId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Select Mission',
-                    hintText: 'Choose a mission from your library',
-                    prefixIcon: Icon(Icons.list_alt_rounded),
-                  ),
-                  items: [
-                    for (final m in widget.missions)
-                      DropdownMenuItem(
-                        value: m['id'] as String,
-                        child: Text(
-                          '${m['name'] as String? ?? m['id'] as String} (${(m['steps'] as List? ?? const []).length} steps${m['map'] != null ? ' · Map: ${m['map']}' : ''})',
+                Builder(builder: (context) {
+                  final uniqueMissions = <String, Map<String, dynamic>>{};
+                  for (final m in widget.missions) {
+                    final id = m['id']?.toString() ?? '';
+                    if (id.isNotEmpty && !uniqueMissions.containsKey(id)) {
+                      uniqueMissions[id] = m;
+                    }
+                  }
+                  final effectiveMissionId = uniqueMissions.containsKey(_missionId) ? _missionId : null;
+                  return DropdownButtonFormField<String>(
+                    initialValue: effectiveMissionId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Select Mission',
+                      hintText: 'Choose a mission from your library',
+                      prefixIcon: Icon(Icons.list_alt_rounded),
+                    ),
+                    items: [
+                      for (final m in uniqueMissions.values)
+                        DropdownMenuItem(
+                          value: m['id'] as String,
+                          child: Text(
+                            '${m['name'] as String? ?? m['id'] as String} (${(m['steps'] as List? ?? const []).length} steps${m['map'] != null ? ' · Map: ${m['map']}' : ''})',
+                          ),
                         ),
-                      ),
-                  ],
-                  onChanged: (v) => setState(() => _missionId = v),
-                ),
+                    ],
+                    onChanged: (v) => setState(() => _missionId = v),
+                  );
+                }),
                 const SizedBox(height: AppSpacing.md),
                 TextField(
                   controller: _nameController,

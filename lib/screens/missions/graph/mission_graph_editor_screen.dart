@@ -3512,67 +3512,69 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
 
   Widget _buildRightSidebar(GraphNode? selectedNode) {
     final colors = AppColors.of(context);
-    return Container(
-      width: 320,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(left: BorderSide(color: colors.border, width: 1.0)),
-      ),
-      child: selectedNode != null
-          ? Column(
-              children: [
-                Expanded(
-                  child: MissionNodeInspector(
-                    node: selectedNode,
-                    graph: _graph,
-                    onChanged: () => setState(() {}),
-                    onDelete: () => _deleteNode(selectedNode),
-                    availableMissions: _availableMissions,
-                    api: _api,
-                    ros2: context.read<ConnectionProvider>().ros2,
+    return Material(
+      color: colors.surface,
+      child: Container(
+        width: 320,
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: colors.border, width: 1.0)),
+        ),
+        child: selectedNode != null
+            ? Column(
+                children: [
+                  Expanded(
+                    child: MissionNodeInspector(
+                      node: selectedNode,
+                      graph: _graph,
+                      onChanged: () => setState(() {}),
+                      onDelete: () => _deleteNode(selectedNode),
+                      availableMissions: _availableMissions,
+                      api: _api,
+                      ros2: context.read<ConnectionProvider>().ros2,
+                    ),
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceSunken,
-                    border: Border(top: BorderSide(color: colors.border)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: colors.danger,
-                            side: BorderSide(color: colors.danger),
-                            minimumSize: const Size(0, 36),
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceSunken,
+                      border: Border(top: BorderSide(color: colors.border)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: colors.danger,
+                              side: BorderSide(color: colors.danger),
+                              minimumSize: const Size(0, 36),
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.buttonRadius)),
+                            ),
+                            icon: const Icon(Icons.delete_outline, size: 16),
+                            label: const Text('Delete Node', style: TextStyle(fontSize: 12)),
+                            onPressed: () => _deleteNode(selectedNode),
                           ),
-                          icon: const Icon(Icons.delete_outline, size: 16),
-                          label: const Text('Delete Node', style: TextStyle(fontSize: 12)),
-                          onPressed: () => _deleteNode(selectedNode),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        tooltip: 'Set as Entrypoint',
-                        icon: Icon(
-                          _graph.entrypoint == selectedNode.id ? Icons.flag : Icons.outlined_flag,
-                          color: colors.primary,
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: 'Set as Entrypoint',
+                          icon: Icon(
+                            _graph.entrypoint == selectedNode.id ? Icons.flag : Icons.outlined_flag,
+                            color: colors.primary,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _graph.entrypoint = selectedNode.id;
+                            });
+                          },
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _graph.entrypoint = selectedNode.id;
-                          });
-                        },
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            )
-          : (_selectedEdge != null ? _buildEdgeInspector(_selectedEdge!) : _buildGraphOverview()),
+                ],
+              )
+            : (_selectedEdge != null ? _buildEdgeInspector(_selectedEdge!) : _buildGraphOverview()),
+      ),
     );
   }
 

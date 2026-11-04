@@ -740,24 +740,37 @@ class _MissionEditorScreenState extends State<MissionEditorScreen> {
                         ),
                       )
                     else
-                      DropdownButtonFormField<String>(
-                        initialValue: locations.any((l) => l['name'] == selectedLoc)
+                      Builder(builder: (context) {
+                        final uniqueLocations = <String, Map<String, dynamic>>{};
+                        for (final l in locations) {
+                          final name = l['name']?.toString() ?? '';
+                          if (name.isNotEmpty && !uniqueLocations.containsKey(name)) {
+                            uniqueLocations[name] = l;
+                          }
+                        }
+                        if (selectedLoc != null && selectedLoc!.isNotEmpty && !uniqueLocations.containsKey(selectedLoc)) {
+                          uniqueLocations[selectedLoc!] = {'name': selectedLoc};
+                        }
+                        final effectiveLoc = uniqueLocations.containsKey(selectedLoc)
                             ? selectedLoc
-                            : locations.first['name'] as String?,
-                        decoration: const InputDecoration(
-                          labelText: 'Select Location',
-                          prefixIcon: Icon(Icons.place_rounded, size: 18),
-                        ),
-                        items: [
-                          for (final loc in locations)
-                            DropdownMenuItem<String>(
-                              value: loc['name'] as String?,
-                              child: Text(loc['name'] as String? ?? ''),
-                            ),
-                        ],
-                        onChanged: (val) =>
-                            setDialogState(() => selectedLoc = val),
-                      ),
+                            : (uniqueLocations.isNotEmpty ? uniqueLocations.keys.first : null);
+                        return DropdownButtonFormField<String>(
+                          initialValue: effectiveLoc,
+                          decoration: const InputDecoration(
+                            labelText: 'Select Location',
+                            prefixIcon: Icon(Icons.place_rounded, size: 18),
+                          ),
+                          items: [
+                            for (final name in uniqueLocations.keys)
+                              DropdownMenuItem<String>(
+                                value: name,
+                                child: Text(name),
+                              ),
+                          ],
+                          onChanged: (val) =>
+                              setDialogState(() => selectedLoc = val),
+                        );
+                      }),
                   ] else ...[
                     Row(
                       children: [

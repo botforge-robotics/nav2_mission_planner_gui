@@ -479,19 +479,59 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
               ValueListenableBuilder<List<Map<String, dynamic>>?>(
                 valueListenable: LocationsController.instance,
                 builder: (context, wps, _) {
-                  final locOptions = field.options.isNotEmpty
+                  final menuItems = <String?, DropdownMenuItem<String?>>{};
+                  final rawOptions = field.options.isNotEmpty
                       ? field.options
                       : (wps ?? const [])
                           .map((l) => l['name']?.toString() ?? '')
                           .where((s) => s.isNotEmpty)
                           .toList();
-                  final currentVal = locOptions.contains(_formData[field.key])
-                      ? _formData[field.key]
-                      : (locOptions.isNotEmpty ? locOptions.first : null);
+
+                  for (final opt in rawOptions) {
+                    if (opt.isNotEmpty && !menuItems.containsKey(opt)) {
+                      menuItems[opt] = DropdownMenuItem<String?>(
+                        value: opt,
+                        child: Row(
+                          children: [
+                            Icon(Icons.place_rounded, size: 14, color: colors.primary),
+                            const SizedBox(width: 6),
+                            Expanded(child: Text(opt, overflow: TextOverflow.ellipsis)),
+                          ],
+                        ),
+                      );
+                    }
+                  }
+
+                  final existingVal = _formData[field.key]?.toString();
+                  if (existingVal != null && existingVal.isNotEmpty && !menuItems.containsKey(existingVal)) {
+                    menuItems[existingVal] = DropdownMenuItem<String?>(
+                      value: existingVal,
+                      child: Row(
+                        children: [
+                          Icon(Icons.place_outlined, size: 14, color: colors.primary),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(existingVal, overflow: TextOverflow.ellipsis)),
+                        ],
+                      ),
+                    );
+                  }
+
+                  if (menuItems.isEmpty) {
+                    menuItems[null] = const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('No saved map locations found', style: TextStyle(fontStyle: FontStyle.italic)),
+                    );
+                  }
+
+                  final currentVal = (existingVal != null && menuItems.containsKey(existingVal))
+                      ? existingVal
+                      : (menuItems.keys.firstWhere((k) => k != null, orElse: () => null));
+
                   if (_formData[field.key] == null || _formData[field.key].toString().isEmpty) {
                     _formData[field.key] = currentVal;
                   }
-                  return DropdownButtonFormField<String>(
+
+                  return DropdownButtonFormField<String?>(
                     key: ValueKey('field_${field.key}_$currentVal'),
                     isExpanded: true,
                     initialValue: currentVal,
@@ -514,24 +554,7 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                         borderSide: BorderSide(color: colors.primary, width: 1.5),
                       ),
                     ),
-                    items: [
-                      if (locOptions.isEmpty)
-                        const DropdownMenuItem(
-                          value: null,
-                          child: Text('No saved map locations found', style: TextStyle(fontStyle: FontStyle.italic)),
-                        ),
-                      for (final opt in locOptions)
-                        DropdownMenuItem(
-                          value: opt,
-                          child: Row(
-                            children: [
-                              Icon(Icons.place_rounded, size: 14, color: colors.primary),
-                              const SizedBox(width: 6),
-                              Expanded(child: Text(opt, overflow: TextOverflow.ellipsis)),
-                            ],
-                          ),
-                        ),
-                    ],
+                    items: menuItems.values.toList(),
                     onChanged: (v) => _formData[field.key] = v,
                     onSaved: (v) => _formData[field.key] = v ?? _formData[field.key],
                   );
@@ -539,14 +562,36 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
               )
             else if (field.type == 'select')
               Builder(builder: (context) {
-                final options = field.options;
-                final currentVal = options.contains(_formData[field.key])
-                    ? _formData[field.key]
-                    : (options.isNotEmpty ? options.first : null);
+                final menuItems = <String?, DropdownMenuItem<String?>>{};
+                for (final opt in field.options) {
+                  if (opt.isNotEmpty && !menuItems.containsKey(opt)) {
+                    menuItems[opt] = DropdownMenuItem<String?>(
+                      value: opt,
+                      child: Text(opt, overflow: TextOverflow.ellipsis),
+                    );
+                  }
+                }
+                final existingVal = _formData[field.key]?.toString();
+                if (existingVal != null && existingVal.isNotEmpty && !menuItems.containsKey(existingVal)) {
+                  menuItems[existingVal] = DropdownMenuItem<String?>(
+                    value: existingVal,
+                    child: Text(existingVal, overflow: TextOverflow.ellipsis),
+                  );
+                }
+                if (menuItems.isEmpty) {
+                  menuItems[null] = const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('No choices available', style: TextStyle(fontStyle: FontStyle.italic)),
+                  );
+                }
+                final currentVal = (existingVal != null && menuItems.containsKey(existingVal))
+                    ? existingVal
+                    : (menuItems.keys.firstWhere((k) => k != null, orElse: () => null));
+
                 if (_formData[field.key] == null || _formData[field.key].toString().isEmpty) {
                   _formData[field.key] = currentVal;
                 }
-                return DropdownButtonFormField<String>(
+                return DropdownButtonFormField<String?>(
                   key: ValueKey('field_${field.key}_$currentVal'),
                   isExpanded: true,
                   initialValue: currentVal,
@@ -569,13 +614,7 @@ class _UiInteractionDialogState extends State<UiInteractionDialog> {
                       borderSide: BorderSide(color: colors.primary, width: 1.5),
                     ),
                   ),
-                  items: [
-                    for (final opt in options)
-                      DropdownMenuItem(
-                        value: opt,
-                        child: Text(opt, overflow: TextOverflow.ellipsis),
-                      ),
-                  ],
+                  items: menuItems.values.toList(),
                   onChanged: (v) => _formData[field.key] = v,
                   onSaved: (v) => _formData[field.key] = v ?? _formData[field.key],
                 );

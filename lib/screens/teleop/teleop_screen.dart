@@ -1391,17 +1391,23 @@ class _NavigationDispatcherCardState extends State<_NavigationDispatcherCard> {
                       final locList = locations ?? const <Map<String, dynamic>>[];
                       final nodesList = roadNetwork?.nodes ?? const <RoadNode>[];
 
-                      final List<_DirectDestination> destinations = [
-                        for (final l in locList)
-                          _DirectDestination(
-                            id: 'loc:${l['name']}',
+                      final uniqueDestinations = <String, _DirectDestination>{};
+                      for (final l in locList) {
+                        final id = 'loc:${l['name']}';
+                        if (!uniqueDestinations.containsKey(id)) {
+                          uniqueDestinations[id] = _DirectDestination(
+                            id: id,
                             label: l['name'] as String? ?? 'Unnamed Location',
                             isNode: false,
                             data: l,
-                          ),
-                        for (final n in nodesList)
-                          _DirectDestination(
-                            id: 'node:${n.id}',
+                          );
+                        }
+                      }
+                      for (final n in nodesList) {
+                        final id = 'node:${n.id}';
+                        if (!uniqueDestinations.containsKey(id)) {
+                          uniqueDestinations[id] = _DirectDestination(
+                            id: id,
                             label: '${n.name} (#${n.id})',
                             isNode: true,
                             data: {
@@ -1412,8 +1418,10 @@ class _NavigationDispatcherCardState extends State<_NavigationDispatcherCard> {
                               'node_id': n.id,
                               'is_node': true,
                             },
-                          ),
-                      ];
+                          );
+                        }
+                      }
+                      final List<_DirectDestination> destinations = uniqueDestinations.values.toList();
 
                       if (_selectedDirectId != null &&
                           !destinations.any((d) => d.id == _selectedDirectId)) {
