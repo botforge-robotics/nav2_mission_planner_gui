@@ -29,29 +29,54 @@ class ConnectingScaffold extends StatelessWidget {
     final hasError = connection.error != null;
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: AnimatedSwitcher(
-            duration: AppMotion.slow,
-            switchInCurve: AppMotion.enter,
-            switchOutCurve: AppMotion.exit,
-            layoutBuilder: (currentChild, previousChildren) =>
-                AppMotion.safeLayoutBuilder(
-              currentChild,
-              previousChildren,
-            ),
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(
-                scale: Tween(begin: 0.96, end: 1.0).animate(animation),
-                child: child,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight,
+                ),
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.xl,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: AnimatedSwitcher(
+                        duration: AppMotion.slow,
+                        switchInCurve: AppMotion.enter,
+                        switchOutCurve: AppMotion.exit,
+                        layoutBuilder: (currentChild, previousChildren) =>
+                            AppMotion.safeLayoutBuilder(
+                          currentChild,
+                          previousChildren,
+                        ),
+                        transitionBuilder: (child, animation) => FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(
+                            scale: Tween(begin: 0.96, end: 1.0).animate(animation),
+                            child: child,
+                          ),
+                        ),
+                        child: hasError
+                            ? _ErrorState(
+                                key: const ValueKey('error'),
+                                connection: connection,
+                              )
+                            : _ConnectingState(
+                                key: const ValueKey('connecting'),
+                                connection: connection,
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
-            child: hasError
-                ? _ErrorState(
-                    key: const ValueKey('error'), connection: connection)
-                : _ConnectingState(
-                    key: const ValueKey('connecting'), connection: connection),
-          ),
+            );
+          },
         ),
       ),
     );
@@ -82,34 +107,36 @@ Future<void> _showChangeIpDialog(
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Change Robot IP'),
-      content: Form(
-        key: formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Enter the new IP address of your robot on this network.',
-              style: TextStyle(color: AppColors.of(ctx).textSecondary, fontSize: 13),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            TextFormField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: TextInputType.url,
-              decoration: const InputDecoration(
-                labelText: 'Robot IP Address',
-                hintText: 'e.g. 192.168.0.128',
-                prefixIcon: Icon(Icons.lan_outlined),
+      content: SingleChildScrollView(
+        child: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Enter the new IP address of your robot on this network.',
+                style: TextStyle(color: AppColors.of(ctx).textSecondary, fontSize: 13),
               ),
-              validator: (val) {
-                if (val == null || val.trim().isEmpty) {
-                  return 'Please enter a valid IP or hostname';
-                }
-                return null;
-              },
-            ),
-          ],
+              const SizedBox(height: AppSpacing.md),
+              TextFormField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(
+                  labelText: 'Robot IP Address',
+                  hintText: 'e.g. 192.168.0.128',
+                  prefixIcon: Icon(Icons.lan_outlined),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Please enter a valid IP or hostname';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
