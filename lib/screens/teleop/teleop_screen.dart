@@ -1212,7 +1212,7 @@ class _NavigationDispatcherCard extends StatefulWidget {
     this.selectedRoadNodeId,
   });
 
-  final void Function(Map<String, dynamic> location) onDirectGo;
+  final Future<void> Function(Map<String, dynamic> location) onDirectGo;
   final Future<void> Function({
     int? nodeId,
     String? waypointName,
@@ -1233,6 +1233,7 @@ class _NavigationDispatcherCardState extends State<_NavigationDispatcherCard> {
   String _reroutePolicy = 'wait_then_reroute';
   double _waitTimeoutSec = 5.0;
   bool _dispatching = false;
+  bool _directDispatching = false;
 
   @override
   void didUpdateWidget(covariant _NavigationDispatcherCard oldWidget) {
@@ -1526,7 +1527,7 @@ class _NavigationDispatcherCardState extends State<_NavigationDispatcherCard> {
                                     ),
                                   ),
                               ],
-                              onChanged: destinations.isEmpty
+                              onChanged: destinations.isEmpty || _directDispatching
                                   ? null
                                   : (v) => setState(() => _selectedDirectId = v),
                             ),
@@ -1539,15 +1540,31 @@ class _NavigationDispatcherCardState extends State<_NavigationDispatcherCard> {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8)),
                             ),
-                            onPressed: _selectedDirectId == null
+                            onPressed: _selectedDirectId == null || _directDispatching
                                 ? null
-                                : () {
+                                : () async {
                                     final dest = destinations.firstWhere(
                                         (d) => d.id == _selectedDirectId);
-                                    widget.onDirectGo(dest.data);
+                                    setState(() => _directDispatching = true);
+                                    try {
+                                      await widget.onDirectGo(dest.data);
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => _directDispatching = false);
+                                      }
+                                    }
                                   },
-                            icon: const Icon(Icons.near_me_rounded, size: 16),
-                            label: const Text('Go'),
+                            icon: _directDispatching
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.near_me_rounded, size: 16),
+                            label: Text(_directDispatching ? 'Going...' : 'Go'),
                           ),
                         ],
                       );
