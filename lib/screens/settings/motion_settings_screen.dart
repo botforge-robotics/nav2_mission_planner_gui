@@ -260,10 +260,10 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                         ),
                       ),
 
-                    // Section 1: Cruising Speed
+                    // Section 1: Driving Speed (Linear)
                     _buildSectionCard(
                       context,
-                      title: 'Speed & Cruising',
+                      title: 'Driving Speed',
                       icon: Icons.speed_rounded,
                       color: Colors.blueAccent,
                       children: [
@@ -271,22 +271,46 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                           context,
                           paramKey: 'max_linear_speed',
                           state: state,
-                          labelOverride: 'Maximum Speed',
-                          hint: 'Top autonomous cruising speed in open pathways',
+                          labelOverride: 'Linear Speed',
+                          hint: 'Cruising speed in open pathways (accel & decel auto-tune)',
                         ),
-                        const Divider(height: 24),
-                        _buildParamSlider(
-                          context,
-                          paramKey: 'min_linear_speed',
-                          state: state,
-                          labelOverride: 'Minimum Approach Speed',
-                          hint: 'Creep speed when arriving at target locations',
+                        const SizedBox(height: 10),
+                        Builder(
+                          builder: (context) {
+                            final linVal = state.settings['max_linear_speed'] ?? 0.35;
+                            final linAcc = state.settings['linear_accel'] ?? (linVal / 1.6);
+                            final linDec = (state.settings['linear_decel'] ?? (-linVal / 1.2)).abs();
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.blueAccent.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.2)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.auto_mode_rounded, size: 16, color: Colors.blueAccent),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Auto Configured: Accel +${linAcc.toStringAsFixed(2)} m/s² · Decel -${linDec.toStringAsFixed(2)} m/s²',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.blueAccent,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
 
-                    // Section 2: Turning Speed
+                    // Section 2: Turning Speed (Angular)
                     _buildSectionCard(
                       context,
                       title: 'Turning Speed',
@@ -298,53 +322,45 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                           paramKey: 'max_angular_speed',
                           state: state,
                           labelOverride: 'Turn Speed',
-                          hint: 'Rotation speed during navigation turns',
+                          hint: 'Rotation speed during navigation turns (turn accel auto-tunes)',
                           unitTransform: (v) => '${v.toStringAsFixed(2)} rad/s (~${(v * 180 / pi).toStringAsFixed(1)}°/s)',
                         ),
-                        const Divider(height: 24),
-                        _buildParamSlider(
-                          context,
-                          paramKey: 'min_angular_speed',
-                          state: state,
-                          labelOverride: 'Minimum Turn Speed',
-                          hint: 'Minimum rotation speed threshold',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-
-                    // Section 3: Acceleration & Deceleration
-                    _buildSectionCard(
-                      context,
-                      title: 'Acceleration & Deceleration',
-                      icon: Icons.bolt_rounded,
-                      color: Colors.amber,
-                      children: [
-                        _buildParamSlider(
-                          context,
-                          paramKey: 'linear_accel',
-                          state: state,
-                          labelOverride: 'Linear Accel & Decel',
-                          hint: 'Single slider controlling both linear acceleration and braking deceleration rate',
-                          unitTransform: (v) {
-                            final dec = (state.settings['linear_decel'] ?? -v * 1.33).abs();
-                            return '+${v.toStringAsFixed(2)} / -${dec.toStringAsFixed(2)} m/s²';
+                        const SizedBox(height: 10),
+                        Builder(
+                          builder: (context) {
+                            final angVal = state.settings['max_angular_speed'] ?? 0.65;
+                            final angAcc = state.settings['angular_accel'] ?? (angVal * 2.5);
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.purpleAccent.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.2)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.auto_mode_rounded, size: 16, color: Colors.purpleAccent),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Auto Configured: Turn Accel ${angAcc.toStringAsFixed(2)} rad/s² (~${(angAcc * 180 / pi).toStringAsFixed(0)}°/s²)',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.purpleAccent,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
                           },
                         ),
-                        const Divider(height: 24),
-                        _buildParamSlider(
-                          context,
-                          paramKey: 'angular_accel',
-                          state: state,
-                          labelOverride: 'Turn Accel & Decel',
-                          hint: 'Single slider controlling rotational acceleration entering and exiting turns',
-                          unitTransform: (v) => '${v.toStringAsFixed(2)} rad/s² (~${(v * 180 / pi).toStringAsFixed(0)}°/s²)',
-                        ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
 
-                    // Section 4: Docking & Undocking
+                    // Section 3: Docking & Undocking
                     _buildSectionCard(
                       context,
                       title: 'Docking & Undocking',

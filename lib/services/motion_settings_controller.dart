@@ -85,14 +85,25 @@ class MotionSettingsController extends ValueNotifier<MotionSettingsState> {
   }
 
   /// Updates a local parameter when the user adjusts a slider or taps +/-.
-  /// When adjusting linear_accel, linear_decel is coupled to it automatically (one combined slider).
+  /// - When adjusting max_linear_speed, linear_accel and linear_decel are auto-configured.
+  /// - When adjusting max_angular_speed, angular_accel is auto-configured.
   void updateParam(String key, double val) {
     final updated = Map<String, double>.from(value.settings);
     updated[key] = val;
 
-    if (key == 'linear_accel') {
-      // Couple linear deceleration to linear acceleration (1.33x for firm progressive braking)
-      updated['linear_decel'] = double.parse((-val * 1.33).toStringAsFixed(3));
+    if (key == 'max_linear_speed') {
+      // Auto-configure linear acceleration and deceleration based on selected max linear speed
+      // linear_accel = val / 1.6 (~0.25 m/s² for 0.40 m/s)
+      // linear_decel = -val / 1.2 (~ -0.33 m/s² for 0.40 m/s)
+      final rawAccel = (val / 1.6).clamp(0.05, 0.50);
+      final rawDecel = (-val / 1.2).clamp(-0.60, -0.05);
+      updated['linear_accel'] = double.parse(rawAccel.toStringAsFixed(3));
+      updated['linear_decel'] = double.parse(rawDecel.toStringAsFixed(3));
+    } else if (key == 'max_angular_speed') {
+      // Auto-configure angular acceleration based on selected max angular speed
+      // angular_accel = val * 2.5 (~1.63 rad/s² for 0.65 rad/s)
+      final rawAngAccel = (val * 2.5).clamp(0.20, 2.50);
+      updated['angular_accel'] = double.parse(rawAngAccel.toStringAsFixed(2));
     }
 
     value = value.copyWith(settings: updated, isDirty: true);
