@@ -272,39 +272,7 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                           paramKey: 'max_linear_speed',
                           state: state,
                           labelOverride: 'Linear Speed',
-                          hint: 'Cruising speed in open pathways (accel & decel auto-tune)',
-                        ),
-                        const SizedBox(height: 10),
-                        Builder(
-                          builder: (context) {
-                            final linVal = state.settings['max_linear_speed'] ?? 0.35;
-                            final linAcc = state.settings['linear_accel'] ?? (linVal / 1.6);
-                            final linDec = (state.settings['linear_decel'] ?? (-linVal / 1.2)).abs();
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.blueAccent.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.2)),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.auto_mode_rounded, size: 16, color: Colors.blueAccent),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Auto Configured: Accel +${linAcc.toStringAsFixed(2)} m/s² · Decel -${linDec.toStringAsFixed(2)} m/s²',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.blueAccent,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                          hint: 'Cruising speed in open pathways',
                         ),
                       ],
                     ),
@@ -322,39 +290,8 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                           paramKey: 'max_angular_speed',
                           state: state,
                           labelOverride: 'Turn Speed',
-                          hint: 'Rotation speed during navigation turns (turn accel auto-tunes)',
+                          hint: 'Rotation speed during navigation turns',
                           unitTransform: (v) => '${v.toStringAsFixed(2)} rad/s (~${(v * 180 / pi).toStringAsFixed(1)}°/s)',
-                        ),
-                        const SizedBox(height: 10),
-                        Builder(
-                          builder: (context) {
-                            final angVal = state.settings['max_angular_speed'] ?? 0.65;
-                            final angAcc = state.settings['angular_accel'] ?? (angVal * 2.5);
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.purpleAccent.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.2)),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.auto_mode_rounded, size: 16, color: Colors.purpleAccent),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Auto Configured: Turn Accel ${angAcc.toStringAsFixed(2)} rad/s² (~${(angAcc * 180 / pi).toStringAsFixed(0)}°/s²)',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.purpleAccent,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
                         ),
                       ],
                     ),
@@ -380,7 +317,7 @@ class _MotionSettingsScreenState extends State<MotionSettingsScreen> {
                           paramKey: 'dock_speed',
                           state: state,
                           labelOverride: 'Dock Approach Speed',
-                          hint: 'Approach speed when docking (automatically slows down near contacts)',
+                          hint: 'Approach speed when docking',
                         ),
                       ],
                     ),
