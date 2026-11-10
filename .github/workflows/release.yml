@@ -40,14 +40,25 @@ jobs:
       - name: Build APK (Release)
         run: flutter build apk --release
 
-      - name: Prepare APK artifact
-        run: cp build/app/outputs/flutter-apk/app-release.apk NavProMini-Android.apk
+      - name: Build Android App Bundle (Release for Google Play)
+        run: flutter build appbundle --release
+
+      - name: Prepare APK and AAB artifacts
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk NavProMini-Android.apk
+          cp build/app/outputs/bundle/release/app-release.aab NavProMini-Android.aab
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
           path: NavProMini-Android.apk
+
+      - name: Upload Android AAB (Google Play)
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: NavProMini-Android.aab
 
   build-linux:
     name: Build Linux Desktop
@@ -122,10 +133,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download Android artifact
+      - name: Download Android APK artifact
         uses: actions/download-artifact@v4
         with:
           name: android-apk
+
+      - name: Download Android AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-aab
 
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
@@ -147,6 +163,7 @@ jobs:
           generate_release_notes: true
           files: |
             NavProMini-Android.apk
+            NavProMini-Android.aab
             NavProMini-Linux-x86_64.tar.gz
             NavProMini-Windows-x64.zip
         env:
