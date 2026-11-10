@@ -21,6 +21,23 @@ subprojects {
 subprojects {
     project.evaluationDependsOn(":app")
 }
+subprojects {
+    if (project.name != "app") {
+        plugins.withId("com.android.library") {
+            if (project.name == "file_picker" && !project.plugins.hasPlugin("org.jetbrains.kotlin.android")) {
+                project.apply plugin: "org.jetbrains.kotlin.android"
+            }
+        }
+        project.tasks.matching { it.name.contains("compile") && it.name.contains("Kotlin") }.configureEach {
+            try {
+                kotlinOptions {
+                    jvmTarget = "11"
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
+}
 
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
