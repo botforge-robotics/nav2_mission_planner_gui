@@ -35,7 +35,8 @@ When bumping the version, you MUST update:
 
 | Platform | Target Output | Artifact Name in Release |
 |---|---|---|
-| **Android** | Release APK | `NavProMini-Android.apk` |
+| **Android (Google Play)** | App Bundle (`.aab`) | `NavProMini-Android.aab` |
+| **Android (Direct)** | Release APK | `NavProMini-Android.apk` |
 | **Linux Desktop** | x86_64 tarball | `NavProMini-Linux-x86_64.tar.gz` |
 | **Windows Desktop** | x64 ZIP | `NavProMini-Windows-x64.zip` |
 | **Web (PWA)** | Web Bundle | GitHub Pages (`/nav2_mission_planner_gui/`) |
