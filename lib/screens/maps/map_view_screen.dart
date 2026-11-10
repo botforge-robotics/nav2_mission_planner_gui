@@ -3331,15 +3331,16 @@ class _ZoneEditorHud extends StatelessWidget {
       ),
       child: Container(
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+            horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
@@ -3347,114 +3348,31 @@ class _ZoneEditorHud extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.polyline_rounded,
+                      const Icon(Icons.fence_rounded,
                           size: 14, color: AppColors.primary),
                       const SizedBox(width: 4),
                       Text(
-                        'Zone Editor${mapName != null ? " · $mapName" : ""}',
+                        isDesktop
+                            ? 'Zone Editor${mapName != null ? " · $mapName" : ""}'
+                            : 'ZONES',
                         style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.bold,
                             color: AppColors.primary),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                if (zone != null) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: zone.color.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                          color: zone.color.withValues(alpha: 0.4)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(zone.icon, size: 13, color: zone.color),
-                        const SizedBox(width: 4),
-                        Text(
-                          zone.name,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: zone.color),
-                        ),
-                        if (zone.speedLimitMps != null) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            '${zone.speedLimitMps} m/s',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: zone.color),
-                          ),
-                        ],
-                      ],
+                if (isDesktop && zone != null) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: _buildZoneDetails(zone, activeVertexIndex),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    zone.isCorridorLane
-                        ? '${zone.laneCenterline.length} turns'
-                        : '${zone.points.length} nodes',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary),
-                  ),
-                  if (activeVertexIndex != null)
-                    Text(
-                      zone.isCorridorLane
-                          ? ' (turn #${activeVertexIndex! + 1} active)'
-                          : ' (node #${activeVertexIndex! + 1} active)',
-                      style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.accent),
-                    ),
-                  if (zone.isCorridorLane) ...[
-                    const SizedBox(width: AppSpacing.sm),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('Width: ',
-                            style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary)),
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle_outline_rounded,
-                              size: 16),
-                          visualDensity: VisualDensity.compact,
-                          tooltip: 'Decrease corridor width (-0.1m)',
-                          onPressed: onUpdateLaneWidth != null && zone.laneWidth > 0.4
-                              ? () => onUpdateLaneWidth!(
-                                  (zone.laneWidth - 0.1).clamp(0.3, 5.0))
-                              : null,
-                        ),
-                        Text(
-                          '${zone.laneWidth.toStringAsFixed(1)}m',
-                          style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF3B82F6)),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle_outline_rounded,
-                              size: 16),
-                          visualDensity: VisualDensity.compact,
-                          tooltip: 'Increase corridor width (+0.1m)',
-                          onPressed: onUpdateLaneWidth != null && zone.laneWidth < 5.0
-                              ? () => onUpdateLaneWidth!(
-                                  (zone.laneWidth + 0.1).clamp(0.3, 5.0))
-                              : null,
-                        ),
-                      ],
-                    ),
-                  ],
-                ] else ...[
+                ] else if (isDesktop && zone == null) ...[
+                  const SizedBox(width: AppSpacing.sm),
                   const Expanded(
                     child: Text(
                       'Tap a zone to edit, drag nodes to reshape, or tap "+" to add nodes.',
@@ -3463,79 +3381,205 @@ class _ZoneEditorHud extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                ] else ...[
+                  const Spacer(),
                 ],
-                const Spacer(),
-                // Single Done button — saves the active zone (if any) then
-                // exits editor mode. Shows a spinner while saving.
+                // Done button
                 FilledButton.icon(
                   onPressed: saving ? null : onDone,
                   icon: saving
                       ? const SizedBox(
-                          width: 14,
-                          height: 14,
+                          width: 13,
+                          height: 13,
                           child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: AppColors.textOnPrimary),
                         )
-                      : const Icon(Icons.check_rounded, size: 16),
-                  label: Text(saving ? 'Saving…' : 'Done'),
+                      : const Icon(Icons.check_rounded, size: 15),
+                  label: Text(saving ? 'Saving…' : 'Done', style: const TextStyle(fontSize: 12)),
                   style: FilledButton.styleFrom(
                     visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
                     backgroundColor: AppColors.success,
                   ),
                 ),
               ],
             ),
+            if (!isDesktop && zone != null) ...[
+              const SizedBox(height: 6),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: _buildZoneDetails(zone, activeVertexIndex),
+              ),
+            ],
             if (zone != null || !isDesktop) const SizedBox(height: AppSpacing.xs),
             if (zone != null)
-              Row(
-                children: [
-                  Text(
-                    zone.isCorridorLane
-                        ? 'Drag turn nodes along centerline · Tap "+" to insert turn'
-                        : 'Drag vertices to reshape · Tap "+" on edge to insert node',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textTertiary),
-                  ),
-                  const Spacer(),
-                  if (onDeleteZone != null)
-                    TextButton.icon(
-                      onPressed: onDeleteZone,
-                      icon: const Icon(Icons.delete_outline_rounded,
-                          size: 15, color: AppColors.danger),
-                      label: const Text('Delete Zone',
-                          style: TextStyle(
-                              color: AppColors.danger, fontSize: 12)),
-                      style: TextButton.styleFrom(
-                          visualDensity: VisualDensity.compact),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    Text(
+                      zone.isCorridorLane
+                          ? 'Drag turn nodes along centerline · Tap "+" to insert turn'
+                          : 'Drag vertices to reshape · Tap "+" on edge to insert node',
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.textTertiary),
                     ),
-                  const SizedBox(width: 4),
-                  TextButton(
-                    onPressed: onDeselect,
-                    style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact),
-                    child: const Text('Deselect',
-                        style: TextStyle(fontSize: 12)),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    if (onDeleteZone != null)
+                      TextButton.icon(
+                        onPressed: onDeleteZone,
+                        icon: const Icon(Icons.delete_outline_rounded,
+                            size: 14, color: AppColors.danger),
+                        label: const Text('Delete Zone',
+                            style: TextStyle(
+                                color: AppColors.danger, fontSize: 11.5)),
+                        style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0)),
+                      ),
+                    const SizedBox(width: 4),
+                    TextButton(
+                      onPressed: onDeselect,
+                      style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0)),
+                      child: const Text('Deselect',
+                          style: TextStyle(fontSize: 11.5)),
+                    ),
+                  ],
+                ),
               )
             else if (!isDesktop)
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton.icon(
                     onPressed: onAddZone,
-                    icon: const Icon(Icons.add_rounded, size: 15),
-                    label: const Text('Add Zone',
-                        style: TextStyle(fontSize: 12)),
+                    icon: const Icon(Icons.add_rounded, size: 14),
+                    label: const Text('+ Add Zone', style: TextStyle(fontSize: 11.5)),
                     style: OutlinedButton.styleFrom(
-                        visualDensity: VisualDensity.compact),
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Tap an existing zone to edit vertices.',
+                      style: TextStyle(
+                          fontSize: 11, color: AppColors.textSecondary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildZoneDetails(MapZone zone, int? activeVertexIndex) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+          decoration: BoxDecoration(
+            color: zone.color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: zone.color.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(zone.icon, size: 12, color: zone.color),
+              const SizedBox(width: 4),
+              Text(
+                zone.name,
+                style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.bold,
+                    color: zone.color),
+              ),
+              if (zone.speedLimitMps != null) ...[
+                const SizedBox(width: 5),
+                Text(
+                  '${zone.speedLimitMps} m/s',
+                  style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: zone.color),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          zone.isCorridorLane
+              ? '${zone.laneCenterline.length} turns'
+              : '${zone.points.length} nodes',
+          style: const TextStyle(
+              fontSize: 11, color: AppColors.textSecondary),
+        ),
+        if (activeVertexIndex != null)
+          Text(
+            zone.isCorridorLane
+                ? ' (#${activeVertexIndex + 1} active)'
+                : ' (#${activeVertexIndex + 1} active)',
+            style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.accent),
+          ),
+        if (zone.isCorridorLane) ...[
+          const SizedBox(width: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Width: ',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary)),
+              IconButton(
+                icon: const Icon(Icons.remove_circle_outline_rounded,
+                    size: 15),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                tooltip: 'Decrease corridor width (-0.1m)',
+                onPressed: onUpdateLaneWidth != null && zone.laneWidth > 0.4
+                    ? () => onUpdateLaneWidth!(
+                        (zone.laneWidth - 0.1).clamp(0.3, 5.0))
+                    : null,
+              ),
+              const SizedBox(width: 2),
+              Text(
+                '${zone.laneWidth.toStringAsFixed(1)}m',
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF3B82F6)),
+              ),
+              const SizedBox(width: 2),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline_rounded,
+                    size: 15),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                tooltip: 'Increase corridor width (+0.1m)',
+                onPressed: onUpdateLaneWidth != null && zone.laneWidth < 5.0
+                    ? () => onUpdateLaneWidth!(
+                        (zone.laneWidth + 0.1).clamp(0.3, 5.0))
+                    : null,
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
@@ -4178,459 +4222,481 @@ class _RoadNetworkEditorHud extends StatelessWidget {
     const trafficRed = Color(0xFFEF4444);
     const slateBorder = Color(0xFF334155);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: asphaltBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: addingNodeMode
-              ? trafficAmber
-              : (linkingStartNodeId != null
-                  ? trafficCyan
-                  : (selectedNode != null || selectedEdge != null ? trafficCyan : slateBorder)),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+    Widget buildStatusWidget() {
+      if (addingNodeMode) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+          decoration: BoxDecoration(
+            color: trafficAmber.withValues(alpha: 0.22),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: trafficAmber, width: 1.2),
           ),
-          if (addingNodeMode)
-            BoxShadow(
-              color: trafficAmber.withValues(alpha: 0.35),
-              blurRadius: 14,
-              spreadRadius: 1,
-            ),
-          if (linkingStartNodeId != null)
-            BoxShadow(
-              color: trafficCyan.withValues(alpha: 0.35),
-              blurRadius: 14,
-              spreadRadius: 1,
-            ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12.5),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Top caution stripe
-            Container(
-              height: 3.5,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: addingNodeMode
-                      ? [trafficAmber, trafficYellow, trafficAmber]
-                      : (linkingStartNodeId != null
-                          ? [trafficCyan, const Color(0xFF38BDF8), trafficCyan]
-                          : [const Color(0xFF475569), trafficAmber, const Color(0xFF475569)]),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.ads_click_rounded, size: 13, color: trafficAmber),
+              SizedBox(width: 5),
+              Text(
+                'CONTINUOUS ADD: CLICK MAP TO PLACE JUNCTIONS',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: trafficYellow),
+              ),
+            ],
+          ),
+        );
+      } else if (linkingStartNodeId != null) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+          decoration: BoxDecoration(
+            color: trafficCyan.withValues(alpha: 0.22),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: trafficCyan, width: 1.2),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.compare_arrows_rounded, size: 13, color: trafficCyan),
+              const SizedBox(width: 5),
+              Text(
+                'CONNECTING: TAP NEXT JUNCTION TO LINK FROM #$linkingStartNodeId',
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF67E8F9)),
+              ),
+            ],
+          ),
+        );
+      } else if (selectedNode != null) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0369A1).withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+                color: const Color(0xFF38BDF8).withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${selectedNode.name} (#${selectedNode.id}) (${selectedNode.x.toStringAsFixed(2)}, ${selectedNode.y.toStringAsFixed(2)})',
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF38BDF8)),
+              ),
+              if (onRenameSelectedNode != null) ...[
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: onRenameSelectedNode,
+                  borderRadius: BorderRadius.circular(4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.edit_note_rounded, size: 13, color: Colors.white),
+                        SizedBox(width: 3),
+                        Text('Rename', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
                 ),
+              ],
+            ],
+          ),
+        );
+      } else if (selectedEdge != null) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+          decoration: BoxDecoration(
+            color: const Color(0xFF065F46).withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+                color: const Color(0xFF34D399).withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Road #${selectedEdge.id}: Node ${selectedEdge.startId} ${selectedEdge.bidirectional ? "⇄" : "→"} Node ${selectedEdge.endId}',
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF34D399)),
+              ),
+              if (selectedEdge.speedLimit != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: trafficRed.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: trafficRed.withValues(alpha: 0.6)),
+                  ),
+                  child: Text(
+                    '${selectedEdge.speedLimit!.toStringAsFixed(2)} m/s',
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFFCA5A5)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      } else {
+        return const Text(
+          'Tap "+ Add Junctions" then map, or "Connect Roadways" to link.',
+          style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+          overflow: TextOverflow.ellipsis,
+        );
+      }
+    }
+
+    Widget buildDoneButton() {
+      return FilledButton.icon(
+        onPressed: saving ? null : onDone,
+        icon: saving
+            ? const SizedBox(
+                width: 13,
+                height: 13,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white),
+              )
+            : const Icon(Icons.check_circle_rounded, size: 15),
+        label: Text(saving ? 'Saving…' : 'Done', style: const TextStyle(fontSize: 12)),
+        style: FilledButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+          backgroundColor: trafficGreen,
+          foregroundColor: Colors.white,
+        ),
+      );
+    }
+
+    List<Widget> buildControlButtons() {
+      return [
+        // Continuous Add / Done Adding Button
+        FilledButton.icon(
+          onPressed: onToggleAddNodeMode,
+          icon: Icon(
+            addingNodeMode
+                ? Icons.check_rounded
+                : Icons.add_location_alt_rounded,
+            size: 14,
+          ),
+          label: Text(addingNodeMode ? '✓ Done Adding' : '+ Add Junctions', style: const TextStyle(fontSize: 11.5)),
+          style: FilledButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+            backgroundColor: addingNodeMode
+                ? trafficGreen
+                : trafficAmber,
+            foregroundColor: Colors.white,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        // Connect Roadway / Stop Linking Button
+        if (linkingStartNodeId != null) ...[
+          OutlinedButton.icon(
+            onPressed: onCancelConnect,
+            icon: const Icon(Icons.close_rounded, size: 14, color: trafficRed),
+            label: const Text('✕ Stop Linking', style: TextStyle(color: trafficRed, fontWeight: FontWeight.bold, fontSize: 11.5)),
+            style: OutlinedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+              side: const BorderSide(color: trafficRed, width: 1.5),
+            ),
+          ),
+        ] else ...[
+          FilledButton.tonalIcon(
+            onPressed: onStartConnect,
+            icon: const Icon(Icons.alt_route_rounded, size: 14),
+            label: Text(selectedNode != null ? '⇌ Connect from #${selectedNode.id}' : '⇌ Connect Roadways', style: const TextStyle(fontSize: 11.5)),
+            style: FilledButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+              backgroundColor: const Color(0xFF0284C7),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+        // Edge quick controls
+        if (selectedEdge != null) ...[
+          const SizedBox(width: AppSpacing.xs),
+          FilledButton.tonalIcon(
+            onPressed: onToggleEdgeDirection != null
+                ? () => onToggleEdgeDirection!(selectedEdge.id)
+                : null,
+            icon: Icon(
+              selectedEdge.bidirectional ? Icons.swap_horiz_rounded : Icons.arrow_forward_rounded,
+              size: 13,
+              color: selectedEdge.bidirectional ? trafficCyan : trafficYellow,
+            ),
+            label: Text(
+              selectedEdge.bidirectional ? 'Two-Way ⇄' : 'One-Way →',
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.bold,
+                color: selectedEdge.bidirectional ? trafficCyan : trafficYellow,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: 10),
-              child: Column(
+            style: FilledButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+              backgroundColor: const Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(width: 4),
+          PopupMenuButton<double?>(
+            tooltip: 'Speed Limit',
+            initialValue: selectedEdge.speedLimit,
+            onSelected: (val) => onSetEdgeSpeedLimit?.call(selectedEdge.id, val),
+            color: const Color(0xFF1E293B),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFF475569)),
+              ),
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    children: [
-                      // Traffic Badge & Title
-                      Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: trafficAmber.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: trafficAmber.withValues(alpha: 0.4)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.traffic_rounded,
-                                size: 14, color: trafficAmber),
-                            const SizedBox(width: 5),
-                            Text(
-                              'TRAFFIC NETWORK${mapName != null ? " · $mapName" : ""}',
-                              style: const TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.6,
-                                  color: Color(0xFFF8FAFC)),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      // Network Stats Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3.5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: const Color(0xFF475569)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.hub_rounded, size: 12, color: Color(0xFF38BDF8)),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${rn?.nodes.length ?? 0} Junctions',
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFFE2E8F0)),
-                            ),
-                            const Text('  ·  ', style: TextStyle(color: Color(0xFF64748B), fontSize: 11)),
-                            const Icon(Icons.alt_route_rounded, size: 12, color: Color(0xFF34D399)),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${rn?.edges.length ?? 0} Roadways',
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFFE2E8F0)),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      // Dynamic Status Pill
-                      if (addingNodeMode) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: trafficAmber.withValues(alpha: 0.22),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: trafficAmber, width: 1.2),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.ads_click_rounded, size: 14, color: trafficAmber),
-                              SizedBox(width: 6),
-                              Text(
-                                'CONTINUOUS ADD: CLICK MAP TO PLACE JUNCTIONS',
-                                style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: trafficYellow),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ] else if (linkingStartNodeId != null) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: trafficCyan.withValues(alpha: 0.22),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: trafficCyan, width: 1.2),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.compare_arrows_rounded, size: 14, color: trafficCyan),
-                              const SizedBox(width: 6),
-                              Text(
-                                'CHAIN LINKING: TAP NEXT JUNCTION TO CONNECT FROM NODE $linkingStartNodeId',
-                                style: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF67E8F9)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ] else if (selectedNode != null) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3.5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0369A1).withValues(alpha: 0.25),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                                color: const Color(0xFF38BDF8).withValues(alpha: 0.5)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '${selectedNode.name} (#${selectedNode.id}) (${selectedNode.x.toStringAsFixed(2)}, ${selectedNode.y.toStringAsFixed(2)})',
-                                style: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF38BDF8)),
-                              ),
-                              if (onRenameSelectedNode != null) ...[
-                                const SizedBox(width: 8),
-                                InkWell(
-                                  onTap: onRenameSelectedNode,
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF0284C7),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.edit_note_rounded, size: 14, color: Colors.white),
-                                        SizedBox(width: 3),
-                                        Text('Rename', style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold)),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ] else if (selectedEdge != null) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3.5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF065F46).withValues(alpha: 0.25),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                                color: const Color(0xFF34D399).withValues(alpha: 0.5)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Road #${selectedEdge.id}: Node ${selectedEdge.startId} ${selectedEdge.bidirectional ? "⇄" : "→"} Node ${selectedEdge.endId}',
-                                style: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF34D399)),
-                              ),
-                              if (selectedEdge.speedLimit != null) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: trafficRed.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(color: trafficRed.withValues(alpha: 0.6)),
-                                  ),
-                                  child: Text(
-                                    '${selectedEdge.speedLimit!.toStringAsFixed(2)} m/s',
-                                    style: const TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                        color: Color(0xFFFCA5A5)),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ] else ...[
-                        const Expanded(
-                          child: Text(
-                            'Click "+ Add Junctions" then click map repeatedly, or "Connect Roadways" to chain link.',
-                            style: TextStyle(
-                                fontSize: 11.5, color: Color(0xFF94A3B8)),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                      const Spacer(),
-                      // Done Button
-                      FilledButton.icon(
-                        onPressed: saving ? null : onDone,
-                        icon: saving
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white),
-                              )
-                            : const Icon(Icons.check_circle_rounded, size: 16),
-                        label: Text(saving ? 'Saving…' : 'Done'),
-                        style: FilledButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          backgroundColor: trafficGreen,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ],
+                  const Icon(Icons.speed_rounded, size: 12, color: trafficAmber),
+                  const SizedBox(width: 3),
+                  Text(
+                    selectedEdge.speedLimit != null
+                        ? '${selectedEdge.speedLimit!.toStringAsFixed(2)} m/s'
+                        : 'No Limit',
+                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFFF1F5F9)),
                   ),
-                  const SizedBox(height: 8),
-                  // Controls Row
-                  Row(
+                  const Icon(Icons.arrow_drop_down, size: 13, color: Color(0xFF94A3B8)),
+                ],
+              ),
+            ),
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: null,
+                child: Text('No Limit', style: TextStyle(color: Colors.white)),
+              ),
+              const PopupMenuItem(
+                value: 0.30,
+                child: Text('0.30 m/s (Cautious)', style: TextStyle(color: Colors.white)),
+              ),
+              const PopupMenuItem(
+                value: 0.45,
+                child: Text('0.45 m/s (Standard)', style: TextStyle(color: Colors.white)),
+              ),
+              const PopupMenuItem(
+                value: 0.60,
+                child: Text('0.60 m/s (Express)', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        ],
+        // Delete Action
+        if (onDeleteSelected != null) ...[
+          const SizedBox(width: AppSpacing.xs),
+          TextButton.icon(
+            onPressed: onDeleteSelected,
+            icon: const Icon(Icons.delete_outline_rounded,
+                size: 14, color: trafficRed),
+            label: Text(
+              selectedNode != null ? 'Delete Junction' : 'Delete Road',
+              style: const TextStyle(
+                  color: trafficRed, fontSize: 11.5, fontWeight: FontWeight.bold),
+            ),
+            style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0)),
+          ),
+        ],
+        // Deselect
+        if (selectedNode != null || selectedEdge != null || linkingStartNodeId != null) ...[
+          const SizedBox(width: AppSpacing.xs),
+          TextButton(
+            onPressed: onDeselect,
+            style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0)),
+            child: const Text('Deselect',
+                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5)),
+          ),
+        ],
+        // Clear All
+        const SizedBox(width: AppSpacing.xs),
+        TextButton.icon(
+          onPressed: onClearAll,
+          icon: const Icon(Icons.delete_sweep_rounded,
+              size: 14, color: Color(0xFF64748B)),
+          label: const Text('Clear All',
+              style: TextStyle(
+                  color: Color(0xFF64748B), fontSize: 11.5)),
+          style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0)),
+        ),
+      ];
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 720;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: asphaltBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: addingNodeMode
+                  ? trafficAmber
+                  : (linkingStartNodeId != null
+                      ? trafficCyan
+                      : (selectedNode != null || selectedEdge != null ? trafficCyan : slateBorder)),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.45),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+              if (addingNodeMode)
+                BoxShadow(
+                  color: trafficAmber.withValues(alpha: 0.35),
+                  blurRadius: 14,
+                  spreadRadius: 1,
+                ),
+              if (linkingStartNodeId != null)
+                BoxShadow(
+                  color: trafficCyan.withValues(alpha: 0.35),
+                  blurRadius: 14,
+                  spreadRadius: 1,
+                ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12.5),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Top caution stripe
+                Container(
+                  height: 3.5,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: addingNodeMode
+                          ? [trafficAmber, trafficYellow, trafficAmber]
+                          : (linkingStartNodeId != null
+                              ? [trafficCyan, const Color(0xFF38BDF8), trafficCyan]
+                              : [const Color(0xFF475569), trafficAmber, const Color(0xFF475569)]),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm, vertical: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Continuous Add / Done Adding Button
-                      FilledButton.icon(
-                        onPressed: onToggleAddNodeMode,
-                        icon: Icon(
-                          addingNodeMode
-                              ? Icons.check_rounded
-                              : Icons.add_location_alt_rounded,
-                          size: 15,
-                        ),
-                        label: Text(addingNodeMode ? '✓ Done Adding' : '+ Add Junctions'),
-                        style: FilledButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          backgroundColor: addingNodeMode
-                              ? trafficGreen
-                              : trafficAmber,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      // Connect Roadway / Stop Linking Button
-                      if (linkingStartNodeId != null) ...[
-                        OutlinedButton.icon(
-                          onPressed: onCancelConnect,
-                          icon: const Icon(Icons.close_rounded, size: 15, color: trafficRed),
-                          label: const Text('✕ Stop Linking', style: TextStyle(color: trafficRed, fontWeight: FontWeight.bold)),
-                          style: OutlinedButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                            side: const BorderSide(color: trafficRed, width: 1.5),
-                          ),
-                        ),
-                      ] else ...[
-                        FilledButton.tonalIcon(
-                          onPressed: onStartConnect,
-                          icon: const Icon(Icons.alt_route_rounded, size: 15),
-                          label: Text(selectedNode != null ? '⇌ Connect from #${selectedNode.id}' : '⇌ Connect Roadways'),
-                          style: FilledButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                            backgroundColor: const Color(0xFF0284C7),
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ],
-                      // Edge quick controls
-                      if (selectedEdge != null) ...[
-                        const SizedBox(width: AppSpacing.xs),
-                        FilledButton.tonalIcon(
-                          onPressed: onToggleEdgeDirection != null
-                              ? () => onToggleEdgeDirection!(selectedEdge.id)
-                              : null,
-                          icon: Icon(
-                            selectedEdge.bidirectional ? Icons.swap_horiz_rounded : Icons.arrow_forward_rounded,
-                            size: 14,
-                            color: selectedEdge.bidirectional ? trafficCyan : trafficYellow,
-                          ),
-                          label: Text(
-                            selectedEdge.bidirectional ? 'Two-Way ⇄' : 'One-Way →',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: selectedEdge.bidirectional ? trafficCyan : trafficYellow,
+                      // Header Row
+                      Row(
+                        children: [
+                          // Traffic Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                            decoration: BoxDecoration(
+                              color: trafficAmber.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: trafficAmber.withValues(alpha: 0.4)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.traffic_rounded, size: 13, color: trafficAmber),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isCompact ? 'TRAFFIC' : 'TRAFFIC NETWORK${mapName != null ? " · $mapName" : ""}',
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.5,
+                                      color: Color(0xFFF8FAFC)),
+                                ),
+                              ],
                             ),
                           ),
-                          style: FilledButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                            backgroundColor: const Color(0xFF1E293B),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        PopupMenuButton<double?>(
-                          tooltip: 'Speed Limit',
-                          initialValue: selectedEdge.speedLimit,
-                          onSelected: (val) => onSetEdgeSpeedLimit?.call(selectedEdge.id, val),
-                          color: const Color(0xFF1E293B),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          const SizedBox(width: 6),
+                          // Stats Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3.5),
                             decoration: BoxDecoration(
                               color: const Color(0xFF1E293B),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(color: const Color(0xFF475569)),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.speed_rounded, size: 13, color: trafficAmber),
-                                const SizedBox(width: 4),
-                                Text(
-                                  selectedEdge.speedLimit != null
-                                      ? '${selectedEdge.speedLimit!.toStringAsFixed(2)} m/s'
-                                      : 'No Limit',
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFF1F5F9)),
-                                ),
-                                const Icon(Icons.arrow_drop_down, size: 14, color: Color(0xFF94A3B8)),
-                              ],
+                            child: Text(
+                              isCompact
+                                  ? '${rn?.nodes.length ?? 0}J · ${rn?.edges.length ?? 0}R'
+                                  : '${rn?.nodes.length ?? 0} Junctions  ·  ${rn?.edges.length ?? 0} Roadways',
+                              style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFE2E8F0)),
                             ),
                           ),
-                          itemBuilder: (ctx) => [
-                            const PopupMenuItem(
-                              value: null,
-                              child: Text('No Limit', style: TextStyle(color: Colors.white)),
+                          if (!isCompact) ...[
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: buildStatusWidget(),
+                              ),
                             ),
-                            const PopupMenuItem(
-                              value: 0.30,
-                              child: Text('0.30 m/s (Cautious)', style: TextStyle(color: Colors.white)),
-                            ),
-                            const PopupMenuItem(
-                              value: 0.45,
-                              child: Text('0.45 m/s (Standard)', style: TextStyle(color: Colors.white)),
-                            ),
-                            const PopupMenuItem(
-                              value: 0.60,
-                              child: Text('0.60 m/s (Express)', style: TextStyle(color: Colors.white)),
-                            ),
+                          ] else ...[
+                            const Spacer(),
                           ],
+                          buildDoneButton(),
+                        ],
+                      ),
+                      // Sub-row status for compact mobile screen
+                      if (isCompact && (addingNodeMode || linkingStartNodeId != null || selectedNode != null || selectedEdge != null)) ...[
+                        const SizedBox(height: 6),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: buildStatusWidget(),
                         ),
                       ],
-                      const Spacer(),
-                      // Delete Action
-                      if (onDeleteSelected != null) ...[
-                        TextButton.icon(
-                          onPressed: onDeleteSelected,
-                          icon: const Icon(Icons.delete_outline_rounded,
-                              size: 15, color: trafficRed),
-                          label: Text(
-                            selectedNode != null ? 'Delete Junction' : 'Delete Road',
-                            style: const TextStyle(
-                                color: trafficRed, fontSize: 12, fontWeight: FontWeight.bold),
-                          ),
-                          style: TextButton.styleFrom(
-                              visualDensity: VisualDensity.compact),
+                      const SizedBox(height: 7),
+                      // Action buttons wrapped in horizontal scroll so it NEVER overflows
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: buildControlButtons(),
                         ),
-                        const SizedBox(width: 4),
-                      ],
-                      // Deselect
-                      if (selectedNode != null || selectedEdge != null || linkingStartNodeId != null)
-                        TextButton(
-                          onPressed: onDeselect,
-                          style: TextButton.styleFrom(
-                              visualDensity: VisualDensity.compact),
-                          child: const Text('Deselect',
-                              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
-                        ),
-                      // Clear All
-                      TextButton.icon(
-                        onPressed: onClearAll,
-                        icon: const Icon(Icons.delete_sweep_rounded,
-                            size: 15, color: Color(0xFF64748B)),
-                        label: const Text('Clear All',
-                            style: TextStyle(
-                                color: Color(0xFF64748B), fontSize: 12)),
-                        style: TextButton.styleFrom(
-                            visualDensity: VisualDensity.compact),
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

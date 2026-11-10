@@ -1502,11 +1502,12 @@ class _MissionGraphEditorScreenState extends State<MissionGraphEditorScreen> {
                             },
                           ),
                         ),
-                        // Floating Bottom-Right AI Assistant Widget
-                        Positioned(
-                          right: 16,
-                          bottom: 16,
-                          child: AiMissionAssistantWidget(
+                        // Floating Bottom-Right AI Assistant Widget (Desktop/Tablet only)
+                        if (!isCompact)
+                          Positioned(
+                            right: 16,
+                            bottom: 16,
+                            child: AiMissionAssistantWidget(
                             availableWaypoints: _getAvailableWaypointNames(),
                             existingGraph: _graph,
                             isCompact: isCompact,

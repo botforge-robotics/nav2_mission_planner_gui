@@ -284,15 +284,16 @@ class _DashboardContentState extends State<_DashboardContent> {
               ));
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.mic_none_rounded),
-            tooltip: 'Live Voice Assistant',
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => VoiceAssistantScreen(robotIp: widget.robot.ip),
-              ));
-            },
-          ),
+          if (isDesktop)
+            IconButton(
+              icon: const Icon(Icons.mic_none_rounded),
+              tooltip: 'Live Voice Assistant',
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => VoiceAssistantScreen(robotIp: widget.robot.ip),
+                ));
+              },
+            ),
           _AppBarBatteryWidget(telemetry: telemetry),
         ],
       ),

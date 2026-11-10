@@ -302,70 +302,65 @@ class _MissionsListScreenState extends State<MissionsListScreen> {
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.md),
-            child: PopupMenuButton<String>(
-              tooltip: 'Create New Mission',
-              onSelected: (mode) {
-                if (mode == 'graph') _createMission(forceGraph: true);
-                if (mode == 'linear') _createMission(forceLinear: true);
-              },
-              itemBuilder: (ctx) => [
-                PopupMenuItem(
-                  value: 'graph',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.account_tree_outlined, size: 18, color: Color(0xFF00E5FF)),
-                      const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Visual Graph Workflow', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          Text('Logic nodes, loops, conditions, AI', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
-                        ],
-                      ),
-                    ],
+          if (isDesktop)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.md),
+              child: PopupMenuButton<String>(
+                tooltip: 'Create New Mission',
+                onSelected: (mode) {
+                  if (mode == 'graph') _createMission(forceGraph: true);
+                  if (mode == 'linear') _createMission(forceLinear: true);
+                },
+                itemBuilder: (ctx) => [
+                  PopupMenuItem(
+                    value: 'graph',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.account_tree_outlined, size: 18, color: Color(0xFF00E5FF)),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Visual Graph Workflow', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text('Logic nodes, loops, conditions, AI', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                PopupMenuItem(
-                  value: 'linear',
-                  child: Row(
-                    children: [
-                      Icon(Icons.route_rounded, size: 18, color: colors.primary),
-                      const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Sequential Route', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          Text('Quick waypoint-by-waypoint list', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
-                        ],
-                      ),
-                    ],
+                  PopupMenuItem(
+                    value: 'linear',
+                    child: Row(
+                      children: [
+                        Icon(Icons.route_rounded, size: 18, color: colors.primary),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Sequential Route', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text('Quick waypoint-by-waypoint list', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
+                ],
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    backgroundColor: colors.primary,
+                    foregroundColor: colors.textOnPrimary,
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('New Mission'),
+                  onPressed: null, // triggers PopupMenuButton
                 ),
-              ],
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  backgroundColor: colors.primary,
-                  foregroundColor: colors.textOnPrimary,
-                ),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('New Mission'),
-                onPressed: null, // triggers PopupMenuButton
               ),
             ),
-          ),
         ],
       ),
-      floatingActionButton: isDesktop
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => _createMission(),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('New Mission'),
-            ),
+      floatingActionButton: null,
       body: SafeArea(
         child: robotIp == null
             ? Center(
@@ -598,6 +593,7 @@ class _Body extends StatelessWidget {
                 activeCount: (isRunning && activeId != null) ? 1 : 0,
                 onSelectCategory: onSelectCategory,
                 onSelectMapFilter: onSelectMapFilter,
+                onCreateMission: onCreateMission,
               ),
             ),
           ),
@@ -776,7 +772,7 @@ class _Body extends StatelessWidget {
   }
 }
 
-/// Search input bar, category filter pills, and active map selector chip.
+/// Search input bar, category filter pills, active map selector chip, and mobile New Mission trigger.
 class _SearchAndFilterToolbar extends StatelessWidget {
   const _SearchAndFilterToolbar({
     required this.searchController,
@@ -791,6 +787,7 @@ class _SearchAndFilterToolbar extends StatelessWidget {
     required this.activeCount,
     required this.onSelectCategory,
     required this.onSelectMapFilter,
+    required this.onCreateMission,
   });
 
   final TextEditingController searchController;
@@ -805,10 +802,12 @@ class _SearchAndFilterToolbar extends StatelessWidget {
   final int activeCount;
   final ValueChanged<_MissionCategoryFilter> onSelectCategory;
   final ValueChanged<String?> onSelectMapFilter;
+  final Future<void> Function({bool forceGraph, bool forceLinear}) onCreateMission;
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final isDesktop = Breakpoints.of(context) == DeviceClass.desktop;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -915,6 +914,73 @@ class _SearchAndFilterToolbar extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Icon(Icons.arrow_drop_down_rounded, size: 18, color: colors.textSecondary),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            if (!isDesktop) ...[
+              const SizedBox(width: AppSpacing.sm),
+              PopupMenuButton<String>(
+                tooltip: 'Create New Mission',
+                onSelected: (mode) {
+                  if (mode == 'graph') onCreateMission(forceGraph: true);
+                  if (mode == 'linear') onCreateMission(forceLinear: true);
+                },
+                itemBuilder: (ctx) => [
+                  PopupMenuItem(
+                    value: 'graph',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.account_tree_outlined, size: 18, color: Color(0xFF00E5FF)),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Visual Graph Workflow', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text('Logic nodes, loops, conditions, AI', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'linear',
+                    child: Row(
+                      children: [
+                        Icon(Icons.route_rounded, size: 18, color: colors.primary),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Sequential Route', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text('Quick waypoint-by-waypoint list', style: TextStyle(color: colors.textSecondary, fontSize: 11)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                child: Container(
+                  height: 42,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: colors.primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add_rounded, size: 18, color: colors.textOnPrimary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'New',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: colors.textOnPrimary,
+                        ),
+                      ),
                     ],
                   ),
                 ),
