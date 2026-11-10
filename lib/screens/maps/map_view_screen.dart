@@ -1913,7 +1913,7 @@ class _MapViewScreenState extends State<MapViewScreen> {
                     if (!_posePicking && !telemetry.localized && api != null)
                       Positioned(
                         left: AppSpacing.md,
-                        right: 76,
+                        right: 80,
                         top: AppSpacing.md,
                         child: NotLocalizedBanner(
                           api: api,
@@ -1930,52 +1930,58 @@ class _MapViewScreenState extends State<MapViewScreen> {
                       ),
                     if (!_posePicking)
                       Positioned(
-                        right: AppSpacing.md,
-                        top: AppSpacing.md,
-                        child: _ControlCluster(
-                          layersActive:
-                              MapLayersController.instance.value.isNotEmpty,
-                          zoneEditorActive: _zoneEditorMode,
-                          roadNetworkEditorActive: _roadNetworkEditorMode,
-                          onLayers: _openLayersPanel,
-                          onToggleZoneEditor: () {
-                            if (_zoneEditorMode) {
-                              _exitZoneEditor();
-                            } else {
-                              setState(() {
-                                _zoneEditorMode = true;
-                                _roadNetworkEditorMode = false;
-                              });
-                            }
-                          },
-                          onToggleRoadNetworkEditor: () {
-                            if (_roadNetworkEditorMode) {
-                              _exitRoadNetworkEditor();
-                            } else {
-                              setState(() {
-                                _roadNetworkEditorMode = true;
-                                _zoneEditorMode = false;
-                              });
-                            }
-                          },
-                          onZoomIn: () => _zoomBy(1.25),
-                          onZoomOut: () => _zoomBy(0.8),
-                          onFitMap: () {
-                            if (_activeGrid != null) {
-                              _fitMapToViewport(_activeGrid!);
-                            } else if (_fittedMatrix != null) {
-                              _transformController.value =
-                                  _fittedMatrix!.clone();
-                            } else {
-                              _transformController.value = Matrix4.identity();
-                            }
-                          },
-                          onCenterRobot:
-                              telemetry.localized ? _centerOnRobot : null,
-                          onLocalize: _localizing ? null : _openLocalizeOptions,
-                          localizing: _localizing,
-                          onAddLocation: _startAddLocationPicking,
-                          onShowLocations: _openSavedLocationsSheet,
+                        right: AppSpacing.sm,
+                        top: AppSpacing.sm,
+                        bottom: AppSpacing.sm,
+                        child: Align(
+                          alignment: Alignment.topRight,
+                          child: SingleChildScrollView(
+                            child: _ControlCluster(
+                              layersActive:
+                                  MapLayersController.instance.value.isNotEmpty,
+                              zoneEditorActive: _zoneEditorMode,
+                              roadNetworkEditorActive: _roadNetworkEditorMode,
+                              onLayers: _openLayersPanel,
+                              onToggleZoneEditor: () {
+                                if (_zoneEditorMode) {
+                                  _exitZoneEditor();
+                                } else {
+                                  setState(() {
+                                    _zoneEditorMode = true;
+                                    _roadNetworkEditorMode = false;
+                                  });
+                                }
+                              },
+                              onToggleRoadNetworkEditor: () {
+                                if (_roadNetworkEditorMode) {
+                                  _exitRoadNetworkEditor();
+                                } else {
+                                  setState(() {
+                                    _roadNetworkEditorMode = true;
+                                    _zoneEditorMode = false;
+                                  });
+                                }
+                              },
+                              onZoomIn: () => _zoomBy(1.25),
+                              onZoomOut: () => _zoomBy(0.8),
+                              onFitMap: () {
+                                if (_activeGrid != null) {
+                                  _fitMapToViewport(_activeGrid!);
+                                } else if (_fittedMatrix != null) {
+                                  _transformController.value =
+                                      _fittedMatrix!.clone();
+                                } else {
+                                  _transformController.value = Matrix4.identity();
+                                }
+                              },
+                              onCenterRobot:
+                                  telemetry.localized ? _centerOnRobot : null,
+                              onLocalize: _localizing ? null : _openLocalizeOptions,
+                              localizing: _localizing,
+                              onAddLocation: _startAddLocationPicking,
+                              onShowLocations: _openSavedLocationsSheet,
+                            ),
+                          ),
                         ),
                       ),
                     if (_drawingLaneMode)
@@ -2153,79 +2159,112 @@ class _ControlCluster extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        _ClusterCard(children: [
-          _ControlButton(
-            icon: layersActive
-                ? Icons.layers_rounded
-                : Icons.layers_clear_rounded,
-            tooltip: 'Layers',
-            onTap: onLayers,
-            color: layersActive ? AppColors.primary : null,
-          ),
-          const Divider(height: 1),
-          _ControlButton(
-            icon: Icons.polyline_rounded,
-            tooltip: 'Map Zones Editor',
-            onTap: onToggleZoneEditor,
-            color: zoneEditorActive ? AppColors.accent : null,
-          ),
-          const Divider(height: 1),
-          _ControlButton(
-            icon: Icons.alt_route_rounded,
-            tooltip: 'Road Network Editor',
-            onTap: onToggleRoadNetworkEditor,
-            color: roadNetworkEditorActive ? AppColors.stateExecuting : null,
-          ),
-        ]),
-        const SizedBox(height: AppSpacing.sm),
-        _ClusterCard(children: [
-          _ControlButton(
-              icon: Icons.add_rounded, tooltip: 'Zoom in', onTap: onZoomIn),
-          const Divider(height: 1),
-          _ControlButton(
-              icon: Icons.remove_rounded,
-              tooltip: 'Zoom out',
-              onTap: onZoomOut),
-          const Divider(height: 1),
-          _ControlButton(
-              icon: Icons.crop_free_rounded,
-              tooltip: 'Fit map in view',
-              onTap: onFitMap),
-          if (onCenterRobot != null) ...[
+        // 1. Map Tools & Layers (Layers, Keep-out Zones, Road Network)
+        _ClusterCard(
+          children: [
+            _ControlButton(
+              icon: layersActive
+                  ? Icons.layers_rounded
+                  : Icons.layers_outlined,
+              label: 'Layers',
+              tooltip: 'Map Layers (LiDAR, Costmaps, Zones)',
+              onTap: onLayers,
+              active: layersActive,
+              activeColor: const Color(0xFF0284C7),
+            ),
             const Divider(height: 1),
             _ControlButton(
-              icon: Icons.my_location_rounded,
-              tooltip: 'Center on robot',
-              onTap: onCenterRobot,
-              color: AppColors.primary,
+              icon: Icons.fence_rounded,
+              label: 'Zones',
+              tooltip: 'Map Zones Editor (Keep-out, Speed, Lanes)',
+              onTap: onToggleZoneEditor,
+              active: zoneEditorActive,
+              activeColor: AppColors.accent,
+            ),
+            const Divider(height: 1),
+            _ControlButton(
+              icon: Icons.alt_route_rounded,
+              label: 'Roads',
+              tooltip: 'Roadway Network Editor (Lanes, Junctions)',
+              onTap: onToggleRoadNetworkEditor,
+              active: roadNetworkEditorActive,
+              activeColor: AppColors.stateExecuting,
             ),
           ],
-        ]),
-        const SizedBox(height: AppSpacing.sm),
-        _ClusterCard(children: [
-          _ControlButton(
-            icon: Icons.my_location_rounded,
-            tooltip: 'Localize',
-            onTap: onLocalize,
-            busy: localizing,
-            color: AppColors.primary,
-          ),
-          const Divider(height: 1),
-          _ControlButton(
-            icon: Icons.add_location_alt_rounded,
-            tooltip: 'Save Location',
-            onTap: onAddLocation,
-            color: AppColors.primary,
-          ),
-          const Divider(height: 1),
-          _ControlButton(
-            icon: Icons.place_rounded,
-            tooltip: 'Saved Locations',
-            onTap: onShowLocations,
-            color: AppColors.primary,
-          ),
-        ]),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+
+        // 2. View & Camera Controls (Zoom In, Zoom Out, Fit Map, Follow Robot)
+        _ClusterCard(
+          children: [
+            _ControlButton(
+              icon: Icons.zoom_in_rounded,
+              label: 'Zoom +',
+              tooltip: 'Zoom in',
+              onTap: onZoomIn,
+            ),
+            const Divider(height: 1),
+            _ControlButton(
+              icon: Icons.zoom_out_rounded,
+              label: 'Zoom -',
+              tooltip: 'Zoom out',
+              onTap: onZoomOut,
+            ),
+            const Divider(height: 1),
+            _ControlButton(
+              icon: Icons.fit_screen_rounded,
+              label: 'Fit Map',
+              tooltip: 'Fit entire map in view',
+              onTap: onFitMap,
+            ),
+            if (onCenterRobot != null) ...[
+              const Divider(height: 1),
+              _ControlButton(
+                icon: Icons.smart_toy_rounded,
+                label: 'Robot',
+                tooltip: 'Center view on robot position',
+                onTap: onCenterRobot,
+                color: AppColors.primary,
+                active: true,
+                activeColor: AppColors.primary,
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+
+        // 3. Positioning & Waypoints (Localize, Add Location Pin, Saved Locations List)
+        _ClusterCard(
+          children: [
+            _ControlButton(
+              icon: Icons.radar_rounded,
+              label: 'Localize',
+              tooltip: 'Set Initial Pose / Relocalize Robot',
+              onTap: onLocalize,
+              busy: localizing,
+              color: const Color(0xFF8B5CF6),
+            ),
+            const Divider(height: 1),
+            _ControlButton(
+              icon: Icons.add_location_alt_rounded,
+              label: '+ Pin',
+              tooltip: 'Save new location pin on map',
+              onTap: onAddLocation,
+              color: const Color(0xFF10B981),
+            ),
+            const Divider(height: 1),
+            _ControlButton(
+              icon: Icons.bookmarks_rounded,
+              label: 'Pins',
+              tooltip: 'View saved locations & waypoints',
+              onTap: onShowLocations,
+              color: const Color(0xFF6366F1),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -2238,9 +2277,21 @@ class _ClusterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final colors = AppColors.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.border.withValues(alpha: 0.8)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       clipBehavior: Clip.antiAlias,
-      margin: EdgeInsets.zero,
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
   }
@@ -2249,34 +2300,74 @@ class _ClusterCard extends StatelessWidget {
 class _ControlButton extends StatelessWidget {
   const _ControlButton({
     required this.icon,
+    required this.label,
     required this.tooltip,
     required this.onTap,
     this.busy = false,
     this.color,
+    this.active = false,
+    this.activeColor,
   });
 
   final IconData icon;
+  final String label;
   final String tooltip;
   final VoidCallback? onTap;
   final bool busy;
   final Color? color;
+  final bool active;
+  final Color? activeColor;
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final effectiveColor = active
+        ? (activeColor ?? colors.primary)
+        : (color ?? colors.textSecondary);
+    final effectiveBg = active
+        ? (activeColor ?? colors.primary).withValues(alpha: 0.14)
+        : Colors.transparent;
+
     return Tooltip(
       message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: busy
-              ? const Center(
-                  child: SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2)))
-              : Icon(icon, color: color ?? AppColors.textSecondary),
+      child: Material(
+        color: effectiveBg,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            width: 54,
+            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 2),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (busy)
+                  SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(effectiveColor),
+                    ),
+                  )
+                else
+                  Icon(icon, size: 19, color: effectiveColor),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: active ? FontWeight.bold : FontWeight.w600,
+                    color: effectiveColor,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -2492,7 +2583,7 @@ class _DesktopZoomHud extends StatelessWidget {
           const Divider(height: 1),
           IconButton(
             tooltip: 'Fit map in view',
-            icon: const Icon(Icons.crop_free_rounded, size: 18),
+            icon: const Icon(Icons.fit_screen_rounded, size: 18),
             onPressed: onFitMap,
           ),
           if (onResetNorth != null) ...[
@@ -2508,7 +2599,7 @@ class _DesktopZoomHud extends StatelessWidget {
             const Divider(height: 1),
             IconButton(
               tooltip: 'Center on robot',
-              icon: const Icon(Icons.my_location_rounded,
+              icon: const Icon(Icons.smart_toy_rounded,
                   size: 18, color: AppColors.primary),
               onPressed: onCenterRobot,
             ),
