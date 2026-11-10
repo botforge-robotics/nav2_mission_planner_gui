@@ -30,6 +30,7 @@ server/data/
 *.tar.gz
 *.zip
 *.apk
+*.aab
 
 # Agent artifacts
 .agents/
