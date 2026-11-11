@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:ros2_api/ros2_api.dart';
 
 import '../services/robot_connection_store.dart';
@@ -15,9 +15,18 @@ import '../services/robot_connection_store.dart';
 /// navpromini-sdk-is-optional-not-gateway in project memory). SDK-backed
 /// data (mode, current map, mission status) is a separate, optional
 /// enrichment — see SdkStateService.
-class ConnectionProvider extends ChangeNotifier {
+///
+/// Lifecycle & Backgrounding Persistence:
+/// Implements [WidgetsBindingObserver] to monitor app lifecycle states.
+/// When the app moves to background (or screen locks/sleeps) and resumes,
+/// or whenever the connection drops (e.g. Wi-Fi blip, robot reboot),
+/// [ConnectionProvider] automatically and persistently schedules reconnection
+/// attempts until the app is closed completely or the operator explicitly
+/// disconnects via [forget].
+class ConnectionProvider extends ChangeNotifier with WidgetsBindingObserver {
   ConnectionProvider({RobotConnectionStore? store})
       : _store = store ?? RobotConnectionStore() {
+    WidgetsBinding.instance.addObserver(this);
     _connect();
   }
 
@@ -25,6 +34,11 @@ class ConnectionProvider extends ChangeNotifier {
   Ros2? _ros2;
   StreamSubscription<Status>? _statusSub;
   Timer? _connectTimeoutTimer;
+  Timer? _autoReconnectTimer;
+
+  bool _userInitiatedDisconnect = false;
+  bool _hasConnectedOnce = false;
+  bool _disposed = false;
 
   SavedRobot? robot;
   Status status = Status.none;
@@ -32,9 +46,29 @@ class ConnectionProvider extends ChangeNotifier {
 
   Ros2? get ros2 => _ros2;
   bool get isConnected => status == Status.connected;
+  bool get hasConnectedOnce => _hasConnectedOnce;
+
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // When resuming from background or screen unlock, immediately verify
+      // socket health and restore connection if dropped.
+      if (status != Status.connected && robot != null && !_userInitiatedDisconnect) {
+        debugPrint('[ConnectionProvider] App resumed from background — immediately reconnecting');
+        _scheduleAutoReconnect(immediate: true);
+      }
+    }
+  }
 
   Future<void> _connect() async {
     _connectTimeoutTimer?.cancel();
+    _autoReconnectTimer?.cancel();
     error = null;
     status = Status.connecting;
     notifyListeners();
@@ -53,6 +87,8 @@ class ConnectionProvider extends ChangeNotifier {
         error = 'Unable to reach ${saved.name} at ${saved.ip}.\n'
             'Make sure the robot is powered on and on the same network.';
         notifyListeners();
+        // Keep retrying automatically even after initial timeout
+        _scheduleAutoReconnect();
       }
     });
 
@@ -63,8 +99,14 @@ class ConnectionProvider extends ChangeNotifier {
       if (s == Status.errored || s == Status.closed) {
         _connectTimeoutTimer?.cancel();
         error = 'Lost connection to ${saved.name} (${saved.ip}).';
+        // Auto-reconnect persistently until connected or app is closed
+        if (!_userInitiatedDisconnect && robot != null) {
+          _scheduleAutoReconnect();
+        }
       } else if (s == Status.connected) {
         _connectTimeoutTimer?.cancel();
+        _autoReconnectTimer?.cancel();
+        _hasConnectedOnce = true;
         error = null;
       }
       notifyListeners();
@@ -76,13 +118,29 @@ class ConnectionProvider extends ChangeNotifier {
       _connectTimeoutTimer?.cancel();
       error = 'Could not connect: $e';
       notifyListeners();
+      if (!_userInitiatedDisconnect && robot != null) {
+        _scheduleAutoReconnect();
+      }
     }
+  }
+
+  void _scheduleAutoReconnect({bool immediate = false}) {
+    if (_userInitiatedDisconnect || robot == null) return;
+    _autoReconnectTimer?.cancel();
+    final delay = immediate ? const Duration(milliseconds: 350) : const Duration(seconds: 2);
+    _autoReconnectTimer = Timer(delay, () async {
+      if (status == Status.connected || _userInitiatedDisconnect || robot == null) return;
+      debugPrint('[ConnectionProvider] Auto-reconnecting to ${robot!.name} (${robot!.ip})...');
+      await reconnect();
+    });
   }
 
   /// Closes and reopens the connection — same robot, fresh socket. Used by
   /// a "Reconnect" affordance rather than making the caller re-derive the
   /// robot's address itself.
   Future<void> reconnect() async {
+    _userInitiatedDisconnect = false;
+    _autoReconnectTimer?.cancel();
     _connectTimeoutTimer?.cancel();
     await _ros2?.close();
     await _statusSub?.cancel();
@@ -93,6 +151,8 @@ class ConnectionProvider extends ChangeNotifier {
 
   /// Updates the robot IP directly and connects immediately.
   Future<void> updateRobotIp(String newIp, {String? name}) async {
+    _userInitiatedDisconnect = false;
+    _autoReconnectTimer?.cancel();
     _connectTimeoutTimer?.cancel();
     await _ros2?.close();
     await _statusSub?.cancel();
@@ -109,6 +169,9 @@ class ConnectionProvider extends ChangeNotifier {
   /// Again". The caller is responsible for navigating to the setup flow
   /// afterwards; this only clears connection state and persisted storage.
   Future<void> forget() async {
+    _userInitiatedDisconnect = true;
+    _hasConnectedOnce = false;
+    _autoReconnectTimer?.cancel();
     _connectTimeoutTimer?.cancel();
     final ros2 = _ros2;
     _ros2 = null;
@@ -128,6 +191,9 @@ class ConnectionProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    WidgetsBinding.instance.removeObserver(this);
+    _autoReconnectTimer?.cancel();
     _connectTimeoutTimer?.cancel();
     _statusSub?.cancel();
     _ros2?.close();

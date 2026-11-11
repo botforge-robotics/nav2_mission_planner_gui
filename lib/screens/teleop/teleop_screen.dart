@@ -210,8 +210,8 @@ class _TeleopScreenState extends State<TeleopScreen> {
   Future<void> _onVelocity(double linear, double angular) async {
     final telemetry = context.read<RobotTelemetryProvider>();
     if (telemetry.isTeleopBlockedInDock && (linear.abs() > 0.001 || angular.abs() > 0.001)) {
-      if (mounted && _motionError != 'Robot in dock zone. Please undock first.') {
-        setState(() => _motionError = 'Robot in dock zone. Please undock first.');
+      if (mounted && _motionError != 'Dock Zone Safety Interlock Active — Robot will not move. Please undock first.') {
+        setState(() => _motionError = 'Dock Zone Safety Interlock Active — Robot will not move. Please undock first.');
       }
       return;
     }
@@ -572,10 +572,12 @@ class _TeleopScreenState extends State<TeleopScreen> {
 
   @override
   Widget build(BuildContext context) {
-        final connection = context.watch<ConnectionProvider>();
+    final connection = context.watch<ConnectionProvider>();
+    final telemetry = context.watch<RobotTelemetryProvider>();
     GamepadService.instance.updateConnection(
       ros2: connection.ros2,
       sdkApi: _api,
+      isDockZoneLocked: telemetry.isTeleopBlockedInDock,
     );
     final robotIp = connection.robot?.ip;
     if (!_requestedLocations && robotIp != null) {
@@ -584,7 +586,6 @@ class _TeleopScreenState extends State<TeleopScreen> {
         _loadZonesAndLocations();
       });
     }
-    final telemetry = context.watch<RobotTelemetryProvider>();
     final isDockLocked = telemetry.isTeleopBlockedInDock && !_dockBusy;
     final ros2 = connection.ros2;
     final isMobile = Breakpoints.of(context) == DeviceClass.mobile;
@@ -689,6 +690,13 @@ class _TeleopScreenState extends State<TeleopScreen> {
                                 ),
                                 const SizedBox(height: AppSpacing.md),
                               ],
+                              if (isDockLocked) ...[
+                                _DockZoneSafetyBanner(
+                                  onUndock: _undock,
+                                  undocking: _undocking,
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                              ],
                               Card(
                                 child: Padding(
                                   padding:
@@ -757,10 +765,6 @@ class _TeleopScreenState extends State<TeleopScreen> {
                           if (_dockBusy)
                             Positioned.fill(
                               child: _DockBusyOverlay(label: _dockBusyLabel),
-                            )
-                          else if (isDockLocked)
-                            Positioned.fill(
-                              child: _DockZoneInterlockOverlay(onUndock: _undock),
                             ),
                         ],
                       ),
@@ -852,6 +856,15 @@ class _TeleopScreenState extends State<TeleopScreen> {
                                 ),
                                 const SizedBox(height: AppSpacing.md),
                               ],
+                              if (isDockLocked) ...[
+                                FadeSlideIn(
+                                  child: _DockZoneSafetyBanner(
+                                    onUndock: _undock,
+                                    undocking: _undocking,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                              ],
                               FadeSlideIn(
                                 child: Card(
                                   child: Padding(
@@ -927,10 +940,6 @@ class _TeleopScreenState extends State<TeleopScreen> {
                         if (_dockBusy)
                           Positioned.fill(
                             child: _DockBusyOverlay(label: _dockBusyLabel),
-                          )
-                        else if (isDockLocked)
-                          Positioned.fill(
-                            child: _DockZoneInterlockOverlay(onUndock: _undock),
                           ),
                       ],
                     ),
@@ -1187,16 +1196,19 @@ class _DockUndockHalf extends StatelessWidget {
                 height: 16,
                 width: 16,
                 child: CircularProgressIndicator(strokeWidth: 2))
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 18, color: colors.textPrimary),
-                  const SizedBox(width: 6),
-                  Text(label,
-                      style: TextStyle(
-                          color: colors.textPrimary,
-                          fontWeight: FontWeight.w600)),
-                ],
+            : FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 18, color: colors.textPrimary),
+                    const SizedBox(width: 4),
+                    Text(label,
+                        style: TextStyle(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
               ),
       ),
     );
@@ -1886,62 +1898,136 @@ class _DockBusyOverlay extends StatelessWidget {
   }
 }
 
-/// Safety interlock overlay displayed whenever the robot is inside the dock zone
-/// or parked at the charging dock, preventing accidental manual teleop from disturbing
-/// the dock alignment. Includes a direct "Undock" action to roll off safely to standoff.
-class _DockZoneInterlockOverlay extends StatelessWidget {
-  const _DockZoneInterlockOverlay({required this.onUndock});
+/// Safety interlock banner displayed in the teleop cockpit whenever the robot is inside
+/// the dock safety zone or parked at the charging dock. Keeps controls visible while
+/// clearly informing the operator that teleop commands are locked to prevent disturbing
+/// dock contacts, with an instant one-tap action to undock safely to standoff.
+class _DockZoneSafetyBanner extends StatelessWidget {
+  const _DockZoneSafetyBanner({
+    required this.onUndock,
+    this.undocking = false,
+  });
 
   final VoidCallback onUndock;
+  final bool undocking;
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     return Container(
-      color: colors.surface.withValues(alpha: 0.90),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: colors.warning.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.lock_rounded, size: 28, color: colors.warning),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Dock Zone Safety Interlock',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-                color: colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 300),
-              child: Text(
-                'Manual teleop is locked in the dock zone to protect charger contacts. Undock robot to drive.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: colors.textSecondary),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            FilledButton.icon(
-              onPressed: onUndock,
-              icon: const Icon(Icons.logout_rounded, size: 16),
-              label: const Text('Undock to Standoff'),
-              style: FilledButton.styleFrom(
-                backgroundColor: colors.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              ),
-            ),
-          ],
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: colors.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colors.warning.withValues(alpha: 0.40),
+          width: 1.5,
         ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 360;
+
+          final iconWidget = Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: colors.warning.withValues(alpha: 0.20),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.lock_rounded, size: 20, color: colors.warning),
+          );
+
+          final textContent = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                runSpacing: 2,
+                children: [
+                  Text(
+                    'Dock Zone Safety Interlock',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: colors.warning.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'LOCKED',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: colors.warning,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Teleop velocity is locked to protect charger contacts. Undock to drive.',
+                style: TextStyle(fontSize: 11, color: colors.textSecondary),
+              ),
+            ],
+          );
+
+          final undockBtn = FilledButton.icon(
+            onPressed: undocking ? null : onUndock,
+            icon: undocking
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.logout_rounded, size: 15),
+            label: Text(
+              undocking ? 'Undocking…' : 'Undock',
+              style: const TextStyle(fontSize: 12),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: colors.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              minimumSize: Size.zero,
+            ),
+          );
+
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    iconWidget,
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(child: textContent),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                undockBtn,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              iconWidget,
+              const SizedBox(width: AppSpacing.md),
+              Expanded(child: textContent),
+              const SizedBox(width: AppSpacing.sm),
+              undockBtn,
+            ],
+          );
+        },
       ),
     );
   }

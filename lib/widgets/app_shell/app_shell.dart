@@ -51,7 +51,7 @@ class AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final connection = context.watch<ConnectionProvider>();
-    if (!connection.isConnected) {
+    if (!connection.isConnected && !connection.hasConnectedOnce) {
       return ConnectingScaffold(connection: connection);
     }
     return _ShellNav(key: _shellNavKey);
@@ -161,6 +161,7 @@ class _ShellNavState extends State<_ShellNav> {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
+    final connection = context.watch<ConnectionProvider>();
     final body = IndexedStack(
       index: _index,
       children: [for (final d in _destinations) d.screen],
@@ -171,68 +172,146 @@ class _ShellNavState extends State<_ShellNav> {
     // Keep the Scaffold and IndexedStack structure stable across mobile,
     // tablet, and desktop breakpoints so the active screens and their states
     // are preserved without triggering element deactivation during resizing or window minimize.
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.digit1, control: true): () => setIndex(0),
-        const SingleActivator(LogicalKeyboardKey.digit1, meta: true): () => setIndex(0),
-        const SingleActivator(LogicalKeyboardKey.digit2, control: true): () => setIndex(1),
-        const SingleActivator(LogicalKeyboardKey.digit2, meta: true): () => setIndex(1),
-        const SingleActivator(LogicalKeyboardKey.digit3, control: true): () => setIndex(2),
-        const SingleActivator(LogicalKeyboardKey.digit3, meta: true): () => setIndex(2),
-        const SingleActivator(LogicalKeyboardKey.digit4, control: true): () => setIndex(3),
-        const SingleActivator(LogicalKeyboardKey.digit4, meta: true): () => setIndex(3),
-        const SingleActivator(LogicalKeyboardKey.digit5, control: true): () => setIndex(4),
-        const SingleActivator(LogicalKeyboardKey.digit5, meta: true): () => setIndex(4),
-        const SingleActivator(LogicalKeyboardKey.keyB, control: true): _toggleSidebar,
-        const SingleActivator(LogicalKeyboardKey.keyB, meta: true): _toggleSidebar,
+    return PopScope(
+      canPop: _index == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_index != 0) {
+          setIndex(0);
+        }
       },
-      child: Focus(
-        autofocus: true,
-        child: Scaffold(
-          body: Row(
-            children: [
-              if (device == DeviceClass.desktop)
-                _DesktopSidebar(
-                  selectedIndex: _index,
-                  onDestinationSelected: setIndex,
-                  destinations: _destinations,
-                  isCollapsed: _isSidebarCollapsed,
-                  onToggleCollapsed: _toggleSidebar,
-                )
-              else if (device == DeviceClass.tablet) ...[
-                NavigationRail(
-                  selectedIndex: _index,
-                  onDestinationSelected: setIndex,
-                  labelType: NavigationRailLabelType.all,
-                  backgroundColor: colors.surface,
-                  destinations: [
-                    for (final d in _destinations)
-                      NavigationRailDestination(
-                        icon: Icon(d.icon),
-                        selectedIcon: Icon(d.selectedIcon),
-                        label: Text(d.label),
-                      ),
-                  ],
+      child: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.digit1, control: true): () => setIndex(0),
+          const SingleActivator(LogicalKeyboardKey.digit1, meta: true): () => setIndex(0),
+          const SingleActivator(LogicalKeyboardKey.digit2, control: true): () => setIndex(1),
+          const SingleActivator(LogicalKeyboardKey.digit2, meta: true): () => setIndex(1),
+          const SingleActivator(LogicalKeyboardKey.digit3, control: true): () => setIndex(2),
+          const SingleActivator(LogicalKeyboardKey.digit3, meta: true): () => setIndex(2),
+          const SingleActivator(LogicalKeyboardKey.digit4, control: true): () => setIndex(3),
+          const SingleActivator(LogicalKeyboardKey.digit4, meta: true): () => setIndex(3),
+          const SingleActivator(LogicalKeyboardKey.digit5, control: true): () => setIndex(4),
+          const SingleActivator(LogicalKeyboardKey.digit5, meta: true): () => setIndex(4),
+          const SingleActivator(LogicalKeyboardKey.keyB, control: true): _toggleSidebar,
+          const SingleActivator(LogicalKeyboardKey.keyB, meta: true): _toggleSidebar,
+        },
+        child: Focus(
+          autofocus: true,
+          child: Scaffold(
+            body: Row(
+              children: [
+                if (device == DeviceClass.desktop)
+                  _DesktopSidebar(
+                    selectedIndex: _index,
+                    onDestinationSelected: setIndex,
+                    destinations: _destinations,
+                    isCollapsed: _isSidebarCollapsed,
+                    onToggleCollapsed: _toggleSidebar,
+                  )
+                else if (device == DeviceClass.tablet) ...[
+                  NavigationRail(
+                    selectedIndex: _index,
+                    onDestinationSelected: setIndex,
+                    labelType: NavigationRailLabelType.all,
+                    backgroundColor: colors.surface,
+                    destinations: [
+                      for (final d in _destinations)
+                        NavigationRailDestination(
+                          icon: Icon(d.icon),
+                          selectedIcon: Icon(d.selectedIcon),
+                          label: Text(d.label),
+                        ),
+                    ],
+                  ),
+                  VerticalDivider(width: 1, color: colors.border),
+                ],
+                Expanded(
+                  child: Column(
+                    children: [
+                      if (!connection.isConnected)
+                        _ConnectionLostBanner(connection: connection),
+                      Expanded(child: body),
+                    ],
+                  ),
                 ),
-                VerticalDivider(width: 1, color: colors.border),
               ],
-              Expanded(child: body),
-            ],
+            ),
+            bottomNavigationBar: device == DeviceClass.mobile
+                ? NavigationBar(
+                    selectedIndex: _index,
+                    onDestinationSelected: setIndex,
+                    destinations: [
+                      for (final d in _destinations)
+                        NavigationDestination(
+                          icon: Icon(d.icon),
+                          selectedIcon: Icon(d.selectedIcon),
+                          label: d.label,
+                        ),
+                    ],
+                  )
+                : null,
           ),
-          bottomNavigationBar: device == DeviceClass.mobile
-              ? NavigationBar(
-                  selectedIndex: _index,
-                  onDestinationSelected: setIndex,
-                  destinations: [
-                    for (final d in _destinations)
-                      NavigationDestination(
-                        icon: Icon(d.icon),
-                        selectedIcon: Icon(d.selectedIcon),
-                        label: d.label,
-                      ),
-                  ],
-                )
-              : null,
+        ),
+      ),
+    );
+  }
+}
+
+class _ConnectionLostBanner extends StatelessWidget {
+  const _ConnectionLostBanner({required this.connection});
+
+  final ConnectionProvider connection;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    final robotName = connection.robot?.name ?? 'Robot';
+    final robotIp = connection.robot?.ip ?? '';
+    return Container(
+      width: double.infinity,
+      color: colors.warning.withValues(alpha: 0.16),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8),
+      child: SafeArea(
+        bottom: false,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.warning,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                'Reconnecting to $robotName ($robotIp)…',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            TextButton(
+              onPressed: connection.reconnect,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'Retry Now',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: colors.warning,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

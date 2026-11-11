@@ -93,3 +93,5 @@ flutter:
   assets:
     - assets/
     - assets/icon/
+xcross:
+  bundle_id: prefixed

@@ -162,7 +162,14 @@ class GamepadService extends ChangeNotifier {
     _startTeleopLoop();
   }
 
-  void updateConnection({Ros2? ros2, SdkApiService? sdkApi}) {
+  bool _isDockZoneLocked = false;
+  bool get isDockZoneLocked => _isDockZoneLocked;
+  DateTime? _lastDockSafetyPrompt;
+
+  void updateConnection({Ros2? ros2, SdkApiService? sdkApi, bool? isDockZoneLocked}) {
+    if (isDockZoneLocked != null) {
+      _isDockZoneLocked = isDockZoneLocked;
+    }
     if (_ros2 != ros2 || _cmdVelPub == null) {
       _cmdVelPub?.shutdown();
       _cmdVelPub = null;
@@ -588,6 +595,22 @@ class GamepadService extends ChangeNotifier {
         if (_lastDeadmanHint == null || now.difference(_lastDeadmanHint!).inSeconds >= 3) {
           _lastDeadmanHint = now;
           _hudStreamController.add('Hold Safety Trigger (LT/LB) to drive');
+        }
+      }
+      return;
+    }
+
+    // Safety Interlock: prevent any gamepad motion if robot is inside dock safety zone
+    if (_isDockZoneLocked) {
+      if (_wasMoving) {
+        _publishZeroTwist();
+        _wasMoving = false;
+      }
+      if (_leftStickX.abs() > _deadzone || _leftStickY.abs() > _deadzone) {
+        final now = DateTime.now();
+        if (_lastDockSafetyPrompt == null || now.difference(_lastDockSafetyPrompt!).inSeconds >= 3) {
+          _lastDockSafetyPrompt = now;
+          _hudStreamController.add('Dock Zone Safety: Teleop locked. Undock to drive.');
         }
       }
       return;
