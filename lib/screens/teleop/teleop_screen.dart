@@ -208,6 +208,14 @@ class _TeleopScreenState extends State<TeleopScreen> {
   ({double linear, double angular})? _pendingVelocity;
 
   Future<void> _onVelocity(double linear, double angular) async {
+    final telemetry = context.read<RobotTelemetryProvider>();
+    if (telemetry.isTeleopBlockedInDock && (linear.abs() > 0.001 || angular.abs() > 0.001)) {
+      if (mounted && _motionError != 'Robot in dock zone. Please undock first.') {
+        setState(() => _motionError = 'Robot in dock zone. Please undock first.');
+      }
+      return;
+    }
+
     final pub = _getCmdVelPublisher();
     final ros2 = _cmdVelRos2;
     if (pub != null && ros2 != null && ros2.status == Status.connected) {
@@ -577,6 +585,7 @@ class _TeleopScreenState extends State<TeleopScreen> {
       });
     }
     final telemetry = context.watch<RobotTelemetryProvider>();
+    final isDockLocked = telemetry.isTeleopBlockedInDock && !_dockBusy;
     final ros2 = connection.ros2;
     final isMobile = Breakpoints.of(context) == DeviceClass.mobile;
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
@@ -748,6 +757,10 @@ class _TeleopScreenState extends State<TeleopScreen> {
                           if (_dockBusy)
                             Positioned.fill(
                               child: _DockBusyOverlay(label: _dockBusyLabel),
+                            )
+                          else if (isDockLocked)
+                            Positioned.fill(
+                              child: _DockZoneInterlockOverlay(onUndock: _undock),
                             ),
                         ],
                       ),
@@ -914,6 +927,10 @@ class _TeleopScreenState extends State<TeleopScreen> {
                         if (_dockBusy)
                           Positioned.fill(
                             child: _DockBusyOverlay(label: _dockBusyLabel),
+                          )
+                        else if (isDockLocked)
+                          Positioned.fill(
+                            child: _DockZoneInterlockOverlay(onUndock: _undock),
                           ),
                       ],
                     ),
@@ -1862,6 +1879,67 @@ class _DockBusyOverlay extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             Text('Controls are disabled until this finishes.',
                 style: TextStyle(color: colors.textSecondary)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Safety interlock overlay displayed whenever the robot is inside the dock zone
+/// or parked at the charging dock, preventing accidental manual teleop from disturbing
+/// the dock alignment. Includes a direct "Undock" action to roll off safely to standoff.
+class _DockZoneInterlockOverlay extends StatelessWidget {
+  const _DockZoneInterlockOverlay({required this.onUndock});
+
+  final VoidCallback onUndock;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return Container(
+      color: colors.surface.withValues(alpha: 0.90),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: colors.warning.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.lock_rounded, size: 28, color: colors.warning),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Dock Zone Safety Interlock',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+                color: colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 300),
+              child: Text(
+                'Manual teleop is locked in the dock zone to protect charger contacts. Undock robot to drive.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            FilledButton.icon(
+              onPressed: onUndock,
+              icon: const Icon(Icons.logout_rounded, size: 16),
+              label: const Text('Undock to Standoff'),
+              style: FilledButton.styleFrom(
+                backgroundColor: colors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              ),
+            ),
           ],
         ),
       ),

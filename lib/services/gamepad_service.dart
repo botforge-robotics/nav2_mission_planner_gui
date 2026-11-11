@@ -91,12 +91,16 @@ class GamepadService extends ChangeNotifier {
   double _normalAngularSpeed = 0.45; // rad/s
   double _turboAngularSpeed = 0.75; // rad/s
   bool _invertLinear = false;
-  bool _requireDeadman = false;
+  bool _requireDeadman = true;
+  bool _wasMoving = false;
+  DateTime? _lastDeadmanHint;
 
   // Remapping configuration: GamepadButton -> GamepadAction
   final Map<GamepadButton, GamepadAction> _buttonMapping = {
     GamepadButton.leftBumper: GamepadAction.deadman,
+    GamepadButton.leftTrigger: GamepadAction.deadman,
     GamepadButton.rightBumper: GamepadAction.turbo,
+    GamepadButton.rightTrigger: GamepadAction.turbo,
     GamepadButton.a: GamepadAction.dock,
     GamepadButton.b: GamepadAction.emergencyStop,
     GamepadButton.y: GamepadAction.undock,
@@ -574,7 +578,20 @@ class GamepadService extends ChangeNotifier {
       }
     }
 
-    if (!deadmanSatisfied) return;
+    if (!deadmanSatisfied) {
+      if (_wasMoving) {
+        _publishZeroTwist();
+        _wasMoving = false;
+      }
+      if (_leftStickX.abs() > _deadzone || _leftStickY.abs() > _deadzone) {
+        final now = DateTime.now();
+        if (_lastDeadmanHint == null || now.difference(_lastDeadmanHint!).inSeconds >= 3) {
+          _lastDeadmanHint = now;
+          _hudStreamController.add('Hold Safety Trigger (LT/LB) to drive');
+        }
+      }
+      return;
+    }
 
     // Check turbo switch
     bool isTurbo = false;
@@ -626,6 +643,10 @@ class GamepadService extends ChangeNotifier {
 
     if (linCmd.abs() > 0.001 || angCmd.abs() > 0.001) {
       _publishTwist(linCmd, angCmd);
+      _wasMoving = true;
+    } else if (_wasMoving) {
+      _publishZeroTwist();
+      _wasMoving = false;
     }
   }
 
@@ -812,12 +833,14 @@ class GamepadService extends ChangeNotifier {
     _normalAngularSpeed = 0.45;
     _turboAngularSpeed = 0.75;
     _invertLinear = false;
-    _requireDeadman = false;
+    _requireDeadman = true;
 
     _buttonMapping.clear();
     _buttonMapping.addAll({
       GamepadButton.leftBumper: GamepadAction.deadman,
+      GamepadButton.leftTrigger: GamepadAction.deadman,
       GamepadButton.rightBumper: GamepadAction.turbo,
+      GamepadButton.rightTrigger: GamepadAction.turbo,
       GamepadButton.a: GamepadAction.dock,
       GamepadButton.b: GamepadAction.emergencyStop,
       GamepadButton.y: GamepadAction.undock,
@@ -857,7 +880,7 @@ class GamepadService extends ChangeNotifier {
     _normalAngularSpeed = prefs.getDouble('gamepad_normal_ang') ?? 0.45;
     _turboAngularSpeed = prefs.getDouble('gamepad_turbo_ang') ?? 0.75;
     _invertLinear = prefs.getBool('gamepad_invert_lin') ?? false;
-    _requireDeadman = prefs.getBool('gamepad_require_deadman') ?? false;
+    _requireDeadman = prefs.getBool('gamepad_require_deadman') ?? true;
 
     for (final btn in GamepadButton.values) {
       final savedAct = prefs.getString('gamepad_btn_${btn.name}');

@@ -84,6 +84,15 @@ class RobotTelemetryProvider extends ChangeNotifier {
   }
 
   String? dockStatus;
+  bool inDockZone = false;
+
+  /// True if robot is physically docked, charging, or inside the dock safety zone.
+  /// Used to prevent accidental manual teleop from disturbing dock alignment.
+  bool get isTeleopBlockedInDock =>
+      inDockZone ||
+      dockStatus == 'docked' ||
+      dockStatus == 'charging' ||
+      dockStatus == 'full';
   Map<String, dynamic>? batteryDetail;
   double? batteryTemperature;
   double? cpuTemperature;
@@ -336,6 +345,16 @@ class RobotTelemetryProvider extends ChangeNotifier {
         prototype: std_msgs.StringMessage(),
         callback: (msg) {
           dockStatus = msg.data;
+          notifyListeners();
+        },
+      ),
+      Subscriber<std_msgs.Bool>(
+        name: '/dock/in_dock_zone',
+        type: std_msgs.Bool().fullType,
+        ros2: ros2,
+        prototype: std_msgs.Bool(),
+        callback: (msg) {
+          inDockZone = msg.data;
           notifyListeners();
         },
       ),

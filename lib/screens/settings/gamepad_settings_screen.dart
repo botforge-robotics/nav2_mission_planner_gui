@@ -189,8 +189,8 @@ class _GamepadSettingsScreenState extends State<GamepadSettingsScreen> {
                     children: [
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Require Deadman Switch (LB / L1)'),
-                        subtitle: const Text('Robot drives only while safety button is held'),
+                        title: const Text('Require Deadman Trigger / Switch (LT / LB)'),
+                        subtitle: const Text('Robot drives only while safety trigger is held (prevents accidental movement)'),
                         value: _service.requireDeadman,
                         onChanged: (val) => _service.setRequireDeadman(val),
                       ),
