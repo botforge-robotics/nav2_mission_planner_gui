@@ -214,7 +214,7 @@ class WifiJoinService {
       return _connectHotspotWindows(ssid);
     }
     try {
-      return await WiFiForIoTPlugin.connect(
+      final ok = await WiFiForIoTPlugin.connect(
         ssid,
         password: kSetupHotspotPassword,
         security: NetworkSecurity.WPA,
@@ -222,9 +222,22 @@ class WifiJoinService {
         withInternet: false,
         timeoutInSeconds: 20,
       );
+      if (ok) {
+        await forceWifiNetwork(true);
+      }
+      return ok;
     } catch (_) {
       return false;
     }
+  }
+
+  /// On Android, binds the app process sockets to Wi-Fi so traffic to 10.42.0.1
+  /// is not misrouted out to mobile data when the Wi-Fi hotspot has no internet.
+  Future<void> forceWifiNetwork(bool force) async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await WiFiForIoTPlugin.forceWifiUsage(force);
+    } catch (_) {}
   }
 
   Future<bool> _connectHotspotLinux(String ssid) async {

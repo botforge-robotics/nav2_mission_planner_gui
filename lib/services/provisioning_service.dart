@@ -63,18 +63,30 @@ class ProvisioningService {
     String? timezone,
     String? countryCode,
   }) async {
-    await http.post(
-      Uri.parse('$portalBase/save'),
-      headers: const {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: {
-        'wifi_ssid': wifiSsid,
-        'wifi_password': wifiPassword,
-        'robot_name': robotName,
-        if (timezone != null && timezone.isNotEmpty) 'timezone': timezone,
-        if (countryCode != null && countryCode.isNotEmpty)
-          'country_code': countryCode,
-      },
-    );
+    try {
+      final resp = await http.post(
+        Uri.parse('$portalBase/save'),
+        headers: const {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'wifi_ssid': wifiSsid,
+          'wifi_password': wifiPassword,
+          'robot_name': robotName,
+          if (timezone != null && timezone.isNotEmpty) 'timezone': timezone,
+          if (countryCode != null && countryCode.isNotEmpty)
+            'country_code': countryCode,
+        },
+      ).timeout(const Duration(seconds: 12));
+      if (resp.statusCode >= 400) {
+        throw Exception('Robot returned error HTTP ${resp.statusCode}: ${resp.body}');
+      }
+    } on TimeoutException {
+      throw Exception(
+        'Connection to robot at 10.42.0.1 timed out. If mobile data is active on your phone, please temporarily turn it off so your phone stays on the robot\'s hotspot.',
+      );
+    } catch (e) {
+      if (e is Exception && e.toString().contains('timed out')) rethrow;
+      throw Exception('Could not reach robot at 10.42.0.1: $e');
+    }
   }
 
   Future<ProvisioningStatus> fetchStatus() async {

@@ -123,6 +123,7 @@ class _SetupApHotspotScreenState extends State<SetupApHotspotScreen> {
   Future<void> _loadAvailableNetworks() async {
     setState(() => _loadingAvailableNetworks = true);
     final controller = context.read<SetupFlowController>();
+    await controller.wifiJoin.forceWifiNetwork(true);
     final networks = await controller.getAvailableSiteNetworks();
     if (!mounted) return;
     setState(() {

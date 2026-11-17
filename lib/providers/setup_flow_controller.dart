@@ -107,6 +107,7 @@ class SetupFlowController extends ChangeNotifier {
     for (var attempt = 0; attempt < 30; attempt++) {
       await Future.delayed(const Duration(milliseconds: 500));
       if (await wifiJoin.isOnSetupHotspotSubnet()) {
+        await wifiJoin.forceWifiNetwork(true);
         apJoining = false;
         notifyListeners();
         return true;
@@ -139,13 +140,29 @@ class SetupFlowController extends ChangeNotifier {
       }
     }
 
-    await provisioning.submit(
-      wifiSsid: wifiSsid,
-      wifiPassword: wifiPassword,
-      robotName: robotName,
-      timezone: effectiveTimezone,
-      countryCode: countryCode,
-    );
+    try {
+      await provisioning.submit(
+        wifiSsid: wifiSsid,
+        wifiPassword: wifiPassword,
+        robotName: robotName,
+        timezone: effectiveTimezone,
+        countryCode: countryCode,
+      );
+    } catch (exc) {
+      final errStatus = ProvisioningStatus(
+        phase: 'error',
+        message: exc.toString().replaceFirst('Exception: ', ''),
+        wifiSsid: wifiSsid,
+        robotName: robotName,
+        wifiOk: false,
+        busy: false,
+        done: false,
+      );
+      provisioningStatus = errStatus;
+      notifyListeners();
+      yield errStatus;
+      return;
+    }
 
     // Watch status stream from portal, and in parallel look for the robot on the site LAN.
     bool foundOnLan = false;
