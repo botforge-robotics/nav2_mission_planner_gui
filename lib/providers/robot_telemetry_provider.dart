@@ -89,10 +89,11 @@ class RobotTelemetryProvider extends ChangeNotifier {
   /// True if robot is physically docked, charging, or inside the dock safety zone.
   /// Used to prevent accidental manual teleop from disturbing dock alignment.
   bool get isTeleopBlockedInDock =>
-      inDockZone ||
-      dockStatus == 'docked' ||
-      dockStatus == 'charging' ||
-      dockStatus == 'full';
+      !isMappingMode &&
+      (inDockZone ||
+          dockStatus == 'docked' ||
+          dockStatus == 'charging' ||
+          dockStatus == 'full');
   Map<String, dynamic>? batteryDetail;
   double? batteryTemperature;
   double? cpuTemperature;
@@ -145,6 +146,7 @@ class RobotTelemetryProvider extends ChangeNotifier {
 
   void resetForMapping() {
     isMappingMode = true;
+    inDockZone = false;
     localized = false;
     rawPose = null;
     _mapOdomTransform = null;

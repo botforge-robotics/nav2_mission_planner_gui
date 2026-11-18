@@ -11,6 +11,7 @@ import 'package:std_msgs/msg.dart' as std_msgs;
 import '../../providers/connection_provider.dart';
 import '../../providers/robot_telemetry_provider.dart';
 import '../../providers/setup_flow_controller.dart';
+import '../../services/gamepad_service.dart';
 import '../../services/map_layers_controller.dart';
 import '../../services/mode_transition_tracker.dart';
 import '../../services/sdk_api_service.dart';
@@ -648,8 +649,17 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
-    final ros2 = context.watch<ConnectionProvider>().ros2;
+    final connection = context.watch<ConnectionProvider>();
+    final ros2 = connection.ros2;
     final telemetry = context.watch<RobotTelemetryProvider>();
+    final ip = connection.robot?.ip;
+    final api = _apiFor(ip);
+
+    GamepadService.instance.updateConnection(
+      ros2: ros2,
+      sdkApi: api,
+      isDockZoneLocked: false,
+    );
 
     final rx = telemetry.poseX;
     final ry = telemetry.poseY;
