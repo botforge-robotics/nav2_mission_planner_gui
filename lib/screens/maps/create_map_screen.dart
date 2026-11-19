@@ -546,7 +546,7 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
         duration: const Duration(seconds: 60),
       );
 
-      // Persist dock pose and waypoints for the newly created map
+      // Persist dock pose and waypoints explicitly for the newly created map
       final dp = _dockPose ?? (x: 0.0, y: 0.0, theta: 0.0);
       final sp = _standoffPose ?? (
         x: dp.x + 0.70 * cos(dp.theta),
@@ -556,16 +556,19 @@ class _CreateMapScreenState extends State<CreateMapScreen> {
       final dockAngle = atan2(sp.y - dp.y, sp.x - dp.x);
       final standoffAngle = atan2(dp.y - sp.y, dp.x - sp.x);
       try {
-        await api.setDockPose(x: dp.x, y: dp.y, theta: dockAngle);
         await api.saveWaypoint('Charging Dock',
-            x: dp.x, y: dp.y, theta: dockAngle, type: 'dock');
+            x: dp.x, y: dp.y, theta: dockAngle, type: 'dock', map: name);
         await api.saveWaypoint('Dock Standoff',
-            x: sp.x, y: sp.y, theta: standoffAngle, type: 'dock');
+            x: sp.x, y: sp.y, theta: standoffAngle, type: 'dock', map: name);
+        await api.setDockPose(x: dp.x, y: dp.y, theta: dockAngle, map: name);
       } catch (_) {}
 
       await api.finishMapping(name, overwrite: overwrite);
       try {
         await api.activateMap(name);
+      } catch (_) {}
+      try {
+        await api.setDockPose(x: dp.x, y: dp.y, theta: dockAngle, map: name);
       } catch (_) {}
 
       if (mounted) {

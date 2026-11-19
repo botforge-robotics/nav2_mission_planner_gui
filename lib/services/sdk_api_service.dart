@@ -218,10 +218,12 @@ class SdkApiService {
       {double? x,
       double? y,
       double theta = 0.0,
-      String type = 'waypoint'}) async {
+      String type = 'waypoint',
+      String? map}) async {
     final resp = await _send('POST', '/api/v1/waypoints', body: {
       'name': name,
       'type': type,
+      if (map != null) 'map': map,
       if (x != null && y != null) ...{'x': x, 'y': y, 'theta': theta},
     });
     return resp['waypoint'] as Map<String, dynamic>;
@@ -372,9 +374,15 @@ class SdkApiService {
     required double x,
     required double y,
     double theta = 0.0,
+    String? map,
   }) =>
       _send('PUT', '/api/v1/dock/pose',
-          body: {'x': x, 'y': y, 'theta': theta});
+          body: {
+            'x': x,
+            'y': y,
+            'theta': theta,
+            if (map != null) 'map': map,
+          });
 
   /// Permanently removes the saved dock pose from the robot.
   Future<void> deleteDockPose() => _send('DELETE', '/api/v1/dock/pose');
